@@ -160,6 +160,22 @@ ok("PT ser klientens vanor (vatten, sömn, extra mat)")
 await l.waitForTimeout(1500)
 await l.screenshot({ path: `${out}/v2-pt-klient.png`, fullPage: true })
 
+// Regression: data sparad av en äldre version (v1) i webbläsaren får inte krascha appen.
+const old = await page({ width: 390, height: 844 })
+await old.goto(`${base}/klient`)
+await old.waitForSelector("text=Dagens kost")
+await old.evaluate(() => {
+  const s = JSON.parse(localStorage["pt-platform:v1"])
+  for (const k of ["foodEntries", "waterLogs", "sleepLogs", "wearables"]) delete s.data[k]
+  s.data.trainers = s.data.trainers.map(({ coachingMode, certifications, ...t }) => ({ ...t, offersRemote: coachingMode !== "onsite" }))
+  localStorage["pt-platform:v1"] = JSON.stringify(s)
+})
+for (const path of ["/klient", "/klient/framsteg", "/klient/chatt", "/pt/klienter/c1", "/pt/profil"]) {
+  await old.goto(`${base}${path}`)
+  await old.waitForTimeout(800)
+  check(!(await old.innerText("body")).includes("couldn’t load"), `gammal sparad data: ${path} laddar`)
+}
+
 console.log(errors.length ? errors.join("\n") : "inga sidfel")
 if (errors.length) process.exitCode = 1
 await browser.close()

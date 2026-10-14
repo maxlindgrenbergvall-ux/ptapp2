@@ -16,7 +16,14 @@ import { toast } from "sonner"
 
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
-import { reducer, replay, type Action, type PersistableAction, type TrainerProfilePatch } from "@/lib/data/state"
+import {
+  normalizeAppData,
+  reducer,
+  replay,
+  type Action,
+  type PersistableAction,
+  type TrainerProfilePatch,
+} from "@/lib/data/state"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled } from "@/lib/supabase/config"
@@ -274,9 +281,11 @@ function loadDemo(): AppData {
   try {
     const raw = window.localStorage.getItem(DEMO_KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as { savedOn: ISODate; data: AppData }
+      const parsed = JSON.parse(raw) as { savedOn: ISODate; data: unknown }
       // Demodatan är relativ till datumet den skapades, så en ny dag ger ny data.
-      if (parsed.savedOn === todayISO()) return parsed.data
+      // Data från en äldre version uppgraderas; oläsbar data ersätts med ny.
+      const data = parsed.savedOn === todayISO() ? normalizeAppData(parsed.data) : null
+      if (data) return data
     }
   } catch {}
   return createSeedData()
@@ -486,7 +495,10 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
 function readCache(uid: string): { me: Me; data: AppData } | null {
   try {
     const raw = window.localStorage.getItem(cacheKey(uid))
-    return raw ? (JSON.parse(raw) as { me: Me; data: AppData }) : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { me?: Me; data?: unknown }
+    const data = normalizeAppData(parsed.data)
+    return parsed.me && data ? { me: parsed.me, data } : null
   } catch {
     return null
   }

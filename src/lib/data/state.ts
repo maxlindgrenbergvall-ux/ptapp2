@@ -279,3 +279,40 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 export function replay(data: AppData, actions: PersistableAction[]): AppData {
   return actions.reduce<AppData>((d, a) => reducer(d, a) ?? d, data)
 }
+
+/**
+ * Uppgraderar data som sparats lokalt av en äldre version (demodata och
+ * offlinecache) till dagens format. Saknade listor blir tomma och nya fält får
+ * standardvärden, så att en uppdatering av appen aldrig kraschar på gammal data.
+ */
+export function normalizeAppData(raw: unknown): AppData | null {
+  if (!raw || typeof raw !== "object") return null
+  const d = raw as Partial<AppData> & Record<string, unknown>
+  const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
+  if (!Array.isArray(d.clients) || !Array.isArray(d.workouts)) return null
+
+  return {
+    trainers: list<Trainer & { offersRemote?: boolean }>(d.trainers).map(({ offersRemote, ...t }) => ({
+      ...t,
+      // v1 hade bara "erbjuder distans" (ja/nej).
+      coachingMode: t.coachingMode ?? (offersRemote ? "both" : "onsite"),
+      certifications: Array.isArray(t.certifications) ? t.certifications : [],
+      availability: list<string>(t.availability),
+      reviews: list(t.reviews),
+      specialties: list(t.specialties),
+      isPublished: t.isPublished ?? true,
+    })),
+    clients: list(d.clients),
+    exercises: list(d.exercises),
+    templates: list(d.templates),
+    workouts: list(d.workouts),
+    nutritionPlans: list(d.nutritionPlans),
+    mealChecks: list(d.mealChecks),
+    messages: list(d.messages),
+    bookings: list(d.bookings),
+    foodEntries: list(d.foodEntries),
+    waterLogs: list(d.waterLogs),
+    sleepLogs: list(d.sleepLogs),
+    wearables: list(d.wearables),
+  }
+}
