@@ -9,18 +9,23 @@ import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
   AppData,
+  Attachment,
   Booking,
   Client,
   ClientStatus,
   Exercise,
+  FoodEntry,
   Me,
   Message,
   NutritionPlan,
   Review,
   ScheduledWorkout,
   SetLog,
+  SleepLog,
   Specialty,
   Trainer,
+  WaterLog,
+  WearableConnection,
   WorkoutExercise,
   WorkoutTemplate,
 } from "@/types/domain"
@@ -40,7 +45,9 @@ interface TrainerRow {
   bio: string
   years_experience: number
   price_per_session: number
-  offers_remote: boolean
+  coaching_mode: Trainer["coachingMode"]
+  avatar_url: string | null
+  certifications: string[] | null
   is_published: boolean
   profile?: { full_name: string } | null
   trainer_availability?: { slot: string }[]
@@ -108,6 +115,47 @@ interface MessageRow {
   workout_id: string | null
   sent_at: string
   read_at: string | null
+  attachments: AttachmentRow[] | null
+}
+/** Bilagor sparas med sökväg i bucketen chat-attachments. */
+interface AttachmentRow {
+  id: string
+  name: string
+  mime: string
+  size: number
+  kind: Attachment["kind"]
+  path: string
+}
+interface FoodRow {
+  id: string
+  client_id: string
+  date: string
+  name: string
+  kcal: number
+  protein_g: number | string
+  carbs_g: number | string
+  fat_g: number | string
+}
+interface WaterRow {
+  client_id: string
+  date: string
+  ml: number
+}
+interface SleepRow {
+  client_id: string
+  date: string
+  hours: number | string
+  quality: number | null
+  sleep_score: number | null
+  stages: SleepLog["stages"] | null
+  source: SleepLog["source"]
+}
+interface WearableRow {
+  provider: WearableConnection["provider"]
+  status: WearableConnection["status"]
+  connected_at: string
+  last_synced_at: string | null
+  last_error: string | null
 }
 interface BookingRow {
   id: string
@@ -128,7 +176,9 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   bio: r.bio,
   yearsExperience: r.years_experience,
   pricePerSession: r.price_per_session,
-  offersRemote: r.offers_remote,
+  coachingMode: r.coaching_mode,
+  avatarUrl: r.avatar_url ?? undefined,
+  certifications: r.certifications ?? [],
   isPublished: r.is_published,
   availability: (r.trainer_availability ?? []).map((a) => new Date(a.slot).toISOString()).sort(),
   reviews: (r.reviews ?? []).map(toReview),
@@ -189,6 +239,54 @@ export const toMessage = (r: MessageRow): Message => ({
   workoutId: r.workout_id ?? undefined,
   sentAt: new Date(r.sent_at).toISOString(),
   readAt: r.read_at ?? undefined,
+  attachments: (r.attachments ?? []).map((a) => ({
+    id: a.id,
+    name: a.name,
+    mime: a.mime,
+    size: a.size,
+    kind: a.kind,
+    ref: `storage:chat-attachments/${a.path}`,
+  })),
+})
+
+const toAttachmentRow = (a: Attachment): AttachmentRow => ({
+  id: a.id,
+  name: a.name,
+  mime: a.mime,
+  size: a.size,
+  kind: a.kind,
+  path: a.ref.replace(/^storage:chat-attachments\//, ""),
+})
+
+export const toFood = (r: FoodRow): FoodEntry => ({
+  id: r.id,
+  clientId: r.client_id,
+  date: r.date,
+  name: r.name,
+  kcal: r.kcal,
+  protein: Number(r.protein_g),
+  carbs: Number(r.carbs_g),
+  fat: Number(r.fat_g),
+})
+
+export const toWater = (r: WaterRow): WaterLog => ({ clientId: r.client_id, date: r.date, ml: r.ml })
+
+export const toSleep = (r: SleepRow): SleepLog => ({
+  clientId: r.client_id,
+  date: r.date,
+  hours: Number(r.hours),
+  quality: r.quality ?? undefined,
+  sleepScore: r.sleep_score ?? undefined,
+  stages: r.stages ?? undefined,
+  source: r.source,
+})
+
+export const toWearable = (r: WearableRow): WearableConnection => ({
+  provider: r.provider,
+  status: r.status,
+  connectedAt: r.connected_at,
+  lastSyncedAt: r.last_synced_at ?? undefined,
+  lastError: r.last_error ?? undefined,
 })
 
 export const toBooking = (r: BookingRow): Booking => ({
@@ -232,12 +330,16 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     "*, profile:profiles!trainers_id_fkey(full_name), trainer_availability(slot), reviews(id, author_name, rating, text, created_at)"
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
-  const [exercises, workouts, messages, bookings, plans] = await Promise.all([
+  const trackerSince = addDays(todayISO(), -60)
+  const [exercises, workouts, messages, bookings, plans, food, water, sleep] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
     sb.from("bookings").select("*").order("slot"),
     sb.from("nutrition_plans").select("*").eq("is_active", true),
+    sb.from("food_entries").select("*").gte("date", trackerSince).order("created_at"),
+    sb.from("water_logs").select("client_id, date, ml").gte("date", trackerSince),
+    sb.from("sleep_logs").select("*").gte("date", trackerSince).order("date"),
   ])
 
   const base = {
@@ -249,6 +351,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     messages: must<MessageRow[]>(messages, "meddelanden").map(toMessage),
     bookings: must<BookingRow[]>(bookings, "bokningar").map(toBooking),
     nutritionPlans: must<NutritionRow[]>(plans, "kostscheman").map(toPlan),
+    foodEntries: must<FoodRow[]>(food, "extra mat").map(toFood),
+    waterLogs: must<WaterRow[]>(water, "vatten").map(toWater),
+    sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
   }
 
   if (me.role === "trainer") {
@@ -280,16 +385,18 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         clients,
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
         mealChecks: [],
+        wearables: [],
       },
     }
   }
 
   // Klient
-  const [trainers, rels, weights, meals] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
     sb.from("meal_checks").select("date, meal_id").eq("client_id", uid).gte("date", addDays(todayISO(), -30)),
+    sb.from("wearable_connections").select("provider, status, connected_at, last_synced_at, last_error"),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -315,6 +422,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         date: m.date,
         mealId: m.meal_id,
       })),
+      wearables: must<WearableRow[]>(wearables, "wearables").map(toWearable),
     },
   }
 }
@@ -447,6 +555,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           body: m.body,
           workout_id: m.workoutId ?? null,
           sent_at: m.sentAt,
+          attachments: (m.attachments ?? []).map(toAttachmentRow),
         })
       )
     }
@@ -490,7 +599,9 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.bio !== undefined) row.bio = p.bio
       if (p.yearsExperience !== undefined) row.years_experience = p.yearsExperience
       if (p.pricePerSession !== undefined) row.price_per_session = p.pricePerSession
-      if (p.offersRemote !== undefined) row.offers_remote = p.offersRemote
+      if (p.coachingMode !== undefined) row.coaching_mode = p.coachingMode
+      if (p.avatarUrl !== undefined) row.avatar_url = p.avatarUrl || null
+      if (p.certifications !== undefined) row.certifications = p.certifications
       if (p.isPublished !== undefined) row.is_published = p.isPublished
       return result(sb.from("trainers").update(row).eq("id", action.trainerId))
     }
@@ -500,6 +611,47 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       )
     case "removeAvailability":
       return result(sb.from("trainer_availability").delete().match({ trainer_id: action.trainerId, slot: action.slot }))
+    case "addFoodEntry": {
+      const e = action.entry
+      return result(
+        sb.from("food_entries").insert({
+          id: e.id,
+          client_id: e.clientId,
+          date: e.date,
+          name: e.name,
+          kcal: e.kcal,
+          protein_g: e.protein,
+          carbs_g: e.carbs,
+          fat_g: e.fat,
+        })
+      )
+    }
+    case "deleteFoodEntry":
+      return result(sb.from("food_entries").delete().eq("id", action.id))
+    case "setWater":
+      return result(
+        sb.from("water_logs").upsert({
+          client_id: action.clientId,
+          date: action.date,
+          ml: action.ml,
+          updated_at: new Date().toISOString(),
+        })
+      )
+    case "upsertSleep": {
+      const l = action.log
+      return result(
+        sb.from("sleep_logs").upsert({
+          client_id: l.clientId,
+          date: l.date,
+          hours: l.hours,
+          quality: l.quality ?? null,
+          sleep_score: l.sleepScore ?? null,
+          stages: l.stages ?? null,
+          source: l.source,
+          updated_at: new Date().toISOString(),
+        })
+      )
+    }
   }
 }
 
@@ -527,6 +679,21 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
     })
 
   if (me.role === "trainer") {
+    channel
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "food_entries" }, (p) => {
+        if (p.new && "id" in p.new) dispatch({ type: "addFoodEntry", entry: toFood(p.new as FoodRow) })
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "food_entries" }, (p) => {
+        if (p.old && "id" in p.old) dispatch({ type: "deleteFoodEntry", id: (p.old as { id: string }).id })
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "water_logs" }, (p) => {
+        const r = p.new as WaterRow | undefined
+        if (r && "ml" in r) dispatch({ type: "setWater", clientId: r.client_id, date: r.date, ml: r.ml })
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sleep_logs" }, (p) => {
+        const r = p.new as SleepRow | undefined
+        if (r && "hours" in r) dispatch({ type: "upsertSleep", log: toSleep(r) })
+      })
     channel.on("postgres_changes", { event: "*", schema: "public", table: "set_logs" }, (p) => {
       const row = p.new as SetLogRow | undefined
       if (row && "workout_id" in row) dispatch({ type: "upsertSetLog", workoutId: row.workout_id, log: toSetLog(row) })
@@ -536,5 +703,17 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
   channel.subscribe()
   return () => {
     void sb.removeChannel(channel)
+  }
+}
+
+/** Efter en wearable-synk: läs om sömn och anslutningar (RLS: bara egna rader). */
+export async function reloadSleepAndWearables(sb: SupabaseClient) {
+  const [sleep, conns] = await Promise.all([
+    sb.from("sleep_logs").select("*").gte("date", addDays(todayISO(), -60)).order("date"),
+    sb.from("wearable_connections").select("provider, status, connected_at, last_synced_at, last_error"),
+  ])
+  return {
+    sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
+    wearables: must<WearableRow[]>(conns, "wearables").map(toWearable),
   }
 }

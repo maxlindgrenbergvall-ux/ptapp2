@@ -1,12 +1,13 @@
 "use client"
 
-import { ArrowLeft, CalendarPlus, Check, MessageSquareReply, Scale, Trophy, X } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Scale, Trophy, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
 
 import { StrengthChart, SessionsChart, WeightChart } from "@/components/charts/progress-charts"
+import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
 import { ClientStatusBadge, EmptyState, PersonAvatar, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { adherence, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
-import { formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
+import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { oneRepMaxSeries, setsDone, setsTotal, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
@@ -122,6 +123,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </TabsList>
 
         <TabsContent value="progress" className="grid gap-6 pt-2 lg:grid-cols-2">
+          <HabitsSummary clientId={client.id} />
           <Card>
             <CardHeader>
               <CardTitle>Vikt</CardTitle>
@@ -186,7 +188,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
 
         <TabsContent value="chatt" className="pt-2">
           <Card className="h-[32rem] gap-0 overflow-hidden py-0">
-            <ChatThread threadId={client.id} meId={me.id} className="h-full" />
+            <div className="flex items-center justify-between border-b px-4 py-2">
+              <span className="text-sm text-muted-foreground">Chatt med {client.name}</span>
+              <CallButtons threadId={client.id} peerId={client.id} peerName={client.name} disabled={client.status === "pending"} />
+            </div>
+            <ChatThread threadId={client.id} meId={me.id} className="min-h-0 flex-1" />
           </Card>
         </TabsContent>
       </Tabs>
@@ -369,5 +375,39 @@ function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Vanor senaste 7 dagarna: vatten, sömn och extra mat utanför schemat. */
+function HabitsSummary({ clientId }: { clientId: string }) {
+  const { data } = useAppData()
+  const today = todayISO()
+  const from = addDays(today, -6)
+  const inWeek = (d: string) => d >= from && d <= today
+  const water = data.waterLogs.filter((w) => w.clientId === clientId && inWeek(w.date))
+  const sleep = data.sleepLogs.filter((l) => l.clientId === clientId && inWeek(l.date))
+  const extra = data.foodEntries.filter((e) => e.clientId === clientId && inWeek(e.date))
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null)
+  const waterAvg = avg(water.map((w) => w.ml))
+  const sleepAvg = avg(sleep.map((l) => l.hours))
+  const scoreAvg = avg(sleep.flatMap((l) => (l.sleepScore !== undefined ? [l.sleepScore] : [])))
+  const fmt = (n: number, d = 1) => n.toLocaleString("sv-SE", { maximumFractionDigits: d })
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-2">
+      <StatTile label="Vatten, snitt/dag" icon={Droplet} value={waterAvg === null ? "–" : `${fmt(waterAvg / 1000)} l`} sub={`${water.length} av 7 dagar loggade`} />
+      <StatTile
+        label="Sömn, snitt/natt"
+        icon={Moon}
+        value={sleepAvg === null ? "–" : `${fmt(sleepAvg)} h`}
+        sub={scoreAvg === null ? `${sleep.length} nätter loggade` : `Sömnpoäng ${Math.round(scoreAvg)}`}
+      />
+      <StatTile
+        label="Extra mat, 7 dagar"
+        icon={Cookie}
+        value={`${extra.reduce((s, e) => s + e.kcal, 0)} kcal`}
+        sub={extra.length ? `${extra.length} registreringar utöver schemat` : "Inget utöver schemat"}
+      />
+    </div>
   )
 }

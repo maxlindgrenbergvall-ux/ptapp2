@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAppData } from "@/lib/data/store"
 import { formatSlot } from "@/lib/date"
 import { cn } from "@/lib/utils"
-import { SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
+import { offersRemote, SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
 
 const PRICE = {
   all: { label: "Alla priser", test: () => true },
@@ -48,7 +48,7 @@ export default function DiscoverPage() {
         (selected.length === 0 || match > 0) &&
         PRICE[price].test(t.pricePerSession) &&
         (city === "all" || t.city === city) &&
-        (!remoteOnly || t.offersRemote) &&
+        (!remoteOnly || offersRemote(t.coachingMode)) &&
         (!text || t.name.toLowerCase().includes(text) || t.bio.toLowerCase().includes(text))
       )
     })
@@ -81,7 +81,7 @@ export default function DiscoverPage() {
             aria-pressed={selected.includes(s)}
             className={cn(
               "shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-              selected.includes(s) ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
+              selected.includes(s) ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
             )}
           >
             {SPECIALTY_LABEL[s]}
@@ -121,7 +121,7 @@ export default function DiscoverPage() {
           aria-pressed={remoteOnly}
           className={cn(
             "flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors",
-            remoteOnly ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
+            remoteOnly ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
           )}
         >
           <Wifi className="size-3.5" /> Distans
@@ -153,14 +153,15 @@ export default function DiscoverPage() {
           <li key={t.id}>
             <Link href={`/klient/hitta/${t.id}`} className="block rounded-2xl border bg-card p-4 transition-colors hover:border-foreground/30">
               <div className="flex gap-3">
-                <PersonAvatar name={t.name} className="size-12" />
+                <PersonAvatar name={t.name} src={t.avatarUrl} className="size-12" />
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h2 className="truncate font-semibold">{t.name}</h2>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="size-3" /> {t.city}
-                        {t.offersRemote && " · Distans"} · {t.yearsExperience} års erfarenhet
+                        {t.coachingMode !== "onsite" && ` · ${t.coachingMode === "remote" ? "Bara distans" : "Distans"}`} ·{" "}
+                        {t.yearsExperience} års erfarenhet
                       </p>
                     </div>
                     <div className="shrink-0 text-right">

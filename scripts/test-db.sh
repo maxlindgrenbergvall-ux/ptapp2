@@ -9,8 +9,10 @@ dropdb --if-exists "$DB"
 createdb "$DB"
 run() { psql -X -q -v ON_ERROR_STOP=1 -d "$DB" "$@"; }
 run -f supabase/tests/supabase_stub.sql 2>/dev/null  # varnar om wal_level (realtid), ofarligt
-run -f supabase/migrations/20261014000000_init.sql
+for f in supabase/migrations/*.sql; do run -f "$f"; done
 run -f supabase/seed.sql
 # Resultatrader till /dev/null; NOTICE (ok-rader) och fel går till stderr.
-run -f supabase/tests/rls.test.sql 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
+for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql; do
+  run -f "$t" 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
+done
 dropdb "$DB"

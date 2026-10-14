@@ -1,12 +1,13 @@
 "use client"
 
-import { ArrowLeft, CalendarDays, MapPin, MessageCircle, Wifi, X } from "lucide-react"
+import { ArrowLeft, BadgeCheck, CalendarDays, MapPin, MessageCircle, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
 
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -24,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
 import { formatShort, formatSlot, formatTime, toISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
-import type { Trainer } from "@/types/domain"
+import { COACHING_MODE_LABEL, type Trainer } from "@/types/domain"
 
 export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const { data, me } = useAppData()
@@ -43,16 +44,12 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
       </Button>
 
       <div className="flex flex-col items-center gap-3 text-center">
-        <PersonAvatar name={trainer.name} className="size-20 text-xl" />
+        <PersonAvatar name={trainer.name} src={trainer.avatarUrl} className="size-20 text-xl" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{trainer.name}</h1>
           <p className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
             <MapPin className="size-3.5" /> {trainer.city}
-            {trainer.offersRemote && (
-              <>
-                {" "}· <Wifi className="size-3.5" /> Distans
-              </>
-            )}
+            {" "}· {COACHING_MODE_LABEL[trainer.coachingMode]}
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm">
@@ -85,6 +82,19 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           </Button>
         )}
       </div>
+
+      {trainer.certifications.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="font-semibold">Certifieringar</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {trainer.certifications.map((c) => (
+              <Badge key={c} variant="outline" className="gap-1 border-primary/30 bg-primary/5">
+                <BadgeCheck className="text-primary" /> {c}
+              </Badge>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="font-semibold">Om mig</h2>
@@ -172,7 +182,7 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
                   onClick={() => setSlot(s)}
                   className={cn(
                     "rounded-lg border px-4 py-2 text-sm font-medium tabular transition-colors",
-                    slot === s ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
+                    slot === s ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
                   )}
                 >
                   {formatTime(s)}

@@ -22,8 +22,12 @@ import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled } from "@/lib/supabase/config"
 import type {
   AppData,
+  Attachment,
   BookingStatus,
   ClientStatus,
+  FoodEntry,
+  SleepLog,
+  WearableConnection,
   ID,
   ISODate,
   Me,
@@ -93,12 +97,25 @@ function createActions(ctx: {
       const checked = !getData().mealChecks.some((m) => m.clientId === clientId && m.date === date && m.mealId === mealId)
       commit({ type: "setMealCheck", clientId, date, mealId, checked })
     },
-    sendMessage: (threadId: ID, body: string, workoutId?: ID) => {
+    /**
+     * Skickar ett meddelande. `extra.id` används när bilagor laddats upp i förväg
+     * till en sökväg med meddelandets id.
+     */
+    sendMessage: (threadId: ID, body: string, workoutId?: ID, extra?: { id?: ID; attachments?: Attachment[] }) => {
       const text = body.trim()
-      if (!text) return
+      const attachments = extra?.attachments?.slice(0, 10)
+      if (!text && !attachments?.length) return
       commit({
         type: "addMessage",
-        message: { id: newId(), threadId, senderId: me.id, body: text.slice(0, 2000), workoutId, sentAt: now() },
+        message: {
+          id: extra?.id ?? newId(),
+          threadId,
+          senderId: me.id,
+          body: text.slice(0, 2000),
+          workoutId,
+          sentAt: now(),
+          ...(attachments?.length ? { attachments } : {}),
+        },
       })
     },
     markThreadRead: (threadId: ID) => {
@@ -128,6 +145,32 @@ function createActions(ctx: {
     updateTrainerProfile: (patch: TrainerProfilePatch) => commit({ type: "updateTrainerProfile", trainerId: me.id, patch }),
     addAvailability: (slot: string) => commit({ type: "addAvailability", trainerId: me.id, slot }),
     removeAvailability: (slot: string) => commit({ type: "removeAvailability", trainerId: me.id, slot }),
+
+    // ----- klientens trackers
+    addFoodEntry: (date: ISODate, food: Omit<FoodEntry, "id" | "clientId" | "date">) =>
+      commit({ type: "addFoodEntry", entry: { ...food, id: newId(), clientId: me.id, date } }),
+    deleteFoodEntry: (id: ID) => commit({ type: "deleteFoodEntry", id }),
+    /** Ändrar dagens vattenmängd med `deltaMl` (kan vara negativt). */
+    addWater: (date: ISODate, deltaMl: number) => {
+      const current = getData().waterLogs.find((w) => w.clientId === me.id && w.date === date)?.ml ?? 0
+      const ml = Math.min(15000, Math.max(0, current + deltaMl))
+      if (ml !== current) commit({ type: "setWater", clientId: me.id, date, ml })
+    },
+    logSleep: (date: ISODate, hours: number, quality?: number) => {
+      const existing = getData().sleepLogs.find((l) => l.clientId === me.id && l.date === date)
+      // Ändras bara känslan behålls klockans data (steg, poäng). Ändras tiden är det
+      // en manuell registrering och klockans siffror stämmer inte längre.
+      const keepDevice = existing && existing.source !== "manual" && existing.hours === hours
+      commit({
+        type: "upsertSleep",
+        log: keepDevice
+          ? { ...existing, quality }
+          : { clientId: me.id, date, hours, quality, source: "manual" },
+      })
+    },
+    /** Resultat från en wearable-synk (servern har redan sparat dem). */
+    applySleepSync: (logs: SleepLog[]) => ctx.dispatch({ type: "mergeSleepLogs", logs }),
+    setWearables: (connections: WearableConnection[]) => ctx.dispatch({ type: "setWearables", connections }),
     resetDemo: () => {
       if (ctx.mode !== "demo") return
       try {
@@ -166,9 +209,11 @@ class LocalEngine {
   private data: AppData | null = null
   constructor(private readonly dispatch: React.Dispatch<Action>) {}
   getData = () => this.data!
-  setData(data: AppData | null) {
-    this.data = data
-  }
+  /**
+   * ALLA ändringar (lokala, köade och realtid) går genom apply, så motorns kopia
+   * och React-tillståndet är alltid i takt. Synka den inte via en effekt: barnens
+   * effekter körs före förälderns och skulle då kunna se en nollställd kopia.
+   */
   apply = (a: Action) => {
     this.data = reducer(this.data, a)
     this.dispatch(a)
@@ -185,7 +230,6 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
   }, [engine])
 
   React.useEffect(() => {
-    engine.setData(data)
     if (!data) return
     try {
       window.localStorage.setItem(DEMO_KEY, JSON.stringify({ savedOn: todayISO(), data }))
@@ -323,10 +367,6 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
   const [error, setError] = React.useState<string | null>(null)
   const [sync, setSync] = React.useState<SyncState>({ status: "synced", pending: 0 })
   const [engine] = React.useState(() => new SyncEngine(dispatch, setSync))
-
-  React.useEffect(() => {
-    engine.setData(data)
-  }, [data, engine])
 
   // Laddning: server → (vid offline) cache. Köade ändringar spelas upp ovanpå.
   React.useEffect(() => {

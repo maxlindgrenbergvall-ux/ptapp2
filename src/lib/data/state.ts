@@ -11,6 +11,9 @@ import type {
   AppData,
   Booking,
   BookingStatus,
+  FoodEntry,
+  SleepLog,
+  WearableConnection,
   ClientStatus,
   ID,
   ISODate,
@@ -43,9 +46,24 @@ export type PersistableAction =
   | { type: "updateTrainerProfile"; trainerId: ID; patch: TrainerProfilePatch }
   | { type: "addAvailability"; trainerId: ID; slot: string }
   | { type: "removeAvailability"; trainerId: ID; slot: string }
+  | { type: "addFoodEntry"; entry: FoodEntry }
+  | { type: "deleteFoodEntry"; id: ID }
+  | { type: "setWater"; clientId: ID; date: ISODate; ml: number }
+  | { type: "upsertSleep"; log: SleepLog }
 
 export type TrainerProfilePatch = Partial<
-  Pick<Trainer, "city" | "specialties" | "bio" | "yearsExperience" | "pricePerSession" | "offersRemote" | "isPublished">
+  Pick<
+    Trainer,
+    | "city"
+    | "specialties"
+    | "bio"
+    | "yearsExperience"
+    | "pricePerSession"
+    | "coachingMode"
+    | "avatarUrl"
+    | "certifications"
+    | "isPublished"
+  >
 >
 
 /** Ändringar som kommer utifrån (laddning, realtid) och aldrig skickas tillbaka. */
@@ -53,6 +71,8 @@ export type LocalAction =
   | { type: "hydrate"; data: AppData }
   | { type: "remoteWorkout"; workout: Omit<ScheduledWorkout, "logs"> }
   | { type: "remoteBooking"; booking: Booking }
+  | { type: "setWearables"; connections: WearableConnection[] }
+  | { type: "mergeSleepLogs"; logs: SleepLog[] }
 
 export type Action = PersistableAction | LocalAction
 
@@ -208,6 +228,42 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
             : t
         ),
       }
+
+    case "addFoodEntry":
+      return { ...data, foodEntries: upsertBy(data.foodEntries, action.entry, (e) => e.id === action.entry.id) }
+
+    case "deleteFoodEntry":
+      return { ...data, foodEntries: data.foodEntries.filter((e) => e.id !== action.id) }
+
+    case "setWater": {
+      const { clientId, date, ml } = action
+      return {
+        ...data,
+        waterLogs: upsertBy(data.waterLogs, { clientId, date, ml }, (w) => w.clientId === clientId && w.date === date),
+      }
+    }
+
+    case "upsertSleep":
+      return {
+        ...data,
+        sleepLogs: upsertBy(
+          data.sleepLogs,
+          action.log,
+          (l) => l.clientId === action.log.clientId && l.date === action.log.date
+        ),
+      }
+
+    case "mergeSleepLogs":
+      return {
+        ...data,
+        sleepLogs: action.logs.reduce(
+          (list, log) => upsertBy(list, log, (l) => l.clientId === log.clientId && l.date === log.date),
+          data.sleepLogs
+        ),
+      }
+
+    case "setWearables":
+      return { ...data, wearables: action.connections }
 
     case "removeAvailability":
       return {

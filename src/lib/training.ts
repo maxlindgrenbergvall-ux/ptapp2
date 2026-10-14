@@ -89,3 +89,46 @@ export function oneRepMaxSeries(
       return best > 0 ? [{ date: w.date, e1rm: best }] : []
     })
 }
+
+export interface ExerciseSession {
+  workoutId: string
+  workoutName: string
+  date: string
+  sets: SetLog[]
+  topSet: { kg: number; reps: number } | null
+  e1rm: number
+  volume: number
+  /** Nytt personbästa (uppskattat 1RM) jämfört med alla tidigare tillfällen. */
+  isPR: boolean
+}
+
+/** Alla genomförda tillfällen för en övning, nyast först. */
+export function exerciseHistory(exerciseId: string, workouts: ScheduledWorkout[]): ExerciseSession[] {
+  let best = 0
+  const chronological = workouts
+    .filter((w) => w.status === "completed")
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .flatMap((w): ExerciseSession[] => {
+      const ids = new Set(w.exercises.filter((e) => e.exerciseId === exerciseId).map((e) => e.id))
+      if (ids.size === 0) return []
+      const sets = w.logs.filter((l) => l.done && ids.has(l.workoutExerciseId)).sort((a, b) => a.setIndex - b.setIndex)
+      if (sets.length === 0) return []
+      const top = sets.reduce((a, b) => (estimateOneRepMax(b.kg, b.reps) > estimateOneRepMax(a.kg, a.reps) ? b : a))
+      const e1rm = estimateOneRepMax(top.kg, top.reps)
+      const isPR = e1rm > best && best > 0
+      best = Math.max(best, e1rm)
+      return [
+        {
+          workoutId: w.id,
+          workoutName: w.name,
+          date: w.date,
+          sets,
+          topSet: top.kg || top.reps ? { kg: top.kg, reps: top.reps } : null,
+          e1rm,
+          volume: sets.reduce((s, l) => s + l.kg * l.reps, 0),
+          isPR,
+        },
+      ]
+    })
+  return chronological.reverse()
+}

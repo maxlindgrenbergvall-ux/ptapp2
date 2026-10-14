@@ -1,19 +1,27 @@
 "use client"
 
-import { AlertTriangle, Apple, Plus, Save, Trash2 } from "lucide-react"
+import { AlertTriangle, Apple, Plus, Save, Trash2, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { EmptyState, MacroBar, PageHeader } from "@/components/common"
+import { EmptyState, PageHeader } from "@/components/common"
+import { FoodSearch } from "@/components/nutrition/food-search"
+import {
+  KcalMeter,
+  MacroDot,
+  MacroInline,
+  MACROS,
+  MacroSplitBar,
+  MacroTargetRow,
+  sumMacros,
+  type MacroKey,
+} from "@/components/nutrition/macros"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAppData } from "@/lib/data/store"
-import { FOODS, kcalFromMacros, scaleFood } from "@/lib/foods"
-import { cn } from "@/lib/utils"
+import { kcalFromMacros, scaleFood } from "@/lib/foods"
 import type { MacroTargets, Meal, NutritionPlan } from "@/types/domain"
 
 const PRESETS: { name: string; targets: MacroTargets }[] = [
@@ -51,19 +59,12 @@ export function NutritionBuilder() {
     setPlan(data.nutritionPlans.find((p) => p.clientId === id) ?? emptyPlan(id, me.id, actions.newId))
   }
 
-  const totals = plan.meals
-    .flatMap((m) => m.items)
-    .reduce((t, i) => ({ kcal: t.kcal + i.kcal, protein: t.protein + i.protein, carbs: t.carbs + i.carbs, fat: t.fat + i.fat }), {
-      kcal: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-    })
+  const totals = sumMacros(plan.meals.flatMap((m) => m.items))
   const macroKcal = kcalFromMacros(plan.targets.protein, plan.targets.carbs, plan.targets.fat)
-  const macroMismatch = Math.abs(macroKcal - plan.targets.kcal) > plan.targets.kcal * 0.05
+  const macroMismatch = plan.targets.kcal > 0 && Math.abs(macroKcal - plan.targets.kcal) > plan.targets.kcal * 0.05
 
   const setTarget = (key: keyof MacroTargets, value: number) =>
-    setPlan({ ...plan, targets: { ...plan.targets, [key]: Math.max(0, value) } })
+    setPlan({ ...plan, targets: { ...plan.targets, [key]: Math.max(0, Math.round(value) || 0) } })
   const updateMeal = (id: string, patch: Partial<Meal>) =>
     setPlan({ ...plan, meals: plan.meals.map((m) => (m.id === id ? { ...m, ...patch } : m)) })
 
@@ -108,162 +109,205 @@ export function NutritionBuilder() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Input value={plan.name} onChange={(e) => setPlan({ ...plan, name: e.target.value })} className="max-w-sm font-semibold" aria-label="Schemats namn" />
-                {!existing && <Badge variant="outline">Nytt</Badge>}
-                {dirty && existing && <Badge variant="outline">Osparat</Badge>}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="self-center text-xs text-muted-foreground">Utgå från:</span>
+      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
+        <div className="min-w-0 space-y-8">
+          {/* Mål */}
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={plan.name}
+                onChange={(e) => setPlan({ ...plan, name: e.target.value })}
+                className="h-9 max-w-xs border-transparent bg-transparent px-0 text-lg font-semibold shadow-none focus-visible:border-input focus-visible:px-3"
+                aria-label="Schemats namn"
+              />
+              {(!existing || dirty) && (
+                <Badge variant="outline" className="font-normal">
+                  {existing ? "Osparat" : "Nytt"}
+                </Badge>
+              )}
+              <div className="ml-auto flex flex-wrap gap-1">
                 {PRESETS.map((p) => (
-                  <Button key={p.name} variant="outline" size="xs" onClick={() => setPlan({ ...plan, targets: p.targets })}>
-                    {p.name} {p.targets.kcal}
+                  <Button key={p.name} variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setPlan({ ...plan, targets: p.targets })}>
+                    {p.name}
                   </Button>
                 ))}
               </div>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {(
-                [
-                  ["kcal", "Kalorier (kcal)"],
-                  ["protein", "Protein (g)"],
-                  ["carbs", "Kolhydrater (g)"],
-                  ["fat", "Fett (g)"],
-                ] as const
-              ).map(([key, label]) => (
-                <div key={key} className="space-y-1.5">
-                  <Label htmlFor={`t-${key}`} className="text-xs text-muted-foreground">
-                    {label}
-                  </Label>
-                  <Input id={`t-${key}`} type="number" inputMode="numeric" min={0} value={plan.targets[key]} onChange={(e) => setTarget(key, Number(e.target.value))} />
-                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <TargetInput label="Kalorier" unit="kcal" value={plan.targets.kcal} onChange={(v) => setTarget("kcal", v)} />
+              {MACROS.map((m) => (
+                <TargetInput
+                  key={m.key}
+                  label={m.label}
+                  unit="g"
+                  macro={m.key}
+                  value={plan.targets[m.key]}
+                  onChange={(v) => setTarget(m.key, v)}
+                />
               ))}
-              {macroMismatch && (
-                <p className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
-                  <AlertTriangle className="size-4 text-warning" />
-                  Makrona motsvarar {macroKcal} kcal, vilket skiljer sig från kalorimålet.
-                  <Button variant="link" size="xs" className="h-auto p-0" onClick={() => setTarget("kcal", macroKcal)}>
-                    Använd {macroKcal}
-                  </Button>
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            </div>
+            {macroMismatch && (
+              <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                <AlertTriangle className="size-4 text-warning" />
+                Makrona motsvarar {macroKcal} kcal.
+                <button className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => setTarget("kcal", macroKcal)}>
+                  Använd {macroKcal} kcal
+                </button>
+              </p>
+            )}
+          </section>
 
-          {plan.meals.map((meal) => (
-            <MealEditor
-              key={meal.id}
-              meal={meal}
-              onChange={(patch) => updateMeal(meal.id, patch)}
-              onRemove={() => setPlan({ ...plan, meals: plan.meals.filter((m) => m.id !== meal.id) })}
-            />
-          ))}
-          <Button
-            variant="outline"
-            onClick={() => setPlan({ ...plan, meals: [...plan.meals, { id: actions.newId(), name: "Mellanmål", time: "15:00", items: [] }] })}
-          >
-            <Plus /> Lägg till måltid
-          </Button>
+          {/* Måltider */}
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Måltider</h2>
+            <ol className="space-y-3">
+              {[...plan.meals]
+                .sort((a, b) => a.time.localeCompare(b.time))
+                .map((meal) => (
+                  <MealEditor
+                    key={meal.id}
+                    meal={meal}
+                    onChange={(patch) => updateMeal(meal.id, patch)}
+                    onRemove={() => setPlan({ ...plan, meals: plan.meals.filter((m) => m.id !== meal.id) })}
+                  />
+                ))}
+            </ol>
+            <Button
+              variant="ghost"
+              className="w-full border border-dashed text-muted-foreground"
+              onClick={() => setPlan({ ...plan, meals: [...plan.meals, { id: actions.newId(), name: "Mellanmål", time: "15:00", items: [] }] })}
+            >
+              <Plus /> Lägg till måltid
+            </Button>
+          </section>
         </div>
 
-        <Card className="h-fit lg:sticky lg:top-6">
-          <CardHeader>
-            <CardTitle>Dagssumma</CardTitle>
-            <CardDescription>Planerade måltider jämfört med målen</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <MacroBar label="Kalorier" unit="kcal" value={totals.kcal} target={plan.targets.kcal} />
-            <MacroBar label="Protein" unit="g" value={totals.protein} target={plan.targets.protein} />
-            <MacroBar label="Kolhydrater" unit="g" value={totals.carbs} target={plan.targets.carbs} />
-            <MacroBar label="Fett" unit="g" value={totals.fat} target={plan.targets.fat} />
-          </CardContent>
-        </Card>
+        {/* Dagssumma */}
+        <aside className="h-fit space-y-5 rounded-2xl bg-muted/50 p-5 lg:sticky lg:top-6">
+          <h2 className="text-sm font-medium text-muted-foreground">Dagssumma</h2>
+          <KcalMeter value={totals.kcal} target={plan.targets.kcal} />
+          <MacroSplitBar value={totals} />
+          <div className="space-y-4">
+            {MACROS.map((m) => (
+              <MacroTargetRow key={m.key} macro={m.key} value={totals[m.key]} target={plan.targets[m.key]} />
+            ))}
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function TargetInput({
+  label,
+  unit,
+  value,
+  macro,
+  onChange,
+}: {
+  label: string
+  unit: string
+  value: number
+  macro?: MacroKey
+  onChange: (v: number) => void
+}) {
+  const id = React.useId()
+  return (
+    <div className="rounded-xl bg-muted/50 px-3 py-2">
+      <label htmlFor={id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {macro && <MacroDot macro={macro} />}
+        {label}
+      </label>
+      <div className="flex items-baseline gap-1">
+        <input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full min-w-0 bg-transparent text-lg font-semibold tabular outline-none"
+        />
+        <span className="text-xs text-muted-foreground">{unit}</span>
       </div>
     </div>
   )
 }
 
 function MealEditor({ meal, onChange, onRemove }: { meal: Meal; onChange: (patch: Partial<Meal>) => void; onRemove: () => void }) {
-  const [food, setFood] = React.useState(FOODS[0].name)
-  const [grams, setGrams] = React.useState(100)
-  const kcal = meal.items.reduce((s, i) => s + i.kcal, 0)
+  const totals = sumMacros(meal.items)
+
+  const setGrams = (idx: number, grams: number) => {
+    const g = Math.max(0, Math.round(grams) || 0)
+    onChange({
+      items: meal.items.map((item, i) => {
+        if (i !== idx || item.grams <= 0) return i === idx ? { ...item, grams: g } : item
+        const f = g / item.grams
+        return { ...item, grams: g, kcal: Math.round(item.kcal * f), protein: Math.round(item.protein * f), carbs: Math.round(item.carbs * f), fat: Math.round(item.fat * f) }
+      }),
+    })
+  }
 
   return (
-    <Card className="gap-3 py-4">
-      <CardHeader className="px-4">
-        <div className="flex items-center gap-2">
-          <Input type="time" value={meal.time} onChange={(e) => onChange({ time: e.target.value })} className="w-28" aria-label="Tid" />
-          <Input value={meal.name} onChange={(e) => onChange({ name: e.target.value })} className="font-medium" aria-label="Måltidens namn" />
-          <span className="shrink-0 text-sm text-muted-foreground tabular">{kcal} kcal</span>
-          <Button variant="ghost" size="icon-sm" aria-label="Ta bort måltid" onClick={onRemove}>
-            <Trash2 />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 px-4">
-        {meal.items.length > 0 && (
-          <table className="w-full text-sm tabular">
-            <thead className="text-xs text-muted-foreground">
-              <tr>
-                <th className="py-1 text-left font-normal">Livsmedel</th>
-                <th className="py-1 text-right font-normal">g</th>
-                <th className="py-1 text-right font-normal">kcal</th>
-                <th className="hidden py-1 text-right font-normal sm:table-cell">P</th>
-                <th className="hidden py-1 text-right font-normal sm:table-cell">K</th>
-                <th className="hidden py-1 text-right font-normal sm:table-cell">F</th>
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {meal.items.map((item, idx) => (
-                <tr key={idx} className="border-t">
-                  <td className="py-1.5">{item.name}</td>
-                  <td className="py-1.5 text-right">{item.grams}</td>
-                  <td className="py-1.5 text-right">{item.kcal}</td>
-                  <td className="hidden py-1.5 text-right sm:table-cell">{item.protein}</td>
-                  <td className="hidden py-1.5 text-right sm:table-cell">{item.carbs}</td>
-                  <td className="hidden py-1.5 text-right sm:table-cell">{item.fat}</td>
-                  <td className="text-right">
-                    <Button variant="ghost" size="icon-xs" aria-label={`Ta bort ${item.name}`} onClick={() => onChange({ items: meal.items.filter((_, i) => i !== idx) })}>
-                      <Trash2 />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <form
-          className={cn("flex flex-wrap items-center gap-2", meal.items.length > 0 && "border-t pt-3")}
-          onSubmit={(e) => {
-            e.preventDefault()
-            const f = FOODS.find((x) => x.name === food)
-            if (!f || grams <= 0) return
-            onChange({ items: [...meal.items, scaleFood(f, grams)] })
-          }}
-        >
-          <Select value={food} onValueChange={setFood}>
-            <SelectTrigger className="min-w-48 flex-1" aria-label="Livsmedel">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FOODS.map((f) => (
-                <SelectItem key={f.name} value={f.name}>
-                  {f.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input type="number" min={1} inputMode="numeric" value={grams} onChange={(e) => setGrams(Number(e.target.value))} className="w-24" aria-label="Gram" />
-          <Button type="submit" variant="secondary">
-            <Plus /> Lägg till
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <li className="rounded-2xl border border-border/60 bg-card">
+      <div className="flex items-center gap-2 px-4 pt-3">
+        <input
+          type="time"
+          value={meal.time}
+          onChange={(e) => onChange({ time: e.target.value })}
+          aria-label="Tid"
+          className="rounded-md bg-transparent text-sm text-muted-foreground tabular outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+        <input
+          value={meal.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          aria-label="Måltidens namn"
+          className="min-w-0 flex-1 rounded-md bg-transparent font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+        <span className="shrink-0 text-sm font-medium tabular">{totals.kcal} kcal</span>
+        <Button variant="ghost" size="icon-sm" aria-label={`Ta bort ${meal.name}`} onClick={onRemove} className="text-muted-foreground">
+          <Trash2 />
+        </Button>
+      </div>
+      <div className="px-4 pt-1">
+        <MacroInline value={totals} />
+      </div>
+
+      {meal.items.length > 0 && (
+        <ul className="mt-2 divide-y divide-border/60 border-t border-border/60">
+          {meal.items.map((item, idx) => (
+            <li key={idx} className="flex items-center gap-3 px-4 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{item.name}</span>
+              <span className="hidden sm:inline">
+                <MacroInline value={item} />
+              </span>
+              <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={item.grams}
+                  onChange={(e) => setGrams(idx, Number(e.target.value))}
+                  className="w-14 rounded-md bg-muted px-1.5 py-1 text-right text-sm text-foreground tabular outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  aria-label={`Gram ${item.name}`}
+                />
+                g
+              </label>
+              <span className="w-14 shrink-0 text-right text-muted-foreground tabular">{item.kcal} kcal</span>
+              <button
+                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label={`Ta bort ${item.name}`}
+                onClick={() => onChange({ items: meal.items.filter((_, i) => i !== idx) })}
+              >
+                <X className="size-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="p-3">
+        <FoodSearch placeholder="Lägg till livsmedel (100 g, ändra efteråt)…" onPick={(f) => onChange({ items: [...meal.items, scaleFood(f, 100)] })} />
+      </div>
+    </li>
   )
 }

@@ -3,7 +3,9 @@
 import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Utensils } from "lucide-react"
 import Link from "next/link"
 
-import { MacroBar, PersonAvatar } from "@/components/common"
+import { ExtraFood, SleepTracker, WaterTracker } from "@/components/client/trackers"
+import { PersonAvatar } from "@/components/common"
+import { KcalMeter, MACROS, MacroTargetRow, sumMacros } from "@/components/nutrition/macros"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,13 +42,10 @@ export default function TodayPage() {
     return { date, hasWorkout: w.length > 0, done: w.length > 0 && w.every((x) => x.status === "completed") }
   })
 
-  const eaten = (plan?.meals ?? [])
-    .filter((m) => checked.has(m.id))
-    .flatMap((m) => m.items)
-    .reduce(
-      (t, i) => ({ kcal: t.kcal + i.kcal, protein: t.protein + i.protein, carbs: t.carbs + i.carbs, fat: t.fat + i.fat }),
-      { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-    )
+  // Ätet idag = avbockade måltider + extra mat utanför schemat.
+  const extras = data.foodEntries.filter((e) => e.clientId === client.id && e.date === today)
+  const eaten = sumMacros([...(plan?.meals ?? []).filter((m) => checked.has(m.id)).flatMap((m) => m.items), ...extras])
+  const targets = plan?.targets
 
   return (
     <div className="space-y-6">
@@ -63,7 +62,7 @@ export default function TodayPage() {
               key={d.date}
               className={cn(
                 "flex flex-col items-center gap-1 rounded-xl py-2 text-xs",
-                isToday ? "bg-foreground text-background" : "text-muted-foreground"
+                isToday ? "bg-primary text-primary-foreground" : "text-muted-foreground"
               )}
               aria-label={`${formatDay(d.date)}${d.hasWorkout ? (d.done ? ", pass genomfört" : ", pass planerat") : ""}`}
             >
@@ -114,7 +113,7 @@ export default function TodayPage() {
                     </CardDescription>
                   </div>
                   {w.status === "completed" && (
-                    <Badge className="bg-brand text-brand-foreground">
+                    <Badge className="bg-primary text-primary-foreground">
                       <Check /> Klart
                     </Badge>
                   )}
@@ -157,32 +156,24 @@ export default function TodayPage() {
         <h2 className="flex items-center gap-2 font-semibold">
           <Utensils className="size-4" /> Dagens kost
         </h2>
-        {!plan ? (
-          <Card className="py-5">
-            <CardContent className="px-5 text-sm text-muted-foreground">
-              Din PT har inte lagt upp något kostschema än.
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="gap-4 py-5">
-            <CardContent className="space-y-4 px-5">
-              <MacroBar label="Kalorier" unit="kcal" value={eaten.kcal} target={plan.targets.kcal} />
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                {(
-                  [
-                    ["Protein", eaten.protein, plan.targets.protein],
-                    ["Kolhydrater", eaten.carbs, plan.targets.carbs],
-                    ["Fett", eaten.fat, plan.targets.fat],
-                  ] as const
-                ).map(([label, v, t]) => (
-                  <div key={label} className="rounded-lg bg-muted px-2 py-2">
-                    <div className="text-muted-foreground">{label}</div>
-                    <div className="tabular">
-                      <span className="text-sm font-semibold">{v}</span> / {t} g
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <Card className="gap-4 py-5">
+          <CardContent className="space-y-5 px-5">
+            {targets ? (
+              <>
+                <KcalMeter value={eaten.kcal} target={targets.kcal} />
+                <div className="space-y-3">
+                  {MACROS.map((m) => (
+                    <MacroTargetRow key={m.key} macro={m.key} value={eaten[m.key]} target={targets[m.key]} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Din PT har inte lagt upp något kostschema än. Du kan ändå logga det du äter nedan
+                {eaten.kcal > 0 && ` (${Math.round(eaten.kcal)} kcal idag)`}.
+              </p>
+            )}
+            {plan && (
               <ul className="divide-y">
                 {plan.meals.map((m) => {
                   const isChecked = checked.has(m.id)
@@ -197,18 +188,14 @@ export default function TodayPage() {
                         <span
                           className={cn(
                             "flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            isChecked ? "border-brand bg-brand text-brand-foreground" : "border-muted-foreground/40"
+                            isChecked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
                           )}
                         >
                           {isChecked && <Check className="size-4" strokeWidth={3} />}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className={cn("block font-medium", isChecked && "text-muted-foreground line-through")}>
-                            {m.name}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {m.items.map((i) => i.name).join(", ")}
-                          </span>
+                          <span className={cn("block font-medium", isChecked && "text-muted-foreground line-through")}>{m.name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">{m.items.map((i) => i.name).join(", ")}</span>
                         </span>
                         <span className="shrink-0 text-right text-xs text-muted-foreground tabular">
                           {m.time}
@@ -220,10 +207,17 @@ export default function TodayPage() {
                   )
                 })}
               </ul>
-            </CardContent>
-          </Card>
-        )}
+            )}
+            <ExtraFood date={today} />
+          </CardContent>
+        </Card>
       </section>
+
+      {/* Vanor */}
+      <div className="grid gap-4">
+        <WaterTracker date={today} />
+        <SleepTracker date={today} />
+      </div>
 
       {/* PT */}
       <section className="space-y-3">
@@ -235,7 +229,7 @@ export default function TodayPage() {
             href={`/klient/hitta/${trainer.id}`}
             className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/60"
           >
-            <PersonAvatar name={trainer.name} className="size-10" />
+            <PersonAvatar name={trainer.name} src={trainer.avatarUrl} className="size-10" />
             <div className="min-w-0 flex-1">
               <div className="font-medium">{trainer.name}</div>
               <div className="text-xs text-muted-foreground">

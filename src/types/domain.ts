@@ -1,7 +1,7 @@
 /**
  * Domänmodeller för PT-plattformen.
  *
- * Typerna speglar tabellerna i `supabase/schema.sql` så att mock-lagret kan bytas
+ * Typerna speglar tabellerna i `supabase/migrations/` så att mock-lagret kan bytas
  * mot en riktig backend utan att UI:t behöver ändras. Datum lagras som ISO-strängar
  * (`YYYY-MM-DD` för dagar, full ISO för tidpunkter).
  */
@@ -33,6 +33,17 @@ export const SPECIALTY_LABEL: Record<Specialty, string> = {
   bodybuilding: "Bodybuilding",
 }
 
+export type CoachingMode = "remote" | "onsite" | "both"
+
+export const COACHING_MODE_LABEL: Record<CoachingMode, string> = {
+  remote: "Distanscoaching",
+  onsite: "På plats",
+  both: "Distans och på plats",
+}
+
+export const offersRemote = (m: CoachingMode) => m === "remote" || m === "both"
+export const offersOnsite = (m: CoachingMode) => m === "onsite" || m === "both"
+
 export interface Review {
   id: ID
   author: string
@@ -53,7 +64,10 @@ export interface Trainer {
   reviews: Review[]
   /** Lediga bokningsbara tider (ISO). */
   availability: ISODateTime[]
-  offersRemote: boolean
+  coachingMode: CoachingMode
+  /** Profilbild: publik URL, data-URL (demo) eller null. */
+  avatarUrl?: string
+  certifications: string[]
   /** Syns i PT-sökningen först när PT:n publicerat profilen. */
   isPublished: boolean
 }
@@ -191,6 +205,73 @@ export interface Message {
   /** Valfri koppling till ett pass, för feedback på ett genomfört pass. */
   workoutId?: ID
   readAt?: ISODateTime
+  attachments?: Attachment[]
+}
+
+export type AttachmentKind = "image" | "video" | "pdf" | "file"
+
+/**
+ * Fil i chatten. `ref` pekar ut filen: "storage:<bucket>/<sökväg>" i Supabase,
+ * eller en blob:/data:-URL i demoläget.
+ */
+export interface Attachment {
+  id: ID
+  name: string
+  mime: string
+  size: number
+  kind: AttachmentKind
+  ref: string
+}
+
+/** Mat utöver kostschemat ("Övrigt / Extra"). */
+export interface FoodEntry {
+  id: ID
+  clientId: ID
+  date: ISODate
+  name: string
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+export interface WaterLog {
+  clientId: ID
+  date: ISODate
+  ml: number
+}
+
+export type HealthSource = "manual" | "fitbit" | "apple_health" | "google_fit" | "mock"
+
+export interface SleepStages {
+  deep: number
+  light: number
+  rem: number
+  awake: number
+}
+
+/** En natt, räknad på datumet man vaknar. */
+export interface SleepLog {
+  clientId: ID
+  date: ISODate
+  hours: number
+  /** Egen skattning 1–5. */
+  quality?: number
+  /** 0–100 från wearable (eller beräknad). */
+  sleepScore?: number
+  /** Minuter per sömnsteg. */
+  stages?: SleepStages
+  source: HealthSource
+}
+
+export type WearableProvider = "fitbit" | "apple_health" | "google_fit"
+
+export interface WearableConnection {
+  provider: WearableProvider
+  status: "active" | "error" | "revoked"
+  connectedAt: ISODateTime
+  lastSyncedAt?: ISODateTime
+  lastError?: string
 }
 
 export type BookingStatus = "requested" | "confirmed" | "cancelled"
@@ -224,4 +305,8 @@ export interface AppData {
   mealChecks: MealCheck[]
   messages: Message[]
   bookings: Booking[]
+  foodEntries: FoodEntry[]
+  waterLogs: WaterLog[]
+  sleepLogs: SleepLog[]
+  wearables: WearableConnection[]
 }

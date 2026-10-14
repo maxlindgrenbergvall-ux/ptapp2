@@ -1,10 +1,12 @@
 "use client"
 
-import { Download, Flame, Plus, ShieldCheck, Trash2, Trophy } from "lucide-react"
+import { ChevronRight, Download, Flame, Plus, ShieldCheck, Trash2, Trophy } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
+import { WearablesCard } from "@/components/client/trackers"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,8 +23,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
-import { addDays, formatDay, todayISO } from "@/lib/date"
-import { oneRepMaxSeries, setsDone, workoutVolume } from "@/lib/training"
+import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
+import { exerciseHistory, oneRepMaxSeries, setsDone, workoutVolume } from "@/lib/training"
+import type { ScheduledWorkout } from "@/types/domain"
 
 export default function ProgressPage() {
   const { data, actions, me, mode, deleteAccount } = useAppData()
@@ -116,24 +119,33 @@ export default function ProgressPage() {
         </CardContent>
       </Card>
 
+      <ExerciseList workouts={workouts} />
+
       <section className="space-y-2">
-        <h2 className="font-semibold">Historik</h2>
-        <ul className="divide-y rounded-xl border">
+        <h2 className="font-semibold">Senaste passen</h2>
+        <ul className="divide-y rounded-xl border bg-card">
           {completed.slice(0, 10).map((w) => (
-            <li key={w.id} className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
-              <div className="min-w-0">
-                <div className="truncate font-medium">{w.name}</div>
-                <div className="text-xs text-muted-foreground">{formatDay(w.date)}</div>
-              </div>
-              <div className="shrink-0 text-right text-xs text-muted-foreground tabular">
-                {setsDone(w)} set
-                <br />
-                {Math.round(workoutVolume(w)).toLocaleString("sv-SE")} kg
-              </div>
+            <li key={w.id}>
+              <Link href={`/klient/pass/${w.id}`} className="flex items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/60">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{w.name}</div>
+                  <div className="text-xs text-muted-foreground">{formatDay(w.date)}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <div className="text-right text-xs text-muted-foreground tabular">
+                    {setsDone(w)} set
+                    <br />
+                    {Math.round(workoutVolume(w)).toLocaleString("sv-SE")} kg
+                  </div>
+                  <ChevronRight className="size-4 text-muted-foreground" />
+                </div>
+              </Link>
             </li>
           ))}
         </ul>
       </section>
+
+      <WearablesCard />
 
       <Card className="bg-muted/40">
         <CardHeader>
@@ -196,6 +208,50 @@ function DeleteAccountDialog({ onConfirm }: { onConfirm: () => Promise<void> }) 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Övningar som loggats, med senaste toppset. Varje rad leder till övningens historik. */
+function ExerciseList({ workouts }: { workouts: ScheduledWorkout[] }) {
+  const { data } = useAppData()
+  const ids = [...new Set(workouts.filter((w) => w.status === "completed").flatMap((w) => w.exercises.map((e) => e.exerciseId)))]
+  const rows = ids
+    .map((id) => ({ exercise: data.exercises.find((e) => e.id === id), sessions: exerciseHistory(id, workouts) }))
+    .filter((r) => r.exercise && r.sessions.length > 0)
+    .sort((a, b) => b.sessions[0].date.localeCompare(a.sessions[0].date) || a.exercise!.name.localeCompare(b.exercise!.name))
+  if (rows.length === 0) return null
+  return (
+    <section className="space-y-2">
+      <h2 className="font-semibold">Övningar</h2>
+      <p className="text-xs text-muted-foreground">Tryck på en övning för att se vad du lyft varje gång.</p>
+      <ul className="divide-y rounded-xl border bg-card">
+        {rows.map(({ exercise, sessions }) => {
+          const last = sessions[0]
+          return (
+            <li key={exercise!.id}>
+              <Link
+                href={`/klient/framsteg/ovning/${encodeURIComponent(exercise!.id)}`}
+                className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/60"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{exercise!.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sessions.length} gånger · senast {formatShort(last.date)}
+                  </div>
+                </div>
+                {last.topSet && (
+                  <span className="shrink-0 text-xs text-muted-foreground tabular">
+                    {last.topSet.kg > 0 ? `${last.topSet.kg.toLocaleString("sv-SE")} kg × ${last.topSet.reps}` : `${last.topSet.reps} reps`}
+                  </span>
+                )}
+                {sessions.some((s) => s.isPR && s === last) && <Trophy className="size-4 text-primary" aria-label="Personbästa senast" />}
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

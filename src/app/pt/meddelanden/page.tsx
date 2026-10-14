@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
+import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
 import { PageHeader, PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -68,9 +69,10 @@ export default function PtMessagesPage() {
                 <ArrowLeft />
               </Button>
               <PersonAvatar name={active.name} className="size-8" />
-              <Link href={`/pt/klienter/${active.id}`} className="font-medium hover:underline">
+              <Link href={`/pt/klienter/${active.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
                 {active.name}
               </Link>
+              <CallButtons threadId={active.id} peerId={active.id} peerName={active.name} disabled={active.status === "pending"} />
             </div>
             <ChatThread key={active.id} threadId={active.id} meId={me.id} className="flex-1" />
           </div>

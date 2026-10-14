@@ -16,8 +16,10 @@ npm run dev                  # http://localhost:3000
 ## Sätta upp Supabase
 
 1. Skapa ett projekt på supabase.com i **EU-region** (t.ex. *North EU (Stockholm)*).
-2. Kör `supabase/migrations/20261014000000_init.sql` och sedan `supabase/seed.sql`
-   (SQL Editor, eller `supabase link` + `supabase db push`).
+2. Kör migrationerna i ordning och sedan seed-filen (SQL Editor, eller `supabase link` + `supabase db push`):
+   1. `supabase/migrations/20261014000000_init.sql`
+   2. `supabase/migrations/20261015000000_v2_media_trackers_calls.sql`. Den lägger till profilbild, coaching-typ, bilagor, trackers, wearables, Storage-buckets och regler för samtal.
+   3. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
@@ -25,6 +27,9 @@ npm run dev                  # http://localhost:3000
 5. Kopiera *Project URL* och *Publishable key* (Project Settings → API) till `.env.local`.
    **Service role-nyckeln ska aldrig in i appen.**
 6. Registrera ett PT-konto, fyll i **Min profil** och publicera. Då syns PT:n i klienternas sökning.
+7. Valfritt:
+   - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet, så att flödet ändå går att testa.
+   - **Samtal:** under *Realtime → Settings*, stäng av *Allow public access*, så att bara privata kanaler med RLS används. Behöver ni fungera bakom strikta brandväggar eller på vissa mobilnät, ange en TURN-server i `NEXT_PUBLIC_ICE_SERVERS`.
 
 ### Flödet
 
@@ -58,6 +63,40 @@ npm run dev                  # http://localhost:3000
   matchning, betyg, pris eller tidigast lediga tid. Profil med omdömen och bokning via kalender.
 - Framsteg: styrka, vikt (med loggning), träningsfrekvens, historik och dataexport (JSON).
 
+## Nytt i v2
+
+**PT**
+- **Profil:**
+  - profilbild (uppladdning eller länk)
+  - coaching-typ (distans, på plats eller båda), som också blir ett filter i sökningen
+  - certifieringar som badges
+  - förhandsvisning av hur klienterna ser profilen
+- **Kostbyggare:** färgkodade makron (protein blå, kolhydrater gul/orange, fett rosa) och snabbsök efter livsmedel. Gram ändras direkt på raden. Lättare ytor och en sammanfattning med fördelningsstapel.
+- **Passbyggare:** instruktionsvideo per övning. Antingen en YouTube- eller Vimeo-länk, som bäddas in via youtube-nocookie och Vimeo dnt, eller en egen uppladdad fil (max 200 MB).
+- **Klientsidan:** vanor de senaste 7 dagarna (vatten, sömn och extra mat).
+
+**Klient**
+- **Dagens kost:** fältet *Övrigt / extra* för mat utanför schemat, via snabbsök eller en egen rad med kcal och makron.
+- **Vattentracker:** glas om 250 ml, med mål efter kroppsvikt (35 ml per kg).
+- **Sömntracker:**
+  - timmar och känsla
+  - sömnsteg och sömnpoäng från klocka
+  - snitt för veckan
+- **Klocka och hälsoappar:** Fitbit via OAuth och webhook. Utan nycklar används en mock-enhet. Apple Health och Health Connect är förberedda men kräver en mobilapp, eftersom datan bara finns på telefonen.
+- **Historik:** en sida per övning med varje tillfälle (set, vikt, reps), personbästa och 1RM-kurva. Varje pass går att öppna.
+
+**Gemensamt**
+- **Chatt:** bilder, video (max 50 MB) och PDF, via gem-knappen, dra och släpp eller klistra in.
+- **Video- och röstsamtal:** WebRTC direkt mellan PT och klient, med signalering via Supabase Realtime. Ingen extern tjänst eller nyckel behövs. Samtalet loggas i chatten ("Videosamtal · 12 min" eller "Missat samtal").
+- **Tema:** neutrala ytor med lätt grön ton. Mörkgrönt (ljust läge) eller neongrönt (mörkt läge) används på primärknappar, aktiva flikar, framstegsindikatorer, grafer och badges.
+
+**Begränsningar och ärliga noteringar**
+- **Fitbits sömnpoäng** ("Sleep Score") finns inte i det publika Web API:t. Appen räknar ut en egen poäng från längd, sömnsteg och avbrott, och märker den som *beräknad*.
+- **Apple Health och Health Connect** har inga webb-API:er. Det som krävs är en iOS- eller Android-app som läser datan på telefonen och skickar den till servern. Datamodellen, `health_source` och adaptergränssnittet är förberedda för det.
+- **Google Fits REST-API** är under avveckling till förmån för Health Connect. Bygg därför inte en ny koppling mot det.
+- **Samtal:** utan TURN-server kan samtal misslyckas i vissa företagsnät och på vissa mobilnät. Appen visar då ett tydligt felmeddelande. Samtal är 1:1 och spelas inte in.
+- **Bilagor** kräver uppkoppling. Själva meddelandet går via offlinekön först när filerna är uppladdade. I demoläget lever bilagor och videor bara tills sidan laddas om.
+
 ## Arkitektur
 
 ```
@@ -70,6 +109,11 @@ src/
   lib/data/outbox.ts         Offlinekö (localStorage), backoff
   lib/data/supabase-source.ts  Laddning, rad ⇄ domän-mappning, skrivningar, realtid
   lib/data/seed.ts           Mockdata för demoläget
+  lib/storage.ts             Uppladdning, signerade länkar (Storage) och demoläge
+  lib/video.ts               Tolkning av YouTube-/Vimeo-/fil-länkar
+  lib/calls/*                Samtal: signalering (Supabase/demo) och WebRTC-motor
+  lib/wearables/*            Adaptrar (Fitbit, mock), sömnpoäng, serverlogik
+  app/api/wearables/**       OAuth (connect/callback), synk och Fitbit-webhook
   app/(logga-in|registrera|glomt-losenord|nytt-losenord|auth/callback)  Inloggning
   app/pt/**, app/klient/**   Vyerna
 supabase/migrations/         Schema, RLS, triggers
@@ -138,14 +182,17 @@ PGHOST=localhost PGUSER=postgres npm run test:db
 # Webbläsartester, se kommentarerna överst i respektive fil:
 node e2e/demo-mode.test.mjs
 node e2e/supabase-mode.test.mjs
+node e2e/v2-features.test.mjs   # kräver Chromium-flaggorna i filen (falsk kamera/mikrofon)
 ```
 
-RLS-testerna (46 st) kontrollerar bland annat följande:
+RLS-testerna (46 + 27 för v2) kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
 - Bokning och dubbelbokning fungerar som avsett.
 - Radering av konto tar bort allt via kaskad.
+- Bilagor, övningsvideor och samtalskanaler kan bara nås av rätt parter.
+- Wearable-tokens är oläsbara för inloggade användare.
 
 Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Inloggning och felmeddelanden.

@@ -30,7 +30,7 @@ const axisProps = {
 } as const
 
 export function WeightChart({ entries }: { entries: WeightEntry[] }) {
-  const config = { kg: { label: "Vikt", color: "var(--chart-1)" } } satisfies ChartConfig
+  const config = { kg: { label: "Vikt", color: "var(--chart-brand)" } } satisfies ChartConfig
   if (entries.length < 2) {
     return <p className="py-10 text-center text-sm text-muted-foreground">Minst två vägningar behövs för en graf.</p>
   }
@@ -51,6 +51,40 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} kg`} />}
           />
           <Line dataKey="kg" type="monotone" stroke="var(--color-kg)" strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
+        </LineChart>
+      </ChartContainer>
+    </ChartFrame>
+  )
+}
+
+/** En serie över tid i varumärkesgrönt (t.ex. uppskattat 1RM för en övning). */
+export function TrendChart({
+  points,
+  label,
+  unit,
+}: {
+  points: { date: string; value: number }[]
+  label: string
+  unit: string
+}) {
+  const config = { value: { label, color: "var(--chart-brand)" } } satisfies ChartConfig
+  if (points.length < 2) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">Minst två tillfällen behövs för en kurva.</p>
+  }
+  const values = points.map((p) => p.value)
+  const pad = Math.max(2, (Math.max(...values) - Math.min(...values)) * 0.15)
+  return (
+    <ChartFrame caption={label} table={{ head: ["Datum", `${label} (${unit})`], rows: points.map((p) => [formatShort(p.date), String(p.value)]) }}>
+      <ChartContainer config={config} className="aspect-auto h-48 w-full">
+        <LineChart data={points} margin={{ left: 0, right: 12, top: 8 }}>
+          <CartesianGrid vertical={false} strokeOpacity={0.5} />
+          <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
+          <YAxis {...axisProps} width={36} domain={[Math.floor(Math.min(...values) - pad), Math.ceil(Math.max(...values) + pad)]} />
+          <ChartTooltip
+            cursor={{ strokeDasharray: "3 3" }}
+            content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} ${unit}`} />}
+          />
+          <Line dataKey="value" type="monotone" stroke="var(--color-value)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
         </LineChart>
       </ChartContainer>
     </ChartFrame>
@@ -141,7 +175,7 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
 
 /** Genomförda pass per vecka, senaste `weeks` veckorna (måndag–söndag). */
 export function SessionsChart({ workouts, weeks = 12 }: { workouts: ScheduledWorkout[]; weeks?: number }) {
-  const config = { done: { label: "Genomförda pass", color: "var(--chart-1)" } } satisfies ChartConfig
+  const config = { done: { label: "Genomförda pass", color: "var(--chart-brand)" } } satisfies ChartConfig
   const data = React.useMemo(() => {
     const today = todayISO()
     const dow = (parseISODate(today).getDay() + 6) % 7 // måndag = 0

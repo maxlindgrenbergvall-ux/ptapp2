@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
+import { VideoEmbed } from "@/components/video-embed"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -79,10 +80,13 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-2">
-          <Button asChild variant="ghost" size="icon" aria-label="Tillbaka">
-            <Link href="/klient">
-              <ArrowLeft />
-            </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Tillbaka"
+            onClick={() => (window.history.length > 1 ? router.back() : router.push("/klient"))}
+          >
+            <ArrowLeft />
           </Button>
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-semibold">{workout.name}</h1>
@@ -211,11 +215,7 @@ function ExerciseCard({
                   <Info className="mt-0.5 size-4 shrink-0" /> {exercise.notes}
                 </p>
               )}
-              {exercise.videoUrl && (
-                <a href={exercise.videoUrl} target="_blank" rel="noreferrer noopener" className="flex items-center gap-2 font-medium underline-offset-4 hover:underline">
-                  <PlayCircle className="size-4" /> Instruktionsvideo
-                </a>
-              )}
+              {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={meta?.name ?? "Övning"} />}
               {last && (
                 <p className="text-xs text-muted-foreground tabular">
                   Förra gången: {last.kg ? `${last.kg} kg × ` : ""}
@@ -467,5 +467,23 @@ function FinishDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Videon fälls ut först på begäran, så att loggen förblir kompakt och inte laddar video i onödan. */
+function ExerciseVideo({ source, title }: { source: string; title: string }) {
+  const [show, setShow] = React.useState(false)
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-expanded={show}
+        className="flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
+      >
+        <PlayCircle className="size-4" /> {show ? "Dölj instruktionsvideo" : "Visa instruktionsvideo"}
+      </button>
+      {show && <VideoEmbed source={source} title={`Instruktionsvideo: ${title}`} />}
+    </div>
   )
 }

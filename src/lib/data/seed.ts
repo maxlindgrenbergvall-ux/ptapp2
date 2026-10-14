@@ -7,11 +7,14 @@ import type {
   AppData,
   Client,
   Exercise,
+  FoodEntry,
   Message,
   NutritionPlan,
   ScheduledWorkout,
   SetLog,
+  SleepLog,
   Trainer,
+  WaterLog,
   WorkoutExercise,
   WorkoutTemplate,
 } from "@/types/domain"
@@ -137,7 +140,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 9,
       pricePerSession: 850,
       rating: 4.9,
-      offersRemote: true,
+      coachingMode: "both",
+      certifications: ["Licensierad PT (SCA)", "Kostrådgivare", "Hyrox-tränare"],
       isPublished: true,
       reviews: [
         { id: "r1", author: "Sara L.", rating: 5, text: "Gick från 60 till 95 kg i knäböj på ett halvår. Tydliga program och snabb feedback.", date: addDays(today, -20) },
@@ -155,7 +159,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 6,
       pricePerSession: 750,
       rating: 4.8,
-      offersRemote: true,
+      coachingMode: "remote",
+      certifications: ["Hyrox Elite", "Löpcoach nivå 2"],
       isPublished: true,
       reviews: [
         { id: "r4", author: "Linnea", rating: 5, text: "Sänkte min Hyrox-tid med 11 minuter.", date: addDays(today, -15) },
@@ -172,7 +177,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 12,
       pricePerSession: 950,
       rating: 5,
-      offersRemote: false,
+      coachingMode: "onsite",
+      certifications: ["Leg. fysioterapeut", "Pre- & postnatal coach"],
       isPublished: true,
       reviews: [
         { id: "r6", author: "Anna", rating: 5, text: "Tryggaste PT jag haft efter förlossningen.", date: addDays(today, -30) },
@@ -188,7 +194,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 5,
       pricePerSession: 600,
       rating: 4.6,
-      offersRemote: true,
+      coachingMode: "both",
+      certifications: ["Kalisthenics-instruktör"],
       isPublished: true,
       reviews: [
         { id: "r7", author: "Oskar", rating: 5, text: "Fick min första muscle-up efter 10 veckor!", date: addDays(today, -22) },
@@ -205,7 +212,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 8,
       pricePerSession: 700,
       rating: 4.7,
-      offersRemote: true,
+      coachingMode: "both",
+      certifications: ["Licensierad PT", "Kostrådgivare"],
       isPublished: true,
       reviews: [
         { id: "r9", author: "Peter", rating: 5, text: "-14 kg på ett år utan att svälta.", date: addDays(today, -50) },
@@ -221,7 +229,8 @@ function makeTrainers(today: string): Trainer[] {
       yearsExperience: 15,
       pricePerSession: 1100,
       rating: 4.9,
-      offersRemote: false,
+      coachingMode: "onsite",
+      certifications: ["Licensierad PT", "Rehabtränare"],
       isPublished: true,
       reviews: [
         { id: "r10", author: "Kalle", rating: 5, text: "Ryggen håller och marken går upp. Bästa investeringen.", date: addDays(today, -9) },
@@ -400,6 +409,38 @@ function makeNutrition(): NutritionPlan[] {
   ]
 }
 
+function makeTrackers(today: string) {
+  const rand = rng(99)
+  const waterLogs: WaterLog[] = Array.from({ length: 7 }, (_, i) => ({
+    clientId: "c1",
+    date: addDays(today, -i - 1),
+    ml: 1500 + Math.round(rand() * 6) * 250,
+  }))
+  // Två veckors sömn; de senaste nätterna "från klockan" med steg och score.
+  const sleepLogs: SleepLog[] = Array.from({ length: 14 }, (_, i) => {
+    const date = addDays(today, -i)
+    const hours = Math.round((6 + rand() * 2.5) * 10) / 10
+    const fromWatch = i < 5
+    const total = hours * 60
+    const deep = Math.round(total * (0.13 + rand() * 0.07))
+    const rem = Math.round(total * (0.18 + rand() * 0.06))
+    const awake = Math.round(20 + rand() * 25)
+    return {
+      clientId: "c1",
+      date,
+      hours,
+      quality: fromWatch ? undefined : 2 + Math.round(rand() * 3),
+      sleepScore: fromWatch ? Math.round(62 + hours * 3 + rand() * 6) : undefined,
+      stages: fromWatch ? { deep, rem, awake, light: Math.max(0, Math.round(total - deep - rem)) } : undefined,
+      source: fromWatch ? ("mock" as const) : ("manual" as const),
+    }
+  })
+  const foodEntries: FoodEntry[] = [
+    { id: "f-demo-1", clientId: "c1", date: today, name: "Proteinbar", kcal: 210, protein: 20, carbs: 18, fat: 7 },
+  ]
+  return { waterLogs, sleepLogs, foodEntries }
+}
+
 function makeMessages(today: string): Message[] {
   const at = (day: number, h: number, m = 0) => {
     const d = new Date(`${addDays(today, day)}T00:00:00`)
@@ -428,5 +469,7 @@ export function createSeedData(today = todayISO()): AppData {
     mealChecks: [],
     messages: makeMessages(today),
     bookings: [],
+    ...makeTrackers(today),
+    wearables: [],
   }
 }
