@@ -76,7 +76,7 @@ select test.login('c1@test.se');
 select test.eq((select count(*) from trainers), 1::bigint, 'klient ser bara publicerade PT:er');
 select test.eq((select full_name from profiles where id = test.uid('pt@test.se')), 'Elin PT', 'klient ser namn på publicerad PT');
 select test.eq((select count(*) from profiles where id = test.uid('c2@test.se')), 0::bigint, 'klient ser inte andra klienters profiler');
-select test.eq((select count(*) from exercises), 28::bigint, 'inloggad ser globala övningsbanken');
+select test.eq((select count(*) from exercises), 127::bigint, 'inloggad ser globala övningsbanken');
 
 -- Förfrågan + vikt innan PT:n accepterat.
 insert into coaching_relationships (trainer_id, client_id, goal) values (test.uid('pt@test.se'), auth.uid(), '100 kg knäböj');

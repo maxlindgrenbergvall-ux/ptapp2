@@ -33,6 +33,7 @@ import type {
   BookingStatus,
   ClientStatus,
   FoodEntry,
+  FoodProduct,
   SleepLog,
   WearableConnection,
   ID,
@@ -175,6 +176,13 @@ function createActions(ctx: {
           : { clientId: me.id, date, hours, quality, source: "manual" },
       })
     },
+    /** PT: döp om en övning för en klient (null = återställ bibliotekets namn). */
+    setExerciseAlias: (clientId: ID, exerciseId: ID, name: string | null) => {
+      const clean = name?.trim().slice(0, 80) || null
+      commit({ type: "setExerciseAlias", trainerId: me.id, clientId, exerciseId, name: clean })
+    },
+    /** Klient: spara en egen eller skannad produkt så att den hittas igen. */
+    saveCustomFood: (product: FoodProduct) => commit({ type: "upsertCustomFood", product }),
     /** Resultat från en wearable-synk (servern har redan sparat dem). */
     applySleepSync: (logs: SleepLog[]) => ctx.dispatch({ type: "mergeSleepLogs", logs }),
     setWearables: (connections: WearableConnection[]) => ctx.dispatch({ type: "setWearables", connections }),

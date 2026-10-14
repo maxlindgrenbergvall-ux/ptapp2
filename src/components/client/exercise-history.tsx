@@ -7,7 +7,7 @@ import { TrendChart } from "@/components/charts/progress-charts"
 import { EmptyState, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { workoutsFor } from "@/lib/data/selectors"
+import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, formatShort } from "@/lib/date"
 import { exerciseHistory } from "@/lib/training"
@@ -17,7 +17,7 @@ const kgFmt = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 
 /** Historik för en övning: varje tillfälle med vikter, reps och set. */
 export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
   const { data, me } = useAppData()
-  const exercise = data.exercises.find((e) => e.id === exerciseId)
+  const name = exerciseName(data, exerciseId, me.id)
   const sessions = exerciseHistory(exerciseId, workoutsFor(data, me.id))
   const best = sessions.reduce<(typeof sessions)[number] | null>((a, s) => (!a || s.e1rm > a.e1rm ? s : a), null)
   const usesWeight = sessions.some((s) => s.sets.some((l) => l.kg > 0))
@@ -31,7 +31,7 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
       </Button>
       <div>
         <p className="text-sm text-muted-foreground">Historik</p>
-        <h1 className="text-2xl font-bold tracking-tight">{exercise?.name ?? "Övning"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{name}</h1>
       </div>
 
       {sessions.length === 0 ? (

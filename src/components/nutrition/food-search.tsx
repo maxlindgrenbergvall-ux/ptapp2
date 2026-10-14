@@ -4,7 +4,9 @@ import { Search } from "lucide-react"
 import * as React from "react"
 
 import { Input } from "@/components/ui/input"
-import { FOODS, type Food } from "@/lib/foods"
+import { FOOD_LIBRARY } from "@/lib/food-library"
+import { searchLibrary } from "@/lib/food-search"
+import type { Food } from "@/lib/foods"
 import { cn } from "@/lib/utils"
 
 /**
@@ -27,7 +29,8 @@ export function FoodSearch({
   const [open, setOpen] = React.useState(false)
   const [active, setActive] = React.useState(0)
   const query = q.trim().toLowerCase()
-  const matches = (query ? FOODS.filter((f) => f.name.toLowerCase().includes(query)) : FOODS).slice(0, 6)
+  // Utan sökord visas några vanliga baslivsmedel; annars rankad sökning (tål å/ä/ö-varianter).
+  const matches: Food[] = (query ? searchLibrary(query, 8) : FOOD_LIBRARY.slice(0, 6)).map((f) => ({ name: f.name, ...f.per100 }))
 
   const pick = (food: Food | undefined) => {
     if (!food) return

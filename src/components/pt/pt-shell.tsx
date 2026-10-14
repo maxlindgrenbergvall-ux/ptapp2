@@ -129,7 +129,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border p-2">
-          <PersonAvatar name={me.name} className="size-8" />
+          <PersonAvatar name={me.name} src={trainer?.avatarUrl} className="size-9" />
           <div className="min-w-0 text-sm">
             <div className="truncate font-medium">{me.name}</div>
             <div className="truncate text-xs text-muted-foreground">Personlig tränare</div>

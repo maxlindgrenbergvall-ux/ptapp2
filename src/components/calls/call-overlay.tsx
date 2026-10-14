@@ -12,15 +12,16 @@ import { cn } from "@/lib/utils"
 /** Inkommande samtal, "ringer…" och pågående samtal. Ligger över hela appen. */
 export function CallOverlay() {
   const { state, accept, decline, hangup, toggleMute, toggleCamera } = useCall()
-  const { mode } = useAppData()
+  const { mode, data } = useAppData()
   if (state.status === "idle" || !state.peer) return null
+  const peerAvatar = data.trainers.find((t) => t.id === state.peer?.id)?.avatarUrl
   const kindLabel = state.kind === "video" ? "Videosamtal" : "Röstsamtal"
 
   if (state.status === "incoming") {
     return (
       <div role="alertdialog" aria-label={`Inkommande ${kindLabel.toLowerCase()} från ${state.peer.name}`} className="fixed inset-x-0 top-0 z-50 mx-auto max-w-md p-3">
         <div className="flex items-center gap-3 rounded-2xl border bg-popover p-4 shadow-2xl">
-          <PersonAvatar name={state.peer.name} className="size-12 animate-pulse ring-2 ring-primary" />
+          <PersonAvatar name={state.peer.name} src={peerAvatar} className="size-12 animate-pulse ring-2 ring-primary" />
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold">{state.peer.name}</div>
             <div className="text-sm text-muted-foreground">Inkommande {kindLabel.toLowerCase()}…</div>
@@ -48,7 +49,7 @@ export function CallOverlay() {
           <MediaView stream={state.remoteStream} className="h-full w-full object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-4">
-            <PersonAvatar name={state.peer.name} className={cn("size-28 text-3xl", state.status !== "connected" && "animate-pulse")} />
+            <PersonAvatar name={state.peer.name} src={peerAvatar} className={cn("size-28 text-3xl", state.status !== "connected" && "animate-pulse")} />
             <div className="text-center">
               <div className="text-xl font-semibold">{state.peer.name}</div>
               <div className="text-sm text-white/70">{statusText}</div>

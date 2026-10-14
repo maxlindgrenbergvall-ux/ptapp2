@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { workoutsFor } from "@/lib/data/selectors"
+import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
 import { exerciseHistory, oneRepMaxSeries, setsDone, workoutVolume } from "@/lib/training"
@@ -213,10 +213,13 @@ function DeleteAccountDialog({ onConfirm }: { onConfirm: () => Promise<void> }) 
 
 /** Övningar som loggats, med senaste toppset. Varje rad leder till övningens historik. */
 function ExerciseList({ workouts }: { workouts: ScheduledWorkout[] }) {
-  const { data } = useAppData()
+  const { data, me } = useAppData()
   const ids = [...new Set(workouts.filter((w) => w.status === "completed").flatMap((w) => w.exercises.map((e) => e.exerciseId)))]
   const rows = ids
-    .map((id) => ({ exercise: data.exercises.find((e) => e.id === id), sessions: exerciseHistory(id, workouts) }))
+    .map((id) => ({
+      exercise: data.exercises.find((e) => e.id === id) && { id, name: exerciseName(data, id, me.id) },
+      sessions: exerciseHistory(id, workouts),
+    }))
     .filter((r) => r.exercise && r.sessions.length > 0)
     .sort((a, b) => b.sessions[0].date.localeCompare(a.sessions[0].date) || a.exercise!.name.localeCompare(b.exercise!.name))
   if (rows.length === 0) return null

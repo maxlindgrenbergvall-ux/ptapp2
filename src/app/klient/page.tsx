@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { workoutsFor } from "@/lib/data/selectors"
+import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
 import { setsDone, setsTotal } from "@/lib/training"
@@ -100,7 +100,7 @@ export default function TodayPage() {
           const done = setsDone(w)
           const total = setsTotal(w)
           const names = w.exercises
-            .map((e) => data.exercises.find((x) => x.id === e.exerciseId)?.name)
+            .map((e) => exerciseName(data, e.exerciseId, client.id))
             .filter(Boolean)
           return (
             <Card key={w.id} className={cn("gap-4 py-5", w.status !== "completed" && "border-foreground/20")}>

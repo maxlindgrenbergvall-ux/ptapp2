@@ -12,7 +12,7 @@ run -f supabase/tests/supabase_stub.sql 2>/dev/null  # varnar om wal_level (real
 for f in supabase/migrations/*.sql; do run -f "$f"; done
 run -f supabase/seed.sql
 # Resultatrader till /dev/null; NOTICE (ok-rader) och fel går till stderr.
-for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql; do
+for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql supabase/tests/rls_v3.test.sql; do
   run -f "$t" 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
 done
 dropdb "$DB"

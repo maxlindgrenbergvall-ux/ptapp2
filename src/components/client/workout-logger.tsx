@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
-import { workoutsFor } from "@/lib/data/selectors"
+import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
@@ -177,7 +177,8 @@ function ExerciseCard({
   onSetDone: () => void
 }) {
   const { data } = useAppData()
-  const meta = data.exercises.find((e) => e.id === exercise.exerciseId)
+  // PT:ns eget namn för klienten om det finns.
+  const name = exerciseName(data, exercise.exerciseId, workout.clientId)
   const last = lastPerformance(exercise.exerciseId, history)
   const doneCount = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length
   const complete = doneCount >= exercise.sets
@@ -196,7 +197,7 @@ function ExerciseCard({
           {complete ? <Check className="size-4" strokeWidth={3} /> : index + 1}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{meta?.name}</span>
+          <span className="block truncate font-semibold">{name}</span>
           <span className="block text-xs text-muted-foreground tabular">
             {exercise.sets} × {exercise.reps}
             {exercise.targetKg ? ` · ${exercise.targetKg} kg` : ""}
@@ -215,7 +216,7 @@ function ExerciseCard({
                   <Info className="mt-0.5 size-4 shrink-0" /> {exercise.notes}
                 </p>
               )}
-              {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={meta?.name ?? "Övning"} />}
+              {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={name} />}
               {last && (
                 <p className="text-xs text-muted-foreground tabular">
                   Förra gången: {last.kg ? `${last.kg} kg × ` : ""}

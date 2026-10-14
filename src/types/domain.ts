@@ -223,7 +223,7 @@ export interface Attachment {
   ref: string
 }
 
-/** Mat utöver kostschemat ("Övrigt / Extra"). */
+/** Mat utöver kostschemat ("Övrigt / Extra"). Makron är för den ätna mängden. */
 export interface FoodEntry {
   id: ID
   clientId: ID
@@ -233,6 +233,39 @@ export interface FoodEntry {
   protein: number
   carbs: number
   fat: number
+  grams?: number
+  barcode?: string
+  productId?: ID
+}
+
+/** Näringsvärden per 100 g. */
+export interface Per100 {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+export type FoodProductSource = "library" | "openfoodfacts" | "custom"
+
+/** En vara att välja i kostregistreringen: baslivsmedel, skannad produkt eller egen. */
+export interface FoodProduct {
+  id: ID
+  name: string
+  brand?: string
+  barcode?: string
+  per100: Per100
+  /** Vanlig portion i gram (t.ex. 1 burk = 330). */
+  servingG?: number
+  source: FoodProductSource
+  imageUrl?: string
+}
+
+/** PT:ns eget namn på en övning för en viss klient. */
+export interface ExerciseAlias {
+  clientId: ID
+  exerciseId: ID
+  name: string
 }
 
 export interface WaterLog {
@@ -309,4 +342,7 @@ export interface AppData {
   waterLogs: WaterLog[]
   sleepLogs: SleepLog[]
   wearables: WearableConnection[]
+  exerciseAliases: ExerciseAlias[]
+  /** Klientens egna produkter (och produkter den skannat). */
+  customFoods: FoodProduct[]
 }

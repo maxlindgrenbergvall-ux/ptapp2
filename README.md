@@ -19,7 +19,8 @@ npm run dev                  # http://localhost:3000
 2. Kör migrationerna i ordning och sedan seed-filen (SQL Editor, eller `supabase link` + `supabase db push`):
    1. `supabase/migrations/20261014000000_init.sql`
    2. `supabase/migrations/20261015000000_v2_media_trackers_calls.sql`. Den lägger till profilbild, coaching-typ, bilagor, trackers, wearables, Storage-buckets och regler för samtal.
-   3. `supabase/seed.sql`
+   3. `supabase/migrations/20261016000000_v3_food_products_aliases.sql`. Den lägger till livsmedelsprodukter (streckkod och egna), gram och streckkod på matposter, övningsnamn per klient och det uppdaterade övningsbiblioteket.
+   4. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
@@ -97,6 +98,24 @@ npm run dev                  # http://localhost:3000
 - **Samtal:** utan TURN-server kan samtal misslyckas i vissa företagsnät och på vissa mobilnät. Appen visar då ett tydligt felmeddelande. Samtal är 1:1 och spelas inte in.
 - **Bilagor** kräver uppkoppling. Själva meddelandet går via offlinekön först när filerna är uppladdade. I demoläget lever bilagor och videor bara tills sidan laddas om.
 
+## Nytt i v3
+
+- **Livsmedel:**
+  - **Grundbibliotek:** cirka 230 vanliga livsmedel med värden per 100 g och typisk portion, i linje med Livsmedelsverkets databas. Det finns i `src/lib/food-library.ts`.
+  - **Märkesvaror:** söks i Open Food Facts via `/api/food/search`.
+  - **Sökningen** rangordnar träffar, tål å/ä/ö-varianter ("agg" hittar "Ägg") och visar grupperna *Senaste*, *Mina produkter*, *Baslivsmedel* och *Märkesvaror*.
+  - **Portionsval:** snabbknappar (1 portion, 50, 100 g …) och makron som räknas direkt.
+- **Streckkodsscanner:**
+  - Läser med mobilkameran. Webbläsarens inbyggda `BarcodeDetector` används där den finns; annars zxing, som fungerar i Safari på iPhone.
+  - Bara EAN/UPC-koder med giltig kontrollsiffra godtas, och med zxing krävs två identiska läsningar.
+  - Ficklampa och manuell inmatning finns som reserv.
+  - Saknas produkten kan klienten lägga till den själv. Den hittas sedan direkt nästa gång koden skannas.
+  - Uppslaget går via `/api/food/barcode/[kod]`, cachas i CDN:en och med Supabase även i `food_products`, som används om Open Food Facts är nere.
+- **Profilbild:** profilkortet längst ned i PT-menyn visar nu bilden. Ogiltiga eller trasiga adresser visar initialer på en fast färg per person.
+- **Mörkt läge:** grafitgrå bas, ljusare kort och komponenter samt vitare text. Diagram- och makrofärger är kontrollerade mot de nya ytorna.
+- **Övningsbibliotek:** 127 övningar med korrekta svenska namn, för styrka, olympiska lyft, bål och kondition. Källan är `src/lib/exercise-library.json`, och SQL genereras med `node scripts/gen-exercise-sql.mjs`. Befintliga id:n behålls, så historik och mallar påverkas inte.
+- **Övningsnamn per klient:** PT:n döper om en övning för en viss klient under Klient → Pass → *Övningsnamn för klienten*. Klienten ser PT:ns namn i dagsvyn, träningsloggen och historiken. Biblioteket och andra klienter påverkas inte.
+
 ## Arkitektur
 
 ```
@@ -114,6 +133,11 @@ src/
   lib/calls/*                Samtal: signalering (Supabase/demo) och WebRTC-motor
   lib/wearables/*            Adaptrar (Fitbit, mock), sömnpoäng, serverlogik
   app/api/wearables/**       OAuth (connect/callback), synk och Fitbit-webhook
+  app/api/food/**            Streckkodsuppslag och sök (Open Food Facts)
+  lib/food-library.ts        Grundbibliotek med livsmedel
+  lib/food-search.ts         Sökning, portioner och kontroll av streckkoder
+  lib/exercise-library.json  Övningsbiblioteket (källa för app, demo och SQL)
+  components/nutrition/*     Livsmedelsväljare, streckkodsscanner, makrofärger
   app/(logga-in|registrera|glomt-losenord|nytt-losenord|auth/callback)  Inloggning
   app/pt/**, app/klient/**   Vyerna
 supabase/migrations/         Schema, RLS, triggers
@@ -183,9 +207,11 @@ PGHOST=localhost PGUSER=postgres npm run test:db
 node e2e/demo-mode.test.mjs
 node e2e/supabase-mode.test.mjs
 node e2e/v2-features.test.mjs   # kräver Chromium-flaggorna i filen (falsk kamera/mikrofon)
+node e2e/v3-features.test.mjs   # mot e2e/mock-openfoodfacts.mjs; kamerafallet läser en riktig EAN-13
+                                # ur en genererad video (node e2e/make-barcode-video.mjs)
 ```
 
-RLS-testerna (46 + 27 för v2) kontrollerar bland annat följande:
+RLS-testerna (46 + 27 för v2 + 13 för v3) kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -193,6 +219,8 @@ RLS-testerna (46 + 27 för v2) kontrollerar bland annat följande:
 - Radering av konto tar bort allt via kaskad.
 - Bilagor, övningsvideor och samtalskanaler kan bara nås av rätt parter.
 - Wearable-tokens är oläsbara för inloggade användare.
+- Egna produkter är privata, och den delade produktcachen kan bara skrivas av servern.
+- Övningsnamn kan bara sättas av klientens aktiva PT.
 
 Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Inloggning och felmeddelanden.

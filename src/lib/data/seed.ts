@@ -3,6 +3,7 @@
  * "idag", historik och kommande pass. Slumpen är seedad för stabila värden.
  */
 import { addDays, todayISO } from "@/lib/date"
+import exerciseLibrary from "@/lib/exercise-library.json"
 import type {
   AppData,
   Client,
@@ -30,36 +31,8 @@ function rng(seed: number) {
   }
 }
 
-const exercises: Exercise[] = [
-  { id: "e-squat", name: "Knäböj", muscleGroup: "ben", equipment: "Skivstång" },
-  { id: "e-deadlift", name: "Marklyft", muscleGroup: "rygg", equipment: "Skivstång" },
-  { id: "e-bench", name: "Bänkpress", muscleGroup: "bröst", equipment: "Skivstång" },
-  { id: "e-ohp", name: "Militärpress", muscleGroup: "axlar", equipment: "Skivstång" },
-  { id: "e-row", name: "Skivstångsrodd", muscleGroup: "rygg", equipment: "Skivstång" },
-  { id: "e-rdl", name: "Rumänsk marklyft", muscleGroup: "ben", equipment: "Skivstång" },
-  { id: "e-frontsquat", name: "Frontböj", muscleGroup: "ben", equipment: "Skivstång" },
-  { id: "e-hipthrust", name: "Hip thrust", muscleGroup: "ben", equipment: "Skivstång" },
-  { id: "e-lunge", name: "Utfallssteg", muscleGroup: "ben", equipment: "Hantlar" },
-  { id: "e-bss", name: "Bulgarian split squat", muscleGroup: "ben", equipment: "Hantlar" },
-  { id: "e-legpress", name: "Benpress", muscleGroup: "ben", equipment: "Maskin" },
-  { id: "e-db-bench", name: "Hantelpress", muscleGroup: "bröst", equipment: "Hantlar" },
-  { id: "e-incline", name: "Lutande hantelpress", muscleGroup: "bröst", equipment: "Hantlar" },
-  { id: "e-pullup", name: "Chins", muscleGroup: "rygg", equipment: "Kroppsvikt" },
-  { id: "e-latpull", name: "Latsdrag", muscleGroup: "rygg", equipment: "Kabel" },
-  { id: "e-facepull", name: "Face pulls", muscleGroup: "axlar", equipment: "Kabel" },
-  { id: "e-lateral", name: "Sidolyft", muscleGroup: "axlar", equipment: "Hantlar" },
-  { id: "e-curl", name: "Bicepscurl", muscleGroup: "armar", equipment: "Hantlar" },
-  { id: "e-pushdown", name: "Triceps pushdown", muscleGroup: "armar", equipment: "Kabel" },
-  { id: "e-plank", name: "Plankan", muscleGroup: "bål", equipment: "Kroppsvikt" },
-  { id: "e-pallof", name: "Pallof press", muscleGroup: "bål", equipment: "Kabel" },
-  { id: "e-wallball", name: "Wall balls", muscleGroup: "helkropp", equipment: "Medicinboll" },
-  { id: "e-sledpush", name: "Sled push", muscleGroup: "helkropp", equipment: "Släde" },
-  { id: "e-burpee-bj", name: "Burpee broad jumps", muscleGroup: "helkropp", equipment: "Kroppsvikt" },
-  { id: "e-farmers", name: "Farmer's carry", muscleGroup: "helkropp", equipment: "Kettlebells" },
-  { id: "e-row-erg", name: "Roddmaskin", muscleGroup: "kondition", equipment: "Roddmaskin" },
-  { id: "e-skierg", name: "SkiErg", muscleGroup: "kondition", equipment: "SkiErg" },
-  { id: "e-run", name: "Löpning", muscleGroup: "kondition", equipment: "—" },
-]
+// Gemensamt övningsbibliotek (samma som databasen, se scripts/gen-exercise-sql.mjs).
+const exercises: Exercise[] = exerciseLibrary as Exercise[]
 
 const we = (
   id: string,
@@ -471,5 +444,8 @@ export function createSeedData(today = todayISO()): AppData {
     bookings: [],
     ...makeTrackers(today),
     wearables: [],
+    // Exempel: Elin har döpt om en övning för Sara.
+    exerciseAliases: [{ clientId: "c1", exerciseId: "e-bss", name: "Bulgarisk utfallsböj (bakre fot på låg bänk)" }],
+    customFoods: [],
   }
 }

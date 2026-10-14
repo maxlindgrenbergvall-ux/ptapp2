@@ -60,11 +60,11 @@ ok("sömn: ändrad och sparad med känsla")
 
 // Extra mat via snabbsök
 const kcalBefore = await m.locator("text=/^\\d+$/").first().innerText()
-await m.fill('input[placeholder^="Logga extra mat"]', "banan")
-await m.keyboard.press("Enter")
-await m.fill('input[aria-label="Gram"]', "120")
-await m.click('button:has-text("Lägg till")')
-await m.waitForSelector("text=Banan 120 g")
+await m.fill('input[aria-label="Sök livsmedel eller märkesvara"]', "banan")
+await m.click('role=option >> text="Banan"')
+await m.fill('input[aria-label="Mängd i gram"]', "120")
+await m.click('form >> button:has-text("Lägg till")')
+await m.waitForSelector("text=Banan >> xpath=.. >> text=· 120 g")
 ok("extra mat: banan 120 g loggad via snabbsök")
 await m.click("text=Egen rad (bara kcal)")
 await m.fill('input[aria-label="Namn"]', "Kanelbulle")
@@ -167,6 +167,7 @@ await old.waitForSelector("text=Dagens kost")
 await old.evaluate(() => {
   const s = JSON.parse(localStorage["pt-platform:v1"])
   for (const k of ["foodEntries", "waterLogs", "sleepLogs", "wearables"]) delete s.data[k]
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fältet ska bort, som i v1-data
   s.data.trainers = s.data.trainers.map(({ coachingMode, certifications, ...t }) => ({ ...t, offersRemote: coachingMode !== "onsite" }))
   localStorage["pt-platform:v1"] = JSON.stringify(s)
 })

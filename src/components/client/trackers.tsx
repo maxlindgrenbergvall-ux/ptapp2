@@ -4,28 +4,51 @@ import { Droplet, Minus, Moon, Pencil, Plus, RefreshCw, Unplug, Watch, X } from 
 import * as React from "react"
 import { toast } from "sonner"
 
-import { FoodSearch } from "@/components/nutrition/food-search"
+import { FoodPicker } from "@/components/nutrition/food-picker"
 import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatShort, todayISO } from "@/lib/date"
-import { kcalFromMacros, scaleFood, type Food } from "@/lib/foods"
+import { kcalFromMacros } from "@/lib/foods"
 import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mockSleepRange } from "@/lib/wearables/mock"
 import { PROVIDER_LABEL } from "@/lib/wearables/types"
-import type { ISODate, SleepLog, WearableProvider } from "@/types/domain"
+import type { FoodProduct, ISODate, SleepLog, WearableProvider } from "@/types/domain"
 
 // ================================================================ extra mat ===
 
-/** "Övrigt / Extra": snabbloggning av mat utanför kostschemat. */
+/**
+ * "Övrigt / Extra": mat utanför kostschemat. Sök i baslivsmedel, egna produkter
+ * och märkesvaror, eller skanna streckkoden.
+ */
 export function ExtraFood({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
   const entries = data.foodEntries.filter((e) => e.clientId === me.id && e.date === date)
-  const [picked, setPicked] = React.useState<Food | null>(null)
-  const [grams, setGrams] = React.useState(100)
   const [manual, setManual] = React.useState(false)
+
+  // Senaste: unika produkter som loggats med gram, nyast först – så att vanliga val går på ett tryck.
+  const recent = React.useMemo(() => {
+    const seen = new Set<string>()
+    const out: FoodProduct[] = []
+    for (const e of [...data.foodEntries].filter((x) => x.clientId === me.id && x.grams).reverse()) {
+      const key = e.barcode ?? e.productId ?? e.name
+      if (seen.has(key)) continue
+      seen.add(key)
+      const f = 100 / e.grams!
+      out.push({
+        id: e.productId ?? `recent:${key}`,
+        name: e.name,
+        barcode: e.barcode,
+        per100: { kcal: e.kcal * f, protein: e.protein * f, carbs: e.carbs * f, fat: e.fat * f },
+        servingG: e.grams,
+        source: e.barcode ? "openfoodfacts" : "library",
+      })
+      if (out.length >= 12) break
+    }
+    return out
+  }, [data.foodEntries, me.id])
 
   return (
     <div className="space-y-3">
@@ -43,7 +66,10 @@ export function ExtraFood({ date }: { date: ISODate }) {
           {entries.map((e) => (
             <li key={e.id} className="flex items-center gap-3 px-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
-                <div className="truncate">{e.name}</div>
+                <div className="flex min-w-0 items-baseline gap-1">
+                  <span className="truncate">{e.name}</span>
+                  {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} g</span> : null}
+                </div>
                 <MacroInline value={e} />
               </div>
               <span className="shrink-0 tabular">{e.kcal} kcal</span>
@@ -63,30 +89,13 @@ export function ExtraFood({ date }: { date: ISODate }) {
             setManual(false)
           }}
         />
-      ) : picked ? (
-        <form
-          className="flex items-center gap-2 rounded-xl border p-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (grams <= 0) return
-            const item = scaleFood(picked, grams)
-            actions.addFoodEntry(date, { name: `${picked.name} ${grams} g`, kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat })
-            setPicked(null)
-            setGrams(100)
-          }}
-        >
-          <span className="min-w-0 flex-1 truncate pl-1 text-sm">{picked.name}</span>
-          <Input type="number" inputMode="numeric" min={1} value={grams} onChange={(e) => setGrams(Number(e.target.value))} className="h-9 w-20" aria-label="Gram" autoFocus />
-          <span className="text-xs text-muted-foreground">g</span>
-          <Button type="submit" size="sm">
-            <Plus /> Lägg till
-          </Button>
-          <Button type="button" size="icon-sm" variant="ghost" aria-label="Avbryt" onClick={() => setPicked(null)}>
-            <X />
-          </Button>
-        </form>
       ) : (
-        <FoodSearch placeholder="Logga extra mat, t.ex. banan…" onPick={setPicked} />
+        <FoodPicker
+          recent={recent}
+          customFoods={data.customFoods}
+          onSaveCustom={actions.saveCustomFood}
+          onAdd={(entry) => actions.addFoodEntry(date, entry)}
+        />
       )}
     </div>
   )

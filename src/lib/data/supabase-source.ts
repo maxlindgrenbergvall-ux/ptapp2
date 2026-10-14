@@ -14,7 +14,9 @@ import type {
   Client,
   ClientStatus,
   Exercise,
+  ExerciseAlias,
   FoodEntry,
+  FoodProduct,
   Me,
   Message,
   NutritionPlan,
@@ -135,6 +137,26 @@ interface FoodRow {
   protein_g: number | string
   carbs_g: number | string
   fat_g: number | string
+  grams: number | string | null
+  barcode: string | null
+  product_id: string | null
+}
+interface ProductRow {
+  id: string
+  barcode: string | null
+  name: string
+  brand: string | null
+  kcal_100g: number | string
+  protein_100g: number | string
+  carbs_100g: number | string
+  fat_100g: number | string
+  serving_g: number | string | null
+  source: "openfoodfacts" | "custom"
+}
+interface AliasRow {
+  client_id: string
+  exercise_id: string
+  name: string
 }
 interface WaterRow {
   client_id: string
@@ -267,7 +289,24 @@ export const toFood = (r: FoodRow): FoodEntry => ({
   protein: Number(r.protein_g),
   carbs: Number(r.carbs_g),
   fat: Number(r.fat_g),
+  grams: r.grams === null ? undefined : Number(r.grams),
+  barcode: r.barcode ?? undefined,
+  productId: r.product_id ?? undefined,
 })
+
+export const toProduct = (r: ProductRow): FoodProduct => ({
+  id: r.id,
+  name: r.name,
+  brand: r.brand ?? undefined,
+  barcode: r.barcode ?? undefined,
+  per100: { kcal: Number(r.kcal_100g), protein: Number(r.protein_100g), carbs: Number(r.carbs_100g), fat: Number(r.fat_100g) },
+  servingG: r.serving_g === null ? undefined : Number(r.serving_g),
+  source: r.source,
+})
+
+const toAlias = (r: AliasRow): ExerciseAlias => ({ clientId: r.client_id, exerciseId: r.exercise_id, name: r.name })
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const toWater = (r: WaterRow): WaterLog => ({ clientId: r.client_id, date: r.date, ml: r.ml })
 
@@ -331,7 +370,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, bookings, plans, food, water, sleep] = await Promise.all([
+  const [exercises, workouts, messages, bookings, plans, food, water, sleep, aliases] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
@@ -340,6 +379,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("food_entries").select("*").gte("date", trackerSince).order("created_at"),
     sb.from("water_logs").select("client_id, date, ml").gte("date", trackerSince),
     sb.from("sleep_logs").select("*").gte("date", trackerSince).order("date"),
+    sb.from("client_exercise_aliases").select("client_id, exercise_id, name"),
   ])
 
   const base = {
@@ -354,6 +394,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     foodEntries: must<FoodRow[]>(food, "extra mat").map(toFood),
     waterLogs: must<WaterRow[]>(water, "vatten").map(toWater),
     sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
+    exerciseAliases: must<AliasRow[]>(aliases, "övningsnamn").map(toAlias),
   }
 
   if (me.role === "trainer") {
@@ -386,17 +427,19 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
         mealChecks: [],
         wearables: [],
+        customFoods: [],
       },
     }
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
     sb.from("meal_checks").select("date, meal_id").eq("client_id", uid).gte("date", addDays(todayISO(), -30)),
     sb.from("wearable_connections").select("provider, status, connected_at, last_synced_at, last_error"),
+    sb.from("food_products").select("*").eq("source", "custom").order("updated_at", { ascending: false }).limit(200),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -423,6 +466,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         mealId: m.meal_id,
       })),
       wearables: must<WearableRow[]>(wearables, "wearables").map(toWearable),
+      customFoods: must<ProductRow[]>(products, "egna produkter").map(toProduct),
     },
   }
 }
@@ -623,6 +667,10 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           protein_g: e.protein,
           carbs_g: e.carbs,
           fat_g: e.fat,
+          grams: e.grams ?? null,
+          barcode: e.barcode ?? null,
+          // Bara riktiga produkt-id:n (baslivsmedel i appen har inga databas-id).
+          product_id: e.productId && UUID.test(e.productId) ? e.productId : null,
         })
       )
     }
@@ -637,6 +685,38 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           updated_at: new Date().toISOString(),
         })
       )
+    case "setExerciseAlias":
+      return action.name
+        ? result(
+            sb.from("client_exercise_aliases").upsert({
+              client_id: action.clientId,
+              exercise_id: action.exerciseId,
+              trainer_id: action.trainerId,
+              name: action.name,
+              updated_at: new Date().toISOString(),
+            })
+          )
+        : result(sb.from("client_exercise_aliases").delete().match({ client_id: action.clientId, exercise_id: action.exerciseId }))
+    case "upsertCustomFood": {
+      const p = action.product
+      const r1 = (n: number) => Math.round(n * 10) / 10
+      return result(
+        sb.from("food_products").upsert({
+          id: p.id,
+          barcode: p.barcode ?? null,
+          name: p.name.slice(0, 160),
+          brand: p.brand?.slice(0, 120) ?? null,
+          kcal_100g: r1(p.per100.kcal),
+          protein_100g: r1(p.per100.protein),
+          carbs_100g: r1(p.per100.carbs),
+          fat_100g: r1(p.per100.fat),
+          serving_g: p.servingG ?? null,
+          source: "custom",
+          created_by: me.id,
+          updated_at: new Date().toISOString(),
+        })
+      )
+    }
     case "upsertSleep": {
       const l = action.log
       return result(
@@ -669,6 +749,17 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, (p) => {
       if (p.new && "id" in p.new) dispatch({ type: "remoteBooking", booking: toBooking(p.new as BookingRow) })
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "client_exercise_aliases" }, (p) => {
+      const row = (p.new && "exercise_id" in p.new ? p.new : p.old) as Partial<AliasRow> | undefined
+      if (!row?.client_id || !row.exercise_id) return
+      dispatch({
+        type: "setExerciseAlias",
+        trainerId: "",
+        clientId: row.client_id,
+        exerciseId: row.exercise_id,
+        name: p.eventType === "DELETE" ? null : (row.name ?? null),
+      })
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "scheduled_workouts" }, (p) => {
       if (p.new && "id" in p.new) {

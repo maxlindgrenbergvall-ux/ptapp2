@@ -12,6 +12,7 @@ import type {
   Booking,
   BookingStatus,
   FoodEntry,
+  FoodProduct,
   SleepLog,
   WearableConnection,
   ClientStatus,
@@ -50,6 +51,8 @@ export type PersistableAction =
   | { type: "deleteFoodEntry"; id: ID }
   | { type: "setWater"; clientId: ID; date: ISODate; ml: number }
   | { type: "upsertSleep"; log: SleepLog }
+  | { type: "setExerciseAlias"; trainerId: ID; clientId: ID; exerciseId: ID; name: string | null }
+  | { type: "upsertCustomFood"; product: FoodProduct }
 
 export type TrainerProfilePatch = Partial<
   Pick<
@@ -262,6 +265,15 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         ),
       }
 
+    case "setExerciseAlias": {
+      const { clientId, exerciseId, name } = action
+      const rest = data.exerciseAliases.filter((a) => !(a.clientId === clientId && a.exerciseId === exerciseId))
+      return { ...data, exerciseAliases: name ? [...rest, { clientId, exerciseId, name }] : rest }
+    }
+
+    case "upsertCustomFood":
+      return { ...data, customFoods: upsertBy(data.customFoods, action.product, (p) => p.id === action.product.id) }
+
     case "setWearables":
       return { ...data, wearables: action.connections }
 
@@ -314,5 +326,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
     waterLogs: list(d.waterLogs),
     sleepLogs: list(d.sleepLogs),
     wearables: list(d.wearables),
+    exerciseAliases: list(d.exerciseAliases),
+    customFoods: list(d.customFoods),
   }
 }

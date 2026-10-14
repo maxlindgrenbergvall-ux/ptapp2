@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Scale, Trophy, X } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Pencil, Scale, Trophy, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
@@ -23,11 +23,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { adherence, workoutsFor } from "@/lib/data/selectors"
+import { adherence, exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { oneRepMaxSeries, setsDone, setsTotal, workoutVolume } from "@/lib/training"
@@ -154,7 +155,8 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </TabsContent>
 
         <TabsContent value="pass" className="pt-2">
-          <WorkoutHistory workouts={workouts} />
+          <WorkoutHistory workouts={workouts} clientId={client.id} />
+          <ExerciseNames clientId={client.id} workouts={workouts} />
         </TabsContent>
 
         <TabsContent value="kost" className="pt-2">
@@ -200,13 +202,13 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   )
 }
 
-function WorkoutHistory({ workouts }: { workouts: ScheduledWorkout[] }) {
+function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; clientId: string }) {
   const { data } = useAppData()
   const today = todayISO()
   const sorted = [...workouts].sort((a, b) => b.date.localeCompare(a.date))
   const upcoming = sorted.filter((w) => w.date >= today && w.status !== "completed").reverse()
   const past = sorted.filter((w) => !(w.date >= today && w.status !== "completed")).slice(0, 15)
-  const exerciseName = (id: string) => data.exercises.find((e) => e.id === id)?.name ?? id
+  const nameOf = (id: string) => exerciseName(data, id, clientId)
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -237,7 +239,7 @@ function WorkoutHistory({ workouts }: { workouts: ScheduledWorkout[] }) {
                     const sets = w.logs.filter((l) => l.workoutExerciseId === e.id && l.done)
                     return (
                       <li key={e.id} className="flex justify-between gap-2">
-                        <span className="truncate">{exerciseName(e.exerciseId)}</span>
+                        <span className="truncate">{nameOf(e.exerciseId)}</span>
                         <span className="shrink-0 text-muted-foreground tabular">
                           {sets.length ? sets.map((s) => (s.kg ? `${s.kg}×${s.reps}` : s.reps)).join(", ") : "–"}
                         </span>
@@ -409,5 +411,105 @@ function HabitsSummary({ clientId }: { clientId: string }) {
         sub={extra.length ? `${extra.length} registreringar utöver schemat` : "Inget utöver schemat"}
       />
     </div>
+  )
+}
+
+/**
+ * PT:n döper om övningar för just den här klienten. Namnet syns för klienten i
+ * dagsvyn, träningsloggen och historiken; biblioteket och andra klienter påverkas inte.
+ */
+function ExerciseNames({ clientId, workouts }: { clientId: string; workouts: ScheduledWorkout[] }) {
+  const { data, actions } = useAppData()
+  const [q, setQ] = React.useState("")
+  const ids = [...new Set(workouts.flatMap((w) => w.exercises.map((e) => e.exerciseId)))]
+  const rows = ids
+    .map((id) => ({
+      id,
+      library: data.exercises.find((e) => e.id === id)?.name ?? id,
+      alias: data.exerciseAliases.find((a) => a.clientId === clientId && a.exerciseId === id)?.name,
+    }))
+    .filter((r) => !q.trim() || `${r.library} ${r.alias ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => Number(Boolean(b.alias)) - Number(Boolean(a.alias)) || a.library.localeCompare(b.library, "sv"))
+
+  if (ids.length === 0) return null
+  return (
+    <Card className="mt-6">
+      <CardHeader className="gap-3">
+        <div>
+          <CardTitle>Övningsnamn för klienten</CardTitle>
+          <CardDescription>Döp om en övning så att klienten ser ditt namn i sina pass och sin historik. Biblioteket ändras inte.</CardDescription>
+        </div>
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning…" className="h-9 sm:w-64" aria-label="Sök övning" />
+      </CardHeader>
+      <CardContent className="px-0">
+        <ul className="divide-y">
+          {rows.map((r) => (
+            <AliasRow
+              key={r.id}
+              library={r.library}
+              alias={r.alias}
+              onSave={(name) => {
+                actions.setExerciseAlias(clientId, r.id, name)
+                toast.success(name ? `Klienten ser nu "${name}"` : `Återställt till "${r.library}"`)
+              }}
+            />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AliasRow({ library, alias, onSave }: { library: string; alias?: string; onSave: (name: string | null) => void }) {
+  const [editing, setEditing] = React.useState(false)
+  const [value, setValue] = React.useState(alias ?? "")
+  const save = () => {
+    const v = value.trim()
+    onSave(v && v !== library ? v : null)
+    setEditing(false)
+  }
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 py-2.5 text-sm">
+      {editing ? (
+        <form
+          className="flex flex-1 items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            save()
+          }}
+        >
+          <Input value={value} onChange={(e) => setValue(e.target.value)} maxLength={80} autoFocus aria-label={`Nytt namn för ${library}`} className="h-8" />
+          <Button type="submit" size="sm">
+            Spara
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>
+            Avbryt
+          </Button>
+        </form>
+      ) : (
+        <>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{alias ?? library}</div>
+            {alias && <div className="truncate text-xs text-muted-foreground">Biblioteket: {library}</div>}
+          </div>
+          {alias && (
+            <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => onSave(null)}>
+              Återställ
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setValue(alias ?? library)
+              setEditing(true)
+            }}
+            aria-label={`Döp om ${alias ?? library}`}
+          >
+            <Pencil /> Döp om
+          </Button>
+        </>
+      )}
+    </li>
   )
 }

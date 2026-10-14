@@ -27,3 +27,12 @@ export function adherence(workouts: ScheduledWorkout[], days: number, today = to
   if (due.length === 0) return null
   return Math.round((due.filter((w) => w.status === "completed").length / due.length) * 100)
 }
+
+/**
+ * Övningens namn för en viss klient: PT:ns eget namn om det finns, annars
+ * bibliotekets namn.
+ */
+export function exerciseName(data: AppData, exerciseId: ID, clientId?: ID): string {
+  const alias = clientId ? data.exerciseAliases.find((a) => a.clientId === clientId && a.exerciseId === exerciseId) : undefined
+  return alias?.name ?? data.exercises.find((e) => e.id === exerciseId)?.name ?? "Okänd övning"
+}
