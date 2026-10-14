@@ -1,0 +1,32 @@
+-- Global övningsbank (owner_id = null). Id:n är stabila eftersom grafer och
+-- statistik refererar till baslyften (e-squat, e-bench, e-deadlift).
+insert into exercises (id, name, muscle_group, equipment) values
+  ('e-squat', 'Knäböj', 'ben', 'Skivstång'),
+  ('e-deadlift', 'Marklyft', 'rygg', 'Skivstång'),
+  ('e-bench', 'Bänkpress', 'bröst', 'Skivstång'),
+  ('e-ohp', 'Militärpress', 'axlar', 'Skivstång'),
+  ('e-row', 'Skivstångsrodd', 'rygg', 'Skivstång'),
+  ('e-rdl', 'Rumänsk marklyft', 'ben', 'Skivstång'),
+  ('e-frontsquat', 'Frontböj', 'ben', 'Skivstång'),
+  ('e-hipthrust', 'Hip thrust', 'ben', 'Skivstång'),
+  ('e-lunge', 'Utfallssteg', 'ben', 'Hantlar'),
+  ('e-bss', 'Bulgarian split squat', 'ben', 'Hantlar'),
+  ('e-legpress', 'Benpress', 'ben', 'Maskin'),
+  ('e-db-bench', 'Hantelpress', 'bröst', 'Hantlar'),
+  ('e-incline', 'Lutande hantelpress', 'bröst', 'Hantlar'),
+  ('e-pullup', 'Chins', 'rygg', 'Kroppsvikt'),
+  ('e-latpull', 'Latsdrag', 'rygg', 'Kabel'),
+  ('e-facepull', 'Face pulls', 'axlar', 'Kabel'),
+  ('e-lateral', 'Sidolyft', 'axlar', 'Hantlar'),
+  ('e-curl', 'Bicepscurl', 'armar', 'Hantlar'),
+  ('e-pushdown', 'Triceps pushdown', 'armar', 'Kabel'),
+  ('e-plank', 'Plankan', 'bål', 'Kroppsvikt'),
+  ('e-pallof', 'Pallof press', 'bål', 'Kabel'),
+  ('e-wallball', 'Wall balls', 'helkropp', 'Medicinboll'),
+  ('e-sledpush', 'Sled push', 'helkropp', 'Släde'),
+  ('e-burpee-bj', 'Burpee broad jumps', 'helkropp', 'Kroppsvikt'),
+  ('e-farmers', 'Farmer''s carry', 'helkropp', 'Kettlebells'),
+  ('e-row-erg', 'Roddmaskin', 'kondition', 'Roddmaskin'),
+  ('e-skierg', 'SkiErg', 'kondition', 'SkiErg'),
+  ('e-run', 'Löpning', 'kondition', '—')
+on conflict (id) do nothing;

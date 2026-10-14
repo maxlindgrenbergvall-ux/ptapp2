@@ -1,0 +1,121 @@
+// Låtsas-Supabase för e2e-test: auth (lösenord, user, refresh, logout) och REST
+// med fasta fixtures per användare. Alla skrivningar loggas och kan hämtas via /__log.
+import http from "node:http"
+
+const today = new Date()
+const iso = (d) => d.toISOString().slice(0, 10)
+const TODAY = iso(today)
+const T1 = "11111111-0000-4000-8000-000000000001"
+const C1 = "22222222-0000-4000-8000-000000000001"
+const W1 = "33333333-0000-4000-8000-000000000001"
+
+const users = {
+  "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" } },
+  "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" } },
+}
+const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]))
+
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
+const token = (u) =>
+  `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: u.id, role: "authenticated", aud: "authenticated", email: u.email, user_metadata: u.user_metadata, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000), session_id: "s1" })}.c2ln`
+const userJson = (u) => ({ id: u.id, aud: "authenticated", role: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: {}, created_at: "2026-01-01T00:00:00Z" })
+const session = (u) => ({ access_token: token(u), refresh_token: `r-${u.id}`, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: userJson(u) })
+
+const exercises = [
+  { id: "e-squat", name: "Knäböj", muscle_group: "ben", equipment: "Skivstång", video_url: null },
+  { id: "e-bench", name: "Bänkpress", muscle_group: "bröst", equipment: "Skivstång", video_url: null },
+]
+const workout = {
+  id: W1, client_id: C1, trainer_id: T1, template_id: null, name: "Testpass", date: TODAY, status: "planned",
+  completed_at: null, client_comment: null,
+  exercises: [{ id: "we-1", exerciseId: "e-squat", sets: 3, reps: "5", restSec: 0, targetKg: 60 }],
+  set_logs: [],
+}
+const trainerRow = {
+  id: T1, city: "Stockholm", specialties: ["styrkelyft"], bio: "Testbio", years_experience: 5, price_per_session: 800,
+  offers_remote: true, is_published: true, profile: { full_name: "Elin Test" },
+  trainer_availability: [{ slot: new Date(Date.now() + 2 * 86400e3).toISOString() }], reviews: [],
+}
+
+function fixtures(uid, table) {
+  const client = uid === C1
+  switch (table) {
+    case "profiles": return [{ id: uid, role: client ? "client" : "trainer", full_name: byId[uid].user_metadata.full_name }]
+    case "exercises": return exercises
+    case "scheduled_workouts": return [workout]
+    case "messages": return []
+    case "bookings": return []
+    case "nutrition_plans": return []
+    case "trainers": return [trainerRow]
+    case "coaching_relationships":
+      return [{ trainer_id: T1, client_id: C1, status: "active", goal: "Bli stark", started_at: TODAY, created_at: `${TODAY}T08:00:00Z`, client: { full_name: "Sara Test" } }]
+    case "weight_entries": return client ? [] : []
+    case "meal_checks": return []
+    case "workout_templates": return []
+    default: return []
+  }
+}
+
+const log = []
+const read = (req) => new Promise((r) => { let d = ""; req.on("data", (c) => (d += c)); req.on("end", () => r(d)) })
+
+http.createServer(async (req, res) => {
+  const url = new URL(req.url, "http://x")
+  const cors = {
+    "access-control-allow-origin": req.headers.origin ?? "*",
+    "access-control-allow-headers": "*",
+    "access-control-allow-methods": "GET,POST,PATCH,DELETE,PUT,OPTIONS",
+    "access-control-allow-credentials": "true",
+    "access-control-expose-headers": "*",
+  }
+  const send = (status, body, extra = {}) => {
+    res.writeHead(status, { "content-type": "application/json", ...cors, ...extra })
+    res.end(body === undefined ? "" : JSON.stringify(body))
+  }
+  if (req.method === "OPTIONS") return send(204)
+  const body = await read(req)
+
+  if (url.pathname === "/__log") return send(200, log)
+  if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
+
+  // ---- auth
+  if (url.pathname === "/auth/v1/token") {
+    const p = JSON.parse(body || "{}")
+    if (url.searchParams.get("grant_type") === "password") {
+      const u = users[p.email]
+      if (!u || u.password !== p.password) return send(400, { code: "invalid_credentials", error_code: "invalid_credentials", msg: "Invalid login credentials" })
+      return send(200, session(u))
+    }
+    if (url.searchParams.get("grant_type") === "refresh_token") {
+      const u = byId[String(p.refresh_token).slice(2)]
+      return u ? send(200, session(u)) : send(400, { error_code: "refresh_token_not_found", msg: "Invalid Refresh Token" })
+    }
+  }
+  const auth = req.headers.authorization?.split(" ")[1]
+  let uid = null
+  try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
+  if (url.pathname === "/auth/v1/user") return uid && byId[uid] ? send(200, userJson(byId[uid])) : send(401, { msg: "invalid JWT" })
+  if (url.pathname === "/auth/v1/logout") return send(204)
+
+  // ---- rest
+  const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
+  if (m) {
+    if (!uid || !byId[uid]) return send(401, { code: "PGRST301", message: "JWT required" })
+    const table = m[2]
+    if (req.method === "GET") {
+      const rows = fixtures(uid, table)
+      if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) return send(200, rows[0])
+      return send(200, rows)
+    }
+    const entry = { method: req.method, table, query: url.search, body: body ? JSON.parse(body) : null, prefer: req.headers.prefer ?? "" }
+    // Simulerat RLS-avslag för att testa permanenta fel.
+    if (table === "messages" && entry.body?.body === "NEKA") {
+      log.push({ ...entry, rejected: true })
+      return send(403, { code: "42501", message: 'new row violates row-level security policy for table "messages"', details: null, hint: null })
+    }
+    log.push(entry)
+    return send(req.method === "POST" ? 201 : 204, req.method === "POST" ? [] : undefined)
+  }
+  if (url.pathname.startsWith("/realtime/")) return send(404, {})
+  send(404, { message: `mock: ${req.method} ${url.pathname}` })
+}).listen(54321, () => console.log("mock supabase on :54321"))

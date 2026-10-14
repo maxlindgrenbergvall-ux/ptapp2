@@ -1,0 +1,196 @@
+"use client"
+
+import { MapPin, Search, SlidersHorizontal, Wifi } from "lucide-react"
+import Link from "next/link"
+import * as React from "react"
+
+import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAppData } from "@/lib/data/store"
+import { formatSlot } from "@/lib/date"
+import { cn } from "@/lib/utils"
+import { SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
+
+const PRICE = {
+  all: { label: "Alla priser", test: () => true },
+  low: { label: "Under 700 kr", test: (p: number) => p < 700 },
+  mid: { label: "700–900 kr", test: (p: number) => p >= 700 && p <= 900 },
+  high: { label: "Över 900 kr", test: (p: number) => p > 900 },
+} as const
+type PriceKey = keyof typeof PRICE
+type SortKey = "match" | "rating" | "price" | "available"
+
+export default function DiscoverPage() {
+  const { data } = useAppData()
+  const [q, setQ] = React.useState("")
+  const [selected, setSelected] = React.useState<Specialty[]>([])
+  const [price, setPrice] = React.useState<PriceKey>("all")
+  const [city, setCity] = React.useState("all")
+  const [remoteOnly, setRemoteOnly] = React.useState(false)
+  const [sort, setSort] = React.useState<SortKey>("match")
+
+  const cities = [...new Set(data.trainers.filter((t) => t.isPublished && t.city).map((t) => t.city))].sort()
+  const now = new Date().toISOString()
+
+  const results = data.trainers
+    .filter((t) => t.isPublished)
+    .map((t) => {
+      const nextSlot = t.availability.filter((s) => s > now).sort()[0]
+      // Matchning: andel valda inriktningar som PT:n har.
+      const match = selected.length ? selected.filter((s) => t.specialties.includes(s)).length / selected.length : 1
+      return { trainer: t, nextSlot, match }
+    })
+    .filter(({ trainer: t, match }) => {
+      const text = q.trim().toLowerCase()
+      return (
+        (selected.length === 0 || match > 0) &&
+        PRICE[price].test(t.pricePerSession) &&
+        (city === "all" || t.city === city) &&
+        (!remoteOnly || t.offersRemote) &&
+        (!text || t.name.toLowerCase().includes(text) || t.bio.toLowerCase().includes(text))
+      )
+    })
+    .sort((a, b) => {
+      if (sort === "rating") return b.trainer.rating - a.trainer.rating
+      if (sort === "price") return a.trainer.pricePerSession - b.trainer.pricePerSession
+      if (sort === "available") return (a.nextSlot ?? "9").localeCompare(b.nextSlot ?? "9")
+      return b.match - a.match || b.trainer.rating - a.trainer.rating
+    })
+
+  const toggle = (s: Specialty) => setSelected((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Hitta din PT</h1>
+        <p className="text-sm text-muted-foreground">Välj vad du vill träna mot så visar vi de som passar bäst.</p>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök namn eller nyckelord" className="h-11 pl-9" aria-label="Sök PT" />
+      </div>
+
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Inriktning">
+        {SPECIALTIES.map((s) => (
+          <button
+            key={s}
+            onClick={() => toggle(s)}
+            aria-pressed={selected.includes(s)}
+            className={cn(
+              "shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+              selected.includes(s) ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
+            )}
+          >
+            {SPECIALTY_LABEL[s]}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden />
+        <Select value={price} onValueChange={(v) => setPrice(v as PriceKey)}>
+          <SelectTrigger size="sm" aria-label="Pris">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(PRICE).map(([k, v]) => (
+              <SelectItem key={k} value={k}>
+                {v.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={city} onValueChange={setCity}>
+          <SelectTrigger size="sm" aria-label="Stad">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alla städer</SelectItem>
+            {cities.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <button
+          onClick={() => setRemoteOnly((r) => !r)}
+          aria-pressed={remoteOnly}
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors",
+            remoteOnly ? "border-foreground bg-foreground text-background" : "hover:bg-muted"
+          )}
+        >
+          <Wifi className="size-3.5" /> Distans
+        </button>
+        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+          <SelectTrigger size="sm" className="ml-auto" aria-label="Sortering">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="match">Bäst matchning</SelectItem>
+            <SelectItem value="rating">Högst betyg</SelectItem>
+            <SelectItem value="price">Lägst pris</SelectItem>
+            <SelectItem value="available">Tidigast ledig</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {results.length} tränare
+      </p>
+
+      <ul className="space-y-3">
+        {results.length === 0 && (
+          <li>
+            <EmptyState icon={Search} title="Ingen PT matchar" text="Prova att ta bort ett filter." />
+          </li>
+        )}
+        {results.map(({ trainer: t, nextSlot, match }) => (
+          <li key={t.id}>
+            <Link href={`/klient/hitta/${t.id}`} className="block rounded-2xl border bg-card p-4 transition-colors hover:border-foreground/30">
+              <div className="flex gap-3">
+                <PersonAvatar name={t.name} className="size-12" />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h2 className="truncate font-semibold">{t.name}</h2>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="size-3" /> {t.city}
+                        {t.offersRemote && " · Distans"} · {t.yearsExperience} års erfarenhet
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="font-semibold tabular">{t.pricePerSession} kr</div>
+                      <div className="text-xs text-muted-foreground">per pass</div>
+                    </div>
+                  </div>
+                  <Rating value={t.rating} count={t.reviews.length} />
+                </div>
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{t.bio}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {t.specialties.map((s) => (
+                  <SpecialtyBadge key={s} specialty={s} />
+                ))}
+                {selected.length > 1 && match === 1 && <Badge className="bg-brand text-brand-foreground">Matchar alla</Badge>}
+              </div>
+              <p className="mt-3 text-xs">
+                {nextSlot ? (
+                  <>
+                    <span className="text-muted-foreground">Nästa lediga tid:</span> <span className="font-medium">{formatSlot(nextSlot)}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Inga lediga tider just nu</span>
+                )}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
