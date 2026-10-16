@@ -5,10 +5,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 
+import { BrandLogo } from "@/components/brand"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { PersonAvatar } from "@/components/common"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAppData } from "@/lib/data/store"
@@ -45,9 +46,9 @@ export function PtShell({ children }: { children: React.ReactNode }) {
               <SidebarContent onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
-          <Logo />
+          <BrandLogo suffix="PT" />
           <div className="ml-auto">
-            <ThemeToggle />
+            <NotificationBell />
           </div>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
@@ -59,17 +60,6 @@ export function PtShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Logo() {
-  return (
-    <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-      <span className="flex size-7 items-center justify-center rounded-md bg-brand text-brand-foreground">
-        <Dumbbell className="size-3.5" />
-      </span>
-      Forma <span className="text-xs font-normal text-muted-foreground">PT</span>
-    </Link>
-  )
-}
-
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { data, actions, me, mode, signOut } = useAppData()
@@ -77,12 +67,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const clientIds = data.clients.filter((c) => c.trainerId === me.id).map((c) => c.id)
   const unread = useUnreadCount(me.id, clientIds)
   const now = new Date().toISOString()
-  const pendingRequests = data.events.filter((e) => e.trainerId === me.id && e.status === "pending" && e.end > now).length
+  const pendingRequests = data.events.filter((e) => e.trainerId === me.id && e.status === "pending" && e.awaiting !== "client" && e.end > now).length
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
-      <div className="hidden h-11 items-center px-2 lg:flex">
-        <Logo />
+      <div className="hidden h-11 items-center justify-between pl-2 lg:flex">
+        <BrandLogo suffix="PT" />
+        <NotificationBell align="start" />
       </div>
       <nav className="flex flex-col gap-1" aria-label="Huvudmeny">
         {NAV.map(({ href, label, icon: Icon, exact }) => {
@@ -135,9 +126,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               <LogOut /> Logga ut
             </Button>
           )}
-          <div className="ml-auto hidden lg:block">
-            <ThemeToggle />
-          </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border p-2">
           <PersonAvatar name={me.name} src={trainer?.avatarUrl} className="size-9" />

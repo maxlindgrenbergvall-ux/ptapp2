@@ -402,8 +402,8 @@ function SleepWeek({ logs, today }: { logs: SleepLog[]; today: ISODate }) {
 
 const PROVIDERS: { id: WearableProvider; web: boolean; note: string }[] = [
   { id: "fitbit", web: true, note: "Sömn, sömnsteg och poäng synkas automatiskt." },
-  { id: "apple_health", web: false, note: "Kräver Forma-appen för iPhone (kommer). Data finns bara på telefonen." },
-  { id: "google_fit", web: false, note: "Kräver Forma-appen för Android (kommer) via Health Connect." },
+  { id: "apple_health", web: false, note: "Kräver Coavira-appen för iPhone (kommer). Data finns bara på telefonen." },
+  { id: "google_fit", web: false, note: "Kräver Coavira-appen för Android (kommer) via Health Connect." },
 ]
 
 export function WearablesCard() {

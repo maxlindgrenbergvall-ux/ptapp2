@@ -27,4 +27,4 @@ export async function requireClient(): Promise<{ userId: string } | { error: Nex
   return { userId: data.user.id }
 }
 
-export const STATE_COOKIE = "forma_wearable_state"
+export const STATE_COOKIE = "coavira_wearable_state"

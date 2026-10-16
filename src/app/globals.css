@@ -1,7 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * Mörkt läge följer enhetens systeminställning (iOS, Android/Samsung, macOS,
+ * Windows eller webbläsaren) via prefers-color-scheme. Ingen klass eller JS behövs,
+ * så det blir ingen blink vid sidladdning och temat byts direkt om systemet byter
+ * (t.ex. automatiskt mörkt läge på kvällen).
+ */
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -59,6 +65,8 @@
  * Neutrala ytor har en lätt grön ton i stället för ren svart/vit.
  */
 :root {
+  /* Inbyggda kontroller (scrollbars, datum/tid-väljare) följer också systemtemat. */
+  color-scheme: light dark;
   --background: oklch(0.985 0.004 135);
   --foreground: oklch(0.19 0.02 155);
   --card: oklch(1 0 0);
@@ -104,51 +112,53 @@
   --sidebar-ring: oklch(0.6 0.13 148);
 }
 
-.dark {
-  /*
-   * Mjukare mörkt läge: grafitgrå bas i stället för nästan svart, ljusare kort
-   * och komponenter, och vitare text. Ger högre läsbarhet utan hård svart/vit kontrast.
-   */
-  --background: oklch(0.205 0.01 160);
-  --foreground: oklch(0.97 0.006 130);
-  --card: oklch(0.255 0.012 160);
-  --card-foreground: oklch(0.97 0.006 130);
-  --popover: oklch(0.27 0.012 160);
-  --popover-foreground: oklch(0.97 0.006 130);
-  --primary: oklch(0.88 0.2 130);
-  --primary-foreground: oklch(0.2 0.05 140);
-  --secondary: oklch(0.33 0.012 160);
-  --secondary-foreground: oklch(0.97 0.006 130);
-  --muted: oklch(0.31 0.01 160);
-  --muted-foreground: oklch(0.8 0.012 150);
-  --accent: oklch(0.34 0.035 150);
-  --accent-foreground: oklch(0.94 0.1 130);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 14%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.78 0.16 133);
-  --chart-brand: oklch(0.86 0.2 130);
-  --chart-1: #3987e5;
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --macro-protein: #3987e5;
-  --macro-carbs: #c98500;
-  --macro-fat: #d55181;
-  --water: #3987e5;
-  --brand: oklch(0.88 0.2 130);
-  --brand-foreground: oklch(0.18 0.04 140);
-  --success: oklch(0.78 0.17 140);
-  --warning: oklch(0.8 0.15 80);
-  --sidebar: oklch(0.23 0.011 160);
-  --sidebar-foreground: oklch(0.97 0.006 130);
-  --sidebar-primary: oklch(0.88 0.2 130);
-  --sidebar-primary-foreground: oklch(0.2 0.05 140);
-  --sidebar-accent: oklch(0.32 0.03 150);
-  --sidebar-accent-foreground: oklch(0.94 0.1 130);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.78 0.16 133);
+@media (prefers-color-scheme: dark) {
+  :root {
+    /*
+     * Mjukare mörkt läge: grafitgrå bas i stället för nästan svart, ljusare kort
+     * och komponenter, och vitare text. Ger högre läsbarhet utan hård svart/vit kontrast.
+     */
+    --background: oklch(0.205 0.01 160);
+    --foreground: oklch(0.97 0.006 130);
+    --card: oklch(0.255 0.012 160);
+    --card-foreground: oklch(0.97 0.006 130);
+    --popover: oklch(0.27 0.012 160);
+    --popover-foreground: oklch(0.97 0.006 130);
+    --primary: oklch(0.88 0.2 130);
+    --primary-foreground: oklch(0.2 0.05 140);
+    --secondary: oklch(0.33 0.012 160);
+    --secondary-foreground: oklch(0.97 0.006 130);
+    --muted: oklch(0.31 0.01 160);
+    --muted-foreground: oklch(0.8 0.012 150);
+    --accent: oklch(0.34 0.035 150);
+    --accent-foreground: oklch(0.94 0.1 130);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 14%);
+    --input: oklch(1 0 0 / 18%);
+    --ring: oklch(0.78 0.16 133);
+    --chart-brand: oklch(0.86 0.2 130);
+    --chart-1: #3987e5;
+    --chart-2: #d95926;
+    --chart-3: #199e70;
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --macro-protein: #3987e5;
+    --macro-carbs: #c98500;
+    --macro-fat: #d55181;
+    --water: #3987e5;
+    --brand: oklch(0.88 0.2 130);
+    --brand-foreground: oklch(0.18 0.04 140);
+    --success: oklch(0.78 0.17 140);
+    --warning: oklch(0.8 0.15 80);
+    --sidebar: oklch(0.23 0.011 160);
+    --sidebar-foreground: oklch(0.97 0.006 130);
+    --sidebar-primary: oklch(0.88 0.2 130);
+    --sidebar-primary-foreground: oklch(0.2 0.05 140);
+    --sidebar-accent: oklch(0.32 0.03 150);
+    --sidebar-accent-foreground: oklch(0.94 0.1 130);
+    --sidebar-border: oklch(1 0 0 / 12%);
+    --sidebar-ring: oklch(0.78 0.16 133);
+  }
 }
 
 @layer base {

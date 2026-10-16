@@ -126,7 +126,7 @@ export function SignupForm() {
           <div className="flex items-start gap-3 rounded-lg border p-3">
             <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
             <Label htmlFor="consent" className="text-sm leading-snug font-normal">
-              Jag samtycker till att Forma behandlar mina hälsouppgifter (träning, vikt och kost) så att min PT kan coacha mig.
+              Jag samtycker till att Coavira behandlar mina hälsouppgifter (träning, vikt och kost) så att min PT kan coacha mig.
               Jag kan när som helst radera mitt konto och all data.{" "}
               <Link href="/integritet" target="_blank" className="underline underline-offset-4">
                 Läs mer

@@ -1,4 +1,4 @@
-# Forma – PT- och träningsplattform
+# Coavira – PT- och träningsplattform
 
 Kopplar ihop personliga tränare (PT) och klienter. Appen körs i ett av två lägen:
 
@@ -21,7 +21,8 @@ npm run dev                  # http://localhost:3000
    2. `supabase/migrations/20261015000000_v2_media_trackers_calls.sql`. Den lägger till profilbild, coaching-typ, bilagor, trackers, wearables, Storage-buckets och regler för samtal.
    3. `supabase/migrations/20261016000000_v3_food_products_aliases.sql`. Den lägger till livsmedelsprodukter (streckkod och egna), gram och streckkod på matposter, övningsnamn per klient och det uppdaterade övningsbiblioteket.
    4. `supabase/migrations/20261017000000_v4_calendar.sql`. Den ersätter `bookings` och `trainer_availability` med en tvåvägskalender (`calendar_events`) och återkommande tillgänglighet (`availability_rules`). Befintliga bokningar och tider flyttas över automatiskt.
-   5. `supabase/seed.sql`
+   5. `supabase/migrations/20261018000000_v5_reschedule_notifications_offers.sql`. Den lägger till ombokning av preliminära pass (`awaiting`, `previous_start/end`), aviseringar (`notifications`, skapas av en trigger) och PT-erbjudanden (`trainer_offers`).
+   6. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
@@ -127,6 +128,15 @@ npm run dev                  # http://localhost:3000
 - **Klient** (`/klient/kalender`): *Mina pass* med tid, plats och PT, tydlig markering *Väntar på bekräftelse från PT*, planerade träningspass och avbokning. Bokningen från PT-profilen visar bara dagar och tider som är lediga.
 - **Realtid:** ändringar i `calendar_events` skickas via Supabase Realtime, så en accepterad bokning syns hos klienten utan omladdning.
 
+## Nytt i v5: Coavira, ombokning, aviseringar och systemtema
+
+- **Varumärke:** appen heter **Coavira**. Namn, beskrivning och färger finns på ett ställe (`src/lib/brand.ts`), loggan i `src/components/brand.tsx`. Favicon (`app/icon.svg`), hemskärmsikon (`app/apple-icon.tsx`), webbappsmanifest (`app/manifest.ts`), sidtitlar, Open Graph-data och laddningsskärmen använder det nya namnet. Osynkade ändringar och offlinecache under de gamla `forma:`-nycklarna flyttas automatiskt.
+- **Systemtema:** ljust/mörkt läge följer enhetens inställning (iOS, Android/Samsung, macOS, Windows, webbläsare) via `prefers-color-scheme`. Tailwinds `dark:`-variant är definierad som mediafrågan (`@custom-variant dark (@media (prefers-color-scheme: dark))`), de mörka färgtokens ligger i samma mediafråga och `color-scheme: light dark` gör att även scrollbars och datumväljare följer med. Ingen JavaScript och ingen temaknapp, så det blir ingen blink vid laddning och temat byts direkt när systemet byter. `next-themes` är borttaget.
+- **Dra-och-släpp (PT):** preliminära pass (gula, streckade) kan dras i vecko- och dagvyn (upp/ner = tid i steg om 15 min, sidled = dag) och mellan dagar i månadsvyn. Bekräftade pass, blockeringar och planerade pass är låsta. Under dragningen visas den nya tiden; krockar visas röda och går inte att släppa. Vid släpp bekräftar PT:n förslaget, och först då aviseras klienten. Fungerar med mus, penna och touch (Pointer Events); för tangentbord finns *Flytta* i passets detaljer.
+- **Ombokningsflödet:** den som flyttar ett preliminärt pass lämnar över till motparten (`awaiting`). Klienten kan **acceptera** den nya tiden (blir bekräftad) eller **föreslå en ny tid** bland PT:ns lediga tider. Då hamnar passet hos PT:n igen, som kan acceptera, neka eller flytta. PT:n kan också lägga in ett pass som *preliminärt*, så att klienten bekräftar det.
+- **Aviseringsmenyn** (klockan i headern) visar avbokningar (flera avbokningar från samma person inom en timme visas som en, till exempel "Elin avbokade 2 pass"), ombokningar med gammal och ny tid, bekräftelser och nya förfrågningar. Klienten kan acceptera eller föreslå en ny tid direkt i menyn. Aviseringar markeras som lästa när menyn stängs.
+- **Personliga PT-erbjudanden:** PT:n skapar erbjudanden per inriktning under *Min profil*. Klienten ser i aviseringsmenyn erbjudanden i de kategorier hen visat intresse för: filterval väger 3, sökord 2 och öppnade PT-profiler 1. Intresset halveras på 14 dagar. Högst tre erbjudanden visas, och högst ett per PT. Historiken sparas **bara lokalt på enheten**, raderas vid utloggning och kan stängas av eller rensas i menyn.
+
 ## Arkitektur
 
 ```
@@ -139,6 +149,12 @@ src/
   lib/data/outbox.ts         Offlinekö (localStorage), backoff
   lib/data/supabase-source.ts  Laddning, rad ⇄ domän-mappning, skrivningar, realtid
   lib/data/seed.ts           Mockdata för demoläget
+  lib/brand.ts, components/brand.tsx  Varumärket Coavira (namn, färger, logga)
+  lib/calendar/*             Tider, lediga tider och krockkontroll
+  components/calendar/*      PT- och klientkalender, dra-och-släpp (use-event-drag.ts)
+  lib/notifications/*        Aviseringsregler (speglar databastriggern) och texter
+  lib/offers/interests.ts    Lokal intressehistorik och matchning av PT-erbjudanden
+  components/notifications/* Aviseringsmenyn
   lib/storage.ts             Uppladdning, signerade länkar (Storage) och demoläge
   lib/video.ts               Tolkning av YouTube-/Vimeo-/fil-länkar
   lib/calls/*                Samtal: signalering (Supabase/demo) och WebRTC-motor
@@ -193,6 +209,7 @@ Gymmen har ofta dålig täckning, så loggen ska aldrig vänta på nätet:
   - Samma tid kan inte dubbelbokas (exclusion constraint på tidsintervallet).
 - **Samtycke**: krävs för klientkonton och sparas i `profiles.health_data_consent_at`.
   En check constraint gör att det inte går att skapa ett klientkonto utan samtycke.
+- **Ingen beteendeprofil på servern:** intressen för personliga erbjudanden räknas fram och sparas bara på klientens enhet. De kan stängas av, och de raderas vid utloggning. Aviseringar innehåller tider och namn, men aldrig hälsodata.
 - **Dataportabilitet** (art. 20): klienten kan exportera all sin data som JSON.
 - **Radering** (art. 17): *Radera mitt konto* anropar `delete_my_account()`. Allt
   raderas sedan via kaskad.
@@ -222,13 +239,17 @@ node e2e/v2-features.test.mjs   # kräver Chromium-flaggorna i filen (falsk kame
 node e2e/v3-features.test.mjs   # mot e2e/mock-openfoodfacts.mjs; kamerafallet läser en riktig EAN-13
                                 # ur en genererad video (node e2e/make-barcode-video.mjs)
 node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräftat, blockering, krockar, vyer
+node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
 ```
 
-RLS-testerna (`rls`, `rls_v2`, `rls_v3`, `rls_v4`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v5`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
 - Klienter kan bara boka lediga tider, inte dubbelboka och inte se andras bokningar.
+- Ombokning: bara preliminära pass flyttas i flödet. Klienten kan acceptera PT:ns tid eller föreslå en ledig tid, men aldrig ändra passets innehåll eller flytta ett bekräftat pass. `awaiting` och tidigare tid sätts av databasen.
+- Aviseringar skapas bara av triggern. Ingen kan skapa eller ändra en avisering åt någon annan, och mottagaren kan bara sätta `read_at` eller ta bort sina egna.
+- PT-erbjudanden: bara i PT:ns egna inriktningar. Klienter ser bara aktiva och giltiga erbjudanden från publicerade PT:er.
 - Accept, nekande och avbokning ger rätt lediga tider; gamla bokningar migreras korrekt till kalendern.
 - Radering av konto tar bort allt via kaskad.
 - Bilagor, övningsvideor och samtalskanaler kan bara nås av rätt parter.
@@ -243,6 +264,7 @@ Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Att ändringar som databasen nekar inte blockerar kön.
 - Att utloggning rensar lokal data.
 - Kalendern: pass från databasen visas hos klient och PT, lediga tider hämtas via RPC och bokningsförfrågan sparas.
+- Aviseringar och erbjudanden laddas från databasen, lästa aviseringar sparas, och klientens accept av en ny tid skickas.
 
 ## Teknik
 

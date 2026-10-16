@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Inbox, MapPin, Video, X } from "lucide-react"
+import { ArrowRight, Check, Hourglass, Inbox, MapPin, Video, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { PersonAvatar } from "@/components/common"
@@ -15,9 +15,13 @@ import type { CalendarEvent } from "@/types/domain"
 export function RequestsPanel({ onShow, compact }: { onShow?: (e: CalendarEvent) => void; compact?: boolean }) {
   const { data, me, actions } = useAppData()
   const now = new Date().toISOString()
-  const pending = data.events
+  const open = data.events
     .filter((e) => e.trainerId === me.id && e.status === "pending" && e.end > now)
     .sort((a, b) => a.start.localeCompare(b.start))
+  // Förfrågningar och motförslag från klienter: PT:n ska svara.
+  const pending = open.filter((e) => e.awaiting !== "client")
+  // Tider PT:n föreslagit/flyttat: klienten ska svara.
+  const awaitingClient = open.filter((e) => e.awaiting === "client")
 
   return (
     <section aria-labelledby="requests-title" className="space-y-3">
@@ -55,6 +59,11 @@ export function RequestsPanel({ onShow, compact }: { onShow?: (e: CalendarEvent)
                   <div className="text-sm tabular">
                     {formatDayShort(start)} · {formatTimeRange(start, end)}
                   </div>
+                  {e.previousStart && e.previousEnd && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground tabular">
+                      Ny tid föreslagen av klienten · tidigare <span className="line-through">{formatTimeRange(new Date(e.previousStart), new Date(e.previousEnd))}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     {e.mode === "remote" ? <Video className="size-3" /> : <MapPin className="size-3" />}
                     {e.mode === "remote" ? "Distans" : "På plats"}
@@ -91,6 +100,35 @@ export function RequestsPanel({ onShow, compact }: { onShow?: (e: CalendarEvent)
           )
         })}
       </ul>
+
+      {awaitingClient.length > 0 && !compact && (
+        <div className="space-y-2 pt-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <Hourglass className="size-3.5" /> Väntar på klientens svar ({awaitingClient.length})
+          </h3>
+          <ul className="space-y-1.5">
+            {awaitingClient.map((e) => {
+              const client = data.clients.find((c) => c.id === e.clientId)
+              const start = new Date(e.start)
+              return (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => onShow?.(e)}
+                    className="flex w-full items-center gap-2 rounded-lg border border-dashed border-warning/60 px-3 py-2 text-left text-sm hover:bg-muted/60"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium">{client?.name ?? "Klient"}</span>
+                    {e.previousStart && <ArrowRight className="size-3 text-muted-foreground" />}
+                    <span className="shrink-0 text-xs tabular">
+                      {formatDayShort(start)} {formatTimeRange(start, new Date(e.end))}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }

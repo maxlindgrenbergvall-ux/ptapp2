@@ -1,7 +1,7 @@
-import { ArrowRight, Dumbbell, LayoutDashboard, Smartphone } from "lucide-react"
+import { ArrowRight, LayoutDashboard, Smartphone } from "lucide-react"
 import Link from "next/link"
 
-import { ThemeToggle } from "@/components/theme-toggle"
+import { BrandLogo } from "@/components/brand"
 import { Button } from "@/components/ui/button"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
 
@@ -26,19 +26,13 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-svh max-w-3xl flex-col px-4 py-6 sm:px-6">
       <header className="flex items-center justify-between">
-        <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Dumbbell className="size-4" />
-          </span>
-          Forma
-        </span>
+        <BrandLogo size="md" />
         <div className="flex items-center gap-2">
           {isSupabaseEnabled && (
             <Button asChild variant="ghost" size="sm">
               <Link href="/logga-in">Logga in</Link>
             </Button>
           )}
-          <ThemeToggle />
         </div>
       </header>
 

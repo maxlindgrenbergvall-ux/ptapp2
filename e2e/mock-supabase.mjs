@@ -42,8 +42,23 @@ const EV1 = "44444444-0000-4000-8000-000000000001"
 const eventRow = {
   id: EV1, trainer_id: T1, client_id: C1, kind: "session", status: "confirmed", title: "PT-pass",
   start_time: at(2, 7), end_time: at(2, 8), mode: "onsite", location: "Gymmet", notes: null,
-  workout_id: null, created_by: T1, cancelled_by: null,
+  workout_id: null, created_by: T1, cancelled_by: null, awaiting: null, previous_start: null, previous_end: null,
 }
+// Ett preliminärt pass som PT:n flyttat: klienten ska svara (v5).
+const EV2 = "44444444-0000-4000-8000-000000000002"
+const movedRow = {
+  ...eventRow, id: EV2, status: "pending", title: "Marklyft", start_time: at(5, 9), end_time: at(5, 10),
+  awaiting: "client", previous_start: at(4, 9), previous_end: at(4, 10),
+}
+const notificationRows = [{
+  id: "55555555-0000-4000-8000-000000000001", user_id: C1, actor_id: T1, kind: "event_rescheduled", event_id: EV2,
+  payload: { actor_name: "Elin Test", title: "Marklyft", start: movedRow.start_time, end: movedRow.end_time, previous_start: movedRow.previous_start, previous_end: movedRow.previous_end },
+  read_at: null, created_at: new Date(Date.now() - 600e3).toISOString(),
+}]
+const offerRows = [{
+  id: "66666666-0000-4000-8000-000000000001", trainer_id: T1, category: "styrkelyft", title: "Teknikpaket", description: "Tre pass",
+  price_sek: 1900, discount_percent: null, valid_until: null, active: true, created_at: `${TODAY}T08:00:00Z`,
+}]
 const slots = [3, 4].flatMap((d) => [8, 9].map((h) => ({ start_time: at(d, h), end_time: at(d, h + 1) })))
 const rpc = {
   available_slots: slots,
@@ -57,7 +72,9 @@ function fixtures(uid, table) {
     case "exercises": return exercises
     case "scheduled_workouts": return [workout]
     case "messages": return []
-    case "calendar_events": return [eventRow]
+    case "calendar_events": return [eventRow, movedRow]
+    case "notifications": return client ? notificationRows : []
+    case "trainer_offers": return offerRows
     case "availability_rules": return client ? [] : [{ id: "r1", trainer_id: T1, weekday: 1, date: null, start_local: "08:00:00", end_local: "10:00:00", slot_minutes: 60 }]
     case "nutrition_plans": return []
     case "trainers": return [trainerRow]

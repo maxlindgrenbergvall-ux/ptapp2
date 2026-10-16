@@ -235,7 +235,7 @@ export default function TodayPage() {
               <div className="font-medium">{trainer.name}</div>
               <div className="text-xs text-muted-foreground">
                 {booking
-                  ? `Nästa pass: ${formatSlot(booking.start)}${booking.status === "pending" ? " · väntar på bekräftelse" : " · bekräftat"}`
+                  ? `Nästa pass: ${formatSlot(booking.start)}${booking.status === "pending" ? (booking.awaiting === "client" ? " · ny tid – ditt svar behövs" : " · väntar på bekräftelse") : " · bekräftat"}`
                   : "Ingen bokad session"}
               </div>
             </div>

@@ -49,8 +49,9 @@ values (test.uid('pt7@test.se'), auth.uid(), 'PT-pass', test.at(:'d', '09:00'), 
 select test.eq((select count(*) from available_slots(test.uid('pt7@test.se'), test.at(:'d', '00:00'), test.at(:'d', '23:59'))),
   3::bigint, 'bokad tid försvinner från lediga tider');
 select test.fails($$update calendar_events set status = 'confirmed'$$, 'klient kan inte bekräfta sin egen bokning');
-select test.fails($$update calendar_events set start_time = start_time + interval '1 hour', end_time = end_time + interval '1 hour'$$,
-  'klient kan inte flytta en bokning');
+-- (Sedan v5 får klienten föreslå en annan LEDIG tid för sin förfrågan, men aldrig en tid utanför schemat.)
+select test.fails($$update calendar_events set start_time = start_time + interval '30 minutes', end_time = end_time + interval '30 minutes'$$,
+  'klient kan inte flytta en bokning till en tid som inte är ledig');
 select test.logout();
 
 select test.login('c8@test.se');

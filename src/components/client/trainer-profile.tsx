@@ -1,15 +1,15 @@
 "use client"
 
-import { ArrowLeft, BadgeCheck, CalendarDays, Hourglass, Loader2, MapPin, MessageCircle, X } from "lucide-react"
+import { ArrowLeft, BadgeCheck, CalendarDays, Hourglass, MapPin, MessageCircle, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
-import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
 
+import { SlotPicker } from "@/components/calendar/slot-picker"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
+import { OfferCard } from "@/components/offers/offer-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
@@ -23,10 +23,9 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
-import { daysWithSlots } from "@/lib/calendar/slots"
-import { formatDayLong, formatTimeRange, localISODate } from "@/lib/calendar/time"
-import { useTrainerSlots } from "@/lib/calendar/use-slots"
-import { formatShort } from "@/lib/date"
+import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
+import { formatShort, todayISO } from "@/lib/date"
+import { recordInterest } from "@/lib/offers/interests"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
 
@@ -34,7 +33,14 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const { data, me } = useAppData()
   const trainer = data.trainers.find((t) => t.id === trainerId)
   const client = data.clients.find((c) => c.id === me.id)!
+  const specialties = trainer?.specialties.join(",")
+  // Att öppna en profil är en (svag) signal om intresse för PT:ns kategorier (sparas bara lokalt).
+  React.useEffect(() => {
+    if (specialties) recordInterest(me.id, specialties.split(",") as Trainer["specialties"], "profile")
+  }, [specialties, me.id])
   if (!trainer) return <EmptyState icon={X} title="Tränaren hittades inte" />
+  const today = todayISO()
+  const offers = data.offers.filter((o) => o.trainerId === trainer.id && o.active && (!o.validUntil || o.validUntil >= today))
 
   const isMyTrainer = client.trainerId === trainer.id && client.status !== "pending"
 
@@ -86,6 +92,19 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
         )}
       </div>
 
+      {offers.length > 0 && (
+        <section className="space-y-2" aria-labelledby="offers-title">
+          <h2 id="offers-title" className="font-semibold">
+            Erbjudanden
+          </h2>
+          <div className="space-y-2">
+            {offers.map((o) => (
+              <OfferCard key={o.id} offer={o} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {trainer.certifications.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-semibold">Certifieringar</h2>
@@ -126,20 +145,13 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
 function BookingDialog({ trainer }: { trainer: Trainer }) {
   const { actions } = useAppData()
   const [open, setOpen] = React.useState(false)
-  const [day, setDay] = React.useState<Date | undefined>()
   const [slot, setSlot] = React.useState<Slot | null>(null)
   const [mode, setMode] = React.useState<SessionMode>(trainer.coachingMode === "remote" ? "remote" : "onsite")
   const [note, setNote] = React.useState("")
   const [sent, setSent] = React.useState<Slot | null>(null)
-  // Lediga tider de kommande fyra veckorna, enligt PT:ns tillgänglighet minus bokad tid.
-  const { status, slots } = useTrainerSlots(open ? trainer.id : null, 28)
-
-  const days = daysWithSlots(slots)
-  const daySlots = day ? slots.filter((s) => localISODate(new Date(s.start)) === localISODate(day)) : []
   const modes: SessionMode[] = trainer.coachingMode === "both" ? ["onsite", "remote"] : [trainer.coachingMode === "remote" ? "remote" : "onsite"]
 
   const reset = () => {
-    setDay(undefined)
     setSlot(null)
     setNote("")
     setSent(null)
@@ -187,52 +199,7 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
               <DialogTitle>Boka {trainer.name.split(" ")[0]}</DialogTitle>
               <DialogDescription>Välj en ledig tid. Bokningen blir klar när {trainer.name.split(" ")[0]} bekräftat den.</DialogDescription>
             </DialogHeader>
-            {status === "loading" ? (
-              <div className="flex h-72 items-center justify-center">
-                <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : status === "error" ? (
-              <p className="rounded-lg bg-muted p-4 text-sm">Kunde inte hämta lediga tider. Kontrollera uppkopplingen och försök igen.</p>
-            ) : slots.length === 0 ? (
-              <p className="rounded-lg bg-muted p-4 text-sm">{trainer.name.split(" ")[0]} har inga lediga tider de kommande fyra veckorna. Skicka gärna ett meddelande.</p>
-            ) : (
-              <>
-                <div className="flex justify-center rounded-md border">
-                  <Calendar
-                    mode="single"
-                    locale={sv}
-                    selected={day}
-                    onSelect={(d) => {
-                      setDay(d)
-                      setSlot(null)
-                    }}
-                    disabled={(d) => !days.includes(localISODate(d))}
-                    modifiers={{ available: days.map((d) => new Date(`${d}T12:00:00`)) }}
-                    modifiersClassNames={{ available: "font-semibold underline decoration-primary decoration-2 underline-offset-4" }}
-                  />
-                </div>
-                {day && (
-                  <div className="space-y-2">
-                    <Label>Tid</Label>
-                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Välj tid">
-                      {daySlots.map((s) => (
-                        <button
-                          key={s.start}
-                          type="button"
-                          role="radio"
-                          aria-checked={slot?.start === s.start}
-                          onClick={() => setSlot(s)}
-                          className={cn(
-                            "rounded-lg border px-3 py-2 text-sm font-medium tabular transition-colors",
-                            slot?.start === s.start ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
-                          )}
-                        >
-                          {formatTimeRange(new Date(s.start), new Date(s.end))}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            <SlotPicker trainerId={open ? trainer.id : null} trainerFirstName={trainer.name.split(" ")[0]} value={slot} onChange={setSlot} />
                 {slot && (
                   <>
                     {modes.length > 1 && (
@@ -267,8 +234,6 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
                     </div>
                   </>
                 )}
-              </>
-            )}
             <DialogFooter>
               <Button
                 disabled={!slot}

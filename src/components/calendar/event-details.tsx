@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, CheckCheck, Clock, Dumbbell, MapPin, MessageSquare, Pencil, Trash2, Video, X } from "lucide-react"
+import { ArrowRight, Check, CheckCheck, Clock, Dumbbell, Hourglass, MapPin, MessageSquare, Move, Pencil, Trash2, Video, X } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -8,7 +8,7 @@ import { TONE_DOT, TONE_LABEL, type CalItem } from "@/components/calendar/items"
 import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
+import { formatDayLong, formatDayShort, formatTimeRange } from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -74,6 +74,27 @@ export function EventDetailsDialog({
               {item.tone === "planned" && <span className="text-muted-foreground">(schemalagt i passbyggaren)</span>}
             </p>
           )}
+          {ev?.status === "pending" && (
+            <div className="space-y-1 rounded-lg border border-dashed border-warning/70 bg-warning/10 px-3 py-2">
+              <p className="flex items-center gap-1.5 font-medium">
+                <Hourglass className="size-3.5 text-warning" />
+                {ev.awaiting === "client" ? `Väntar på att ${client?.name.split(" ")[0] ?? "klienten"} svarar` : "Väntar på ditt svar"}
+              </p>
+              {ev.previousStart && ev.previousEnd && (
+                <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground tabular">
+                  <span className="line-through">
+                    {formatDayShort(new Date(ev.previousStart))} {formatTimeRange(new Date(ev.previousStart), new Date(ev.previousEnd))}
+                  </span>
+                  <ArrowRight className="size-3" /> {formatDayShort(new Date(ev.start))} {formatTimeRange(new Date(ev.start), new Date(ev.end))}
+                </p>
+              )}
+              {!past && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Move className="size-3" /> Preliminärt – dra passet i kalendern eller välj Flytta för att föreslå en annan tid.
+                </p>
+              )}
+            </div>
+          )}
           {ev?.notes && <blockquote className="rounded-lg bg-muted px-3 py-2">&quot;{ev.notes}&quot;</blockquote>}
           {ev?.status === "cancelled" && ev.cancelledBy && (
             <p className="text-xs text-muted-foreground">Avbokat av {ev.cancelledBy === ev.trainerId ? "dig" : client?.name ?? "klienten"}.</p>
@@ -81,7 +102,7 @@ export function EventDetailsDialog({
         </div>
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-between">
-          {ev?.status === "pending" && (
+          {ev?.status === "pending" && ev.awaiting !== "client" && (
             <>
               <Button
                 variant="outline"
@@ -93,15 +114,43 @@ export function EventDetailsDialog({
               >
                 <X /> Neka
               </Button>
+              <div className="flex gap-2">
+                {!past && (
+                  <Button variant="outline" onClick={() => onEdit(ev)}>
+                    <Move /> Flytta
+                  </Button>
+                )}
+                <Button
+                  onClick={() => {
+                    actions.respondToRequest(ev.id, true)
+                    toast.success("Bokningen är bekräftad och syns i klientens kalender")
+                    close()
+                  }}
+                >
+                  <Check /> Acceptera
+                </Button>
+              </div>
+            </>
+          )}
+          {ev?.status === "pending" && ev.awaiting === "client" && (
+            <>
               <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
                 onClick={() => {
-                  actions.respondToRequest(ev.id, true)
-                  toast.success("Bokningen är bekräftad och syns i klientens kalender")
+                  if (!window.confirm(`Dra tillbaka förslaget? ${client?.name ?? "Klienten"} aviseras.`)) return
+                  actions.setEventStatus(ev.id, "cancelled")
+                  toast("Förslaget är tillbakadraget")
                   close()
                 }}
               >
-                <Check /> Acceptera
+                Dra tillbaka
               </Button>
+              {!past && (
+                <Button variant="outline" onClick={() => onEdit(ev)}>
+                  <Move /> Flytta
+                </Button>
+              )}
             </>
           )}
           {ev?.status === "confirmed" && ev.kind === "session" && (

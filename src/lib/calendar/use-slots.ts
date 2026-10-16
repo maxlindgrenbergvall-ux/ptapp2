@@ -20,7 +20,7 @@ export function useTrainerSlots(trainerId: string | null, days = 28): State & { 
   const [remote, setRemote] = React.useState<State & { key?: string }>({ status: "loading", slots: [] })
   const [nonce, setNonce] = React.useState(0)
   // Ändringar i den egna kalendern (ny bokning, avbokning) ska ge nya lediga tider.
-  const calendarKey = data.events.map((e) => `${e.id}:${e.status}`).join("|")
+  const calendarKey = data.events.map((e) => `${e.id}:${e.status}:${e.start}`).join("|")
 
   const local = React.useMemo<State | null>(() => {
     if (mode !== "demo" || !trainerId) return null

@@ -1,13 +1,14 @@
 "use client"
 
-import { CalendarDays, Dumbbell, Home, LineChart, LogOut, MessageCircle, Search } from "lucide-react"
+import { CalendarDays, Home, LineChart, LogOut, MessageCircle, Search } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
 
+import { BrandLogo } from "@/components/brand"
 import { useUnreadCount } from "@/components/chat/chat-thread"
+import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
@@ -26,6 +27,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const unread = useUnreadCount(me.id, [me.id])
   const { data } = useAppData()
   const nowIso = new Date().toISOString()
+  // Prick på Kalender när ett preliminärt pass väntar (på PT:n eller på mitt svar).
   const pendingCount = data.events.filter((e) => e.clientId === me.id && e.status === "pending" && e.end > nowIso).length
   // Under ett pågående pass tar loggern hela skärmen – inga distraktioner.
   const focusMode = pathname.startsWith("/klient/pass/")
@@ -34,14 +36,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x">
       {!focusMode && (
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-            <span className="flex size-7 items-center justify-center rounded-md bg-brand text-brand-foreground">
-              <Dumbbell className="size-3.5" />
-            </span>
-            Forma
-          </Link>
+          <BrandLogo />
           <div className="flex items-center gap-1">
-            <ThemeToggle />
+            <NotificationBell />
             {mode === "supabase" && (
               <Button variant="ghost" size="icon" aria-label="Logga ut" onClick={() => void signOut()}>
                 <LogOut />

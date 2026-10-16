@@ -20,6 +20,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { PageHeader, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
+import { OffersEditor } from "@/components/offers/offers-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -198,6 +199,13 @@ export function TrainerProfileEditor() {
               placeholder="Vem är du, hur jobbar du och vem passar du för?"
             />
             <p className="mt-1 text-right text-xs text-muted-foreground tabular">{form.bio.length}/2000</p>
+          </Section>
+
+          <Section
+            title="Erbjudanden"
+            description="Paket och kampanjer per inriktning. De visas i aviseringsmenyn hos klienter som tittat på inriktningen – aldrig för den som stängt av personliga erbjudanden."
+          >
+            <OffersEditor />
           </Section>
         </div>
 

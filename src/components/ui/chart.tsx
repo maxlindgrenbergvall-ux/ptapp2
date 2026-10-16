@@ -6,7 +6,8 @@ import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
-const THEMES = { light: "", dark: ".dark" } as const
+// Temat följer systemet (prefers-color-scheme), så mörka färger läggs i en mediafråga.
+const THEMES = { light: "", dark: "@media (prefers-color-scheme: dark)" } as const
 
 const INITIAL_DIMENSION = { width: 320, height: 200 } as const
 type TooltipNameType = number | string
@@ -95,7 +96,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix ? `${prefix} {` : ""} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
@@ -104,7 +105,7 @@ ${colorConfig
     return color ? `  --color-${key}: ${color};` : null
   })
   .join("\n")}
-}
+}${prefix ? "\n}" : ""}
 `
           )
           .join("\n"),

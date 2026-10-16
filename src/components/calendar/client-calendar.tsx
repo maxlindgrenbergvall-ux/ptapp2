@@ -1,15 +1,40 @@
 "use client"
 
-import { CalendarPlus, CheckCircle2, ChevronRight, Dumbbell, Hourglass, MapPin, MessageCircle, Play, Video, XCircle } from "lucide-react"
+import {
+  ArrowRight,
+  CalendarClock,
+  CalendarPlus,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Dumbbell,
+  Hourglass,
+  MapPin,
+  MessageCircle,
+  Play,
+  Video,
+  XCircle,
+} from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { TONE_DOT } from "@/components/calendar/items"
+import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
 import { PersonAvatar } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { addDays, formatDayLong, formatTimeRange, localISODate, sameDay, startOfDay, startOfWeek, WEEKDAY_SHORT } from "@/lib/calendar/time"
+import {
+  addDays,
+  formatDayLong,
+  formatDayShort,
+  formatTimeRange,
+  localISODate,
+  sameDay,
+  startOfDay,
+  startOfWeek,
+  WEEKDAY_SHORT,
+} from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import { parseISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -27,10 +52,12 @@ export function ClientCalendar() {
   const trainer = client?.trainerId ? data.trainers.find((t) => t.id === client.trainerId) : undefined
   const now = new Date()
   const [showPast, setShowPast] = React.useState(false)
+  const [proposeFor, setProposeFor] = React.useState<CalendarEvent | null>(null)
 
   const events = data.events.filter((e) => e.clientId === me.id)
   const upcomingEvents = events.filter((e) => new Date(e.end) >= now && (e.status === "pending" || e.status === "confirmed"))
-  const pending = upcomingEvents.filter((e) => e.status === "pending")
+  const pending = upcomingEvents.filter((e) => e.status === "pending" && e.awaiting !== "client")
+  const needsAnswer = upcomingEvents.filter((e) => e.status === "pending" && e.awaiting === "client")
   const linked = new Set(events.filter((e) => e.workoutId && e.status !== "cancelled").map((e) => e.workoutId))
   const today = startOfDay(now)
   const planned = data.workouts.filter(
@@ -68,6 +95,16 @@ export function ClientCalendar() {
         </Button>
       </div>
 
+      {needsAnswer.length > 0 && (
+        <div role="status" className="flex items-center gap-3 rounded-xl border border-warning bg-warning/25 px-4 py-3 text-sm">
+          <CalendarClock className="size-5 shrink-0 text-warning" />
+          <span>
+            {trainer?.name.split(" ")[0] ?? "Din PT"} har föreslagit {needsAnswer.length === 1 ? "en ny tid" : `${needsAnswer.length} nya tider`}.{" "}
+            <span className="font-medium">Acceptera eller föreslå en annan tid.</span>
+          </span>
+        </div>
+      )}
+
       {pending.length > 0 && (
         <div role="status" className="flex items-center gap-3 rounded-xl border border-warning/50 bg-warning/15 px-4 py-3 text-sm">
           <Hourglass className="size-5 shrink-0 text-warning" />
@@ -95,7 +132,11 @@ export function ClientCalendar() {
               </h2>
               <ul className="space-y-2">
                 {entries.map((e) =>
-                  e.kind === "event" ? <EventCard key={e.event.id} event={e.event} /> : <PlannedCard key={e.workout.id} workout={e.workout} />
+                  e.kind === "event" ? (
+                    <EventCard key={e.event.id} event={e.event} onPropose={setProposeFor} />
+                  ) : (
+                    <PlannedCard key={e.workout.id} workout={e.workout} />
+                  )
                 )}
               </ul>
             </section>
@@ -112,12 +153,14 @@ export function ClientCalendar() {
           {showPast && (
             <ul className="space-y-2">
               {past.map((e) => (
-                <EventCard key={e.id} event={e} />
+                <EventCard key={e.id} event={e} onPropose={setProposeFor} />
               ))}
             </ul>
           )}
         </section>
       )}
+
+      <ProposeTimeDialog event={proposeFor} onOpenChange={(o) => !o && setProposeFor(null)} />
     </div>
   )
 }
@@ -161,6 +204,13 @@ function WeekStrip({ entries }: { entries: Entry[] }) {
 function StatusBadge({ event }: { event: CalendarEvent }) {
   switch (event.status) {
     case "pending":
+      if (event.awaiting === "client") {
+        return (
+          <Badge variant="outline" className="gap-1 border-warning bg-warning/30 text-foreground">
+            <CalendarClock className="text-warning" /> Ny tid – ditt svar behövs
+          </Badge>
+        )
+      }
       return (
         <Badge variant="outline" className="gap-1 border-warning/60 bg-warning/15 text-foreground">
           <Hourglass className="text-warning" /> Väntar på bekräftelse från PT
@@ -187,7 +237,7 @@ function StatusBadge({ event }: { event: CalendarEvent }) {
   }
 }
 
-function EventCard({ event }: { event: CalendarEvent }) {
+function EventCard({ event, onPropose }: { event: CalendarEvent; onPropose: (e: CalendarEvent) => void }) {
   const { data, me, actions } = useAppData()
   const trainer = data.trainers.find((t) => t.id === event.trainerId)
   const workout = event.workoutId ? data.workouts.find((w) => w.id === event.workoutId) : undefined
@@ -195,6 +245,8 @@ function EventCard({ event }: { event: CalendarEvent }) {
   const end = new Date(event.end)
   const active = event.status === "pending" || event.status === "confirmed"
   const upcoming = end >= new Date()
+  const needsAnswer = event.status === "pending" && event.awaiting === "client" && upcoming
+  const first = trainer?.name.split(" ")[0] ?? "PT:n"
 
   return (
     <li
@@ -213,6 +265,39 @@ function EventCard({ event }: { event: CalendarEvent }) {
         </div>
         <StatusBadge event={event} />
       </div>
+
+      {needsAnswer && (
+        <div className="mt-3 rounded-xl bg-warning/15 p-3 text-sm">
+          <p className="font-medium">
+            {event.previousStart ? `${first} har flyttat passet` : `${first} föreslår den här tiden`}
+          </p>
+          {event.previousStart && event.previousEnd && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground tabular">
+              <span className="line-through">
+                {formatDayShort(new Date(event.previousStart))} {formatTimeRange(new Date(event.previousStart), new Date(event.previousEnd))}
+              </span>
+              <ArrowRight className="size-3" />
+              <span className="font-medium text-foreground">
+                {formatDayShort(start)} {formatTimeRange(start, end)}
+              </span>
+            </p>
+          )}
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                actions.acceptProposal(event.id)
+                toast.success("Tiden är accepterad", { description: `${formatDayShort(start)} ${formatTimeRange(start, end)} med ${first}` })
+              }}
+            >
+              <Check /> Acceptera tiden
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onPropose(event)}>
+              <CalendarClock /> Föreslå ny tid
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 space-y-1.5 text-sm">
         {trainer && (
@@ -233,12 +318,17 @@ function EventCard({ event }: { event: CalendarEvent }) {
         )}
         {event.notes && <p className="rounded-lg bg-muted px-3 py-2 text-xs">&quot;{event.notes}&quot;</p>}
         {event.status === "cancelled" && event.cancelledBy && (
-          <p className="text-xs text-muted-foreground">{event.cancelledBy === me.id ? "Du avbokade passet." : "PT:n avbokade eller nekade tiden."}</p>
+          <p className="text-xs text-muted-foreground">{event.cancelledBy === me.id ? "Du avbokade passet." : `${first} avbokade eller nekade tiden.`}</p>
         )}
       </div>
 
       {active && upcoming && (
         <div className="mt-3 flex flex-wrap gap-2">
+          {event.status === "pending" && event.awaiting === "trainer" && (
+            <Button size="sm" variant="outline" onClick={() => onPropose(event)}>
+              <CalendarClock /> Ändra tid
+            </Button>
+          )}
           {event.mode === "remote" && event.status === "confirmed" && (
             <Button asChild size="sm" variant="secondary">
               <Link href="/klient/chatt">
@@ -251,13 +341,17 @@ function EventCard({ event }: { event: CalendarEvent }) {
             variant="ghost"
             className="text-destructive hover:text-destructive"
             onClick={() => {
-              const q = event.status === "pending" ? "Dra tillbaka bokningsförfrågan?" : "Avboka passet? Din PT ser avbokningen direkt."
+              const q = needsAnswer
+                ? `Tacka nej till tiden? ${first} aviseras.`
+                : event.status === "pending"
+                  ? "Dra tillbaka bokningsförfrågan?"
+                  : `Avboka passet? ${first} aviseras direkt.`
               if (!window.confirm(q)) return
               actions.setEventStatus(event.id, "cancelled")
-              toast(event.status === "pending" ? "Förfrågan återkallad" : "Passet är avbokat")
+              toast(needsAnswer ? "Du tackade nej" : event.status === "pending" ? "Förfrågan återkallad" : "Passet är avbokat")
             }}
           >
-            {event.status === "pending" ? "Dra tillbaka" : "Avboka"}
+            {needsAnswer ? "Tacka nej" : event.status === "pending" ? "Dra tillbaka" : "Avboka"}
           </Button>
         </div>
       )}

@@ -14,6 +14,8 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { BrandMark } from "@/components/brand"
+import { BRAND } from "@/lib/brand"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
 import {
@@ -26,6 +28,8 @@ import {
   type TrainerProfilePatch,
 } from "@/lib/data/state"
 import { findConflict } from "@/lib/calendar/slots"
+import { diffNotifications } from "@/lib/notifications/rules"
+import { forgetInterests } from "@/lib/offers/interests"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled } from "@/lib/supabase/config"
@@ -37,6 +41,7 @@ import type {
   EventStatus,
   SessionMode,
   Slot,
+  TrainerOffer,
   ClientStatus,
   FoodEntry,
   FoodProduct,
@@ -59,9 +64,24 @@ export interface SyncState {
   pending: number
 }
 
-const DEMO_KEY = "pt-platform:v1"
-const outboxKey = (uid: string) => `forma:outbox:v1:${uid}`
-const cacheKey = (uid: string) => `forma:cache:v1:${uid}`
+// Ny nyckel vid namnbytet till Coavira: demon börjar om med färsk data (inkl. aviseringar och erbjudanden).
+const DEMO_KEY = "coavira:demo:v1"
+const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
+const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
+
+/** Appen hette tidigare Forma. Flytta en ev. osynkad kö och cache till de nya nycklarna. */
+function migrateLegacyKeys(uid: string) {
+  try {
+    for (const kind of ["outbox", "cache"]) {
+      const old = `forma:${kind}:v1:${uid}`
+      const value = window.localStorage.getItem(old)
+      if (value === null) continue
+      const next = `coavira:${kind}:v1:${uid}`
+      if (window.localStorage.getItem(next) === null) window.localStorage.setItem(next, value)
+      window.localStorage.removeItem(old)
+    }
+  } catch {}
+}
 
 // ------------------------------------------------------------- actions ---
 
@@ -156,6 +176,7 @@ function createActions(ctx: {
           clientId: me.id,
           kind: "session",
           status: "pending",
+          awaiting: "trainer",
           title: "PT-pass",
           start: slot.start,
           end: slot.end,
@@ -166,6 +187,26 @@ function createActions(ctx: {
       })
       return null
     },
+    /**
+     * Flytta ett preliminärt pass till en ny starttid (längden behålls). PT:n drar i
+     * kalendern; klienten föreslår en ny tid. Motparten aviseras och ska svara.
+     * Bekräftade pass är låsta. Returnerar ett felmeddelande vid krock.
+     */
+    moveEvent: (eventId: ID, start: Date, slotEnd?: Date): string | null => {
+      const ev = getData().events.find((e) => e.id === eventId)
+      if (!ev) return "Passet finns inte längre."
+      if (ev.status !== "pending" || !ev.clientId) return "Bara preliminära pass kan flyttas."
+      // Klientens förslag följer slotens längd (databasen kräver en exakt ledig tid).
+      const end = slotEnd ?? new Date(start.getTime() + (new Date(ev.end).getTime() - new Date(ev.start).getTime()))
+      if (start.getTime() === new Date(ev.start).getTime() && end.getTime() === new Date(ev.end).getTime()) return null
+      if (start < new Date()) return "Det går inte att flytta ett pass bakåt i tiden."
+      const conflict = findConflict(getData().events, ev.trainerId, start, end, eventId)
+      if (conflict) return `Krockar med "${conflict.title || "en annan händelse"}".`
+      commit({ type: "rescheduleEvent", eventId, start: start.toISOString(), end: end.toISOString(), by: me.role === "trainer" ? "trainer" : "client" })
+      return null
+    },
+    /** Klient: acceptera tiden PT:n föreslagit. */
+    acceptProposal: (eventId: ID) => commit({ type: "setEventStatus", eventId, status: "confirmed" }),
     /** PT: svara på en förfrågan. Att acceptera en ny klients första bokning aktiverar också klienten. */
     respondToRequest: (eventId: ID, accept: boolean) => {
       const data = getData()
@@ -183,7 +224,9 @@ function createActions(ctx: {
     createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">): string | null => {
       const conflict = findConflict(getData().events, me.id, new Date(input.start), new Date(input.end))
       if (conflict) return `Krockar med "${conflict.title || "en annan händelse"}".`
-      commit({ type: "addEvent", event: { ...input, id: newId(), trainerId: me.id, createdBy: me.id } })
+      // Ett preliminärt pass med klient väntar på att klienten bekräftar.
+      const awaiting = input.status === "pending" ? ("client" as const) : undefined
+      commit({ type: "addEvent", event: { ...input, awaiting, id: newId(), trainerId: me.id, createdBy: me.id } })
       return null
     },
     /** PT: ändra en händelse (tid, titel, plats …). Returnerar felmeddelande vid krock. */
@@ -194,6 +237,16 @@ function createActions(ctx: {
       const end = new Date(patch.end ?? ev.end)
       const conflict = findConflict(getData().events, ev.trainerId, start, end, eventId)
       if (conflict && (ev.status === "pending" || ev.status === "confirmed")) return `Krockar med "${conflict.title || "en annan händelse"}".`
+      const moved = start.getTime() !== new Date(ev.start).getTime() || end.getTime() !== new Date(ev.end).getTime()
+      if (moved && ev.status === "pending" && ev.clientId) {
+        // Ny tid på ett preliminärt pass = ombokning: klienten aviseras och ska svara.
+        commit({ type: "rescheduleEvent", eventId, start: start.toISOString(), end: end.toISOString(), by: "trainer" })
+        const { start: _s, end: _e, ...rest } = patch
+        void _s
+        void _e
+        if (Object.keys(rest).length) commit({ type: "updateEvent", eventId, patch: rest })
+        return null
+      }
       commit({ type: "updateEvent", eventId, patch })
       return null
     },
@@ -202,6 +255,16 @@ function createActions(ctx: {
     saveAvailabilityRule: (rule: Omit<AvailabilityRule, "trainerId">) =>
       commit({ type: "saveAvailabilityRule", rule: { ...rule, trainerId: me.id } }),
     deleteAvailabilityRule: (ruleId: ID) => commit({ type: "deleteAvailabilityRule", ruleId }),
+
+    // ----- aviseringar och erbjudanden
+    markNotificationsRead: (ids: ID[]) => {
+      const unread = ids.filter((id) => getData().notifications.some((n) => n.id === id && !n.readAt))
+      if (unread.length) commit({ type: "markNotificationsRead", ids: unread, readAt: now() })
+    },
+    /** PT: skapa eller ändra ett erbjudande. */
+    saveOffer: (offer: Omit<TrainerOffer, "trainerId" | "createdAt"> & { createdAt?: string }) =>
+      commit({ type: "saveOffer", offer: { ...offer, trainerId: me.id, createdAt: offer.createdAt ?? now() } }),
+    deleteOffer: (offerId: ID) => commit({ type: "deleteOffer", offerId }),
 
     setClientStatus: (clientId: ID, status: ClientStatus) => {
       const current = getData().clients.find((c) => c.id === clientId)
@@ -316,10 +379,19 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
     return { id, role, name: role === "trainer" ? "Elin Söderberg" : "Sara Lindqvist" }
   }, [role])
 
-  const actions = React.useMemo(
-    () => createActions({ me, mode: "demo", dispatch: engine.apply, getData: engine.getData, commit: engine.apply }),
-    [me, engine]
-  )
+  const actions = React.useMemo(() => {
+    // I demoläget finns ingen databastrigger: räkna fram motpartens aviseringar här.
+    const commit = (a: PersistableAction) => {
+      const before = engine.getData().events
+      engine.apply(a)
+      const after = engine.getData().events
+      if (before === after) return
+      for (const notification of diffNotifications(before, after, me, () => crypto.randomUUID())) {
+        engine.apply({ type: "addNotification", notification })
+      }
+    }
+    return createActions({ me, mode: "demo", dispatch: engine.apply, getData: engine.getData, commit })
+  }, [me, engine])
 
   const value = React.useMemo<Ctx | null>(
     () =>
@@ -379,6 +451,7 @@ class SyncEngine extends LocalEngine {
 
   start(me: Me) {
     this.me = me
+    migrateLegacyKeys(me.id)
     this.outbox = new Outbox(outboxKey(me.id))
   }
 
@@ -433,7 +506,10 @@ class SyncEngine extends LocalEngine {
   forget() {
     window.clearTimeout(this.retryTimer)
     this.outbox?.clear()
-    if (this.me) clearCache(this.me.id)
+    if (this.me) {
+      clearCache(this.me.id)
+      forgetInterests(this.me.id)
+    }
   }
 }
 
@@ -467,6 +543,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
         if (e instanceof OfflineError) {
           // Ingen kontakt: starta från senaste cache (sessionen finns lokalt i cookien).
           const { data: s } = await sb.auth.getSession()
+          if (s.session) migrateLegacyKeys(s.session.user.id)
           const cached = s.session ? readCache(s.session.user.id) : null
           if (cached) {
             engine.start(cached.me)
@@ -592,8 +669,9 @@ export function useAppData() {
 
 function LoadingScreen() {
   return (
-    <div className="flex min-h-svh items-center justify-center" aria-busy="true">
-      <div className="size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    <div className="flex min-h-svh flex-col items-center justify-center gap-4" aria-busy="true">
+      <BrandMark size="lg" className="animate-pulse" />
+      <span className="text-sm font-semibold tracking-tight">{BRAND.name}</span>
       <span className="sr-only">Laddar…</span>
     </div>
   )

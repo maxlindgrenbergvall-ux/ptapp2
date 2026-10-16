@@ -11,7 +11,7 @@ import "server-only"
 import type { FoodProduct } from "@/types/domain"
 
 const BASE = process.env.OPENFOODFACTS_BASE_URL ?? "https://world.openfoodfacts.org"
-const USER_AGENT = `Forma/1.0 (${process.env.OPENFOODFACTS_CONTACT ?? "https://github.com/maxlindgrenbergvall-ux/ptapp2"})`
+const USER_AGENT = `Coavira/1.0 (${process.env.OPENFOODFACTS_CONTACT ?? "https://github.com/maxlindgrenbergvall-ux/ptapp2"})`
 const FIELDS = [
   "code",
   "product_name",

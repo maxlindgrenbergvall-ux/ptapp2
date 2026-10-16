@@ -9,6 +9,7 @@ import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
   AppData,
+  AppNotification,
   Attachment,
   AvailabilityRule,
   CalendarEvent,
@@ -28,6 +29,7 @@ import type {
   Slot,
   Specialty,
   Trainer,
+  TrainerOffer,
   WaterLog,
   WearableConnection,
   WorkoutExercise,
@@ -196,6 +198,31 @@ interface EventRow {
   workout_id: string | null
   created_by: string | null
   cancelled_by: string | null
+  awaiting: "trainer" | "client" | null
+  previous_start: string | null
+  previous_end: string | null
+}
+interface NotificationRow {
+  id: string
+  user_id: string
+  actor_id: string | null
+  kind: AppNotification["kind"]
+  event_id: string | null
+  payload: { actor_name?: string; title?: string; start?: string; end?: string; previous_start?: string; previous_end?: string }
+  read_at: string | null
+  created_at: string
+}
+interface OfferRow {
+  id: string
+  trainer_id: string
+  category: Specialty
+  title: string
+  description: string
+  price_sek: number | null
+  discount_percent: number | null
+  valid_until: string | null
+  active: boolean
+  created_at: string
 }
 interface RuleRow {
   id: string
@@ -362,6 +389,40 @@ export const toEvent = (r: EventRow): CalendarEvent => ({
   workoutId: r.workout_id ?? undefined,
   createdBy: r.created_by ?? undefined,
   cancelledBy: r.cancelled_by ?? undefined,
+  awaiting: r.awaiting ?? undefined,
+  previousStart: r.previous_start ? new Date(r.previous_start).toISOString() : undefined,
+  previousEnd: r.previous_end ? new Date(r.previous_end).toISOString() : undefined,
+})
+
+const iso = (v?: string) => (v ? new Date(v).toISOString() : undefined)
+
+export const toNotification = (r: NotificationRow): AppNotification => ({
+  id: r.id,
+  userId: r.user_id,
+  actorId: r.actor_id ?? undefined,
+  actorName: r.payload?.actor_name,
+  kind: r.kind,
+  eventId: r.event_id ?? undefined,
+  title: r.payload?.title,
+  start: iso(r.payload?.start),
+  end: iso(r.payload?.end),
+  previousStart: iso(r.payload?.previous_start),
+  previousEnd: iso(r.payload?.previous_end),
+  createdAt: r.created_at,
+  readAt: r.read_at ?? undefined,
+})
+
+export const toOffer = (r: OfferRow): TrainerOffer => ({
+  id: r.id,
+  trainerId: r.trainer_id,
+  category: r.category,
+  title: r.title,
+  description: r.description,
+  priceSek: r.price_sek ?? undefined,
+  discountPercent: r.discount_percent ?? undefined,
+  validUntil: r.valid_until ?? undefined,
+  active: r.active,
+  createdAt: r.created_at,
 })
 
 const toRule = (r: RuleRow): AvailabilityRule => ({
@@ -407,7 +468,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases] = await Promise.all([
+  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
@@ -418,6 +479,12 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("water_logs").select("client_id, date, ml").gte("date", trackerSince),
     sb.from("sleep_logs").select("*").gte("date", trackerSince).order("date"),
     sb.from("client_exercise_aliases").select("client_id, exercise_id, name"),
+    // Senaste 100 aviseringarna (RLS: bara mina).
+    sb.from("notifications").select("*").order("created_at", { ascending: false }).limit(100),
+    // PT: egna erbjudanden. Klient: aktiva erbjudanden från publicerade PT:er (RLS).
+    me.role === "trainer"
+      ? sb.from("trainer_offers").select("*").eq("trainer_id", uid).order("created_at", { ascending: false })
+      : sb.from("trainer_offers").select("*").order("created_at", { ascending: false }).limit(200),
   ])
 
   const base = {
@@ -433,6 +500,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     waterLogs: must<WaterRow[]>(water, "vatten").map(toWater),
     sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
     exerciseAliases: must<AliasRow[]>(aliases, "övningsnamn").map(toAlias),
+    notifications: must<NotificationRow[]>(notifications, "aviseringar").map(toNotification),
+    offers: must<OfferRow[]>(offers, "erbjudanden").map(toOffer),
   }
 
   if (me.role === "trainer") {
@@ -697,6 +766,29 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     }
     case "setEventStatus":
       return result(sb.from("calendar_events").update({ status: action.status }).eq("id", action.eventId))
+    case "rescheduleEvent":
+      // Databasen sätter awaiting/previous_* och aviserar motparten.
+      return result(sb.from("calendar_events").update({ start_time: action.start, end_time: action.end }).eq("id", action.eventId))
+    case "markNotificationsRead":
+      return result(sb.from("notifications").update({ read_at: action.readAt }).in("id", action.ids))
+    case "saveOffer": {
+      const o = action.offer
+      return result(
+        sb.from("trainer_offers").upsert({
+          id: o.id,
+          trainer_id: me.id,
+          category: o.category,
+          title: o.title,
+          description: o.description,
+          price_sek: o.priceSek ?? null,
+          discount_percent: o.discountPercent ?? null,
+          valid_until: o.validUntil ?? null,
+          active: o.active,
+        })
+      )
+    }
+    case "deleteOffer":
+      return result(sb.from("trainer_offers").delete().eq("id", action.offerId))
     case "deleteEvent":
       return result(sb.from("calendar_events").delete().eq("id", action.eventId))
     case "saveAvailabilityRule": {
@@ -825,7 +917,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
  */
 export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Action) => void): () => void {
   const channel: RealtimeChannel = sb
-    .channel(`forma:${me.id}`)
+    .channel(`coavira:${me.id}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (p) => {
       if (p.new && "id" in p.new) dispatch({ type: "addMessage", message: toMessage(p.new as MessageRow) })
     })
@@ -835,6 +927,11 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
         if (id) dispatch({ type: "deleteEvent", eventId: id })
       } else if (p.new && "id" in p.new) {
         dispatch({ type: "remoteEvent", event: toEvent(p.new as EventRow) })
+      }
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, (p) => {
+      if (p.eventType !== "DELETE" && p.new && "id" in p.new) {
+        dispatch({ type: "addNotification", notification: toNotification(p.new as NotificationRow) })
       }
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "client_exercise_aliases" }, (p) => {

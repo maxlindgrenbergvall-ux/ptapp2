@@ -22,7 +22,7 @@ type Kind = "client" | "own" | "block"
 const DURATIONS = [30, 45, 60, 75, 90, 120]
 
 const KINDS: { value: Kind; label: string; icon: React.ComponentType<{ className?: string }>; hint: string }[] = [
-  { value: "client", label: "Pass med klient", icon: UserRound, hint: "Boka in en klient (bekräftas direkt)" },
+  { value: "client", label: "Pass med klient", icon: UserRound, hint: "Boka in en klient – direkt eller preliminärt" },
   { value: "own", label: "Eget pass", icon: Dumbbell, hint: "Gruppass, eget pass m.m." },
   { value: "block", label: "Blockera tid", icon: Ban, hint: "Lunch, semester – inga bokningar" },
 ]
@@ -71,6 +71,8 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
   const [location, setLocation] = React.useState(event?.location ?? "")
   const [notes, setNotes] = React.useState(event?.notes ?? "")
   const [workoutId, setWorkoutId] = React.useState(event?.workoutId ?? "")
+  /** Preliminärt pass: klienten ska bekräfta tiden (kan flyttas tills dess). */
+  const [tentative, setTentative] = React.useState(false)
 
   // Klientens planerade pass i närheten av datumet kan kopplas till bokningen.
   const workouts = data.workouts
@@ -99,12 +101,23 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
       : actions.createEvent({
           ...base,
           kind: kind === "block" ? "block" : "session",
-          status: "confirmed",
+          status: kind === "client" && tentative ? "pending" : "confirmed",
           clientId: kind === "client" ? clientId : undefined,
           workoutId: kind === "client" ? workoutId || undefined : undefined,
         })
     if (error) return toast.error("Kunde inte spara", { description: error })
-    toast.success(editing ? "Ändringen är sparad" : kind === "block" ? "Tiden är blockerad" : "Passet är inlagt i kalendern")
+    const moved = editing && event!.status === "pending" && (start.toISOString() !== event!.start || end.toISOString() !== event!.end)
+    toast.success(
+      moved
+        ? "Ny tid föreslagen – klienten aviseras"
+        : editing
+          ? "Ändringen är sparad"
+          : kind === "block"
+            ? "Tiden är blockerad"
+            : kind === "client" && tentative
+              ? "Preliminärt pass skickat – klienten aviseras och bekräftar"
+              : "Passet är inlagt i kalendern"
+    )
     onDone()
   }
 
@@ -266,6 +279,18 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
             </div>
           )}
         </>
+      )}
+
+      {kind === "client" && !editing && (
+        <label className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm">
+          <Checkbox checked={tentative} onCheckedChange={(v) => setTentative(v === true)} className="mt-0.5" />
+          <span>
+            <span className="font-medium">Preliminärt – klienten bekräftar</span>
+            <span className="block text-xs text-muted-foreground">
+              Passet visas gult hos er båda tills klienten accepterat. Du kan dra det till en annan tid under tiden.
+            </span>
+          </span>
+        </label>
       )}
 
       <div className="space-y-1.5">

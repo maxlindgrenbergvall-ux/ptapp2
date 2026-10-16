@@ -1,8 +1,6 @@
-import { Dumbbell } from "lucide-react"
-import Link from "next/link"
 import type * as React from "react"
 
-import { ThemeToggle } from "@/components/theme-toggle"
+import { BrandLogo } from "@/components/brand"
 
 export function AuthCard({
   title,
@@ -18,13 +16,7 @@ export function AuthCard({
   return (
     <main className="mx-auto flex min-h-svh max-w-sm flex-col px-4 py-6">
       <header className="flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-md bg-brand text-brand-foreground">
-            <Dumbbell className="size-3.5" />
-          </span>
-          Forma
-        </Link>
-        <ThemeToggle />
+        <BrandLogo />
       </header>
       <div className="flex flex-1 flex-col justify-center gap-6 py-10">
         <div className="space-y-1">

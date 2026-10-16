@@ -1,19 +1,23 @@
 "use client"
 
-import { CalendarClock, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { ArrowRight, CalendarClock, ChevronLeft, ChevronRight, Move, Plus } from "lucide-react"
 import * as React from "react"
+import { toast } from "sonner"
 
 import { AvailabilityDialog } from "@/components/calendar/availability-dialog"
 import { EventDetailsDialog } from "@/components/calendar/event-details"
 import { EventFormDialog } from "@/components/calendar/event-form-dialog"
 import { buildItems, TONE_DOT, TONE_LABEL, type CalItem, type Tone } from "@/components/calendar/items"
 import { RequestsPanel } from "@/components/calendar/requests-panel"
+import type { DragPreview } from "@/components/calendar/use-event-drag"
 import { MonthView, TimeGridView, type CalendarView } from "@/components/calendar/views"
 import { PageHeader } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { addDays, formatDayLong, formatMonth, isoWeek, startOfDay, startOfWeek } from "@/lib/calendar/time"
+import { findConflict } from "@/lib/calendar/slots"
+import { addDays, formatDayLong, formatDayShort, formatMonth, formatTimeRange, isoWeek, startOfDay, startOfWeek } from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
 import type { CalendarEvent } from "@/types/domain"
@@ -22,7 +26,7 @@ const LEGEND: Tone[] = ["pending", "confirmed", "planned", "block", "completed"]
 
 /** PT:ns kalender: månad/vecka/dag, förfrågningar, egna pass, blockeringar och tillgänglighet. */
 export function PtCalendar() {
-  const { data, me } = useAppData()
+  const { data, me, actions } = useAppData()
   // På mobil är dagvyn läsbarast. (Komponenten renderas först efter att datan laddats i webbläsaren.)
   const [view, setView] = React.useState<CalendarView>(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches ? "day" : "week"
@@ -32,6 +36,8 @@ export function PtCalendar() {
   const [selected, setSelected] = React.useState<CalItem | null>(null)
   const [form, setForm] = React.useState<{ start?: Date; event?: CalendarEvent } | null>(null)
   const [availabilityOpen, setAvailabilityOpen] = React.useState(false)
+  /** Släppt flytt som väntar på att PT:n bekräftar (då aviseras klienten). */
+  const [pendingMove, setPendingMove] = React.useState<DragPreview | null>(null)
 
   const clientName = React.useCallback((id: string) => data.clients.find((c) => c.id === id)?.name ?? "Klient", [data.clients])
   const items = React.useMemo(() => buildItems(data, me.id, { showCancelled, clientName }), [data, me.id, showCancelled, clientName])
@@ -46,6 +52,27 @@ export function PtCalendar() {
       : view === "week"
         ? `Vecka ${isoWeek(anchor)} · ${formatMonth(startOfWeek(anchor))}`
         : formatDayLong(anchor)
+
+  const canMove = React.useCallback(
+    (item: CalItem, start: Date, end: Date) => !findConflict(data.events, me.id, start, end, item.id),
+    [data.events, me.id]
+  )
+  const onMove = (item: CalItem, start: Date) =>
+    setPendingMove({ item, start, end: new Date(start.getTime() + (item.end.getTime() - item.start.getTime())), valid: true })
+  const confirmMove = () => {
+    if (!pendingMove?.item.event) return
+    const { item, start, end } = pendingMove
+    const error = actions.moveEvent(item.event!.id, start)
+    setPendingMove(null)
+    if (error) {
+      toast.error("Kunde inte flytta passet", { description: error })
+      return
+    }
+    toast.success(`Ny tid föreslagen till ${item.title}`, {
+      description: `${formatDayShort(start)} ${formatTimeRange(start, end)} · ${item.title.split(" ")[0]} får en avisering och kan acceptera eller föreslå en annan tid.`,
+    })
+  }
+  const dragProps = { onMove, canMove, pendingMove }
 
   const openDay = (day: Date) => {
     setAnchor(startOfDay(day))
@@ -96,7 +123,14 @@ export function PtCalendar() {
           </div>
 
           {view === "month" ? (
-            <MonthView anchor={anchor} items={items} onSelect={setSelected} onCreate={(start) => setForm({ start })} onOpenDay={openDay} />
+            <MonthView
+              anchor={anchor}
+              items={items}
+              onSelect={setSelected}
+              onCreate={(start) => setForm({ start })}
+              onOpenDay={openDay}
+              {...dragProps}
+            />
           ) : (
             <TimeGridView
               anchor={anchor}
@@ -104,8 +138,14 @@ export function PtCalendar() {
               days={view === "week" ? 7 : 1}
               onSelect={setSelected}
               onCreate={(start) => setForm({ start })}
+              {...dragProps}
             />
           )}
+
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Move className="size-3.5 shrink-0" />
+            Dra ett preliminärt (gult, streckat) pass för att föreslå en ny tid – klienten aviseras och kan acceptera eller föreslå en annan. Bekräftade pass är låsta.
+          </p>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
             {LEGEND.map((t) => (
@@ -135,6 +175,34 @@ export function PtCalendar() {
       />
       <EventFormDialog open={form !== null} onOpenChange={(o) => !o && setForm(null)} initialStart={form?.start} event={form?.event} />
       <AvailabilityDialog open={availabilityOpen} onOpenChange={setAvailabilityOpen} />
+
+      <Dialog open={pendingMove !== null} onOpenChange={(o) => !o && setPendingMove(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Föreslå ny tid?</DialogTitle>
+            <DialogDescription>
+              {pendingMove?.item.title} får en ombokningsavisering och kan acceptera tiden eller föreslå en annan.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingMove && (
+            <p className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm tabular">
+              <span className="text-muted-foreground line-through">
+                {formatDayShort(pendingMove.item.start)} {formatTimeRange(pendingMove.item.start, pendingMove.item.end)}
+              </span>
+              <ArrowRight className="size-4 text-muted-foreground" />
+              <span className="font-semibold">
+                {formatDayShort(pendingMove.start)} {formatTimeRange(pendingMove.start, pendingMove.end)}
+              </span>
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPendingMove(null)}>
+              Avbryt
+            </Button>
+            <Button onClick={confirmMove}>Skicka förslag</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

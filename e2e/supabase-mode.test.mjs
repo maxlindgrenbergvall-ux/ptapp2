@@ -54,14 +54,14 @@ await p.click('button[aria-label="Bocka av set 3"]')
 await p.waitForSelector("text=/Offline – 2 ändringar sparade lokalt/")
 ok("offline: indikatorn visar 2 köade ändringar")
 await p.screenshot({ path: `${out}/sb-offline.png` })
-const queued = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("forma:outbox")).map((k) => JSON.parse(localStorage[k]).length))
+const queued = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("coavira:outbox")).map((k) => JSON.parse(localStorage[k]).length))
 check(queued[0] === 2, `offline: kön ligger i localStorage (${queued})`)
 check((await getLog()).filter((e) => e.table === "set_logs").length === 1, "offline: inget skickat medan nätet är nere")
 
 await ctx.setOffline(false)
 const t0 = Date.now()
 await p.waitForFunction(
-  () => Object.keys(localStorage).filter((k) => k.startsWith("forma:outbox")).every((k) => JSON.parse(localStorage[k]).length === 0),
+  () => Object.keys(localStorage).filter((k) => k.startsWith("coavira:outbox")).every((k) => JSON.parse(localStorage[k]).length === 0),
   null,
   { timeout: 20000 }
 )
@@ -69,7 +69,7 @@ console.log("     (kön tömd", Date.now() - t0, "ms efter att nätet kom tillba
 log = await getLog()
 const sets = log.filter((e) => e.table === "set_logs").map((e) => e.body.set_index)
 check(JSON.stringify(sets) === "[0,1,2]", `online igen: köade set skickas i ordning (${sets})`)
-const queuedAfter = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("forma:outbox")).map((k) => JSON.parse(localStorage[k]).length))
+const queuedAfter = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("coavira:outbox")).map((k) => JSON.parse(localStorage[k]).length))
 check(queuedAfter[0] === 0, "kön är tom efter synk")
 
 // 6. Avsluta passet med kommentar
@@ -108,13 +108,29 @@ await p.click('a:has-text("Visa mina pass")')
 await p.waitForSelector("text=Väntar på bekräftelse från PT")
 ok("förfrågan visas som väntande i klientkalendern")
 
+// 8b. Aviseringar från databasen och ombokningsflödet (v5)
+await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=Ny tid – ditt svar behövs")
+// 1 oläst avisering + 1 erbjudande (klienten öppnade PT:ns profil ovan → intresse för styrkelyft).
+const bellLabel = await p.locator('button[aria-label^="Aviseringar"]').getAttribute("aria-label")
+check(bellLabel === "Aviseringar, 2 nya", `olästa aviseringar och matchande erbjudanden laddas från databasen (${bellLabel})`)
+await p.click('button[aria-label^="Aviseringar"]'); await p.waitForSelector("text=Elin har flyttat ditt pass")
+check(await p.locator("[data-slot=popover-content] >> text=Teknikpaket").isVisible(), "erbjudande från trainer_offers visas utifrån intresse")
+await p.waitForTimeout(250)
+await p.keyboard.press("Escape")
+await p.locator("li", { hasText: "Ny tid – ditt svar behövs" }).locator('button:has-text("Acceptera tiden")').click()
+await p.waitForSelector("text=Tiden är accepterad")
+await p.waitForTimeout(800)
+log = await getLog()
+check(log.some((e) => e.table === "notifications" && e.method === "PATCH" && e.body?.read_at && e.query.includes("55555555")), "lästa aviseringar sparas (bara read_at)")
+check(log.some((e) => e.table === "calendar_events" && e.method === "PATCH" && e.body?.status === "confirmed" && e.query.includes("44444444-0000-4000-8000-000000000002")), "klienten accepterar PT:ns nya tid (status confirmed)")
+
 // 9. Logga ut rensar lokal data
 await p.goto(`${base}/klient`); await p.waitForSelector("text=Testpass")
 await p.waitForTimeout(1200) // cachen skrivs avstudsat
-check(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("forma:cache"))), "offlinecache finns när man är inloggad")
+check(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("coavira:cache"))), "offlinecache finns när man är inloggad")
 await p.click('button[aria-label="Logga ut"]')
 await p.waitForURL(/\/logga-in/)
-check(!(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("forma:")))), "utloggning rensar cache och kö")
+check(!(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("coavira:")))), "utloggning rensar cache och kö")
 await p.goto(`${base}/klient`)
 check(p.url().includes("/logga-in"), "efter utloggning är /klient skyddad igen")
 

@@ -3,14 +3,14 @@
  * (schemalagda pass utan bokad tid) i en gemensam form för vyerna.
  *
  * Färgkodning (alltid med text/ikon bredvid, aldrig bara färg):
- *   Gul  = väntar på bekräftelse
+ *   Gul  = preliminärt pass, väntar på svar (går att flytta med dra-och-släpp)
  *   Grön = bekräftat pass
  *   Blå  = planerat träningspass utan bokning
  *   Grå  = blockerad tid · Dämpad grön = genomfört · Överstruken = avbokat
  */
 import { addDays, DAY, overlaps, startOfDay } from "@/lib/calendar/time"
 import { parseISODate } from "@/lib/date"
-import type { AppData, CalendarEvent, ScheduledWorkout } from "@/types/domain"
+import { isMovable, type AppData, type CalendarEvent, type ScheduledWorkout } from "@/types/domain"
 
 export type Tone = "pending" | "confirmed" | "completed" | "cancelled" | "block" | "planned"
 
@@ -23,12 +23,14 @@ export interface CalItem {
   title: string
   subtitle?: string
   tone: Tone
+  /** Preliminära, kommande pass kan dras till en ny tid. Bekräftade är låsta. */
+  movable: boolean
   event?: CalendarEvent
   workout?: ScheduledWorkout
 }
 
 export const TONE_LABEL: Record<Tone, string> = {
-  pending: "Väntar på bekräftelse",
+  pending: "Preliminärt – väntar på svar",
   confirmed: "Bekräftat pass",
   completed: "Genomfört",
   cancelled: "Avbokat",
@@ -73,6 +75,7 @@ export function buildItems(
   const linked = new Set(events.filter((e) => e.workoutId && e.status !== "cancelled").map((e) => e.workoutId))
   const clientIds = new Set(data.clients.filter((c) => c.trainerId === trainerId).map((c) => c.id))
 
+  const now = new Date()
   const items: CalItem[] = events.map((e) => {
     const start = new Date(e.start)
     const end = new Date(e.end)
@@ -84,8 +87,14 @@ export function buildItems(
       end,
       allDay: end.getTime() - start.getTime() >= LONG,
       title: e.kind === "block" ? e.title || "Upptagen" : who ?? (e.title || "Eget pass"),
-      subtitle: e.kind === "block" ? undefined : [who ? e.title : undefined, workout?.name].filter(Boolean).join(" · ") || undefined,
+      subtitle:
+        e.kind === "block"
+          ? undefined
+          : [e.status === "pending" && e.awaiting === "client" ? "Väntar på klienten" : who ? e.title : undefined, workout?.name]
+              .filter(Boolean)
+              .join(" · ") || undefined,
       tone: toneOf(e),
+      movable: isMovable(e) && end > now,
       event: e,
     }
   })
@@ -102,6 +111,7 @@ export function buildItems(
       title: opts.clientName(w.clientId),
       subtitle: w.name,
       tone: "planned",
+      movable: false,
       workout: w,
     })
   }

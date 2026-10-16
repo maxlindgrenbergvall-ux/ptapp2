@@ -6,6 +6,7 @@ import { addDays, todayISO } from "@/lib/date"
 import exerciseLibrary from "@/lib/exercise-library.json"
 import type {
   AppData,
+  AppNotification,
   AvailabilityRule,
   CalendarEvent,
   Client,
@@ -17,6 +18,7 @@ import type {
   SetLog,
   SleepLog,
   Trainer,
+  TrainerOffer,
   WaterLog,
   WorkoutExercise,
   WorkoutTemplate,
@@ -407,7 +409,11 @@ function makeTrackers(today: string) {
  * Kalender: veckoscheman för alla PT:er och en realistisk vecka för Elin –
  * bekräftade pass, väntande förfrågningar, ett eget gruppass och blockeringar.
  */
-function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRules: AvailabilityRule[] } {
+function makeCalendar(today: string): {
+  events: CalendarEvent[]
+  availabilityRules: AvailabilityRule[]
+  notifications: AppNotification[]
+} {
   let n = 0
   const rule = (trainerId: string, weekdays: number[], start: string, end: string, slotMinutes = 60): AvailabilityRule[] =>
     weekdays.map((weekday) => ({ id: `rule-${trainerId}-${++n}`, trainerId, weekday, start, end, slotMinutes }))
@@ -442,6 +448,7 @@ function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRul
     extra: Partial<CalendarEvent> = {}
   ): CalendarEvent => {
     const start = at(offset, time)
+    const createdBy = extra.createdBy ?? clientId ?? "t1"
     return {
       id,
       trainerId: "t1",
@@ -453,7 +460,9 @@ function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRul
       end: plus(start, 60),
       mode: "onsite",
       location: "Gym 1, Södermalm",
-      createdBy: clientId ?? "t1",
+      createdBy,
+      // Preliminärt pass: den som skapade det väntar på motparten.
+      ...(status === "pending" ? { awaiting: createdBy === "t1" ? ("client" as const) : ("trainer" as const) } : {}),
       ...extra,
     }
   }
@@ -463,6 +472,19 @@ function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRul
     session("ev-c1-past", "c1", -6, "07:00", "completed", { title: "Teknik knäböj" }),
     session("ev-c1-next", "c1", 2, "07:00", "confirmed", { title: "Teknik knäböj", notes: "Ta med lyftarskor." }),
     session("ev-c1-req", "c1", 8, "17:00", "pending", { notes: "Kan vi köra marklyft?" }),
+    // Elin har flyttat Saras preliminära pass – Sara ska acceptera eller föreslå ny tid.
+    session("ev-c1-moved", "c1", 4, "18:00", "pending", {
+      title: "Marklyft – teknik",
+      createdBy: "t1",
+      awaiting: "client",
+      previousStart: at(3, "17:00"),
+      previousEnd: at(3, "18:00"),
+    }),
+    // Två pass som Elin avbokade (kurs) – syns som en samlad avisering hos Sara.
+    session("ev-c1-cx1", "c1", 5, "07:00", "cancelled", { title: "Teknik knäböj", cancelledBy: "t1", createdBy: "t1" }),
+    session("ev-c1-cx2", "c1", 6, "07:00", "cancelled", { title: "Teknik knäböj", cancelledBy: "t1", createdBy: "t1" }),
+    // Jonas har avbokat ett pass.
+    session("ev-c2-cx", "c2", 3, "17:00", "cancelled", { mode: "remote", location: undefined, title: "Intervaller", cancelledBy: "c2", createdBy: "t1" }),
     // Jonas (c2): distanspass, Mira (c3) och Emil (c4) väntar på svar.
     session("ev-c2", "c2", 1, "17:00", "confirmed", { mode: "remote", location: undefined, title: "Hyrox-genomgång" }),
     session("ev-c3-req", "c3", 1, "08:00", "pending", { notes: "Första passet efter semestern!" }),
@@ -493,7 +515,69 @@ function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRul
       createdBy: "t1",
     },
   ]
-  return { events, availabilityRules }
+
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+  const ev = (id: string) => events.find((e) => e.id === id)!
+  const note = (
+    id: string,
+    userId: string,
+    actor: [string, string],
+    kind: AppNotification["kind"],
+    eventId: string,
+    minutesAgo: number,
+    extra: Partial<AppNotification> = {}
+  ): AppNotification => ({
+    id,
+    userId,
+    actorId: actor[0],
+    actorName: actor[1],
+    kind,
+    eventId,
+    title: ev(eventId).title,
+    start: ev(eventId).start,
+    end: ev(eventId).end,
+    createdAt: ago(minutesAgo),
+    ...extra,
+  })
+  const elin: [string, string] = ["t1", "Elin Söderberg"]
+  const notifications: AppNotification[] = [
+    note("n-c1-moved", "c1", elin, "event_rescheduled", "ev-c1-moved", 45, {
+      previousStart: ev("ev-c1-moved").previousStart,
+      previousEnd: ev("ev-c1-moved").previousEnd,
+    }),
+    note("n-c1-cx1", "c1", elin, "event_cancelled", "ev-c1-cx1", 190),
+    note("n-c1-cx2", "c1", elin, "event_cancelled", "ev-c1-cx2", 189),
+    note("n-c1-ok", "c1", elin, "booking_confirmed", "ev-c1-next", 60 * 26, { readAt: ago(60 * 25) }),
+    note("n-t1-c2-cx", "t1", ["c2", "Jonas Pettersson"], "event_cancelled", "ev-c2-cx", 30),
+    note("n-t1-c3-req", "t1", ["c3", "Mira Karlsson"], "booking_requested", "ev-c3-req", 120),
+    note("n-t1-c4-req", "t1", ["c4", "Emil Holm"], "booking_requested", "ev-c4-req", 60 * 20, { readAt: ago(60 * 19) }),
+  ]
+  return { events, availabilityRules, notifications }
+}
+
+/** PT-erbjudanden per kategori. Klienten ser dem som matchar det hen tittat på. */
+function makeOffers(today: string): TrainerOffer[] {
+  const o = (id: string, trainerId: string, category: TrainerOffer["category"], title: string, description: string, extra: Partial<TrainerOffer> = {}): TrainerOffer => ({
+    id,
+    trainerId,
+    category,
+    title,
+    description,
+    active: true,
+    createdAt: `${addDays(today, -3)}T09:00:00.000Z`,
+    ...extra,
+  })
+  return [
+    o("of-t1-styrka", "t1", "styrkelyft", "Teknikpaket: böj, bänk och mark", "Tre pass med videoanalys och ett program för åtta veckor.", { priceSek: 2100 }),
+    o("of-t1-vikt", "t1", "viktminskning", "Kom igång-paket", "Fyra pass och ett kostschema anpassat efter dina vanor.", { discountPercent: 15, validUntil: addDays(today, 21) }),
+    o("of-t2-hyrox", "t2", "hyrox", "Hyrox Stockholm – 6 veckor", "Stationsteknik, intervaller och racestrategi inför loppet.", { discountPercent: 20, validUntil: addDays(today, 14) }),
+    o("of-t2-lopning", "t2", "lopning", "Löpanalys med video", "Steganalys på band och tre konkreta övningar.", { priceSek: 650 }),
+    o("of-t3-post", "t3", "postnatal", "Första passet gratis", "Trygg start efter förlossningen – bäckenbotten och bål.", { discountPercent: 100 }),
+    o("of-t4-kal", "t4", "kalisthenics", "Muscle-up-workshop", "Två timmar i liten grupp, max fyra deltagare.", { priceSek: 495 }),
+    o("of-t5-vikt", "t5", "viktminskning", "12 veckor mot ditt mål", "Veckovis uppföljning, kost och träning i appen.", { discountPercent: 25, validUntil: addDays(today, 10) }),
+    o("of-t6-rehab", "t6", "rehab", "Tillbaka efter knäskada", "Bedömning och ett första rehabpass.", { discountPercent: 15 }),
+    o("of-t6-bb", "t6", "bodybuilding", "Tävlingsprep 12 veckor", "Program, kost och posering inför scen.", { priceSek: 7900 }),
+  ]
 }
 
 function makeMessages(today: string): Message[] {
@@ -529,5 +613,6 @@ export function createSeedData(today = todayISO()): AppData {
     // Exempel: Elin har döpt om en övning för Sara.
     exerciseAliases: [{ clientId: "c1", exerciseId: "e-bss", name: "Bulgarisk utfallsböj (bakre fot på låg bänk)" }],
     customFoods: [],
+    offers: makeOffers(today),
   }
 }

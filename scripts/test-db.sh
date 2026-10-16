@@ -3,7 +3,7 @@
 # Användning: PGHOST=/tmp PGPORT=5433 PGUSER=postgres scripts/test-db.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-DB="${TEST_DB:-forma_test}"
+DB="${TEST_DB:-coavira_test}"
 
 dropdb --if-exists "$DB"
 createdb "$DB"
@@ -12,7 +12,7 @@ run -f supabase/tests/supabase_stub.sql 2>/dev/null  # varnar om wal_level (real
 for f in supabase/migrations/*.sql; do run -f "$f"; done
 run -f supabase/seed.sql
 # Resultatrader till /dev/null; NOTICE (ok-rader) och fel går till stderr.
-for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql supabase/tests/rls_v3.test.sql supabase/tests/rls_v4.test.sql; do
+for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql supabase/tests/rls_v3.test.sql supabase/tests/rls_v4.test.sql supabase/tests/rls_v5.test.sql; do
   run -f "$t" 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
 done
 dropdb "$DB"

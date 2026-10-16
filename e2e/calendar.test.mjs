@@ -94,6 +94,7 @@ await p.fill("#ev-date", date)
 await p.fill("#ev-time", "20:00")
 await p.click('[role=dialog] button[type=submit]')
 await p.waitForSelector("text=Tiden är blockerad")
+await p.waitForSelector("[role=dialog]", { state: "detached" })
 ok("PT blockerar tid")
 
 await p.click('button:has-text("Ny händelse")')

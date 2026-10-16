@@ -1,13 +1,17 @@
 "use client"
 
+import { GripVertical } from "lucide-react"
 import * as React from "react"
 
 import { itemsOnDay, layoutColumns, TONE_CLASS, TONE_LABEL, type CalItem } from "@/components/calendar/items"
+import { useEventDrag, type DragPreview } from "@/components/calendar/use-event-drag"
 import {
   addDays,
+  formatDayShort,
   formatTime,
   formatTimeRange,
   isoWeek,
+  localISODate,
   minutesOfDay,
   sameDay,
   startOfDay,
@@ -15,6 +19,7 @@ import {
   startOfWeek,
   WEEKDAY_SHORT,
 } from "@/lib/calendar/time"
+import { parseISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
 
 export type CalendarView = "month" | "week" | "day"
@@ -26,16 +31,43 @@ interface ViewProps {
   /** Klick på tom tid: skapa ny händelse här. */
   onCreate: (start: Date) => void
   onOpenDay?: (day: Date) => void
+  /** Ett preliminärt pass har släppts på en ny tid. */
+  onMove?: (item: CalItem, start: Date) => void
+  /** Får passet ligga där (ingen krock)? Används för förhandsvisningen. */
+  canMove?: (item: CalItem, start: Date, end: Date) => boolean
+  /** Flytt som väntar på bekräftelse (förhandsvisningen ligger kvar tills dess). */
+  pendingMove?: DragPreview | null
 }
+
+const SNAP_MIN = 15
+const allow = () => true
+
+/** Skärmläsartext för poster som går att flytta. */
+const MOVE_HINT = "Preliminärt pass – dra för att föreslå en ny tid"
 
 // ================================================================== månad ===
 
-export function MonthView({ anchor, items, onSelect, onOpenDay }: ViewProps) {
+export function MonthView({ anchor, items, onSelect, onOpenDay, onMove, canMove = allow, pendingMove }: ViewProps) {
   const first = startOfWeek(startOfMonth(anchor))
   const days = Array.from({ length: 42 }, (_, i) => addDays(first, i))
   const today = new Date()
+  const rootRef = React.useRef<HTMLDivElement>(null)
+
+  const { preview, bind } = useEventDrag({
+    // Sidled/upp-ner mellan dagar; klockslaget behålls.
+    resolve: (p, item) => {
+      const cell = document.elementFromPoint(p.clientX, p.clientY)?.closest<HTMLElement>("[data-cal-day]")
+      if (!cell || !rootRef.current?.contains(cell)) return null
+      const day = parseISODate(cell.dataset.calDay!)
+      return new Date(day.getFullYear(), day.getMonth(), day.getDate(), item.start.getHours(), item.start.getMinutes())
+    },
+    validate: canMove,
+    onDrop: (item, start) => onMove?.(item, start),
+  })
+  const ghost = preview ?? pendingMove ?? null
+
   return (
-    <div className="overflow-hidden rounded-xl border">
+    <div ref={rootRef} className="overflow-hidden rounded-xl border">
       <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-xs font-medium text-muted-foreground">
         {WEEKDAY_SHORT.map((d) => (
           <div key={d} className="py-2">
@@ -48,10 +80,16 @@ export function MonthView({ anchor, items, onSelect, onOpenDay }: ViewProps) {
           const inMonth = day.getMonth() === anchor.getMonth()
           const list = itemsOnDay(items, day)
           const shown = list.slice(0, 3)
+          const isTarget = ghost && sameDay(ghost.start, day) && !sameDay(ghost.item.start, day)
           return (
             <div
               key={day.toISOString()}
-              className={cn("min-h-24 border-r border-b p-1 last:border-r-0 sm:min-h-28 [&:nth-child(7n)]:border-r-0", !inMonth && "bg-muted/30")}
+              data-cal-day={localISODate(day)}
+              className={cn(
+                "min-h-24 border-r border-b p-1 last:border-r-0 sm:min-h-28 [&:nth-child(7n)]:border-r-0",
+                !inMonth && "bg-muted/30",
+                isTarget && (ghost.valid ? "bg-warning/10 ring-2 ring-warning ring-inset" : "bg-destructive/10 ring-2 ring-destructive ring-inset")
+              )}
             >
               <button
                 type="button"
@@ -71,13 +109,32 @@ export function MonthView({ anchor, items, onSelect, onOpenDay }: ViewProps) {
                     key={i.id}
                     type="button"
                     onClick={() => onSelect(i)}
-                    className={cn("block w-full truncate rounded border-l-2 px-1 py-0.5 text-left text-[11px] leading-tight", TONE_CLASS[i.tone])}
-                    title={`${TONE_LABEL[i.tone]}: ${i.title}`}
+                    {...bind(i)}
+                    className={cn(
+                      "block w-full truncate rounded border-l-2 px-1 py-0.5 text-left text-[11px] leading-tight",
+                      TONE_CLASS[i.tone],
+                      i.movable && "cursor-grab touch-none border-dashed active:cursor-grabbing",
+                      ghost?.item.id === i.id && "opacity-40"
+                    )}
+                    title={`${TONE_LABEL[i.tone]}: ${i.title}${i.movable ? ` (${MOVE_HINT.toLowerCase()})` : ""}`}
+                    aria-label={i.movable ? `${formatTime(i.start)} ${i.title}. ${MOVE_HINT}` : undefined}
                   >
                     {!i.allDay && <span className="mr-1 tabular">{formatTime(i.start)}</span>}
                     {i.title}
                   </button>
                 ))}
+                {isTarget && (
+                  <div
+                    aria-hidden
+                    className={cn(
+                      "truncate rounded border-l-2 border-dashed px-1 py-0.5 text-[11px] leading-tight",
+                      ghost.valid ? TONE_CLASS.pending : "border-l-destructive bg-destructive/15"
+                    )}
+                  >
+                    <span className="mr-1 tabular">{formatTime(ghost.start)}</span>
+                    {ghost.item.title}
+                  </div>
+                )}
                 {list.length > shown.length && (
                   <button type="button" onClick={() => onOpenDay?.(day)} className="px-1 text-[11px] text-muted-foreground hover:underline">
                     +{list.length - shown.length} till
@@ -88,6 +145,7 @@ export function MonthView({ anchor, items, onSelect, onOpenDay }: ViewProps) {
           )
         })}
       </div>
+      <DragAnnouncer preview={preview} />
     </div>
   )
 }
@@ -96,7 +154,16 @@ export function MonthView({ anchor, items, onSelect, onOpenDay }: ViewProps) {
 
 const SLOT_MIN = 30
 
-export function TimeGridView({ anchor, items, onSelect, onCreate, days: dayCount }: ViewProps & { days: 1 | 7 }) {
+export function TimeGridView({
+  anchor,
+  items,
+  onSelect,
+  onCreate,
+  onMove,
+  canMove = allow,
+  pendingMove,
+  days: dayCount,
+}: ViewProps & { days: 1 | 7 }) {
   const start = dayCount === 7 ? startOfWeek(anchor) : startOfDay(anchor)
   const days = Array.from({ length: dayCount }, (_, i) => addDays(start, i))
   const hourHeight = dayCount === 1 ? 64 : 52
@@ -119,6 +186,31 @@ export function TimeGridView({ anchor, items, onSelect, onCreate, days: dayCount
     const t = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(t)
   }, [])
+
+  const { preview, bind } = useEventDrag({
+    // Upp/ner = ny tid (snäpp på 15 min), sidled = ny dag (veckovyn).
+    resolve: (p, item) => {
+      const col = document.elementFromPoint(p.clientX, p.clientY)?.closest<HTMLElement>("[data-cal-day]")
+      if (!col || !scrollRef.current?.contains(col)) return null
+      const day = parseISODate(col.dataset.calDay!)
+      const top = p.clientY - p.grabOffsetY - col.getBoundingClientRect().top
+      const duration = (item.end.getTime() - item.start.getTime()) / 60_000
+      const raw = firstHour * 60 + (top / hourHeight) * 60
+      const minutes = Math.min(24 * 60 - duration, Math.max(0, Math.round(raw / SNAP_MIN) * SNAP_MIN))
+      return new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes)
+    },
+    validate: canMove,
+    onDrop: (item, s) => onMove?.(item, s),
+    // Rulla rutnätet när man drar nära kanten.
+    onDragMove: (p) => {
+      const el = scrollRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      if (p.clientY < r.top + 40) el.scrollBy({ top: -16 })
+      else if (p.clientY > r.bottom - 40) el.scrollBy({ top: 16 })
+    },
+  })
+  const ghost = preview ?? pendingMove ?? null
 
   return (
     <div className="overflow-hidden rounded-xl border">
@@ -170,8 +262,13 @@ export function TimeGridView({ anchor, items, onSelect, onCreate, days: dayCount
             const dayItems = itemsOnDay(items, day).filter((i) => !i.allDay)
             const layout = layoutColumns(dayItems)
             const dayStart = startOfDay(day)
+            const pos = (s: Date, e: Date) => {
+              const sm = s < dayStart ? 0 : minutesOfDay(s)
+              const em = e > addDays(dayStart, 1) ? 24 * 60 : minutesOfDay(e) || 24 * 60
+              return { top: ((sm - firstHour * 60) / 60) * hourHeight, height: Math.max(18, ((em - sm) / 60) * hourHeight - 2) }
+            }
             return (
-              <div key={day.toISOString()} className="relative border-l">
+              <div key={day.toISOString()} data-cal-day={localISODate(day)} className="relative border-l">
                 {/* Klickbara halvtimmar */}
                 {hours.flatMap((h) =>
                   [0, 30].map((m) => {
@@ -190,29 +287,50 @@ export function TimeGridView({ anchor, items, onSelect, onCreate, days: dayCount
                 )}
                 {/* Händelser */}
                 {dayItems.map((i) => {
-                  const s = i.start < dayStart ? 0 : minutesOfDay(i.start)
-                  const e = i.end > addDays(dayStart, 1) ? 24 * 60 : minutesOfDay(i.end) || 24 * 60
-                  const top = ((s - firstHour * 60) / 60) * hourHeight
-                  const height = Math.max(18, ((e - s) / 60) * hourHeight - 2)
+                  const { top, height } = pos(i.start, i.end)
                   const { col, cols } = layout.get(i.id) ?? { col: 0, cols: 1 }
                   return (
                     <button
                       key={i.id}
                       type="button"
                       onClick={() => onSelect(i)}
+                      {...bind(i)}
                       className={cn(
-                        "absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                        TONE_CLASS[i.tone]
+                        "absolute overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left text-[11px] leading-tight shadow-sm transition-[colors,opacity] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                        TONE_CLASS[i.tone],
+                        i.movable && "group cursor-grab touch-none border border-l-[3px] border-dashed border-warning/70 active:cursor-grabbing",
+                        ghost?.item.id === i.id && "opacity-40"
                       )}
                       style={{ top, height, left: `calc(${(col / cols) * 100}% + 2px)`, width: `calc(${100 / cols}% - 4px)` }}
-                      aria-label={`${TONE_LABEL[i.tone]}: ${i.title}, ${formatTimeRange(i.start, i.end)}`}
+                      aria-label={`${TONE_LABEL[i.tone]}: ${i.title}, ${formatTimeRange(i.start, i.end)}${i.movable ? `. ${MOVE_HINT}` : ""}`}
                     >
-                      <div className="truncate font-semibold">{i.title}</div>
+                      {i.movable && (
+                        <GripVertical aria-hidden className="absolute top-0.5 right-0.5 size-3 opacity-50 group-hover:opacity-100" />
+                      )}
+                      <div className="truncate pr-3 font-semibold">{i.title}</div>
                       {height > 30 && <div className="truncate tabular opacity-80">{formatTimeRange(i.start, i.end)}</div>}
                       {height > 46 && i.subtitle && <div className="truncate opacity-80">{i.subtitle}</div>}
                     </button>
                   )
                 })}
+                {/* Förhandsvisning av ny tid under dragning */}
+                {ghost && sameDay(ghost.start, day) && (
+                  <div
+                    aria-hidden
+                    data-testid="drag-preview"
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0.5 z-20 overflow-hidden rounded-md border-2 border-dashed px-1.5 py-0.5 text-[11px] leading-tight shadow-lg",
+                      ghost.valid ? "border-warning bg-warning/30" : "border-destructive bg-destructive/20"
+                    )}
+                    style={pos(ghost.start, ghost.end)}
+                  >
+                    <div className="truncate font-semibold">{ghost.item.title}</div>
+                    <div className="truncate tabular">
+                      {formatTimeRange(ghost.start, ghost.end)}
+                      {!ghost.valid && " · krockar"}
+                    </div>
+                  </div>
+                )}
                 {/* Nu-linje */}
                 {sameDay(day, now) && minutesOfDay(now) >= firstHour * 60 && (
                   <div
@@ -228,7 +346,17 @@ export function TimeGridView({ anchor, items, onSelect, onCreate, days: dayCount
           })}
         </div>
       </div>
+      <DragAnnouncer preview={preview} />
     </div>
   )
 }
 
+/** Läser upp den nya tiden för skärmläsare medan man drar. */
+function DragAnnouncer({ preview }: { preview: DragPreview | null }) {
+  return (
+    <div className="sr-only" aria-live="assertive">
+      {preview &&
+        `${preview.item.title}: ${formatDayShort(preview.start)} ${formatTimeRange(preview.start, preview.end)}${preview.valid ? "" : ", krockar"}`}
+    </div>
+  )
+}

@@ -9,9 +9,12 @@
  */
 import type {
   AppData,
+  AppNotification,
   AvailabilityRule,
   CalendarEvent,
+  EventParty,
   EventStatus,
+  TrainerOffer,
   FoodEntry,
   FoodProduct,
   SleepLog,
@@ -45,6 +48,11 @@ export type PersistableAction =
   | { type: "addEvent"; event: CalendarEvent }
   | { type: "updateEvent"; eventId: ID; patch: EventPatch }
   | { type: "setEventStatus"; eventId: ID; status: EventStatus; cancelledBy?: ID }
+  /** Flytta ett preliminärt pass (dra-och-släpp eller "föreslå ny tid"). `by` = den som flyttar. */
+  | { type: "rescheduleEvent"; eventId: ID; start: string; end: string; by: EventParty }
+  | { type: "markNotificationsRead"; ids: ID[]; readAt: string }
+  | { type: "saveOffer"; offer: TrainerOffer }
+  | { type: "deleteOffer"; offerId: ID }
   | { type: "deleteEvent"; eventId: ID }
   | { type: "saveAvailabilityRule"; rule: AvailabilityRule }
   | { type: "deleteAvailabilityRule"; ruleId: ID }
@@ -81,6 +89,7 @@ export type LocalAction =
   | { type: "hydrate"; data: AppData }
   | { type: "remoteWorkout"; workout: Omit<ScheduledWorkout, "logs"> }
   | { type: "remoteEvent"; event: CalendarEvent }
+  | { type: "addNotification"; notification: AppNotification }
   | { type: "setWearables"; connections: WearableConnection[] }
   | { type: "mergeSleepLogs"; logs: SleepLog[] }
 
@@ -199,17 +208,68 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       return { ...data, events: upsertBy(data.events, action.event, (e) => e.id === action.event.id) }
 
     case "updateEvent":
-      return { ...data, events: data.events.map((e) => (e.id === action.eventId ? { ...e, ...action.patch } : e)) }
+      return {
+        ...data,
+        events: data.events.map((e) => {
+          if (e.id !== action.eventId) return e
+          const moved = (action.patch.start ?? e.start) !== e.start || (action.patch.end ?? e.end) !== e.end
+          // Samma regel som databasen: en flytt sparar den tidigare tiden.
+          return { ...e, ...action.patch, ...(moved ? { previousStart: e.start, previousEnd: e.end } : {}) }
+        }),
+      }
+
+    case "rescheduleEvent":
+      return {
+        ...data,
+        events: data.events.map((e) =>
+          e.id === action.eventId && e.status === "pending"
+            ? {
+                ...e,
+                start: action.start,
+                end: action.end,
+                previousStart: e.start,
+                previousEnd: e.end,
+                // Den som flyttar lämnar över till motparten.
+                awaiting: action.by === "trainer" ? "client" : "trainer",
+              }
+            : e
+        ),
+      }
 
     case "setEventStatus":
       return {
         ...data,
         events: data.events.map((e) =>
           e.id === action.eventId
-            ? { ...e, status: action.status, cancelledBy: action.status === "cancelled" ? action.cancelledBy : e.cancelledBy }
+            ? {
+                ...e,
+                status: action.status,
+                cancelledBy: action.status === "cancelled" ? action.cancelledBy : e.cancelledBy,
+                awaiting: action.status === "pending" ? e.awaiting : undefined,
+              }
             : e
         ),
       }
+
+    case "addNotification":
+      return {
+        ...data,
+        notifications: upsertBy(data.notifications, action.notification, (n) => n.id === action.notification.id),
+      }
+
+    case "markNotificationsRead": {
+      const ids = new Set(action.ids)
+      return {
+        ...data,
+        notifications: data.notifications.map((n) => (ids.has(n.id) && !n.readAt ? { ...n, readAt: action.readAt } : n)),
+      }
+    }
+
+    case "saveOffer":
+      return { ...data, offers: upsertBy(data.offers, action.offer, (o) => o.id === action.offer.id) }
+
+    case "deleteOffer":
+      return { ...data, offers: data.offers.filter((o) => o.id !== action.offerId) }
 
     case "deleteEvent":
       return { ...data, events: data.events.filter((e) => e.id !== action.eventId) }
@@ -323,7 +383,10 @@ export function normalizeAppData(raw: unknown): AppData | null {
     mealChecks: list(d.mealChecks),
     messages: list(d.messages),
     // v1–v3: bookings + enstaka lediga tider → kalenderhändelser + datumregler.
-    events: Array.isArray(d.events) ? list<CalendarEvent>(d.events) : list<OldBooking>(d.bookings).map(bookingToEvent),
+    // v4: preliminära pass saknar awaiting → den som skapade passet väntar på motparten.
+    events: (Array.isArray(d.events) ? list<CalendarEvent>(d.events) : list<OldBooking>(d.bookings).map(bookingToEvent)).map((e) =>
+      e.status === "pending" && !e.awaiting ? { ...e, awaiting: e.createdBy && e.createdBy === e.trainerId ? "client" : "trainer" } : e
+    ),
     availabilityRules: Array.isArray(d.availabilityRules)
       ? list<AvailabilityRule>(d.availabilityRules)
       : oldTrainers.flatMap((t) => list<string>(t.availability).map((slot) => slotToRule(t.id, slot))),
@@ -333,6 +396,8 @@ export function normalizeAppData(raw: unknown): AppData | null {
     wearables: list(d.wearables),
     exerciseAliases: list(d.exerciseAliases),
     customFoods: list(d.customFoods),
+    notifications: list(d.notifications),
+    offers: list(d.offers),
   }
 }
 

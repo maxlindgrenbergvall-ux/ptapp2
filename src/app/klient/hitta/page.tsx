@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNextSlots } from "@/lib/calendar/use-slots"
 import { useAppData } from "@/lib/data/store"
 import { formatSlot } from "@/lib/date"
+import { categoriesInText, recordInterest } from "@/lib/offers/interests"
 import { cn } from "@/lib/utils"
 import { offersRemote, SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
 
@@ -24,7 +25,7 @@ type PriceKey = keyof typeof PRICE
 type SortKey = "match" | "rating" | "price" | "available"
 
 export default function DiscoverPage() {
-  const { data } = useAppData()
+  const { data, me } = useAppData()
   const [q, setQ] = React.useState("")
   const [selected, setSelected] = React.useState<Specialty[]>([])
   const [price, setPrice] = React.useState<PriceKey>("all")
@@ -51,7 +52,10 @@ export default function DiscoverPage() {
         PRICE[price].test(t.pricePerSession) &&
         (city === "all" || t.city === city) &&
         (!remoteOnly || offersRemote(t.coachingMode)) &&
-        (!text || t.name.toLowerCase().includes(text) || t.bio.toLowerCase().includes(text))
+        (!text ||
+          t.name.toLowerCase().includes(text) ||
+          t.bio.toLowerCase().includes(text) ||
+          t.specialties.some((s) => SPECIALTY_LABEL[s].toLowerCase().includes(text)))
       )
     })
     .sort((a, b) => {
@@ -61,7 +65,19 @@ export default function DiscoverPage() {
       return b.match - a.match || b.trainer.rating - a.trainer.rating
     })
 
-  const toggle = (s: Specialty) => setSelected((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
+  const toggle = (s: Specialty) => {
+    // Att aktivt välja en inriktning är den starkaste intressesignalen (sparas bara lokalt).
+    if (!selected.includes(s)) recordInterest(me.id, [s], "filter")
+    setSelected((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
+  }
+
+  // Fritextsökning som nämner en kategori ("hyrox", "viktnedgång") räknas när användaren slutat skriva.
+  React.useEffect(() => {
+    const found = categoriesInText(q)
+    if (found.length === 0) return
+    const t = window.setTimeout(() => recordInterest(me.id, found, "search"), 1200)
+    return () => window.clearTimeout(t)
+  }, [q, me.id])
 
   return (
     <div className="space-y-5">

@@ -310,7 +310,10 @@ export interface WearableConnection {
 
 // ============================================================== kalender ===
 
-/** pending = väntar på PT, confirmed = bekräftat, completed = genomfört, cancelled = avbokat/nekat. */
+/**
+ * pending = preliminärt (väntar på svar, se `awaiting`), confirmed = bekräftat,
+ * completed = genomfört, cancelled = avbokat/nekat.
+ */
 export type EventStatus = "pending" | "confirmed" | "cancelled" | "completed"
 /** session = pass (med eller utan klient), block = PT:n är upptagen (lunch, semester …). */
 export type EventKind = "session" | "block"
@@ -340,7 +343,17 @@ export interface CalendarEvent {
   workoutId?: ID
   createdBy?: ID
   cancelledBy?: ID
+  /** Preliminära pass: vem som ska svara. Den som flyttar ett pass lämnar över till motparten. */
+  awaiting?: EventParty
+  /** Tiden före senaste flytt (för "flyttat från …"). */
+  previousStart?: ISODateTime
+  previousEnd?: ISODateTime
 }
+
+export type EventParty = "trainer" | "client"
+
+/** Preliminära pass utan låsning: kan flyttas med dra-och-släpp. Bekräftade pass är låsta. */
+export const isMovable = (e: CalendarEvent) => e.kind === "session" && e.status === "pending" && Boolean(e.clientId)
 
 /**
  * Tillgänglighet: en regel för en veckodag (1 = måndag … 7 = söndag) eller ett
@@ -391,4 +404,52 @@ export interface AppData {
   exerciseAliases: ExerciseAlias[]
   /** Klientens egna produkter (och produkter den skannat). */
   customFoods: FoodProduct[]
+  /** Inloggad användares aviseringar (i demoläget alla användares, filtreras på userId). */
+  notifications: AppNotification[]
+  /** PT-erbjudanden: egna (PT) eller aktiva från publicerade PT:er (klient). */
+  offers: TrainerOffer[]
+}
+
+// ============================================================ aviseringar ===
+
+export type NotificationKind =
+  | "booking_requested"
+  | "booking_proposed"
+  | "booking_confirmed"
+  | "booking_declined"
+  | "event_cancelled"
+  | "event_rescheduled"
+  | "reschedule_accepted"
+
+export interface AppNotification {
+  id: ID
+  /** Mottagare. */
+  userId: ID
+  actorId?: ID
+  actorName?: string
+  kind: NotificationKind
+  eventId?: ID
+  title?: string
+  start?: ISODateTime
+  end?: ISODateTime
+  previousStart?: ISODateTime
+  previousEnd?: ISODateTime
+  createdAt: ISODateTime
+  readAt?: ISODateTime
+}
+
+// ========================================================= erbjudanden ===
+
+export interface TrainerOffer {
+  id: ID
+  trainerId: ID
+  /** En av PT:ns specialiteter; matchas mot klientens intressen. */
+  category: Specialty
+  title: string
+  description: string
+  priceSek?: number
+  discountPercent?: number
+  validUntil?: ISODate
+  active: boolean
+  createdAt: ISODateTime
 }
