@@ -34,7 +34,20 @@ const workout = {
 const trainerRow = {
   id: T1, city: "Stockholm", specialties: ["styrkelyft"], bio: "Testbio", years_experience: 5, price_per_session: 800,
   offers_remote: true, is_published: true, profile: { full_name: "Elin Test" },
-  trainer_availability: [{ slot: new Date(Date.now() + 2 * 86400e3).toISOString() }], reviews: [],
+  reviews: [],
+}
+// Kalender: ett bekräftat pass om två dagar kl. 07 och lediga tider från RPC:n.
+const at = (days, h) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d.toISOString() }
+const EV1 = "44444444-0000-4000-8000-000000000001"
+const eventRow = {
+  id: EV1, trainer_id: T1, client_id: C1, kind: "session", status: "confirmed", title: "PT-pass",
+  start_time: at(2, 7), end_time: at(2, 8), mode: "onsite", location: "Gymmet", notes: null,
+  workout_id: null, created_by: T1, cancelled_by: null,
+}
+const slots = [3, 4].flatMap((d) => [8, 9].map((h) => ({ start_time: at(d, h), end_time: at(d, h + 1) })))
+const rpc = {
+  available_slots: slots,
+  next_available_slots: [{ trainer_id: T1, start_time: slots[0].start_time }],
 }
 
 function fixtures(uid, table) {
@@ -44,7 +57,8 @@ function fixtures(uid, table) {
     case "exercises": return exercises
     case "scheduled_workouts": return [workout]
     case "messages": return []
-    case "bookings": return []
+    case "calendar_events": return [eventRow]
+    case "availability_rules": return client ? [] : [{ id: "r1", trainer_id: T1, weekday: 1, date: null, start_local: "08:00:00", end_local: "10:00:00", slot_minutes: 60 }]
     case "nutrition_plans": return []
     case "trainers": return [trainerRow]
     case "coaching_relationships":
@@ -102,6 +116,7 @@ http.createServer(async (req, res) => {
   if (m) {
     if (!uid || !byId[uid]) return send(401, { code: "PGRST301", message: "JWT required" })
     const table = m[2]
+    if (m[1] && rpc[table]) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
     if (req.method === "GET") {
       const rows = fixtures(uid, table)
       if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) return send(200, rows[0])

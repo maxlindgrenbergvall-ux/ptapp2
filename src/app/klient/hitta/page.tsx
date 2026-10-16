@@ -8,6 +8,7 @@ import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/c
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useNextSlots } from "@/lib/calendar/use-slots"
 import { useAppData } from "@/lib/data/store"
 import { formatSlot } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -32,12 +33,13 @@ export default function DiscoverPage() {
   const [sort, setSort] = React.useState<SortKey>("match")
 
   const cities = [...new Set(data.trainers.filter((t) => t.isPublished && t.city).map((t) => t.city))].sort()
-  const now = new Date().toISOString()
+  const published = data.trainers.filter((t) => t.isPublished)
+  // Nästa lediga tid per PT, räknad från tillgänglighet minus bokad tid.
+  const nextSlots = useNextSlots(published.map((t) => t.id))
 
-  const results = data.trainers
-    .filter((t) => t.isPublished)
+  const results = published
     .map((t) => {
-      const nextSlot = t.availability.filter((s) => s > now).sort()[0]
+      const nextSlot = nextSlots[t.id]
       // Matchning: andel valda inriktningar som PT:n har.
       const match = selected.length ? selected.filter((s) => t.specialties.includes(s)).length / selected.length : 1
       return { trainer: t, nextSlot, match }

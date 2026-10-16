@@ -63,8 +63,9 @@ export interface Trainer {
   rating: number
   reviews: Review[]
   /** Lediga bokningsbara tider (ISO). */
-  availability: ISODateTime[]
   coachingMode: CoachingMode
+  /** Minsta framförhållning för bokningar (minuter). */
+  minNoticeMinutes?: number
   /** Profilbild: publik URL, data-URL (demo) eller null. */
   avatarUrl?: string
   certifications: string[]
@@ -307,15 +308,58 @@ export interface WearableConnection {
   lastError?: string
 }
 
-export type BookingStatus = "requested" | "confirmed" | "cancelled"
+// ============================================================== kalender ===
 
-export interface Booking {
+/** pending = väntar på PT, confirmed = bekräftat, completed = genomfört, cancelled = avbokat/nekat. */
+export type EventStatus = "pending" | "confirmed" | "cancelled" | "completed"
+/** session = pass (med eller utan klient), block = PT:n är upptagen (lunch, semester …). */
+export type EventKind = "session" | "block"
+export type SessionMode = "onsite" | "remote"
+
+export const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
+  pending: "Väntar på bekräftelse",
+  confirmed: "Bekräftat",
+  completed: "Genomfört",
+  cancelled: "Avbokat",
+}
+export const SESSION_MODE_LABEL: Record<SessionMode, string> = { onsite: "På plats", remote: "Distans" }
+
+export interface CalendarEvent {
   id: ID
   trainerId: ID
-  clientId: ID
-  slot: ISODateTime
-  status: BookingStatus
-  note?: string
+  clientId?: ID
+  kind: EventKind
+  status: EventStatus
+  title: string
+  start: ISODateTime
+  end: ISODateTime
+  mode: SessionMode
+  location?: string
+  notes?: string
+  /** Kopplat träningspass (klientens schemalagda pass). */
+  workoutId?: ID
+  createdBy?: ID
+  cancelledBy?: ID
+}
+
+/**
+ * Tillgänglighet: en regel för en veckodag (1 = måndag … 7 = söndag) eller ett
+ * datum. Datumregler ersätter veckoreglerna den dagen. Tider i PT:ns lokala tid.
+ */
+export interface AvailabilityRule {
+  id: ID
+  trainerId: ID
+  weekday?: number
+  date?: ISODate
+  start: string // HH:MM
+  end: string // HH:MM
+  slotMinutes: number
+}
+
+/** En bokningsbar tid. */
+export interface Slot {
+  start: ISODateTime
+  end: ISODateTime
 }
 
 export type UserRole = "client" | "trainer"
@@ -337,7 +381,9 @@ export interface AppData {
   nutritionPlans: NutritionPlan[]
   mealChecks: MealCheck[]
   messages: Message[]
-  bookings: Booking[]
+  /** Kalendern: bokningar, egna pass och blockeringar. */
+  events: CalendarEvent[]
+  availabilityRules: AvailabilityRule[]
   foodEntries: FoodEntry[]
   waterLogs: WaterLog[]
   sleepLogs: SleepLog[]

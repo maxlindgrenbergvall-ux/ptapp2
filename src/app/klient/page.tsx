@@ -30,9 +30,10 @@ export default function TodayPage() {
     data.mealChecks.filter((m) => m.clientId === client.id && m.date === today).map((m) => m.mealId)
   )
   const now = new Date().toISOString()
-  const booking = data.bookings
-    .filter((b) => b.clientId === client.id && b.status !== "cancelled" && b.slot >= now)
-    .sort((a, b) => a.slot.localeCompare(b.slot))[0]
+  // Nästa kommande pass i kalendern (bekräftat eller väntande).
+  const booking = data.events
+    .filter((e) => e.clientId === client.id && (e.status === "confirmed" || e.status === "pending") && e.end >= now)
+    .sort((a, b) => a.start.localeCompare(b.start))[0]
 
   // Veckoremsa måndag–söndag med markering för pass.
   const monday = addDays(today, -((parseISODate(today).getDay() + 6) % 7))
@@ -233,7 +234,9 @@ export default function TodayPage() {
             <div className="min-w-0 flex-1">
               <div className="font-medium">{trainer.name}</div>
               <div className="text-xs text-muted-foreground">
-                {booking ? `Nästa bokning: ${formatSlot(booking.slot)} (väntar på bekräftelse)` : "Ingen bokad session"}
+                {booking
+                  ? `Nästa pass: ${formatSlot(booking.start)}${booking.status === "pending" ? " · väntar på bekräftelse" : " · bekräftat"}`
+                  : "Ingen bokad session"}
               </div>
             </div>
             <ChevronRight className="size-4 text-muted-foreground" />

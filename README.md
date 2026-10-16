@@ -20,7 +20,8 @@ npm run dev                  # http://localhost:3000
    1. `supabase/migrations/20261014000000_init.sql`
    2. `supabase/migrations/20261015000000_v2_media_trackers_calls.sql`. Den lägger till profilbild, coaching-typ, bilagor, trackers, wearables, Storage-buckets och regler för samtal.
    3. `supabase/migrations/20261016000000_v3_food_products_aliases.sql`. Den lägger till livsmedelsprodukter (streckkod och egna), gram och streckkod på matposter, övningsnamn per klient och det uppdaterade övningsbiblioteket.
-   4. `supabase/seed.sql`
+   4. `supabase/migrations/20261017000000_v4_calendar.sql`. Den ersätter `bookings` och `trainer_availability` med en tvåvägskalender (`calendar_events`) och återkommande tillgänglighet (`availability_rules`). Befintliga bokningar och tider flyttas över automatiskt.
+   5. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
@@ -35,9 +36,10 @@ npm run dev                  # http://localhost:3000
 ### Flödet
 
 1. Klienten registrerar sig. Samtycke till hälsodata krävs och sparas på profilen.
-2. Klienten hittar en PT och skickar en bokningsförfrågan. Det skapar också en
-   relation med status *pending*.
-3. PT:n ser förfrågan och accepterar klienten. Först då kan PT:n se klientens
+2. Klienten hittar en PT, väljer en ledig tid och skickar en bokningsförfrågan
+   (status *pending*). Första bokningen skapar också en relation med status *pending*.
+3. PT:n accepterar förfrågan i kalendern. Passet blir *confirmed* och syns direkt
+   hos båda, och en ny klient aktiveras. Först då kan PT:n se klientens
    hälsodata och lägga upp pass och kost.
 4. Klienten loggar sina pass, även offline. PT:n ser loggade set i realtid och ger
    feedback i chatten.
@@ -116,6 +118,15 @@ npm run dev                  # http://localhost:3000
 - **Övningsbibliotek:** 127 övningar med korrekta svenska namn, för styrka, olympiska lyft, bål och kondition. Källan är `src/lib/exercise-library.json`, och SQL genereras med `node scripts/gen-exercise-sql.mjs`. Befintliga id:n behålls, så historik och mallar påverkas inte.
 - **Övningsnamn per klient:** PT:n döper om en övning för en viss klient under Klient → Pass → *Övningsnamn för klienten*. Klienten ser PT:ns namn i dagsvyn, träningsloggen och historiken. Biblioteket och andra klienter påverkas inte.
 
+## Nytt i v4: kalender och bokning
+
+- **Databas:** `calendar_events` (status `pending`/`confirmed`/`cancelled`/`completed`, typ pass eller blockering, plats på plats/distans, valfri koppling till ett schemalagt pass) och `availability_rules` (veckodag eller enskilt datum; ett datum ersätter veckoschemat den dagen). En exclusion constraint gör att väntande och bekräftade händelser aldrig kan överlappa för samma PT.
+- **Lediga tider** räknas i databasen med `available_slots()`/`next_available_slots()`: tillgänglighet minus bokade pass, egna pass och blockeringar, med PT:ns minsta framförhållning. Klienten ser aldrig andras bokningar. Demoläget räknar likadant lokalt (`src/lib/calendar/slots.ts`).
+- **PT-kalender** (`/pt/kalender`): månad, vecka och dag. Gult = väntar på bekräftelse, grönt = bekräftat, blått = planerat träningspass utan bokning, grått = blockerad tid. Panelen *Väntande förfrågningar* har Acceptera/Neka. PT:n kan lägga in egna pass, boka in en klient direkt (bekräftat) och blockera tid (lunch, semester, heldagar). Krockar stoppas. Klick på en tom tid skapar en händelse där.
+- **Tillgänglighet:** veckoschema med passlängd per intervall, specialtider för enskilda datum och minsta framförhållning. Antalet lediga tider de kommande två veckorna visas direkt.
+- **Klient** (`/klient/kalender`): *Mina pass* med tid, plats och PT, tydlig markering *Väntar på bekräftelse från PT*, planerade träningspass och avbokning. Bokningen från PT-profilen visar bara dagar och tider som är lediga.
+- **Realtid:** ändringar i `calendar_events` skickas via Supabase Realtime, så en accepterad bokning syns hos klienten utan omladdning.
+
 ## Arkitektur
 
 ```
@@ -178,7 +189,8 @@ Gymmen har ofta dålig täckning, så loggen ska aldrig vänta på nätet:
   - Klienten kan inte ändra programmet i sina pass.
   - Ingen kan byta parterna i en relation eller bokning, så en PT kan inte peka om en relation till en annan klient.
   - Rollen på en profil kan inte ändras.
-  - Det går bara att boka lediga tider. Samma tid kan inte dubbelbokas.
+  - En klient kan bara skapa *pending*-förfrågningar på tider som `available_slots()` erbjuder, och kan bara avboka. PT, klient och typ går inte att ändra i efterhand.
+  - Samma tid kan inte dubbelbokas (exclusion constraint på tidsintervallet).
 - **Samtycke**: krävs för klientkonton och sparas i `profiles.health_data_consent_at`.
   En check constraint gör att det inte går att skapa ett klientkonto utan samtycke.
 - **Dataportabilitet** (art. 20): klienten kan exportera all sin data som JSON.
@@ -209,13 +221,15 @@ node e2e/supabase-mode.test.mjs
 node e2e/v2-features.test.mjs   # kräver Chromium-flaggorna i filen (falsk kamera/mikrofon)
 node e2e/v3-features.test.mjs   # mot e2e/mock-openfoodfacts.mjs; kamerafallet läser en riktig EAN-13
                                 # ur en genererad video (node e2e/make-barcode-video.mjs)
+node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräftat, blockering, krockar, vyer
 ```
 
-RLS-testerna (46 + 27 för v2 + 13 för v3) kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2`, `rls_v3`, `rls_v4`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
-- Bokning och dubbelbokning fungerar som avsett.
+- Klienter kan bara boka lediga tider, inte dubbelboka och inte se andras bokningar.
+- Accept, nekande och avbokning ger rätt lediga tider; gamla bokningar migreras korrekt till kalendern.
 - Radering av konto tar bort allt via kaskad.
 - Bilagor, övningsvideor och samtalskanaler kan bara nås av rätt parter.
 - Wearable-tokens är oläsbara för inloggade användare.
@@ -228,6 +242,7 @@ Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Offlinekön: nätet stängs av mitt i ett pass och set skickas i rätt ordning när nätet är tillbaka.
 - Att ändringar som databasen nekar inte blockerar kön.
 - Att utloggning rensar lokal data.
+- Kalendern: pass från databasen visas hos klient och PT, lediga tider hämtas via RPC och bokningsförfrågan sparas.
 
 ## Teknik
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { Apple, Dumbbell, LayoutDashboard, LogOut, Menu, MessageSquare, RotateCcw, UserRound } from "lucide-react"
+import { Apple, CalendarDays, Dumbbell, LayoutDashboard, LogOut, Menu, MessageSquare, RotateCcw, UserRound } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 
 const NAV = [
   { href: "/pt", label: "Översikt", icon: LayoutDashboard, exact: true },
+  { href: "/pt/kalender", label: "Kalender", icon: CalendarDays },
   { href: "/pt/pass", label: "Passbyggare", icon: Dumbbell },
   { href: "/pt/kost", label: "Kostscheman", icon: Apple },
   { href: "/pt/meddelanden", label: "Meddelanden", icon: MessageSquare },
@@ -75,6 +76,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const trainer = data.trainers.find((t) => t.id === me.id)
   const clientIds = data.clients.filter((c) => c.trainerId === me.id).map((c) => c.id)
   const unread = useUnreadCount(me.id, clientIds)
+  const now = new Date().toISOString()
+  const pendingRequests = data.events.filter((e) => e.trainerId === me.id && e.status === "pending" && e.end > now).length
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
@@ -99,6 +102,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             >
               <Icon className="size-4" />
               {label}
+              {href === "/pt/kalender" && pendingRequests > 0 && (
+                <span
+                  className="ml-auto rounded-full bg-warning px-1.5 text-xs font-semibold text-foreground tabular"
+                  aria-label={`${pendingRequests} väntande förfrågningar`}
+                >
+                  {pendingRequests}
+                </span>
+              )}
               {href === "/pt/meddelanden" && unread > 0 && (
                 <span className="ml-auto rounded-full bg-brand px-1.5 text-xs font-semibold text-brand-foreground tabular">
                   {unread}

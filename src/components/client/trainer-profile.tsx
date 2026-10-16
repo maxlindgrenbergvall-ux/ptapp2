@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, BadgeCheck, CalendarDays, MapPin, MessageCircle, X } from "lucide-react"
+import { ArrowLeft, BadgeCheck, CalendarDays, Hourglass, Loader2, MapPin, MessageCircle, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
@@ -23,9 +23,12 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
-import { formatShort, formatSlot, formatTime, toISODate } from "@/lib/date"
+import { daysWithSlots } from "@/lib/calendar/slots"
+import { formatDayLong, formatTimeRange, localISODate } from "@/lib/calendar/time"
+import { useTrainerSlots } from "@/lib/calendar/use-slots"
+import { formatShort } from "@/lib/date"
 import { cn } from "@/lib/utils"
-import { COACHING_MODE_LABEL, type Trainer } from "@/types/domain"
+import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
 
 export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const { data, me } = useAppData()
@@ -124,18 +127,22 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
   const { actions } = useAppData()
   const [open, setOpen] = React.useState(false)
   const [day, setDay] = React.useState<Date | undefined>()
-  const [slot, setSlot] = React.useState<string | null>(null)
+  const [slot, setSlot] = React.useState<Slot | null>(null)
+  const [mode, setMode] = React.useState<SessionMode>(trainer.coachingMode === "remote" ? "remote" : "onsite")
   const [note, setNote] = React.useState("")
+  const [sent, setSent] = React.useState<Slot | null>(null)
+  // Lediga tider de kommande fyra veckorna, enligt PT:ns tillgänglighet minus bokad tid.
+  const { status, slots } = useTrainerSlots(open ? trainer.id : null, 28)
 
-  const now = new Date().toISOString()
-  const slots = trainer.availability.filter((s) => s > now).sort()
-  const days = [...new Set(slots.map((s) => toISODate(new Date(s))))]
-  const daySlots = day ? slots.filter((s) => toISODate(new Date(s)) === toISODate(day)) : []
+  const days = daysWithSlots(slots)
+  const daySlots = day ? slots.filter((s) => localISODate(new Date(s.start)) === localISODate(day)) : []
+  const modes: SessionMode[] = trainer.coachingMode === "both" ? ["onsite", "remote"] : [trainer.coachingMode === "remote" ? "remote" : "onsite"]
 
   const reset = () => {
     setDay(undefined)
     setSlot(null)
     setNote("")
+    setSent(null)
   }
 
   return (
@@ -147,78 +154,141 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button size="lg" className="h-12 bg-brand text-brand-foreground hover:bg-brand/90" disabled={slots.length === 0}>
+        <Button size="lg" className="h-12">
           <CalendarDays /> Boka
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Boka {trainer.name.split(" ")[0]}</DialogTitle>
-          <DialogDescription>Dagar med lediga tider är markerade. Bokningen bekräftas av tränaren.</DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-center rounded-md border">
-          <Calendar
-            mode="single"
-            locale={sv}
-            selected={day}
-            onSelect={(d) => {
-              setDay(d)
-              setSlot(null)
-            }}
-            disabled={(d) => !days.includes(toISODate(d))}
-            modifiers={{ available: days.map((d) => new Date(`${d}T12:00:00`)) }}
-            modifiersClassNames={{ available: "font-semibold underline decoration-brand decoration-2 underline-offset-4" }}
-          />
-        </div>
-        {day && (
-          <div className="space-y-2">
-            <Label>Tid</Label>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Välj tid">
-              {daySlots.map((s) => (
-                <button
-                  key={s}
-                  role="radio"
-                  aria-checked={slot === s}
-                  onClick={() => setSlot(s)}
-                  className={cn(
-                    "rounded-lg border px-4 py-2 text-sm font-medium tabular transition-colors",
-                    slot === s ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
-                  )}
-                >
-                  {formatTime(s)}
-                </button>
-              ))}
+      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+        {sent ? (
+          <div className="space-y-4 text-center">
+            <DialogHeader className="items-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-warning/20">
+                <Hourglass className="size-6 text-warning" />
+              </span>
+              <DialogTitle>Förfrågan skickad</DialogTitle>
+              <DialogDescription>
+                {formatDayLong(new Date(sent.start))} · {formatTimeRange(new Date(sent.start), new Date(sent.end))}
+                <br />
+                Väntar på bekräftelse från {trainer.name.split(" ")[0]}. Du ser statusen under Kalender.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2">
+              <Button asChild>
+                <Link href="/klient/kalender">Visa mina pass</Link>
+              </Button>
+              <Button variant="ghost" onClick={() => setOpen(false)}>
+                Stäng
+              </Button>
             </div>
           </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Boka {trainer.name.split(" ")[0]}</DialogTitle>
+              <DialogDescription>Välj en ledig tid. Bokningen blir klar när {trainer.name.split(" ")[0]} bekräftat den.</DialogDescription>
+            </DialogHeader>
+            {status === "loading" ? (
+              <div className="flex h-72 items-center justify-center">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : status === "error" ? (
+              <p className="rounded-lg bg-muted p-4 text-sm">Kunde inte hämta lediga tider. Kontrollera uppkopplingen och försök igen.</p>
+            ) : slots.length === 0 ? (
+              <p className="rounded-lg bg-muted p-4 text-sm">{trainer.name.split(" ")[0]} har inga lediga tider de kommande fyra veckorna. Skicka gärna ett meddelande.</p>
+            ) : (
+              <>
+                <div className="flex justify-center rounded-md border">
+                  <Calendar
+                    mode="single"
+                    locale={sv}
+                    selected={day}
+                    onSelect={(d) => {
+                      setDay(d)
+                      setSlot(null)
+                    }}
+                    disabled={(d) => !days.includes(localISODate(d))}
+                    modifiers={{ available: days.map((d) => new Date(`${d}T12:00:00`)) }}
+                    modifiersClassNames={{ available: "font-semibold underline decoration-primary decoration-2 underline-offset-4" }}
+                  />
+                </div>
+                {day && (
+                  <div className="space-y-2">
+                    <Label>Tid</Label>
+                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Välj tid">
+                      {daySlots.map((s) => (
+                        <button
+                          key={s.start}
+                          type="button"
+                          role="radio"
+                          aria-checked={slot?.start === s.start}
+                          onClick={() => setSlot(s)}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-sm font-medium tabular transition-colors",
+                            slot?.start === s.start ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                          )}
+                        >
+                          {formatTimeRange(new Date(s.start), new Date(s.end))}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {slot && (
+                  <>
+                    {modes.length > 1 && (
+                      <div className="space-y-2">
+                        <Label>Träna</Label>
+                        <div role="radiogroup" aria-label="Träna" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+                          {modes.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              role="radio"
+                              aria-checked={mode === m}
+                              onClick={() => setMode(m)}
+                              className={cn("rounded-md py-1.5 text-sm", mode === m ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+                            >
+                              {SESSION_MODE_LABEL[m]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="booking-note">Meddelande (valfritt)</Label>
+                      <Textarea
+                        id="booking-note"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
+                        rows={3}
+                        maxLength={500}
+                        placeholder="Berätta kort om dina mål. Skriv inte känsliga hälsouppgifter här."
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+            <DialogFooter>
+              <Button
+                disabled={!slot}
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  if (!slot) return
+                  const error = actions.requestBooking(trainer.id, slot, modes.includes(mode) ? mode : modes[0], note)
+                  if (error) {
+                    toast.error(error)
+                    setSlot(null)
+                    return
+                  }
+                  setSent(slot)
+                }}
+              >
+                Skicka bokningsförfrågan · {trainer.pricePerSession} kr
+              </Button>
+            </DialogFooter>
+          </>
         )}
-        {slot && (
-          <div className="space-y-2">
-            <Label htmlFor="booking-note">Meddelande (valfritt)</Label>
-            <Textarea
-              id="booking-note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder="Berätta kort om dina mål. Skriv inte känsliga hälsouppgifter här."
-            />
-          </div>
-        )}
-        <DialogFooter>
-          <Button
-            disabled={!slot}
-            className="w-full sm:w-auto"
-            onClick={() => {
-              if (!slot) return
-              actions.requestBooking(trainer.id, slot, note.trim() || undefined)
-              toast.success("Förfrågan skickad", { description: `${formatSlot(slot)} hos ${trainer.name}` })
-              setOpen(false)
-              reset()
-            }}
-          >
-            Skicka bokningsförfrågan · {trainer.pricePerSession} kr
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

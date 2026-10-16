@@ -66,9 +66,9 @@ reset role;
 -- --------------------------------------------- PT-profil, lediga tider, sök ---
 select test.login('pt@test.se');
 update trainers set city = 'Stockholm', specialties = '{styrkelyft,hyrox}', price_per_session = 850, is_published = true where id = auth.uid();
-insert into trainer_availability (trainer_id, slot) values (auth.uid(), now() + interval '2 days'), (auth.uid(), now() + interval '3 days');
+insert into availability_rules (trainer_id, weekday, start_local, end_local) values (auth.uid(), 1, '08:00', '12:00');
 select test.fails($$update profiles set role = 'client' where id = auth.uid()$$, 'roll kan inte ändras');
-select test.fails($$insert into trainer_availability (trainer_id, slot) values (test.uid('pt2@test.se'), now())$$,
+select test.fails($$insert into availability_rules (trainer_id, weekday, start_local, end_local) values (test.uid('pt2@test.se'), 1, '08:00', '12:00')$$,
   'PT kan inte lägga tider åt annan PT');
 select test.logout();
 
@@ -157,29 +157,9 @@ insert into messages (client_id, sender_id, body, workout_id) values (test.uid('
 select test.logout();
 
 -- ------------------------------------------------------------- bokning ---
+-- (Bokningar och kalender testas i rls_v4.test.sql.)
 select test.login('c2@test.se');
 insert into coaching_relationships (trainer_id, client_id) values (test.uid('pt@test.se'), auth.uid());
-insert into bookings (trainer_id, client_id, slot, note)
-select test.uid('pt@test.se'), auth.uid(), slot, 'Första passet' from trainer_availability order by slot limit 1;
-select test.eq((select count(*) from trainer_availability), 1::bigint, 'bokad tid försvinner från lediga tider');
-select test.fails($$insert into bookings (trainer_id, client_id, slot) values (test.uid('pt@test.se'), auth.uid(), now() + interval '9 days')$$,
-  'kan inte boka en tid som inte är ledig');
-select test.fails($$update bookings set status = 'confirmed'$$, 'klient kan inte bekräfta sin egen bokning');
-update bookings set status = 'cancelled';
-select test.eq((select count(*) from trainer_availability), 2::bigint, 'avbokad tid blir ledig igen');
-select test.logout();
-
-select test.login('c1@test.se');
-insert into bookings (trainer_id, client_id, slot)
-select test.uid('pt@test.se'), auth.uid(), slot from trainer_availability order by slot limit 1;
-select test.logout();
-
-select test.login('pt@test.se');
-select test.eq((select count(*) from bookings where status = 'requested'), 1::bigint, 'PT ser bokningsförfrågan');
-select test.fails($$update bookings set client_id = test.uid('c2@test.se') where status = 'requested'$$,
-  'PT kan inte flytta en bokning till en annan klient');
-update bookings set status = 'confirmed' where status = 'requested';
-select test.eq((select count(*) from bookings where status = 'confirmed'), 1::bigint, 'PT kan bekräfta bokning');
 select test.logout();
 
 -- ------------------------------------------------------- radera konto ---

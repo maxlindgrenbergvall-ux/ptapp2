@@ -1,6 +1,6 @@
 "use client"
 
-import { Dumbbell, Home, LineChart, LogOut, MessageCircle, Search } from "lucide-react"
+import { CalendarDays, Dumbbell, Home, LineChart, LogOut, MessageCircle, Search } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 
 const NAV = [
   { href: "/klient", label: "Idag", icon: Home, exact: true },
+  { href: "/klient/kalender", label: "Kalender", icon: CalendarDays },
   { href: "/klient/hitta", label: "Hitta PT", icon: Search },
   { href: "/klient/framsteg", label: "Framsteg", icon: LineChart },
   { href: "/klient/chatt", label: "Chatt", icon: MessageCircle },
@@ -23,6 +24,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { me, mode, signOut, sync } = useAppData()
   const unread = useUnreadCount(me.id, [me.id])
+  const { data } = useAppData()
+  const nowIso = new Date().toISOString()
+  const pendingCount = data.events.filter((e) => e.clientId === me.id && e.status === "pending" && e.end > nowIso).length
   // Under ett pågående pass tar loggern hela skärmen – inga distraktioner.
   const focusMode = pathname.startsWith("/klient/pass/")
 
@@ -55,7 +59,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       {!focusMode && (
         <nav
           aria-label="Huvudmeny"
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:border-x"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:border-x"
         >
           {NAV.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)
@@ -71,6 +75,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               >
                 <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
                 {label}
+                {href === "/klient/kalender" && pendingCount > 0 && (
+                  <span
+                    className="absolute top-2 left-1/2 ml-2 size-2 rounded-full bg-warning ring-2 ring-background"
+                    aria-label={`${pendingCount} väntar på bekräftelse`}
+                  />
+                )}
                 {href === "/klient/chatt" && unread > 0 && (
                   <span className="absolute top-2 left-1/2 ml-2 min-w-4 rounded-full bg-brand px-1 text-center text-[10px] font-semibold text-brand-foreground tabular">
                     {unread}

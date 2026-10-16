@@ -46,7 +46,7 @@ export default function ProgressPage() {
       nutritionPlans: data.nutritionPlans.filter((p) => p.clientId === client.id),
       mealChecks: data.mealChecks.filter((m) => m.clientId === client.id),
       messages: data.messages.filter((m) => m.threadId === client.id),
-      bookings: data.bookings.filter((b) => b.clientId === client.id),
+      calendar: data.events.filter((e) => e.clientId === client.id),
     }
     const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }))
     const a = document.createElement("a")

@@ -1,11 +1,10 @@
 "use client"
 
-import { Activity, AlertCircle, CalendarClock, ChevronRight, MessageSquare, Users } from "lucide-react"
+import { Activity, AlertCircle, CalendarClock, CalendarDays, ChevronRight, MessageSquare, Users } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
-import { toast } from "sonner"
-
+import { RequestsPanel } from "@/components/calendar/requests-panel"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { ClientStatusBadge, PageHeader, PersonAvatar, StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -16,13 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
-import { addDays, formatShort, formatSlot, relativeDay, todayISO } from "@/lib/date"
+import { addDays, formatShort, relativeDay, todayISO } from "@/lib/date"
 import type { ClientStatus } from "@/types/domain"
 
 type Filter = "all" | ClientStatus
 
 export default function PtOverviewPage() {
-  const { data, me, actions } = useAppData()
+  const { data, me } = useAppData()
   const [query, setQuery] = React.useState("")
   const [filter, setFilter] = React.useState<Filter>("all")
   const today = todayISO()
@@ -68,7 +67,6 @@ export default function PtOverviewPage() {
       })),
   ]
 
-  const bookings = data.bookings.filter((b) => b.trainerId === me.id && b.status === "requested")
 
   return (
     <div className="space-y-6">
@@ -204,36 +202,13 @@ export default function PtOverviewPage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Bokningsförfrågningar</CardTitle>
-              <CardDescription>Från PT-sökningen i klientappen.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {bookings.length === 0 && <p className="text-sm text-muted-foreground">Inga nya förfrågningar.</p>}
-              {bookings.map((b) => {
-                const c = data.clients.find((x) => x.id === b.clientId)
-                return (
-                  <div key={b.id} className="rounded-lg border p-3 text-sm">
-                    <div className="font-medium">{c?.name ?? "Okänd klient"}</div>
-                    <div className="text-muted-foreground">{formatSlot(b.slot)}</div>
-                    {b.note && <p className="mt-1 text-xs">&quot;{b.note}&quot;</p>}
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          actions.setBookingStatus(b.id, "confirmed")
-                          toast.success("Bokningen är bekräftad")
-                        }}
-                      >
-                        Bekräfta
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => actions.setBookingStatus(b.id, "cancelled")}>
-                        Avböj
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+            <CardContent className="space-y-3">
+              <RequestsPanel compact />
+              <Button asChild variant="outline" size="sm" className="w-full">
+                <Link href="/pt/kalender">
+                  <CalendarDays /> Öppna kalendern
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

@@ -6,6 +6,8 @@ import { addDays, todayISO } from "@/lib/date"
 import exerciseLibrary from "@/lib/exercise-library.json"
 import type {
   AppData,
+  AvailabilityRule,
+  CalendarEvent,
   Client,
   Exercise,
   FoodEntry,
@@ -95,14 +97,7 @@ const templates: WorkoutTemplate[] = [
   },
 ]
 
-function addHours(dateISO: string, hour: number) {
-  const d = new Date(`${dateISO}T00:00:00`)
-  d.setHours(hour)
-  return d.toISOString()
-}
-
 function makeTrainers(today: string): Trainer[] {
-  const slots = (offsets: [number, number][]) => offsets.map(([day, h]) => addHours(addDays(today, day), h))
   return [
     {
       id: "t1",
@@ -121,7 +116,6 @@ function makeTrainers(today: string): Trainer[] {
         { id: "r2", author: "Jonas P.", rating: 5, text: "Perfekt inför min första Hyrox. Visste exakt vad jag skulle göra varje dag.", date: addDays(today, -64) },
         { id: "r3", author: "Mira K.", rating: 4, text: "Väldigt kunnig. Ibland lite långa svarstider i helgerna.", date: addDays(today, -120) },
       ],
-      availability: slots([[1, 7], [1, 17], [2, 12], [3, 18], [5, 9], [6, 10]]),
     },
     {
       id: "t2",
@@ -139,7 +133,6 @@ function makeTrainers(today: string): Trainer[] {
         { id: "r4", author: "Linnea", rating: 5, text: "Sänkte min Hyrox-tid med 11 minuter.", date: addDays(today, -15) },
         { id: "r5", author: "Erik", rating: 5, text: "Grym på löpteknik.", date: addDays(today, -40) },
       ],
-      availability: slots([[1, 6], [2, 6], [4, 17]]),
     },
     {
       id: "t3",
@@ -156,7 +149,6 @@ function makeTrainers(today: string): Trainer[] {
       reviews: [
         { id: "r6", author: "Anna", rating: 5, text: "Tryggaste PT jag haft efter förlossningen.", date: addDays(today, -30) },
       ],
-      availability: slots([[2, 10], [3, 10], [3, 14]]),
     },
     {
       id: "t4",
@@ -174,7 +166,6 @@ function makeTrainers(today: string): Trainer[] {
         { id: "r7", author: "Oskar", rating: 5, text: "Fick min första muscle-up efter 10 veckor!", date: addDays(today, -22) },
         { id: "r8", author: "Ida", rating: 4, text: "Bra upplägg, appen gjorde det lätt att följa.", date: addDays(today, -80) },
       ],
-      availability: slots([[1, 12], [4, 12], [5, 12], [6, 12]]),
     },
     {
       id: "t5",
@@ -191,7 +182,6 @@ function makeTrainers(today: string): Trainer[] {
       reviews: [
         { id: "r9", author: "Peter", rating: 5, text: "-14 kg på ett år utan att svälta.", date: addDays(today, -50) },
       ],
-      availability: slots([[1, 8], [2, 18], [3, 8]]),
     },
     {
       id: "t6",
@@ -208,7 +198,6 @@ function makeTrainers(today: string): Trainer[] {
       reviews: [
         { id: "r10", author: "Kalle", rating: 5, text: "Ryggen håller och marken går upp. Bästa investeringen.", date: addDays(today, -9) },
       ],
-      availability: slots([[3, 7], [5, 15]]),
     },
   ]
 }
@@ -414,6 +403,99 @@ function makeTrackers(today: string) {
   return { waterLogs, sleepLogs, foodEntries }
 }
 
+/**
+ * Kalender: veckoscheman för alla PT:er och en realistisk vecka för Elin –
+ * bekräftade pass, väntande förfrågningar, ett eget gruppass och blockeringar.
+ */
+function makeCalendar(today: string): { events: CalendarEvent[]; availabilityRules: AvailabilityRule[] } {
+  let n = 0
+  const rule = (trainerId: string, weekdays: number[], start: string, end: string, slotMinutes = 60): AvailabilityRule[] =>
+    weekdays.map((weekday) => ({ id: `rule-${trainerId}-${++n}`, trainerId, weekday, start, end, slotMinutes }))
+  const availabilityRules = [
+    ...rule("t1", [1, 2, 3, 4, 5], "07:00", "10:00"),
+    ...rule("t1", [1, 2, 3, 4], "16:00", "19:00"),
+    ...rule("t1", [6], "09:00", "12:00"),
+    ...rule("t2", [1, 3, 5], "06:00", "08:00"),
+    ...rule("t2", [2, 4], "17:00", "20:00"),
+    ...rule("t3", [2, 3, 4], "09:00", "15:00", 90),
+    ...rule("t4", [1, 2, 3, 4, 5, 6], "12:00", "14:00"),
+    ...rule("t5", [1, 3], "07:00", "09:00"),
+    ...rule("t5", [2, 4], "17:00", "20:00", 45),
+    ...rule("t6", [2, 4], "07:00", "10:00"),
+    ...rule("t6", [6], "14:00", "17:00"),
+  ]
+
+  /** Lokal tid `hh:mm` dagen `offset` från idag. */
+  const at = (offset: number, hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number)
+    const d = new Date(`${addDays(today, offset)}T00:00:00`)
+    d.setHours(h, m, 0, 0)
+    return d.toISOString()
+  }
+  const plus = (iso: string, minutes: number) => new Date(new Date(iso).getTime() + minutes * 60_000).toISOString()
+  const session = (
+    id: string,
+    clientId: string | undefined,
+    offset: number,
+    time: string,
+    status: CalendarEvent["status"],
+    extra: Partial<CalendarEvent> = {}
+  ): CalendarEvent => {
+    const start = at(offset, time)
+    return {
+      id,
+      trainerId: "t1",
+      clientId,
+      kind: "session",
+      status,
+      title: "PT-pass",
+      start,
+      end: plus(start, 60),
+      mode: "onsite",
+      location: "Gym 1, Södermalm",
+      createdBy: clientId ?? "t1",
+      ...extra,
+    }
+  }
+
+  const events: CalendarEvent[] = [
+    // Sara (c1): genomfört förra veckan, bekräftat i övermorgon, en väntande förfrågan nästa vecka.
+    session("ev-c1-past", "c1", -6, "07:00", "completed", { title: "Teknik knäböj" }),
+    session("ev-c1-next", "c1", 2, "07:00", "confirmed", { title: "Teknik knäböj", notes: "Ta med lyftarskor." }),
+    session("ev-c1-req", "c1", 8, "17:00", "pending", { notes: "Kan vi köra marklyft?" }),
+    // Jonas (c2): distanspass, Mira (c3) och Emil (c4) väntar på svar.
+    session("ev-c2", "c2", 1, "17:00", "confirmed", { mode: "remote", location: undefined, title: "Hyrox-genomgång" }),
+    session("ev-c3-req", "c3", 1, "08:00", "pending", { notes: "Första passet efter semestern!" }),
+    session("ev-c4-req", "c4", 3, "16:00", "pending", { notes: "Inför tävlingen – vill gå igenom böj och bänk." }),
+    session("ev-c4", "c4", -2, "18:00", "completed"),
+    // Elins egna saker.
+    session("ev-group", undefined, 5, "09:00", "confirmed", { title: "Hyrox-gruppass", end: plus(at(5, "09:00"), 90) }),
+    {
+      id: "ev-lunch",
+      trainerId: "t1",
+      kind: "block",
+      status: "confirmed",
+      title: "Lunch",
+      start: at(0, "12:00"),
+      end: at(0, "13:00"),
+      mode: "onsite",
+      createdBy: "t1",
+    },
+    {
+      id: "ev-vacation",
+      trainerId: "t1",
+      kind: "block",
+      status: "confirmed",
+      title: "Utbildning (hela dagen)",
+      start: at(11, "00:00"),
+      end: at(12, "00:00"),
+      mode: "onsite",
+      createdBy: "t1",
+    },
+  ]
+  return { events, availabilityRules }
+}
+
 function makeMessages(today: string): Message[] {
   const at = (day: number, h: number, m = 0) => {
     const d = new Date(`${addDays(today, day)}T00:00:00`)
@@ -441,7 +523,7 @@ export function createSeedData(today = todayISO()): AppData {
     nutritionPlans: makeNutrition(),
     mealChecks: [],
     messages: makeMessages(today),
-    bookings: [],
+    ...makeCalendar(today),
     ...makeTrackers(today),
     wearables: [],
     // Exempel: Elin har döpt om en övning för Sara.

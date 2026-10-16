@@ -90,7 +90,25 @@ log = await getLog()
 check(log.some((e) => e.rejected) && log.some((e) => e.body?.body === "Hej igen"), "avvisad ändring släpps och nästa skickas ändå")
 await p.screenshot({ path: `${out}/sb-rejected.png` })
 
-// 8. Logga ut rensar lokal data
+// 8. Kalender: bekräftat pass från databasen och bokningsförfrågan från RPC-tider
+await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=PT-pass")
+check(await p.locator("text=Bekräftat").first().isVisible(), "klientkalendern visar bekräftat pass från Supabase")
+await p.goto(`${base}/klient/hitta/11111111-0000-4000-8000-000000000001`)
+await p.click('button:has-text("Boka")'); await p.waitForSelector("text=Välj en ledig tid")
+await p.locator('[role=dialog] [role=grid] button:not([disabled])').first().click()
+await p.locator('[role=dialog] [role=radiogroup][aria-label="Välj tid"] button').first().click()
+await p.click('button:has-text("Skicka bokningsförfrågan")'); await p.waitForSelector("text=Förfrågan skickad")
+await p.waitForTimeout(800)
+log = await getLog()
+check(log.some((e) => e.method === "RPC" && e.table === "available_slots"), "lediga tider hämtas via available_slots")
+const req = log.find((e) => e.table === "calendar_events" && e.method === "POST")
+// status sätts inte av klienten – databasen ger 'pending' som standard och RLS tillåter inget annat.
+check(req && req.body.status === undefined && req.body.client_id === "22222222-0000-4000-8000-000000000001", "bokningsförfrågan sparas som pending i calendar_events")
+await p.click('a:has-text("Visa mina pass")')
+await p.waitForSelector("text=Väntar på bekräftelse från PT")
+ok("förfrågan visas som väntande i klientkalendern")
+
+// 9. Logga ut rensar lokal data
 await p.goto(`${base}/klient`); await p.waitForSelector("text=Testpass")
 await p.waitForTimeout(1200) // cachen skrivs avstudsat
 check(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("forma:cache"))), "offlinecache finns när man är inloggad")
@@ -100,10 +118,16 @@ check(!(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWit
 await p.goto(`${base}/klient`)
 check(p.url().includes("/logga-in"), "efter utloggning är /klient skyddad igen")
 
-// 9. PT
+// 10. PT
 await p.fill("#email", "elin@test.se"); await p.fill("#password", "hemligt123"); await p.click('button[type=submit]')
 await p.waitForURL(`${base}/pt`); await p.waitForSelector("text=Sara Test")
 ok("PT loggar in och ser sin klient")
+await p.goto(`${base}/pt/kalender`); await p.waitForSelector("text=Väntande förfrågningar")
+await p.click('[role=tab]:has-text("Månad")')
+const evDay = new Date(Date.now() + 2 * 86400e3)
+if (evDay.getMonth() !== new Date().getMonth()) await p.click('button[aria-label="Nästa"]')
+await p.waitForSelector('button[title*="Sara Test"] >> visible=true')
+ok("PT-kalendern visar passet från Supabase")
 await p.goto(`${base}/klient`); await p.waitForURL(`${base}/pt`)
 ok("PT som går till /klient skickas till /pt")
 await p.goto(`${base}/logga-in`); await p.waitForURL(`${base}/pt`)

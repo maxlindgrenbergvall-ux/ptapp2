@@ -9,8 +9,9 @@
  */
 import type {
   AppData,
-  Booking,
-  BookingStatus,
+  AvailabilityRule,
+  CalendarEvent,
+  EventStatus,
   FoodEntry,
   FoodProduct,
   SleepLog,
@@ -41,18 +42,23 @@ export type PersistableAction =
   | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string }
   | { type: "addWeight"; clientId: ID; entry: WeightEntry }
   | { type: "requestCoaching"; trainerId: ID; clientId: ID; goal: string }
-  | { type: "addBooking"; booking: Booking }
-  | { type: "setBookingStatus"; bookingId: ID; status: BookingStatus }
+  | { type: "addEvent"; event: CalendarEvent }
+  | { type: "updateEvent"; eventId: ID; patch: EventPatch }
+  | { type: "setEventStatus"; eventId: ID; status: EventStatus; cancelledBy?: ID }
+  | { type: "deleteEvent"; eventId: ID }
+  | { type: "saveAvailabilityRule"; rule: AvailabilityRule }
+  | { type: "deleteAvailabilityRule"; ruleId: ID }
   | { type: "setClientStatus"; clientId: ID; status: ClientStatus; startedAt?: ISODate }
   | { type: "updateTrainerProfile"; trainerId: ID; patch: TrainerProfilePatch }
-  | { type: "addAvailability"; trainerId: ID; slot: string }
-  | { type: "removeAvailability"; trainerId: ID; slot: string }
   | { type: "addFoodEntry"; entry: FoodEntry }
   | { type: "deleteFoodEntry"; id: ID }
   | { type: "setWater"; clientId: ID; date: ISODate; ml: number }
   | { type: "upsertSleep"; log: SleepLog }
   | { type: "setExerciseAlias"; trainerId: ID; clientId: ID; exerciseId: ID; name: string | null }
   | { type: "upsertCustomFood"; product: FoodProduct }
+
+/** Fält PT:n kan ändra på en händelse (klient, PT och typ är låsta). */
+export type EventPatch = Partial<Pick<CalendarEvent, "title" | "start" | "end" | "mode" | "location" | "notes" | "workoutId">>
 
 export type TrainerProfilePatch = Partial<
   Pick<
@@ -65,6 +71,7 @@ export type TrainerProfilePatch = Partial<
     | "coachingMode"
     | "avatarUrl"
     | "certifications"
+    | "minNoticeMinutes"
     | "isPublished"
   >
 >
@@ -73,7 +80,7 @@ export type TrainerProfilePatch = Partial<
 export type LocalAction =
   | { type: "hydrate"; data: AppData }
   | { type: "remoteWorkout"; workout: Omit<ScheduledWorkout, "logs"> }
-  | { type: "remoteBooking"; booking: Booking }
+  | { type: "remoteEvent"; event: CalendarEvent }
   | { type: "setWearables"; connections: WearableConnection[] }
   | { type: "mergeSleepLogs"; logs: SleepLog[] }
 
@@ -184,27 +191,34 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         ),
       }
 
-    case "addBooking":
-      if (data.bookings.some((b) => b.id === action.booking.id)) return data
+    case "addEvent":
+      if (data.events.some((e) => e.id === action.event.id)) return data
+      return { ...data, events: [...data.events, action.event] }
+
+    case "remoteEvent":
+      return { ...data, events: upsertBy(data.events, action.event, (e) => e.id === action.event.id) }
+
+    case "updateEvent":
+      return { ...data, events: data.events.map((e) => (e.id === action.eventId ? { ...e, ...action.patch } : e)) }
+
+    case "setEventStatus":
       return {
         ...data,
-        bookings: [...data.bookings, action.booking],
-        // Tiden är inte längre ledig (databasen gör samma sak med en trigger).
-        trainers: data.trainers.map((t) =>
-          t.id === action.booking.trainerId
-            ? { ...t, availability: t.availability.filter((s) => s !== action.booking.slot) }
-            : t
+        events: data.events.map((e) =>
+          e.id === action.eventId
+            ? { ...e, status: action.status, cancelledBy: action.status === "cancelled" ? action.cancelledBy : e.cancelledBy }
+            : e
         ),
       }
 
-    case "remoteBooking":
-      return { ...data, bookings: upsertBy(data.bookings, action.booking, (b) => b.id === action.booking.id) }
+    case "deleteEvent":
+      return { ...data, events: data.events.filter((e) => e.id !== action.eventId) }
 
-    case "setBookingStatus":
-      return {
-        ...data,
-        bookings: data.bookings.map((b) => (b.id === action.bookingId ? { ...b, status: action.status } : b)),
-      }
+    case "saveAvailabilityRule":
+      return { ...data, availabilityRules: upsertBy(data.availabilityRules, action.rule, (r) => r.id === action.rule.id) }
+
+    case "deleteAvailabilityRule":
+      return { ...data, availabilityRules: data.availabilityRules.filter((r) => r.id !== action.ruleId) }
 
     case "setClientStatus":
       return {
@@ -220,16 +234,6 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       return {
         ...data,
         trainers: data.trainers.map((t) => (t.id === action.trainerId ? { ...t, ...action.patch } : t)),
-      }
-
-    case "addAvailability":
-      return {
-        ...data,
-        trainers: data.trainers.map((t) =>
-          t.id === action.trainerId && !t.availability.includes(action.slot)
-            ? { ...t, availability: [...t.availability, action.slot].sort() }
-            : t
-        ),
       }
 
     case "addFoodEntry":
@@ -276,14 +280,6 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "setWearables":
       return { ...data, wearables: action.connections }
-
-    case "removeAvailability":
-      return {
-        ...data,
-        trainers: data.trainers.map((t) =>
-          t.id === action.trainerId ? { ...t, availability: t.availability.filter((s) => s !== action.slot) } : t
-        ),
-      }
   }
 }
 
@@ -303,17 +299,22 @@ export function normalizeAppData(raw: unknown): AppData | null {
   const list = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
   if (!Array.isArray(d.clients) || !Array.isArray(d.workouts)) return null
 
+  type OldTrainer = Trainer & { offersRemote?: boolean; availability?: string[] }
+  const oldTrainers = list<OldTrainer>(d.trainers)
+
   return {
-    trainers: list<Trainer & { offersRemote?: boolean }>(d.trainers).map(({ offersRemote, ...t }) => ({
-      ...t,
-      // v1 hade bara "erbjuder distans" (ja/nej).
-      coachingMode: t.coachingMode ?? (offersRemote ? "both" : "onsite"),
-      certifications: Array.isArray(t.certifications) ? t.certifications : [],
-      availability: list<string>(t.availability),
-      reviews: list(t.reviews),
-      specialties: list(t.specialties),
-      isPublished: t.isPublished ?? true,
-    })),
+    trainers: oldTrainers.map(({ offersRemote, availability: _old, ...t }) => {
+      void _old
+      return {
+        ...t,
+        // v1 hade bara "erbjuder distans" (ja/nej).
+        coachingMode: t.coachingMode ?? (offersRemote ? "both" : "onsite"),
+        certifications: Array.isArray(t.certifications) ? t.certifications : [],
+        reviews: list(t.reviews),
+        specialties: list(t.specialties),
+        isPublished: t.isPublished ?? true,
+      }
+    }),
     clients: list(d.clients),
     exercises: list(d.exercises),
     templates: list(d.templates),
@@ -321,7 +322,11 @@ export function normalizeAppData(raw: unknown): AppData | null {
     nutritionPlans: list(d.nutritionPlans),
     mealChecks: list(d.mealChecks),
     messages: list(d.messages),
-    bookings: list(d.bookings),
+    // v1–v3: bookings + enstaka lediga tider → kalenderhändelser + datumregler.
+    events: Array.isArray(d.events) ? list<CalendarEvent>(d.events) : list<OldBooking>(d.bookings).map(bookingToEvent),
+    availabilityRules: Array.isArray(d.availabilityRules)
+      ? list<AvailabilityRule>(d.availabilityRules)
+      : oldTrainers.flatMap((t) => list<string>(t.availability).map((slot) => slotToRule(t.id, slot))),
     foodEntries: list(d.foodEntries),
     waterLogs: list(d.waterLogs),
     sleepLogs: list(d.sleepLogs),
@@ -329,4 +334,38 @@ export function normalizeAppData(raw: unknown): AppData | null {
     exerciseAliases: list(d.exerciseAliases),
     customFoods: list(d.customFoods),
   }
+}
+
+interface OldBooking {
+  id: ID
+  trainerId: ID
+  clientId: ID
+  slot: string
+  status: "requested" | "confirmed" | "cancelled"
+  note?: string
+}
+
+function bookingToEvent(b: OldBooking): CalendarEvent {
+  return {
+    id: b.id,
+    trainerId: b.trainerId,
+    clientId: b.clientId,
+    kind: "session",
+    status: b.status === "requested" ? "pending" : b.status,
+    title: "PT-pass",
+    start: b.slot,
+    end: new Date(new Date(b.slot).getTime() + 60 * 60_000).toISOString(),
+    mode: "onsite",
+    notes: b.note,
+    createdBy: b.clientId,
+  }
+}
+
+function slotToRule(trainerId: ID, slot: string): AvailabilityRule {
+  const d = new Date(slot)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const start = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const end = `${pad(Math.min(23, d.getHours() + 1))}:${pad(d.getMinutes())}`
+  return { id: `rule-${trainerId}-${slot}`, trainerId, date, start, end, slotMinutes: 60 }
 }

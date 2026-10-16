@@ -10,7 +10,8 @@ import { addDays, todayISO } from "@/lib/date"
 import type {
   AppData,
   Attachment,
-  Booking,
+  AvailabilityRule,
+  CalendarEvent,
   Client,
   ClientStatus,
   Exercise,
@@ -24,6 +25,7 @@ import type {
   ScheduledWorkout,
   SetLog,
   SleepLog,
+  Slot,
   Specialty,
   Trainer,
   WaterLog,
@@ -52,7 +54,7 @@ interface TrainerRow {
   certifications: string[] | null
   is_published: boolean
   profile?: { full_name: string } | null
-  trainer_availability?: { slot: string }[]
+  min_notice_minutes?: number | null
   reviews?: ReviewRow[]
 }
 interface ReviewRow {
@@ -179,13 +181,30 @@ interface WearableRow {
   last_synced_at: string | null
   last_error: string | null
 }
-interface BookingRow {
+interface EventRow {
   id: string
   trainer_id: string
-  client_id: string
-  slot: string
-  status: Booking["status"]
-  note: string | null
+  client_id: string | null
+  kind: CalendarEvent["kind"]
+  status: CalendarEvent["status"]
+  title: string
+  start_time: string
+  end_time: string
+  mode: CalendarEvent["mode"]
+  location: string | null
+  notes: string | null
+  workout_id: string | null
+  created_by: string | null
+  cancelled_by: string | null
+}
+interface RuleRow {
+  id: string
+  trainer_id: string
+  weekday: number | null
+  date: string | null
+  start_local: string
+  end_local: string
+  slot_minutes: number
 }
 
 // ------------------------------------------------------------ mappning ---
@@ -202,7 +221,7 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   avatarUrl: r.avatar_url ?? undefined,
   certifications: r.certifications ?? [],
   isPublished: r.is_published,
-  availability: (r.trainer_availability ?? []).map((a) => new Date(a.slot).toISOString()).sort(),
+  minNoticeMinutes: r.min_notice_minutes ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
@@ -328,13 +347,31 @@ export const toWearable = (r: WearableRow): WearableConnection => ({
   lastError: r.last_error ?? undefined,
 })
 
-export const toBooking = (r: BookingRow): Booking => ({
+export const toEvent = (r: EventRow): CalendarEvent => ({
   id: r.id,
   trainerId: r.trainer_id,
-  clientId: r.client_id,
-  slot: new Date(r.slot).toISOString(),
+  clientId: r.client_id ?? undefined,
+  kind: r.kind,
   status: r.status,
-  note: r.note ?? undefined,
+  title: r.title,
+  start: new Date(r.start_time).toISOString(),
+  end: new Date(r.end_time).toISOString(),
+  mode: r.mode,
+  location: r.location ?? undefined,
+  notes: r.notes ?? undefined,
+  workoutId: r.workout_id ?? undefined,
+  createdBy: r.created_by ?? undefined,
+  cancelledBy: r.cancelled_by ?? undefined,
+})
+
+const toRule = (r: RuleRow): AvailabilityRule => ({
+  id: r.id,
+  trainerId: r.trainer_id,
+  weekday: r.weekday ?? undefined,
+  date: r.date ?? undefined,
+  start: r.start_local.slice(0, 5),
+  end: r.end_local.slice(0, 5),
+  slotMinutes: r.slot_minutes,
 })
 
 // ------------------------------------------------------------- laddning ---
@@ -366,15 +403,16 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   const since = addDays(todayISO(), -HISTORY_DAYS)
 
   const trainerSelect =
-    "*, profile:profiles!trainers_id_fkey(full_name), trainer_availability(slot), reviews(id, author_name, rating, text, created_at)"
+    "*, profile:profiles!trainers_id_fkey(full_name), reviews(id, author_name, rating, text, created_at)"
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, bookings, plans, food, water, sleep, aliases] = await Promise.all([
+  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
-    sb.from("bookings").select("*").order("slot"),
+    // Kalendern: 90 dagar bakåt och allt framåt (RLS: PT:ns egna / klientens egna).
+    sb.from("calendar_events").select("*").gte("end_time", new Date(Date.now() - 90 * 86_400_000).toISOString()).order("start_time"),
     sb.from("nutrition_plans").select("*").eq("is_active", true),
     sb.from("food_entries").select("*").gte("date", trackerSince).order("created_at"),
     sb.from("water_logs").select("client_id, date, ml").gte("date", trackerSince),
@@ -389,7 +427,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     ).map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, videoUrl: e.video_url ?? undefined })),
     workouts: must<WorkoutRow[]>(workouts, "pass").map(toWorkout),
     messages: must<MessageRow[]>(messages, "meddelanden").map(toMessage),
-    bookings: must<BookingRow[]>(bookings, "bokningar").map(toBooking),
+    events: must<EventRow[]>(events, "kalender").map(toEvent),
     nutritionPlans: must<NutritionRow[]>(plans, "kostscheman").map(toPlan),
     foodEntries: must<FoodRow[]>(food, "extra mat").map(toFood),
     waterLogs: must<WaterRow[]>(water, "vatten").map(toWater),
@@ -398,7 +436,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   if (me.role === "trainer") {
-    const [self, rels, weights, templates] = await Promise.all([
+    const [self, rels, weights, templates, rules] = await Promise.all([
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
@@ -407,6 +445,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         .neq("status", "ended"),
       sb.from("weight_entries").select("client_id, date, kg").gte("date", since).order("date"),
       sb.from("workout_templates").select("*").eq("trainer_id", uid).order("name"),
+      sb.from("availability_rules").select("*").eq("trainer_id", uid),
     ])
     const weightRows = must<{ client_id: string; date: string; kg: number | string }[]>(weights, "vikt")
     const clients: Client[] = must<RelationshipRow[]>(rels, "klienter").map((r) => ({
@@ -425,6 +464,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         trainers: [toTrainer(must<TrainerRow>(self, "PT-profil"), me.name)],
         clients,
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
+        availabilityRules: must<RuleRow[]>(rules, "tillgänglighet").map(toRule),
         mealChecks: [],
         wearables: [],
         customFoods: [],
@@ -460,6 +500,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       trainers: must<TrainerRow[]>(trainers, "tränare").map((t) => toTrainer(t)),
       clients: [self],
       templates: [],
+      availabilityRules: [],
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
         date: m.date,
@@ -498,7 +539,7 @@ async function result(promise: PromiseLike<{ error: PostgrestError | null; statu
 
 function friendlyError(error: PostgrestError) {
   if (error.code === "42501") return "Du saknar behörighet för ändringen."
-  if (error.code === "23505" && /bookings_no_double/.test(error.message)) return "Tiden hann bokas av någon annan."
+  if (error.code === "23P01") return "Tiden krockar med en annan bokning eller blockering."
   if (error.code === "P0001") return error.message
   if (error.code === "23514") return "Ett värde ligger utanför tillåtna gränser."
   return error.message
@@ -620,14 +661,60 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           .from("coaching_relationships")
           .upsert({ trainer_id: action.trainerId, client_id: action.clientId, goal: action.goal }, { ignoreDuplicates: true })
       )
-    case "addBooking": {
-      const b = action.booking
+    case "addEvent": {
+      const e = action.event
+      // Klientens förfrågan: bara grundfälten; databasen validerar tiden och sätter resten.
+      const row: Record<string, unknown> =
+        me.role === "client"
+          ? { id: e.id, trainer_id: e.trainerId, client_id: me.id, start_time: e.start, end_time: e.end, mode: e.mode, title: e.title, notes: e.notes ?? null }
+          : {
+              id: e.id,
+              trainer_id: me.id,
+              client_id: e.clientId ?? null,
+              kind: e.kind,
+              status: e.status,
+              title: e.title,
+              start_time: e.start,
+              end_time: e.end,
+              mode: e.mode,
+              location: e.location ?? null,
+              notes: e.notes ?? null,
+              workout_id: e.workoutId ?? null,
+            }
+      return result(sb.from("calendar_events").insert(row))
+    }
+    case "updateEvent": {
+      const p = action.patch
+      const row: Record<string, unknown> = {}
+      if (p.title !== undefined) row.title = p.title
+      if (p.start !== undefined) row.start_time = p.start
+      if (p.end !== undefined) row.end_time = p.end
+      if (p.mode !== undefined) row.mode = p.mode
+      if ("location" in p) row.location = p.location ?? null
+      if ("notes" in p) row.notes = p.notes ?? null
+      if ("workoutId" in p) row.workout_id = p.workoutId ?? null
+      return result(sb.from("calendar_events").update(row).eq("id", action.eventId))
+    }
+    case "setEventStatus":
+      return result(sb.from("calendar_events").update({ status: action.status }).eq("id", action.eventId))
+    case "deleteEvent":
+      return result(sb.from("calendar_events").delete().eq("id", action.eventId))
+    case "saveAvailabilityRule": {
+      const r = action.rule
       return result(
-        sb.from("bookings").insert({ id: b.id, trainer_id: b.trainerId, client_id: b.clientId, slot: b.slot, note: b.note ?? null })
+        sb.from("availability_rules").upsert({
+          id: r.id,
+          trainer_id: me.id,
+          weekday: r.weekday ?? null,
+          date: r.date ?? null,
+          start_local: r.start,
+          end_local: r.end,
+          slot_minutes: r.slotMinutes,
+        })
       )
     }
-    case "setBookingStatus":
-      return result(sb.from("bookings").update({ status: action.status }).eq("id", action.bookingId))
+    case "deleteAvailabilityRule":
+      return result(sb.from("availability_rules").delete().eq("id", action.ruleId))
     case "setClientStatus":
       return result(
         sb
@@ -646,15 +733,10 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.coachingMode !== undefined) row.coaching_mode = p.coachingMode
       if (p.avatarUrl !== undefined) row.avatar_url = p.avatarUrl || null
       if (p.certifications !== undefined) row.certifications = p.certifications
+      if (p.minNoticeMinutes !== undefined) row.min_notice_minutes = p.minNoticeMinutes
       if (p.isPublished !== undefined) row.is_published = p.isPublished
       return result(sb.from("trainers").update(row).eq("id", action.trainerId))
     }
-    case "addAvailability":
-      return result(
-        sb.from("trainer_availability").upsert({ trainer_id: action.trainerId, slot: action.slot }, { ignoreDuplicates: true })
-      )
-    case "removeAvailability":
-      return result(sb.from("trainer_availability").delete().match({ trainer_id: action.trainerId, slot: action.slot }))
     case "addFoodEntry": {
       const e = action.entry
       return result(
@@ -747,8 +829,13 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (p) => {
       if (p.new && "id" in p.new) dispatch({ type: "addMessage", message: toMessage(p.new as MessageRow) })
     })
-    .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, (p) => {
-      if (p.new && "id" in p.new) dispatch({ type: "remoteBooking", booking: toBooking(p.new as BookingRow) })
+    .on("postgres_changes", { event: "*", schema: "public", table: "calendar_events" }, (p) => {
+      if (p.eventType === "DELETE") {
+        const id = (p.old as { id?: string } | undefined)?.id
+        if (id) dispatch({ type: "deleteEvent", eventId: id })
+      } else if (p.new && "id" in p.new) {
+        dispatch({ type: "remoteEvent", event: toEvent(p.new as EventRow) })
+      }
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "client_exercise_aliases" }, (p) => {
       const row = (p.new && "exercise_id" in p.new ? p.new : p.old) as Partial<AliasRow> | undefined
@@ -807,4 +894,24 @@ export async function reloadSleepAndWearables(sb: SupabaseClient) {
     sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
     wearables: must<WearableRow[]>(conns, "wearables").map(toWearable),
   }
+}
+
+// ---------------------------------------------------------- lediga tider ---
+
+/** Lediga tider hos en PT, beräknade i databasen (klienten ser aldrig andras bokningar). */
+export async function fetchSlots(sb: SupabaseClient, trainerId: string, from: Date, to: Date): Promise<Slot[]> {
+  const { data, error } = await sb.rpc("available_slots", { p_trainer: trainerId, p_from: from.toISOString(), p_to: to.toISOString() })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as { start_time: string; end_time: string }[]).map((r) => ({
+    start: new Date(r.start_time).toISOString(),
+    end: new Date(r.end_time).toISOString(),
+  }))
+}
+
+/** Första lediga tid per PT (för PT-sökningen). */
+export async function fetchNextSlots(sb: SupabaseClient, trainerIds: string[]): Promise<Record<string, string>> {
+  if (trainerIds.length === 0) return {}
+  const { data, error } = await sb.rpc("next_available_slots", { p_trainers: trainerIds })
+  if (error) throw new Error(error.message)
+  return Object.fromEntries(((data ?? []) as { trainer_id: string; start_time: string }[]).map((r) => [r.trainer_id, new Date(r.start_time).toISOString()]))
 }

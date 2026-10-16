@@ -21,16 +21,22 @@ import {
   reducer,
   replay,
   type Action,
+  type EventPatch,
   type PersistableAction,
   type TrainerProfilePatch,
 } from "@/lib/data/state"
+import { findConflict } from "@/lib/calendar/slots"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled } from "@/lib/supabase/config"
 import type {
   AppData,
   Attachment,
-  BookingStatus,
+  AvailabilityRule,
+  CalendarEvent,
+  EventStatus,
+  SessionMode,
+  Slot,
   ClientStatus,
   FoodEntry,
   FoodProduct,
@@ -131,16 +137,72 @@ function createActions(ctx: {
       if (hasUnread) commit({ type: "markThreadRead", threadId, readerId: me.id, readAt: now() })
     },
     addWeight: (clientId: ID, entry: WeightEntry) => commit({ type: "addWeight", clientId, entry }),
-    requestBooking: (trainerId: ID, slot: string, note?: string) => {
-      const self = getData().clients.find((c) => c.id === me.id)
+    // ----- kalender
+    /**
+     * Klient: skicka en bokningsförfrågan på en ledig tid. Returnerar ett felmeddelande
+     * om tiden hunnit bli upptagen (databasen kontrollerar också, även vid samtidiga bokningar).
+     */
+    requestBooking: (trainerId: ID, slot: Slot, mode: SessionMode, note?: string): string | null => {
+      const data = getData()
+      if (findConflict(data.events, trainerId, new Date(slot.start), new Date(slot.end))) return "Tiden hann bokas av någon annan."
+      const self = data.clients.find((c) => c.id === me.id)
       // Första bokningen hos en PT är också en förfrågan om coachning.
       if (self && !self.trainerId) commit({ type: "requestCoaching", trainerId, clientId: me.id, goal: "" })
       commit({
-        type: "addBooking",
-        booking: { id: newId(), trainerId, clientId: me.id, slot, note, status: "requested" },
+        type: "addEvent",
+        event: {
+          id: newId(),
+          trainerId,
+          clientId: me.id,
+          kind: "session",
+          status: "pending",
+          title: "PT-pass",
+          start: slot.start,
+          end: slot.end,
+          mode,
+          notes: note?.trim() || undefined,
+          createdBy: me.id,
+        },
       })
+      return null
     },
-    setBookingStatus: (bookingId: ID, status: BookingStatus) => commit({ type: "setBookingStatus", bookingId, status }),
+    /** PT: svara på en förfrågan. Att acceptera en ny klients första bokning aktiverar också klienten. */
+    respondToRequest: (eventId: ID, accept: boolean) => {
+      const data = getData()
+      const ev = data.events.find((e) => e.id === eventId)
+      if (!ev) return
+      if (accept && ev.clientId && data.clients.find((c) => c.id === ev.clientId)?.status === "pending") {
+        commit({ type: "setClientStatus", clientId: ev.clientId, status: "active", startedAt: todayISO() })
+      }
+      commit({ type: "setEventStatus", eventId, status: accept ? "confirmed" : "cancelled", cancelledBy: accept ? undefined : me.id })
+    },
+    /** Avboka (klient eller PT) eller markera som genomfört (PT). */
+    setEventStatus: (eventId: ID, status: EventStatus) =>
+      commit({ type: "setEventStatus", eventId, status, cancelledBy: status === "cancelled" ? me.id : undefined }),
+    /** PT: nytt pass, inbokad klient eller blockering. Returnerar felmeddelande vid krock. */
+    createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">): string | null => {
+      const conflict = findConflict(getData().events, me.id, new Date(input.start), new Date(input.end))
+      if (conflict) return `Krockar med "${conflict.title || "en annan händelse"}".`
+      commit({ type: "addEvent", event: { ...input, id: newId(), trainerId: me.id, createdBy: me.id } })
+      return null
+    },
+    /** PT: ändra en händelse (tid, titel, plats …). Returnerar felmeddelande vid krock. */
+    updateEvent: (eventId: ID, patch: EventPatch): string | null => {
+      const ev = getData().events.find((e) => e.id === eventId)
+      if (!ev) return "Händelsen finns inte längre."
+      const start = new Date(patch.start ?? ev.start)
+      const end = new Date(patch.end ?? ev.end)
+      const conflict = findConflict(getData().events, ev.trainerId, start, end, eventId)
+      if (conflict && (ev.status === "pending" || ev.status === "confirmed")) return `Krockar med "${conflict.title || "en annan händelse"}".`
+      commit({ type: "updateEvent", eventId, patch })
+      return null
+    },
+    /** PT: ta bort en blockering eller ett eget pass utan klient. */
+    deleteEvent: (eventId: ID) => commit({ type: "deleteEvent", eventId }),
+    saveAvailabilityRule: (rule: Omit<AvailabilityRule, "trainerId">) =>
+      commit({ type: "saveAvailabilityRule", rule: { ...rule, trainerId: me.id } }),
+    deleteAvailabilityRule: (ruleId: ID) => commit({ type: "deleteAvailabilityRule", ruleId }),
+
     setClientStatus: (clientId: ID, status: ClientStatus) => {
       const current = getData().clients.find((c) => c.id === clientId)
       commit({
@@ -151,8 +213,6 @@ function createActions(ctx: {
       })
     },
     updateTrainerProfile: (patch: TrainerProfilePatch) => commit({ type: "updateTrainerProfile", trainerId: me.id, patch }),
-    addAvailability: (slot: string) => commit({ type: "addAvailability", trainerId: me.id, slot }),
-    removeAvailability: (slot: string) => commit({ type: "removeAvailability", trainerId: me.id, slot }),
 
     // ----- klientens trackers
     addFoodEntry: (date: ISODate, food: Omit<FoodEntry, "id" | "clientId" | "date">) =>

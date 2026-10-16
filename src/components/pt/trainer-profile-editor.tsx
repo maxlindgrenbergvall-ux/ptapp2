@@ -12,30 +12,26 @@ import {
   Plus,
   Repeat,
   Save,
-  Trash2,
   Wifi,
   X,
 } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
-import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
 
 import { PageHeader, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { TrainerProfilePatch } from "@/lib/data/state"
 import { useAppData } from "@/lib/data/store"
-import { formatSlot, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { ACCEPT, uploadFile } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SPECIALTIES, SPECIALTY_LABEL, type CoachingMode, type Specialty, type Trainer } from "@/types/domain"
 
-const TIMES = ["06:00", "07:00", "08:00", "09:00", "10:00", "12:00", "15:00", "16:00", "17:00", "18:00", "19:00"]
 
 export function TrainerProfileEditor() {
   const { data, me, actions } = useAppData()
@@ -247,7 +243,19 @@ export function TrainerProfileEditor() {
               )}
             </CardContent>
           </Card>
-          <AvailabilityEditor />
+          <Card className="gap-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CalendarPlus className="size-4" /> Bokningsbara tider
+              </CardTitle>
+              <CardDescription>Veckoschema, specialtider och blockeringar sköts i kalendern.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/pt/kalender">Öppna kalendern</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
@@ -445,67 +453,3 @@ function TrainerCardPreview({ trainer }: { trainer: Trainer }) {
   )
 }
 
-function AvailabilityEditor() {
-  const { data, me, actions } = useAppData()
-  const trainer = data.trainers.find((t) => t.id === me.id)!
-  const [day, setDay] = React.useState<Date | undefined>(parseISODate(todayISO()))
-  const now = new Date().toISOString()
-  const upcoming = trainer.availability.filter((s) => s > now).sort()
-
-  const addTime = (time: string) => {
-    if (!day) return
-    const slot = new Date(`${toISODate(day)}T${time}:00`).toISOString()
-    if (slot <= now) return toast.error("Tiden har redan passerat")
-    if (trainer.availability.includes(slot)) return
-    actions.addAvailability(slot)
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CalendarPlus className="size-4" /> Lediga tider
-        </CardTitle>
-        <CardDescription>Klienter kan skicka bokningsförfrågan på de här tiderna.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex justify-center rounded-md border">
-          <Calendar mode="single" locale={sv} selected={day} onSelect={setDay} disabled={{ before: parseISODate(todayISO()) }} />
-        </div>
-        {day && (
-          <div className="flex flex-wrap gap-1.5">
-            {TIMES.map((t) => {
-              const slot = new Date(`${toISODate(day)}T${t}:00`).toISOString()
-              const on = trainer.availability.includes(slot)
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => (on ? actions.removeAvailability(slot) : addTime(t))}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1 text-sm tabular transition-colors",
-                    on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
-                  )}
-                >
-                  {t}
-                </button>
-              )
-            })}
-          </div>
-        )}
-        <ul className="max-h-56 divide-y overflow-y-auto rounded-md border text-sm">
-          {upcoming.length === 0 && <li className="p-3 text-muted-foreground">Inga lediga tider inlagda.</li>}
-          {upcoming.map((s) => (
-            <li key={s} className="flex items-center justify-between px-3 py-1.5">
-              <span className="tabular">{formatSlot(s)}</span>
-              <Button variant="ghost" size="icon-xs" aria-label={`Ta bort ${formatSlot(s)}`} onClick={() => actions.removeAvailability(s)}>
-                <Trash2 />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  )
-}
