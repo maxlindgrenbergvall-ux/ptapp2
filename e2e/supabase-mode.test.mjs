@@ -149,5 +149,74 @@ ok("PT som går till /klient skickas till /pt")
 await p.goto(`${base}/logga-in`); await p.waitForURL(`${base}/pt`)
 ok("inloggad som besöker /logga-in skickas hem")
 
+// 11. v6: startsidan är inloggning/registrering (inget PT/klient-val), Apple/Google, registrering och välkomststeget
+const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } })
+const q = await c2.newPage()
+q.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
+await q.goto(`${base}/`)
+for (const label of ["Fortsätt med Apple", "Fortsätt med Google", "Registrera dig", "Logga in"]) {
+  check(await q.locator(`text=${label}`).first().isVisible(), `startsidan har "${label}"`)
+}
+check((await q.locator("text=Jag är PT").count()) === 0, "startsidan har inget PT/klient-val")
+await q.screenshot({ path: `${out}/sb-start.png` })
+
+// OAuth: webbläsaren skickas till Supabase /authorize med rätt leverantör och retur-URL.
+const oauth = []
+await q.route(`${mock}/auth/v1/authorize**`, (route) => {
+  oauth.push(new URL(route.request().url()))
+  return route.fulfill({ status: 200, contentType: "text/html", body: "<p>leverantör</p>" })
+})
+for (const provider of ["google", "apple"]) {
+  await q.goto(`${base}/`)
+  await q.click(`text=Fortsätt med ${provider === "google" ? "Google" : "Apple"}`)
+  await q.waitForURL(/\/auth\/v1\/authorize/)
+  const u = oauth.at(-1)
+  check(u.searchParams.get("provider") === provider, `"Fortsätt med ${provider}" startar OAuth hos Supabase`)
+  check(decodeURIComponent(u.searchParams.get("redirect_to") ?? "").includes("/auth/callback?next=/valkommen"), `${provider}: tillbaka via /auth/callback till välkomststeget`)
+  check(u.searchParams.has("code_challenge"), `${provider}: PKCE används`)
+}
+
+// Registrering: e-post + telefon + lösenord skickas till Supabase Auth.
+await q.goto(`${base}/registrera`)
+await q.fill("#email", "ny.kund@test.se"); await q.fill("#phone", "123"); await q.fill("#password", "hemligt123")
+await q.click('button[type=submit]')
+await q.waitForSelector("text=Ange ett giltigt telefonnummer")
+ok("ogiltigt telefonnummer stoppas i formuläret")
+await q.fill("#phone", "070-123 45 67")
+await q.click('button[type=submit]')
+await q.waitForSelector("text=Kolla din e-post")
+log = await getLog()
+const signup = log.find((e) => e.table === "auth.signup")
+check(signup?.body.email === "ny.kund@test.se" && signup.body.password === "hemligt123", "registreringen skickar e-post och lösenord till Supabase Auth")
+check(signup?.body.data?.phone === "+46701234567", `telefonnumret skickas normaliserat (${signup?.body.data?.phone})`)
+check(!("role" in (signup?.body.data ?? {})), "ingen kontotyp väljs vid registreringen")
+check(decodeURIComponent(signup?.query ?? "").includes("/auth/callback?next=/valkommen"), "bekräftelselänken leder till välkomststeget")
+
+// Konto utan kontotyp → välkomststeget.
+await q.goto(`${base}/logga-in`)
+await q.fill("#email", "ny@test.se"); await q.fill("#password", "hemligt123"); await q.click('button[type=submit]')
+await q.waitForURL(`${base}/valkommen`)
+ok("inloggat konto utan kontotyp hamnar i välkomststeget")
+await q.goto(`${base}/klient`); await q.waitForURL(`${base}/valkommen`)
+ok("appens vyer är stängda tills kontotypen är vald")
+await q.waitForSelector("#name")
+check((await q.inputValue("#name")) === "Nova Ny", "namnet förifylls från leverantören")
+await q.screenshot({ path: `${out}/sb-valkommen.png` })
+await q.click("text=Jag vill träna")
+await q.fill("#phone", "0709876543")
+await q.click('button[type=submit]')
+await q.waitForSelector("text=godkänna behandlingen av hälsouppgifter")
+ok("klientkonto kräver samtycke till hälsodata")
+await q.click("#consent")
+await q.click('button[type=submit]')
+await q.waitForURL(`${base}/klient`)
+log = await getLog()
+const onboard = log.find((e) => e.table === "complete_onboarding")
+check(onboard?.body.p_role === "client" && onboard.body.p_phone === "+46709876543" && onboard.body.p_health_data_consent === true, "välkomststeget sparar kontotyp, telefon och samtycke via complete_onboarding")
+ok("efter välkomststeget kommer man till sin startsida")
+await q.goto(`${base}/valkommen`); await q.waitForURL(`${base}/klient`)
+ok("välkomststeget kan inte göras om")
+await c2.close()
+
 console.log(errors.length ? errors.join("\n") : "inga sidfel")
 await browser.close()

@@ -8,10 +8,13 @@ const TODAY = iso(today)
 const T1 = "11111111-0000-4000-8000-000000000001"
 const C1 = "22222222-0000-4000-8000-000000000001"
 const W1 = "33333333-0000-4000-8000-000000000001"
+const N1 = "77777777-0000-4000-8000-000000000001"
 
 const users = {
   "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" } },
   "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" } },
+  // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
+  "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" } },
 }
 const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]))
 
@@ -68,7 +71,10 @@ const rpc = {
 function fixtures(uid, table) {
   const client = uid === C1
   switch (table) {
-    case "profiles": return [{ id: uid, role: client ? "client" : "trainer", full_name: byId[uid].user_metadata.full_name }]
+    case "profiles": {
+      const meta = byId[uid].user_metadata
+      return [{ id: uid, role: meta.role ?? null, full_name: meta.full_name ?? meta.name }]
+    }
     case "exercises": return exercises
     case "scheduled_workouts": return [workout]
     case "messages": return []
@@ -127,12 +133,24 @@ http.createServer(async (req, res) => {
   try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
   if (url.pathname === "/auth/v1/user") return uid && byId[uid] ? send(200, userJson(byId[uid])) : send(401, { msg: "invalid JWT" })
   if (url.pathname === "/auth/v1/logout") return send(204)
+  // Registrering: e-postbekräftelse påslagen → användare utan session.
+  if (url.pathname === "/auth/v1/signup") {
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "POST", table: "auth.signup", body: p, query: url.search })
+    return send(200, { id: "88888888-0000-4000-8000-000000000001", aud: "authenticated", email: p.email, user_metadata: p.data ?? {}, identities: [{ id: "i1", provider: "email" }], created_at: new Date().toISOString() })
+  }
 
   // ---- rest
   const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
   if (m) {
     if (!uid || !byId[uid]) return send(401, { code: "PGRST301", message: "JWT required" })
     const table = m[2]
+    if (m[1] && table === "complete_onboarding") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      Object.assign(byId[uid].user_metadata, { role: p.p_role, full_name: p.p_full_name, phone: p.p_phone })
+      return send(200, null)
+    }
     if (m[1] && rpc[table]) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
     if (req.method === "GET") {
       const rows = fixtures(uid, table)

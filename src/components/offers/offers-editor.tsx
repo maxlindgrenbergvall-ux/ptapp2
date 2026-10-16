@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
+import { MAX_DISCOUNT_PERCENT, mentionsFree } from "@/lib/offers/policy"
 import { SPECIALTY_LABEL, type Specialty, type TrainerOffer } from "@/types/domain"
 
 type PriceKind = "price" | "discount" | "none"
@@ -98,8 +99,10 @@ function OfferForm({ offer, specialties, onDone }: { offer?: TrainerOffer; speci
     e.preventDefault()
     const n = Math.round(Number(amount))
     if (title.trim().length < 3) return toast.error("Skriv en rubrik (minst 3 tecken)")
-    if (priceKind === "discount" && !(n >= 1 && n <= 100)) return toast.error("Rabatten ska vara 1–100 %")
-    if (priceKind === "price" && !(n >= 0 && n <= 100000)) return toast.error("Ange ett pris i kronor")
+    // Inga gratispass: rabatten måste vara under 100 % och priset över 0 kr.
+    if (priceKind === "discount" && !(n >= 1 && n <= MAX_DISCOUNT_PERCENT)) return toast.error(`Rabatten ska vara 1–${MAX_DISCOUNT_PERCENT} %`)
+    if (priceKind === "price" && !(n >= 1 && n <= 100000)) return toast.error("Priset måste vara minst 1 kr – Coavira har inga gratispass")
+    if (mentionsFree(`${title} ${description}`)) return toast.error("Erbjudanden kan inte vara gratis", { description: "Coavira hanterar inga gratispass. Använd en rabatt eller ett paketpris." })
     actions.saveOffer({
       id: offer?.id ?? actions.newId(),
       createdAt: offer?.createdAt,
@@ -116,12 +119,12 @@ function OfferForm({ offer, specialties, onDone }: { offer?: TrainerOffer; speci
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form onSubmit={submit} className="space-y-4" noValidate>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Sparkles className="size-4 text-primary" /> {offer ? "Ändra erbjudande" : "Nytt erbjudande"}
         </DialogTitle>
-        <DialogDescription>Visas för klienter som tittat på eller sökt efter inriktningen.</DialogDescription>
+        <DialogDescription>Visas för klienter som tittat på eller sökt efter inriktningen. Gratispass erbjuds inte – använd rabatt (högst {MAX_DISCOUNT_PERCENT} %) eller ett paketpris.</DialogDescription>
       </DialogHeader>
       <div className="space-y-1.5">
         <Label>Inriktning</Label>
@@ -163,7 +166,13 @@ function OfferForm({ offer, specialties, onDone }: { offer?: TrainerOffer; speci
         {priceKind !== "none" && (
           <div className="space-y-1.5">
             <Label htmlFor="offer-amount">{priceKind === "discount" ? "Rabatt (%)" : "Pris (kr)"}</Label>
-            <Input id="offer-amount" type="number" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input
+              id="offer-amount"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={priceKind === "discount" ? MAX_DISCOUNT_PERCENT : 100000}
+              value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
         )}
       </div>

@@ -26,6 +26,7 @@ import { useAppData } from "@/lib/data/store"
 import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
 import { formatShort, todayISO } from "@/lib/date"
 import { recordInterest } from "@/lib/offers/interests"
+import { isFreeOffer } from "@/lib/offers/policy"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
 
@@ -40,7 +41,7 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
   }, [specialties, me.id])
   if (!trainer) return <EmptyState icon={X} title="Tränaren hittades inte" />
   const today = todayISO()
-  const offers = data.offers.filter((o) => o.trainerId === trainer.id && o.active && (!o.validUntil || o.validUntil >= today))
+  const offers = data.offers.filter((o) => o.trainerId === trainer.id && o.active && !isFreeOffer(o) && (!o.validUntil || o.validUntil >= today))
 
   const isMyTrainer = client.trainerId === trainer.id && client.status !== "pending"
 

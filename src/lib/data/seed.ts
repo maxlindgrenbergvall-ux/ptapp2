@@ -572,7 +572,7 @@ function makeOffers(today: string): TrainerOffer[] {
     o("of-t1-vikt", "t1", "viktminskning", "Kom igång-paket", "Fyra pass och ett kostschema anpassat efter dina vanor.", { discountPercent: 15, validUntil: addDays(today, 21) }),
     o("of-t2-hyrox", "t2", "hyrox", "Hyrox Stockholm – 6 veckor", "Stationsteknik, intervaller och racestrategi inför loppet.", { discountPercent: 20, validUntil: addDays(today, 14) }),
     o("of-t2-lopning", "t2", "lopning", "Löpanalys med video", "Steganalys på band och tre konkreta övningar.", { priceSek: 650 }),
-    o("of-t3-post", "t3", "postnatal", "Första passet gratis", "Trygg start efter förlossningen – bäckenbotten och bål.", { discountPercent: 100 }),
+    o("of-t3-post", "t3", "postnatal", "Startpaket efter förlossningen", "Tre pass med fokus på bäckenbotten och bål.", { priceSek: 1800 }),
     o("of-t4-kal", "t4", "kalisthenics", "Muscle-up-workshop", "Två timmar i liten grupp, max fyra deltagare.", { priceSek: 495 }),
     o("of-t5-vikt", "t5", "viktminskning", "12 veckor mot ditt mål", "Veckovis uppföljning, kost och träning i appen.", { discountPercent: 25, validUntil: addDays(today, 10) }),
     o("of-t6-rehab", "t6", "rehab", "Tillbaka efter knäskada", "Bedömning och ett första rehabpass.", { discountPercent: 15 }),

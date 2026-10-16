@@ -1,6 +1,8 @@
+import Link from "next/link"
 import type * as React from "react"
 
 import { BrandLogo } from "@/components/brand"
+import { Button } from "@/components/ui/button"
 
 export function AuthCard({
   title,
@@ -48,6 +50,23 @@ export function authErrorMessage(error: { message: string; code?: string } | nul
   if (code === "user_already_exists" || /already registered/i.test(error.message)) return "Det finns redan ett konto med den e-postadressen."
   if (code === "weak_password") return "Lösenordet är för svagt. Använd minst 8 tecken och blanda gärna bokstäver och siffror."
   if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit") return "För många försök. Vänta en stund och försök igen."
+  if (code === "provider_disabled" || /provider is not enabled|unsupported provider/i.test(error.message))
+    return "Inloggningsmetoden är inte aktiverad än. Använd e-post och lösenord så länge."
+  if (code === "phone_exists") return "Telefonnumret används redan av ett annat konto."
   if (/fetch|network/i.test(error.message)) return "Ingen kontakt med servern. Kontrollera uppkopplingen."
   return error.message
+}
+
+/** Lösenordsflöden kräver riktiga konton (Supabase). */
+export function DemoNotice() {
+  return (
+    <AuthCard
+      title="Demoläge"
+      description="Supabase är inte konfigurerat, så lösenord kan inte återställas. Sätt NEXT_PUBLIC_SUPABASE_URL och NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (se .env.example)."
+    >
+      <Button asChild size="lg" className="h-11 w-full">
+        <Link href="/">Till startsidan</Link>
+      </Button>
+    </AuthCard>
+  )
 }

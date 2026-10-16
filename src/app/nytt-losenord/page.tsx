@@ -2,13 +2,12 @@
 
 import * as React from "react"
 
-import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { DemoNotice } from "@/components/auth/login-form"
+import { AuthCard, authErrorMessage, DemoNotice, FormError } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSupabase } from "@/lib/supabase/client"
-import { HOME_FOR_ROLE, isSupabaseEnabled, roleFromMetadata } from "@/lib/supabase/config"
+import { homeFor, isSupabaseEnabled, roleFromMetadata } from "@/lib/supabase/config"
 
 export default function NewPasswordPage() {
   const [password, setPassword] = React.useState("")
@@ -24,7 +23,7 @@ export default function NewPasswordPage() {
     const { data, error: authError } = await getSupabase().auth.updateUser({ password })
     setPending(false)
     if (authError || !data.user) return setError(authErrorMessage(authError) ?? "Länken har gått ut. Begär en ny.")
-    window.location.href = HOME_FOR_ROLE[roleFromMetadata(data.user.user_metadata)]
+    window.location.href = homeFor(roleFromMetadata(data.user.user_metadata))
   }
 
   return (

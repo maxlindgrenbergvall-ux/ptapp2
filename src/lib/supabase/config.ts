@@ -16,7 +16,17 @@ export type UserRole = "client" | "trainer"
 
 export const HOME_FOR_ROLE: Record<UserRole, string> = { client: "/klient", trainer: "/pt" }
 
-/** Rollen sätts vid registrering (user_metadata) och speglas i profiles.role. */
-export function roleFromMetadata(meta: unknown): UserRole {
-  return (meta as { role?: string } | null)?.role === "trainer" ? "trainer" : "client"
+/** Välkomststeget där nya konton (e-post, Apple, Google) väljer kontotyp. */
+export const ONBOARDING_PATH = "/valkommen"
+
+/**
+ * Kontotypen väljs i välkomststeget och speglas i user_metadata (för navigering;
+ * RLS läser profiles.role). null = kontot har inte valt kontotyp än.
+ */
+export function roleFromMetadata(meta: unknown): UserRole | null {
+  const role = (meta as { role?: string } | null)?.role
+  return role === "trainer" || role === "client" ? role : null
 }
+
+/** Startsidan för en inloggad användare. */
+export const homeFor = (role: UserRole | null) => (role ? HOME_FOR_ROLE[role] : ONBOARDING_PATH)

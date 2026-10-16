@@ -1,36 +1,52 @@
 "use client"
 
-import { MailCheck } from "lucide-react"
+import { Eye, EyeOff, MailCheck } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
+import { toast } from "sonner"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { DemoNotice } from "@/components/auth/login-form"
+import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { normalizePhone } from "@/lib/phone"
 import { getSupabase } from "@/lib/supabase/client"
-import { HOME_FOR_ROLE, isSupabaseEnabled, type UserRole } from "@/lib/supabase/config"
-import { cn } from "@/lib/utils"
+import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 
-const MIN_PASSWORD = 8
+export const MIN_PASSWORD = 8
 
+/**
+ * Registrering med e-post, telefonnummer och lösenord via Supabase Auth.
+ *
+ * - signUp() skapar användaren i auth.users. Telefonnumret skickas som metadata
+ *   och sparas av triggern handle_new_user() på profilen (E.164).
+ * - Kontotyp (PT/klient), namn och samtycke väljs i välkomststeget efteråt, så
+ *   att samma flöde fungerar för Apple och Google.
+ * - Med e-postbekräftelse påslagen visas "Kolla din e-post"; länken leder via
+ *   /auth/callback till välkomststeget.
+ */
 export function SignupForm() {
-  const [role, setRole] = React.useState<UserRole>("client")
-  const [name, setName] = React.useState("")
+  const router = useRouter()
   const [email, setEmail] = React.useState("")
+  const [phone, setPhone] = React.useState("")
   const [password, setPassword] = React.useState("")
-  const [consent, setConsent] = React.useState(false)
+  const [showPassword, setShowPassword] = React.useState(false)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [sentTo, setSentTo] = React.useState<string | null>(null)
 
-  if (!isSupabaseEnabled) return <DemoNotice />
-
   if (sentTo) {
     return (
-      <AuthCard title="Kolla din e-post" description={<>Vi har skickat en bekräftelselänk till <strong>{sentTo}</strong>. Klicka på den för att aktivera kontot.</>}>
+      <AuthCard
+        title="Kolla din e-post"
+        description={
+          <>
+            Vi har skickat en bekräftelselänk till <strong>{sentTo}</strong>. Klicka på den för att aktivera kontot och slutföra registreringen.
+          </>
+        }
+      >
         <MailCheck className="mx-auto size-10 text-muted-foreground" />
         <Button asChild variant="outline" className="w-full">
           <Link href="/logga-in">Till inloggningen</Link>
@@ -42,29 +58,39 @@ export function SignupForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    const normalized = normalizePhone(phone)
+    if (!normalized) return setError("Ange ett giltigt telefonnummer, t.ex. 070-123 45 67.")
     if (password.length < MIN_PASSWORD) return setError(`Lösenordet måste vara minst ${MIN_PASSWORD} tecken.`)
-    if (role === "client" && !consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att skapa ett klientkonto.")
+
+    if (!isSupabaseEnabled) {
+      toast.info("Demoläge: inget riktigt konto skapas", { description: "Välj kontotyp i nästa steg för att prova appen." })
+      router.push(ONBOARDING_PATH)
+      return
+    }
 
     setPending(true)
     const { data, error: authError } = await getSupabase().auth.signUp({
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${HOME_FOR_ROLE[role]}`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${ONBOARDING_PATH}`,
         // Läses av databastriggern handle_new_user() som skapar profilen.
-        data: { role, full_name: name.trim(), health_data_consent: role === "client" ? consent : false },
+        data: { phone: normalized },
       },
     })
     setPending(false)
     if (authError) return setError(authErrorMessage(authError))
+    // Supabase svarar utan fel men utan identiteter om e-posten redan finns (skydd mot kontouppräkning).
+    if (data.user && data.user.identities?.length === 0) return setError("Det finns redan ett konto med den e-postadressen. Logga in i stället.")
     // Med e-postbekräftelse avstängd får vi en session direkt.
-    if (data.session) window.location.href = HOME_FOR_ROLE[role]
+    if (data.session) window.location.href = ONBOARDING_PATH
     else setSentTo(email.trim())
   }
 
   return (
     <AuthCard
-      title="Skapa konto"
+      title="Registrera dig"
+      description="Skapa ditt Coavira-konto. Du väljer om du tränar eller är PT i nästa steg."
       footer={
         <>
           Har du redan ett konto?{" "}
@@ -74,69 +100,76 @@ export function SignupForm() {
         </>
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <SocialButtons onError={setError} />
+      <OrDivider />
+      <form onSubmit={submit} className="space-y-4" noValidate>
         <FormError message={error} />
-        <fieldset className="grid grid-cols-2 gap-2">
-          <legend className="sr-only">Jag är</legend>
-          {(
-            [
-              ["client", "Jag vill träna", "Hitta PT och följ dina scheman"],
-              ["trainer", "Jag är PT", "Coacha klienter"],
-            ] as const
-          ).map(([value, title, sub]) => (
-            <label
-              key={value}
-              className={cn(
-                "cursor-pointer rounded-xl border p-3 text-sm transition-colors has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
-                role === value ? "border-foreground bg-muted" : "hover:bg-muted/60"
-              )}
-            >
-              <input type="radio" name="role" value={value} checked={role === value} onChange={() => setRole(value)} className="sr-only" />
-              <span className="block font-medium">{title}</span>
-              <span className="block text-xs text-muted-foreground">{sub}</span>
-            </label>
-          ))}
-        </fieldset>
-        <div className="space-y-2">
-          <Label htmlFor="name">Namn</Label>
-          <Input id="name" autoComplete="name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
-        </div>
         <div className="space-y-2">
           <Label htmlFor="email">E-post</Label>
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Lösenord</Label>
+          <Label htmlFor="phone">Telefonnummer</Label>
           <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             required
-            minLength={MIN_PASSWORD}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="070-123 45 67"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            onBlur={() => {
+              const n = normalizePhone(phone)
+              if (n) setPhone(n)
+            }}
             className="h-11"
-            aria-describedby="password-hint"
+            aria-describedby="phone-hint"
           />
+          <p id="phone-hint" className="text-xs text-muted-foreground">
+            Används för påminnelser om pass och när din PT behöver nå dig.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Lösenord</Label>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              required
+              minLength={MIN_PASSWORD}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-11 pr-11"
+              aria-describedby="password-hint"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={showPassword ? "Dölj lösenordet" : "Visa lösenordet"}
+              aria-pressed={showPassword}
+            >
+              {showPassword ? <EyeOff /> : <Eye />}
+            </Button>
+          </div>
           <p id="password-hint" className="text-xs text-muted-foreground">
             Minst {MIN_PASSWORD} tecken.
           </p>
         </div>
-        {role === "client" && (
-          <div className="flex items-start gap-3 rounded-lg border p-3">
-            <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
-            <Label htmlFor="consent" className="text-sm leading-snug font-normal">
-              Jag samtycker till att Coavira behandlar mina hälsouppgifter (träning, vikt och kost) så att min PT kan coacha mig.
-              Jag kan när som helst radera mitt konto och all data.{" "}
-              <Link href="/integritet" target="_blank" className="underline underline-offset-4">
-                Läs mer
-              </Link>
-            </Label>
-          </div>
-        )}
         <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
-          {pending ? "Skapar konto…" : "Skapa konto"}
+          {pending ? "Skapar konto…" : "Registrera dig"}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Genom att registrera dig godkänner du att vi behandlar dina uppgifter enligt vår{" "}
+          <Link href="/integritet" className="underline underline-offset-4">
+            integritetspolicy
+          </Link>
+          .
+        </p>
       </form>
     </AuthCard>
   )

@@ -1,17 +1,20 @@
 "use client"
 
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
+import { toast } from "sonner"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
+import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSupabase } from "@/lib/supabase/client"
-import { HOME_FOR_ROLE, isSupabaseEnabled, roleFromMetadata } from "@/lib/supabase/config"
+import { homeFor, isSupabaseEnabled, ONBOARDING_PATH, roleFromMetadata } from "@/lib/supabase/config"
 
 export function LoginForm() {
+  const router = useRouter()
   const params = useSearchParams()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -20,10 +23,13 @@ export function LoginForm() {
     params.get("fel") === "lank" ? "Länken var ogiltig eller har gått ut. Försök igen." : null
   )
 
-  if (!isSupabaseEnabled) return <DemoNotice />
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isSupabaseEnabled) {
+      toast.info("Demoläge: ingen riktig inloggning", { description: "Välj vilken demovy du vill se i nästa steg." })
+      router.push(ONBOARDING_PATH)
+      return
+    }
     setPending(true)
     setError(null)
     const { data, error: authError } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password })
@@ -32,10 +38,12 @@ export function LoginForm() {
       setPending(false)
       return
     }
-    const home = HOME_FOR_ROLE[roleFromMetadata(data.user.user_metadata)]
+    const role = roleFromMetadata(data.user.user_metadata)
+    const home = homeFor(role)
     const next = params.get("next")
     // Hel sidladdning så att proxy.ts och servern ser den nya sessionscookien.
-    window.location.href = next && next.startsWith(home) ? next : home
+    // Konton utan vald kontotyp går till välkomststeget.
+    window.location.href = role && next && next.startsWith(home) ? next : home
   }
 
   return (
@@ -46,11 +54,13 @@ export function LoginForm() {
         <>
           Inget konto?{" "}
           <Link href="/registrera" className="font-medium text-foreground underline underline-offset-4">
-            Skapa ett
+            Registrera dig
           </Link>
         </>
       }
     >
+      <SocialButtons next={params.get("next") ?? undefined} onError={setError} />
+      <OrDivider />
       <form onSubmit={submit} className="space-y-4">
         <FormError message={error} />
         <div className="space-y-2">
@@ -70,19 +80,6 @@ export function LoginForm() {
           {pending ? "Loggar in…" : "Logga in"}
         </Button>
       </form>
-    </AuthCard>
-  )
-}
-
-export function DemoNotice() {
-  return (
-    <AuthCard
-      title="Demoläge"
-      description="Supabase är inte konfigurerat, så inloggning är avstängd. Sätt NEXT_PUBLIC_SUPABASE_URL och NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (se .env.example)."
-    >
-      <Button asChild size="lg" className="h-11 w-full">
-        <Link href="/">Till demovyerna</Link>
-      </Button>
     </AuthCard>
   )
 }

@@ -54,8 +54,12 @@ insert into auth.users (email, raw_user_meta_data) values
 
 select test.eq((select count(*) from profiles), 4::bigint, 'profil skapas vid registrering');
 select test.eq((select count(*) from trainers), 2::bigint, 'PT-rad skapas för PT-konton');
-select test.fails($$insert into auth.users (email, raw_user_meta_data) values ('nej@test.se', '{"role":"client","full_name":"Utan samtycke"}')$$,
-  'klient utan hälsodatasamtycke kan inte registreras');
+-- Sedan v6: kontot skapas, men blir inte ett klientkonto förrän samtycke lämnats i välkomststeget.
+insert into auth.users (email, raw_user_meta_data) values ('nej@test.se', '{"role":"client","full_name":"Utan samtycke"}');
+select test.eq((select role from profiles where full_name = 'Utan samtycke'), null::user_role,
+  'klient utan hälsodatasamtycke blir inte ett klientkonto');
+select test.fails($$update profiles set role = 'client', health_data_consent_at = null where full_name = 'Utan samtycke'$$,
+  'klientroll utan samtycke går inte att sätta');
 
 -- ----------------------------------------------------------- anonym läsning ---
 set role anon;

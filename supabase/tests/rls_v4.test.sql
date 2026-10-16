@@ -19,7 +19,7 @@ grant execute on function test.at(date, time) to authenticated;
 
 -- ---------------------------------------------------- tillgänglighet ---
 select test.login('pt7@test.se');
-update trainers set is_published = true, city = 'Göteborg' where id = auth.uid();
+update trainers set is_published = true, price_per_session = 750, city = 'Göteborg' where id = auth.uid();
 insert into availability_rules (trainer_id, weekday, start_local, end_local, slot_minutes)
 values (auth.uid(), :dow, '08:00', '12:00', 60);
 select test.logout();

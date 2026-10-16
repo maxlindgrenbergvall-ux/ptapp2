@@ -32,7 +32,7 @@ import { diffNotifications } from "@/lib/notifications/rules"
 import { forgetInterests } from "@/lib/offers/interests"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
-import { HOME_FOR_ROLE, isSupabaseEnabled } from "@/lib/supabase/config"
+import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import type {
   AppData,
   Attachment,
@@ -526,7 +526,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
     let cancelled = false
     ;(async () => {
       const sb = getSupabase()
-      const { loadRemote, OfflineError } = await import("@/lib/data/supabase-source")
+      const { loadRemote, OfflineError, OnboardingRequired } = await import("@/lib/data/supabase-source")
       try {
         const loaded = await loadRemote(sb)
         if (cancelled) return
@@ -553,6 +553,10 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
             return
           }
           setError("Ingen uppkoppling, och ingen sparad data att visa än.")
+          return
+        }
+        if (e instanceof OnboardingRequired) {
+          window.location.replace(ONBOARDING_PATH)
           return
         }
         if (e instanceof Error && e.message === "Inte inloggad") {

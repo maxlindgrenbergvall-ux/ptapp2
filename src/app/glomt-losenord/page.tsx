@@ -3,8 +3,7 @@
 import Link from "next/link"
 import * as React from "react"
 
-import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { DemoNotice } from "@/components/auth/login-form"
+import { AuthCard, authErrorMessage, DemoNotice, FormError } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

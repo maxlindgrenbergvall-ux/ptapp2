@@ -20,7 +20,7 @@ $$;
 grant execute on function test.notes(text) to authenticated;
 
 select test.login('pt10@test.se');
-update trainers set is_published = true, city = 'Malmö', specialties = '{hyrox}' where id = auth.uid();
+update trainers set is_published = true, price_per_session = 750, city = 'Malmö', specialties = '{hyrox}' where id = auth.uid();
 insert into availability_rules (trainer_id, weekday, start_local, end_local, slot_minutes)
 values (auth.uid(), :dow, '08:00', '12:00', 60);
 select test.logout();

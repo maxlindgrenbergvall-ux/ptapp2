@@ -41,9 +41,13 @@ import type {
 
 interface ProfileRow {
   id: string
-  role: "client" | "trainer"
+  /** null = kontot har inte valt kontotyp i välkomststeget än. */
+  role: "client" | "trainer" | null
   full_name: string
 }
+
+/** Kontot finns men kontotyp är inte vald (nytt konto via e-post, Apple eller Google). */
+export class OnboardingRequired extends Error {}
 interface TrainerRow {
   id: string
   city: string
@@ -460,6 +464,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   const uid = auth.user.id
 
   const profile = must<ProfileRow>(await sb.from("profiles").select("id, role, full_name").eq("id", uid).single(), "profil")
+  if (!profile.role) throw new OnboardingRequired("Välj kontotyp")
   const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email }
   const since = addDays(todayISO(), -HISTORY_DAYS)
 

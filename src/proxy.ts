@@ -2,15 +2,19 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 import {
-  HOME_FOR_ROLE,
+  homeFor,
   isSupabaseEnabled,
+  ONBOARDING_PATH,
   roleFromMetadata,
   SUPABASE_KEY,
   SUPABASE_URL,
 } from "@/lib/supabase/config"
 
-const PROTECTED = ["/pt", "/klient"]
-const AUTH_PAGES = ["/logga-in", "/registrera"]
+const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH]
+/** Startsidan är inloggnings-/registreringssidan. */
+const AUTH_PAGES = ["/", "/logga-in", "/registrera"]
+/** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
+const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 
 /**
  * Förnyar Supabase-sessionen och skyddar app-routes.
@@ -56,8 +60,14 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  const home = HOME_FOR_ROLE[roleFromMetadata(claims.user_metadata)]
-  if (AUTH_PAGES.includes(path) || path === "/") return redirect(home)
+  const role = roleFromMetadata(claims.user_metadata)
+  const home = homeFor(role)
+  // Nytt konto (e-post, Apple eller Google) som inte valt kontotyp än.
+  if (!role) {
+    if (ALLOWED_BEFORE_ONBOARDING.some((p) => path === p || (p.endsWith("/") && path.startsWith(p)))) return response
+    return redirect(ONBOARDING_PATH)
+  }
+  if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)
 
   return response

@@ -22,21 +22,26 @@ npm run dev                  # http://localhost:3000
    3. `supabase/migrations/20261016000000_v3_food_products_aliases.sql`. Den lägger till livsmedelsprodukter (streckkod och egna), gram och streckkod på matposter, övningsnamn per klient och det uppdaterade övningsbiblioteket.
    4. `supabase/migrations/20261017000000_v4_calendar.sql`. Den ersätter `bookings` och `trainer_availability` med en tvåvägskalender (`calendar_events`) och återkommande tillgänglighet (`availability_rules`). Befintliga bokningar och tider flyttas över automatiskt.
    5. `supabase/migrations/20261018000000_v5_reschedule_notifications_offers.sql`. Den lägger till ombokning av preliminära pass (`awaiting`, `previous_start/end`), aviseringar (`notifications`, skapas av en trigger) och PT-erbjudanden (`trainer_offers`).
-   6. `supabase/seed.sql`
+   6. `supabase/migrations/20261019000000_v6_auth_onboarding_no_free.sql`. Den lägger till registrering med telefonnummer, välkomststeget (`complete_onboarding`) och regler mot gratispass.
+   7. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
-4. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
+4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
+   - **Google:** skapa ett OAuth-klient-id (typ *Web*) i Google Cloud Console med redirect-URI `https://<projekt>.supabase.co/auth/v1/callback`, och klistra in Client ID och Secret i Supabase.
+   - **Apple:** skapa ett *Services ID* med *Sign in with Apple* och samma return-URL, och en nyckel (.p8). Fyll i Services ID, Team ID, Key ID och nyckeln i Supabase.
+   - Appen skickar tillbaka användaren till `/auth/callback`, och nya konton hamnar i välkomststeget. Är en leverantör inte aktiverad visas ett tydligt felmeddelande.
+5. **Authentication → Providers → Email**: ha *Confirm email* påslaget i produktion.
    Sätt minsta lösenordslängd till 8 och slå gärna på *Leaked password protection*.
-5. Kopiera *Project URL* och *Publishable key* (Project Settings → API) till `.env.local`.
+6. Kopiera *Project URL* och *Publishable key* (Project Settings → API) till `.env.local`.
    **Service role-nyckeln ska aldrig in i appen.**
-6. Registrera ett PT-konto, fyll i **Min profil** och publicera. Då syns PT:n i klienternas sökning.
-7. Valfritt:
+7. Registrera ett konto, välj *Jag är PT* i välkomststeget, fyll i **Min profil** och publicera. Då syns PT:n i klienternas sökning.
+8. Valfritt:
    - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet, så att flödet ändå går att testa.
    - **Samtal:** under *Realtime → Settings*, stäng av *Allow public access*, så att bara privata kanaler med RLS används. Behöver ni fungera bakom strikta brandväggar eller på vissa mobilnät, ange en TURN-server i `NEXT_PUBLIC_ICE_SERVERS`.
 
 ### Flödet
 
-1. Klienten registrerar sig. Samtycke till hälsodata krävs och sparas på profilen.
+1. Startsidan är inloggning och registrering: *Fortsätt med Apple*, *Fortsätt med Google*, *Registrera dig* (e-post, telefonnummer och lösenord) eller *Logga in*. Därefter väljer man kontotyp (tränar eller PT) en gång i välkomststeget (`/valkommen`). Klienter lämnar där samtycke till hälsodata, som sparas på profilen.
 2. Klienten hittar en PT, väljer en ledig tid och skickar en bokningsförfrågan
    (status *pending*). Första bokningen skapar också en relation med status *pending*.
 3. PT:n accepterar förfrågan i kalendern. Passet blir *confirmed* och syns direkt
@@ -136,6 +141,20 @@ npm run dev                  # http://localhost:3000
 - **Ombokningsflödet:** den som flyttar ett preliminärt pass lämnar över till motparten (`awaiting`). Klienten kan **acceptera** den nya tiden (blir bekräftad) eller **föreslå en ny tid** bland PT:ns lediga tider. Då hamnar passet hos PT:n igen, som kan acceptera, neka eller flytta. PT:n kan också lägga in ett pass som *preliminärt*, så att klienten bekräftar det.
 - **Aviseringsmenyn** (klockan i headern) visar avbokningar (flera avbokningar från samma person inom en timme visas som en, till exempel "Elin avbokade 2 pass"), ombokningar med gammal och ny tid, bekräftelser och nya förfrågningar. Klienten kan acceptera eller föreslå en ny tid direkt i menyn. Aviseringar markeras som lästa när menyn stängs.
 - **Personliga PT-erbjudanden:** PT:n skapar erbjudanden per inriktning under *Min profil*. Klienten ser i aviseringsmenyn erbjudanden i de kategorier hen visat intresse för: filterval väger 3, sökord 2 och öppnade PT-profiler 1. Intresset halveras på 14 dagar. Högst tre erbjudanden visas, och högst ett per PT. Historiken sparas **bara lokalt på enheten**, raderas vid utloggning och kan stängas av eller rensas i menyn.
+
+## Nytt i v6: inloggning och inga gratispass
+
+- **Inloggning och registrering** (startsidan `/`, `/registrera`, `/logga-in`):
+  - Apple och Google via `signInWithOAuth` (PKCE). Supabase skickar tillbaka till `/auth/callback`, som byter koden mot en session.
+  - E-post, telefonnummer och lösenord via `signUp`. Telefonnumret normaliseras till E.164 (+46…) och sparas av triggern `handle_new_user()` i `profiles.phone`.
+  - Med e-postbekräftelse påslagen leder länken till välkomststeget.
+- **Välkomststeget** (`/valkommen`): nya konton, även från Apple och Google, väljer kontotyp, bekräftar namn och telefon och (för klienter) samtycker till hälsodata.
+  - Det sparas med RPC:n `complete_onboarding()`. Den sätter rollen **en gång**, skapar PT-profilen och speglar rollen i auth-metadata.
+  - Appen förnyar sedan sessionen. `proxy.ts` skickar konton utan kontotyp hit, och `/pt` och `/klient` är stängda tills kontotypen är vald.
+- **Inga gratispass:** Coavira hanterar inga pass utan betalning, för att slippa avräkningar mellan plattformen och PT:erna.
+  - Erbjudanden måste ha ett pris över 0 kr eller en rabatt på högst 99 %, och får inte kallas gratis eller kostnadsfria. Reglerna finns både i appen (`src/lib/offers/policy.ts`) och som constraints i databasen.
+  - En publicerad PT-profil måste ha ett pris per pass.
+  - Befintliga gratiserbjudanden tas bort av migrationen.
 
 ## Arkitektur
 
@@ -242,13 +261,15 @@ node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräf
 node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v5`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v6`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
 - Klienter kan bara boka lediga tider, inte dubbelboka och inte se andras bokningar.
 - Ombokning: bara preliminära pass flyttas i flödet. Klienten kan acceptera PT:ns tid eller föreslå en ledig tid, men aldrig ändra passets innehåll eller flytta ett bekräftat pass. `awaiting` och tidigare tid sätts av databasen.
 - Aviseringar skapas bara av triggern. Ingen kan skapa eller ändra en avisering åt någon annan, och mottagaren kan bara sätta `read_at` eller ta bort sina egna.
+- Registrering och välkomststeget: telefonnummer normaliseras, kontotypen kan bara väljas en gång och bara via `complete_onboarding`, och klientkonton kräver samtycke.
+- Inga gratispass: 0 kr, 100 % rabatt eller "gratis" i texten stoppas, och en PT utan pris kan inte publiceras.
 - PT-erbjudanden: bara i PT:ns egna inriktningar. Klienter ser bara aktiva och giltiga erbjudanden från publicerade PT:er.
 - Accept, nekande och avbokning ger rätt lediga tider; gamla bokningar migreras korrekt till kalendern.
 - Radering av konto tar bort allt via kaskad.
@@ -264,6 +285,7 @@ Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Att ändringar som databasen nekar inte blockerar kön.
 - Att utloggning rensar lokal data.
 - Kalendern: pass från databasen visas hos klient och PT, lediga tider hämtas via RPC och bokningsförfrågan sparas.
+- Startsidan har Apple, Google, registrering och inloggning. OAuth startas med rätt leverantör och retur-URL (PKCE). Registreringen skickar e-post, normaliserat telefonnummer och lösenord, och välkomststeget sparar kontotypen.
 - Aviseringar och erbjudanden laddas från databasen, lästa aviseringar sparas, och klientens accept av en ny tid skickas.
 
 ## Teknik

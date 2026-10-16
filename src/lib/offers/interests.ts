@@ -10,6 +10,7 @@
  */
 import * as React from "react"
 
+import { isFreeOffer } from "@/lib/offers/policy"
 import { SPECIALTIES, SPECIALTY_LABEL, type ID, type Specialty, type TrainerOffer } from "@/types/domain"
 
 /** Hur starkt en signal väger. Ett aktivt filterval säger mer än en profil man råkat öppna. */
@@ -161,7 +162,7 @@ export function matchOffers(
   const dismissed = new Set(opts.dismissed ?? [])
   const excluded = new Set(opts.excludeTrainerIds ?? [])
   const ranked = offers
-    .filter((o) => o.active && (!o.validUntil || o.validUntil >= opts.today) && !dismissed.has(o.id) && !excluded.has(o.trainerId))
+    .filter((o) => o.active && !isFreeOffer(o) && (!o.validUntil || o.validUntil >= opts.today) && !dismissed.has(o.id) && !excluded.has(o.trainerId))
     .map((o) => ({ ...o, score: byCategory.get(o.category) ?? 0 }))
     .filter((o) => o.score > 0)
     .sort((a, b) => b.score - a.score || (b.discountPercent ?? 0) - (a.discountPercent ?? 0) || b.createdAt.localeCompare(a.createdAt))

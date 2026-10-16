@@ -31,6 +31,7 @@ import type {
   WorkoutStatus,
   WorkoutTemplate,
 } from "@/types/domain"
+import { isFreeOffer } from "@/lib/offers/policy"
 
 /** Ändringar som användaren gör och som ska sparas i backend. */
 export type PersistableAction =
@@ -397,7 +398,8 @@ export function normalizeAppData(raw: unknown): AppData | null {
     exerciseAliases: list(d.exerciseAliases),
     customFoods: list(d.customFoods),
     notifications: list(d.notifications),
-    offers: list(d.offers),
+    // Inga gratispass: rensa bort sådana erbjudanden ur äldre sparad data.
+    offers: list<TrainerOffer>(d.offers).filter((o) => !isFreeOffer(o)),
   }
 }
 
