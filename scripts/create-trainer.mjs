@@ -9,16 +9,18 @@
 //   SUPABASE_SERVICE_ROLE_KEY=<service role> \
 //   node scripts/create-trainer.mjs pt@exempel.se "Förnamn Efternamn" [070-123 45 67]
 //
-// Skriptet skapar ett bekräftat konto med app_metadata.role = "trainer" (kan
-// bara sättas med service role) och ett slumpat lösenord som skrivs ut en gång.
-// Dela det med PT:n på ett säkert sätt och be hen byta lösenord via
-// "Glömt lösenordet?" vid första inloggningen på /logga-in/pt.
+// Skriptet registrerar bara e-postadressen: ett bekräftat konto UTAN lösenord
+// med app_metadata.role = "trainer" (kan bara sättas med service role). Ingen
+// behöver se eller skicka något lösenord. Säg till PT:n att gå till
+// /logga-in/pt → "Välj lösenord" (Glömt lösenordet?) och välja sitt eget
+// innan första inloggningen. PT-konton kan bara logga in med e-post och
+// lösenord – Apple/Google är spärrat.
 //
 // Alternativ utan skript: Supabase Dashboard → Authentication → Add user
-// (Auto Confirm), följt av  select admin_make_trainer('pt@exempel.se', 'Namn');
+// (Auto Confirm, valfritt engångslösenord som aldrig delas), följt av
+//   select admin_make_trainer('pt@exempel.se', 'Namn');
 // i SQL Editor.
 import { createClient } from "@supabase/supabase-js"
-import { randomInt } from "node:crypto"
 
 const [email, fullName, phone] = process.argv.slice(2)
 const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -33,18 +35,11 @@ if (!url || !serviceKey) {
   process.exit(1)
 }
 
-/** 16 tecken från ett alfabet utan förväxlingsbara tecken (0/O, 1/l/I). */
-function generatePassword(length = 16) {
-  const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789-_!?"
-  return Array.from({ length }, () => alphabet[randomInt(alphabet.length)]).join("")
-}
-
-const password = generatePassword()
 const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
 const { data, error } = await admin.auth.admin.createUser({
   email,
-  password,
+  // Inget lösenord: PT:n väljer sitt eget via "Glömt lösenordet?".
   email_confirm: true,
   // Läses av databastriggern handle_new_user(): PT-roll godtas bara härifrån.
   app_metadata: { role: "trainer" },
@@ -56,9 +51,10 @@ if (error) {
   process.exit(1)
 }
 
-console.log("PT-konto skapat")
-console.log(`  Id:        ${data.user.id}`)
-console.log(`  E-post:    ${email}`)
-console.log(`  Lösenord:  ${password}`)
-console.log("  Inloggning: /logga-in/pt")
-console.log("Dela uppgifterna säkert och be PT:n byta lösenord efter första inloggningen.")
+console.log("PT-konto registrerat")
+console.log(`  Id:      ${data.user.id}`)
+console.log(`  E-post:  ${email}`)
+console.log("Nästa steg för PT:n:")
+console.log("  1. Gå till /logga-in/pt och tryck på \"Välj lösenord\" (Glömt lösenordet?).")
+console.log("  2. Ange e-postadressen ovan och öppna länken i mejlet.")
+console.log("  3. Välj ett eget lösenord – därefter loggar PT:n in med e-post och lösenord.")

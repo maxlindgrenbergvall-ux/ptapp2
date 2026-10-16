@@ -21,6 +21,13 @@ create table auth.users (
   raw_user_meta_data jsonb not null default '{}',
   raw_app_meta_data jsonb not null default '{}'
 );
+-- Inloggningsmetoder per användare (email, google, apple …), som i Supabase Auth.
+create table auth.identities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  provider text not null,
+  provider_id text not null default gen_random_uuid()::text
+);
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;

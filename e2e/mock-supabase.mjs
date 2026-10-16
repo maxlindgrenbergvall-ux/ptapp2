@@ -15,6 +15,8 @@ const users = {
   "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer" } },
   // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
   "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" }, app_metadata: {} },
+  // v8: PT-konto vars session (simulerat) kommer från Google – ska loggas ut.
+  "pt-google@test.se": { id: "11111111-0000-4000-8000-000000000009", email: "pt-google@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "PT Google" }, app_metadata: { role: "trainer" }, amr: [{ method: "oauth", timestamp: 1 }] },
   // v7: försökte registrera sig som PT via user_metadata – räknas inte.
   "fejk@test.se": { id: "77777777-0000-4000-8000-000000000002", email: "fejk@test.se", password: "hemligt123", user_metadata: { role: "trainer", name: "Fejk" }, app_metadata: {} },
 }
@@ -22,7 +24,7 @@ const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]))
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
 const token = (u) =>
-  `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: u.id, role: "authenticated", aud: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: u.app_metadata, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000), session_id: "s1" })}.c2ln`
+  `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: u.id, role: "authenticated", aud: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: u.app_metadata, amr: u.amr ?? [{ method: "password", timestamp: 1 }], exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000), session_id: "s1" })}.c2ln`
 const userJson = (u) => ({ id: u.id, aud: "authenticated", role: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: u.app_metadata, created_at: "2026-01-01T00:00:00Z" })
 const session = (u) => ({ access_token: token(u), refresh_token: `r-${u.id}`, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: userJson(u) })
 
@@ -135,6 +137,11 @@ http.createServer(async (req, res) => {
   try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
   if (url.pathname === "/auth/v1/user") return uid && byId[uid] ? send(200, userJson(byId[uid])) : send(401, { msg: "invalid JWT" })
   if (url.pathname === "/auth/v1/logout") return send(204)
+  // "Glömt lösenordet?" / PT väljer lösenord.
+  if (url.pathname === "/auth/v1/recover") {
+    log.push({ method: "POST", table: "auth.recover", body: JSON.parse(body || "{}"), query: url.search })
+    return send(200, {})
+  }
   // Registrering: e-postbekräftelse påslagen → användare utan session.
   if (url.pathname === "/auth/v1/signup") {
     const p = JSON.parse(body || "{}")

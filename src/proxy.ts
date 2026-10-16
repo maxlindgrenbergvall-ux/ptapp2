@@ -68,6 +68,14 @@ export async function proxy(request: NextRequest) {
     if (ALLOWED_BEFORE_ONBOARDING.some((p) => path === p || (p.endsWith("/") && path.startsWith(p)))) return response
     return redirect(ONBOARDING_PATH)
   }
+  // PT-konton får bara logga in med e-post och lösenord. En session från Apple/Google
+  // (amr = oauth) för ett PT-konto avslutas direkt. (Databasen stoppar dessutom att
+  // Apple/Google kopplas till PT-konton, se v8-migrationen.)
+  const amr = (claims as { amr?: { method?: string }[] }).amr ?? []
+  if (role === "trainer" && amr.some((a) => a.method === "oauth")) {
+    await supabase.auth.signOut()
+    return redirect(`${PT_LOGIN_PATH}?fel=social`)
+  }
   if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)
 

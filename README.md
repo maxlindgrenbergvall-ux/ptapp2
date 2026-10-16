@@ -24,7 +24,8 @@ npm run dev                  # http://localhost:3000
    5. `supabase/migrations/20261018000000_v5_reschedule_notifications_offers.sql`. Den lägger till ombokning av preliminära pass (`awaiting`, `previous_start/end`), aviseringar (`notifications`, skapas av en trigger) och PT-erbjudanden (`trainer_offers`).
    6. `supabase/migrations/20261019000000_v6_auth_onboarding_no_free.sql`. Den lägger till registrering med telefonnummer, välkomststeget (`complete_onboarding`) och regler mot gratispass.
    7. `supabase/migrations/20261020000000_v7_admin_created_trainers.sql`. Den gör att PT-konton bara kan skapas av en admin (rollen läses från `app_metadata`) och lägger till `admin_make_trainer()`.
-   8. `supabase/seed.sql`
+   8. `supabase/migrations/20261021000000_v8_trainers_email_only.sql`. Den gör att PT-konton inte kan kopplas till Apple eller Google.
+   9. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
@@ -35,11 +36,11 @@ npm run dev                  # http://localhost:3000
    Sätt minsta lösenordslängd till 8 och slå gärna på *Leaked password protection*.
 6. Kopiera *Project URL* och *Publishable key* (Project Settings → API) till `.env.local`.
    **Service role-nyckeln ska aldrig in i appen.**
-7. **Skapa PT-konton (bara admin).** PT:er kan inte registrera sig själva. Välj ett av två sätt:
-   - Kör `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/create-trainer.mjs pt@exempel.se "Namn" [telefon]` lokalt. Det skapar ett bekräftat konto med `app_metadata.role = "trainer"` och skriver ut ett slumpat lösenord.
-   - I Dashboard: välj **Authentication → Add user** (e-post och lösenord, *Auto Confirm*) och kör sedan `select admin_make_trainer('pt@exempel.se', 'Namn', '070…');` i SQL Editor.
+7. **Skapa PT-konton (bara admin, bara e-post).** PT:er kan inte registrera sig själva. Ni registrerar bara deras e-postadress, och PT:n väljer sitt eget lösenord. Välj ett av två sätt:
+   - Kör `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/create-trainer.mjs pt@exempel.se "Namn" [telefon]` lokalt. Det skapar ett bekräftat konto **utan lösenord** med `app_metadata.role = "trainer"`.
+   - I Dashboard: välj **Authentication → Add user** (e-post, *Auto Confirm*, valfritt engångslösenord som aldrig delas) och kör sedan `select admin_make_trainer('pt@exempel.se', 'Namn', '070…');` i SQL Editor.
 
-   Dela inloggningsuppgifterna säkert. PT:n loggar in på `/logga-in/pt`, byter lösenord via *Glömt lösenordet?*, fyller i **Min profil** och publicerar.
+   Säg till PT:n att gå till `/logga-in/pt` och trycka på **Välj lösenord** (*Glömt lösenordet?*). Hen anger sin e-post, öppnar länken i mejlet och väljer ett eget lösenord. Därefter loggar PT:n in med e-post och lösenord, fyller i **Min profil** och publicerar. PT-konton kan **inte** logga in med Apple eller Google.
 8. Valfritt:
    - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet, så att flödet ändå går att testa.
    - **Samtal:** under *Realtime → Settings*, stäng av *Allow public access*, så att bara privata kanaler med RLS används. Behöver ni fungera bakom strikta brandväggar eller på vissa mobilnät, ange en TURN-server i `NEXT_PUBLIC_ICE_SERVERS`.
@@ -171,6 +172,13 @@ npm run dev                  # http://localhost:3000
 - **PT-inloggning** (`/logga-in/pt`): bara e-post och lösenord, utan registrering och utan Apple eller Google. Ett konto som inte är PT-konto loggas ut med en förklaring. Startsidan och den vanliga inloggningen länkar dit.
 - **Navigering:** appen och `proxy.ts` läser rollen från `app_metadata` (PT-rollen bara därifrån). Åtkomstkontrollen sker som tidigare med RLS.
 
+## Nytt i v8: PT loggar bara in med e-post
+
+- **Apple och Google spärrade för PT:er.**
+  - **I databasen:** en trigger på `auth.identities` stoppar att Apple eller Google kopplas till ett PT-konto (Supabase lägger annars ihop konton med samma e-post). Inloggningen misslyckas då redan i Supabase. Eventuella befintliga kopplingar tas bort, och `admin_make_trainer()` vägrar konton som är kopplade till Apple eller Google.
+  - **I appen:** `proxy.ts` avslutar en PT-session som skapats via OAuth (`amr = oauth`) och visar en förklaring på PT-inloggningen.
+- **Första inloggningen:** PT-kontot registreras med bara e-post. På `/logga-in/pt` finns rutan *Första gången? Välj lösenord*. Den leder till `/glomt-losenord?pt=1`, där PT:n får en länk för att välja sitt eget lösenord. Ingen behöver skicka lösenord.
+
 ## Arkitektur
 
 ```
@@ -276,7 +284,7 @@ node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräf
 node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v7`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v8`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -285,6 +293,7 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v7`) och ett migreringstest för v4 kontr
 - Aviseringar skapas bara av triggern. Ingen kan skapa eller ändra en avisering åt någon annan, och mottagaren kan bara sätta `read_at` eller ta bort sina egna.
 - Registrering och välkomststeget: telefonnummer normaliseras, kontotypen kan bara väljas en gång och bara via `complete_onboarding`, och klientkonton kräver samtycke.
 - PT-konton: självregistrering med PT-roll i metadatan ger ett konto utan kontotyp. Välkomststeget, direkta uppdateringar och egna PT-profiler stoppas. Bara admin (`app_metadata` eller `admin_make_trainer`) kan skapa PT:er.
+- PT bara via e-post: Apple och Google kan inte kopplas till PT-konton, inte heller för PT:er skapade via dashboard, och ett Google-konto kan inte göras till PT. Klienter kan fortfarande använda Apple och Google.
 - Inga gratispass: 0 kr, 100 % rabatt eller "gratis" i texten stoppas, och en PT utan pris kan inte publiceras.
 - PT-erbjudanden: bara i PT:ns egna inriktningar. Klienter ser bara aktiva och giltiga erbjudanden från publicerade PT:er.
 - Accept, nekande och avbokning ger rätt lediga tider; gamla bokningar migreras korrekt till kalendern.
@@ -301,6 +310,7 @@ Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Att ändringar som databasen nekar inte blockerar kön.
 - Att utloggning rensar lokal data.
 - Kalendern: pass från databasen visas hos klient och PT, lediga tider hämtas via RPC och bokningsförfrågan sparas.
+- PT:ns första inloggning ("Välj lösenord" skickar en länk via Supabase Auth), och att en PT-session från Google loggas ut och inte kommer åt PT-panelen.
 - PT-inloggningen har bara e-post och lösenord. Klientkonton släpps inte in där, och en PT-roll i `user_metadata` ger ingen tillgång till PT-panelen.
 - Startsidan har Apple, Google, registrering och inloggning. OAuth startas med rätt leverantör och retur-URL (PKCE). Registreringen skickar e-post, normaliserat telefonnummer och lösenord, och välkomststeget sparar kontotypen.
 - Aviseringar och erbjudanden laddas från databasen, lästa aviseringar sparas, och klientens accept av en ny tid skickas.
