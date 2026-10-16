@@ -42,9 +42,10 @@ select test.logout();
 select test.eq((select raw_user_meta_data->>'role' from auth.users where email = 'ny@test.se'), 'client',
   'kontotypen speglas i auth-metadata (för navigeringen)');
 
+-- (Sedan v7 skapas PT-konton bara av en admin, se rls_v7.test.sql.)
+select admin_make_trainer('google@test.se', 'Greta Google', '+4687654321');
 select test.login('google@test.se');
-select complete_onboarding('trainer', 'Greta Google', '+4687654321', false);
-select test.eq((select count(*) from trainers where id = auth.uid()), 1::bigint, 'PT-konto från Google får en PT-profil');
+select test.eq((select count(*) from trainers where id = auth.uid()), 1::bigint, 'admin-skapat PT-konto får en PT-profil');
 select test.eq((select health_data_consent_at from profiles where id = auth.uid()), null::timestamptz, 'PT behöver inget hälsodatasamtycke');
 select test.logout();
 

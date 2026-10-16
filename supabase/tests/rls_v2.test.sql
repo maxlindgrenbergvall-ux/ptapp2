@@ -2,10 +2,10 @@
 -- Körs efter rls.test.sql och återanvänder test.*-hjälparna därifrån.
 \set ON_ERROR_STOP on
 
-insert into auth.users (email, raw_user_meta_data) values
-  ('pt3@test.se', '{"role":"trainer","full_name":"PT Tre"}'),
-  ('c3@test.se',  '{"role":"client","full_name":"Klient Tre","health_data_consent":true}'),
-  ('c4@test.se',  '{"role":"client","full_name":"Klient Fyra","health_data_consent":true}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('pt3@test.se', '{"role":"trainer","full_name":"PT Tre"}', '{"role":"trainer"}'),
+  ('c3@test.se', '{"role":"client","full_name":"Klient Tre","health_data_consent":true}', '{}'),
+  ('c4@test.se', '{"role":"client","full_name":"Klient Fyra","health_data_consent":true}', '{}');
 
 select test.eq((select coaching_mode::text from trainers where id = test.uid('pt3@test.se')), 'onsite', 'ny PT får coaching_mode onsite');
 

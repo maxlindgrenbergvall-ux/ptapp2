@@ -1,10 +1,10 @@
 -- Tester för v5: ombokning av preliminära pass, aviseringar och PT-erbjudanden.
 \set ON_ERROR_STOP on
 
-insert into auth.users (email, raw_user_meta_data) values
-  ('pt10@test.se', '{"role":"trainer","full_name":"PT Tio"}'),
-  ('c10@test.se',  '{"role":"client","full_name":"Klient Tio","health_data_consent":true}'),
-  ('c11@test.se',  '{"role":"client","full_name":"Klient Elva","health_data_consent":true}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('pt10@test.se', '{"role":"trainer","full_name":"PT Tio"}', '{"role":"trainer"}'),
+  ('c10@test.se', '{"role":"client","full_name":"Klient Tio","health_data_consent":true}', '{}'),
+  ('c11@test.se', '{"role":"client","full_name":"Klient Elva","health_data_consent":true}', '{}');
 
 select (current_date + 12) as d, extract(isodow from current_date + 12)::int as dow \gset
 

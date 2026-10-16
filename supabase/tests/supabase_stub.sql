@@ -18,7 +18,8 @@ create table auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
   phone text,
-  raw_user_meta_data jsonb not null default '{}'
+  raw_user_meta_data jsonb not null default '{}',
+  raw_app_meta_data jsonb not null default '{}'
 );
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid

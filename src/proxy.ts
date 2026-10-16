@@ -5,14 +5,15 @@ import {
   homeFor,
   isSupabaseEnabled,
   ONBOARDING_PATH,
-  roleFromMetadata,
+  PT_LOGIN_PATH,
+  roleFromClaims,
   SUPABASE_KEY,
   SUPABASE_URL,
 } from "@/lib/supabase/config"
 
 const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH]
 /** Startsidan är inloggnings-/registreringssidan. */
-const AUTH_PAGES = ["/", "/logga-in", "/registrera"]
+const AUTH_PAGES = ["/", "/logga-in", PT_LOGIN_PATH, "/registrera"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
 const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 
@@ -60,7 +61,7 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  const role = roleFromMetadata(claims.user_metadata)
+  const role = roleFromClaims(claims as { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> })
   const home = homeFor(role)
   // Nytt konto (e-post, Apple eller Google) som inte valt kontotyp än.
   if (!role) {

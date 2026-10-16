@@ -1,6 +1,6 @@
 "use client"
 
-import { Dumbbell, LayoutDashboard, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -12,25 +12,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { normalizePhone } from "@/lib/phone"
 import { getSupabase } from "@/lib/supabase/client"
-import { HOME_FOR_ROLE, isSupabaseEnabled, roleFromMetadata, type UserRole } from "@/lib/supabase/config"
-import { cn } from "@/lib/utils"
-
-const ROLES: { value: UserRole; title: string; sub: string; icon: typeof Dumbbell }[] = [
-  { value: "client", title: "Jag vill träna", sub: "Hitta PT, boka pass och följ ditt program", icon: Dumbbell },
-  { value: "trainer", title: "Jag är PT", sub: "Coacha klienter, schemalägg och följ upp", icon: LayoutDashboard },
-]
+import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 
 /**
- * Välkomststeget efter registrering (e-post, Apple eller Google): välj kontotyp,
- * bekräfta namn och telefon, och – för klienter – samtycke till hälsodata.
+ * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta namn
+ * och telefon och lämna samtycke till hälsodata. Självregistrerade konton blir
+ * alltid klientkonton – PT-konton skapas av Coavira och loggar in via
+ * PT-inloggningen.
  *
- * Sparas med RPC:n complete_onboarding(), som sätter rollen en gång, skapar
- * PT-profilen och speglar rollen i auth-metadata. Sessionen förnyas sedan så att
- * JWT:n (och därmed proxy.ts) ser den nya rollen.
+ * Sparas med RPC:n complete_onboarding(), som sätter rollen en gång och speglar
+ * den i app_metadata. Sessionen förnyas sedan så att JWT:n (och därmed proxy.ts)
+ * ser den nya rollen.
  */
 export function OnboardingForm() {
   const router = useRouter()
-  const [role, setRole] = React.useState<UserRole | null>(null)
   const [name, setName] = React.useState("")
   const [phone, setPhone] = React.useState("")
   const [consent, setConsent] = React.useState(false)
@@ -51,9 +46,9 @@ export function OnboardingForm() {
           window.location.replace("/logga-in")
           return
         }
-        const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; phone?: string; role?: string }
-        // Redan klar (t.ex. bakåtknappen): gå hem.
-        const existing = roleFromMetadata(meta)
+        const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; phone?: string }
+        // Redan klar (t.ex. bakåtknappen) eller admin-skapad PT: gå hem.
+        const existing = roleFromClaims(user)
         if (existing) {
           window.location.replace(HOME_FOR_ROLE[existing])
           return
@@ -70,12 +65,11 @@ export function OnboardingForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!role) return setError("Välj hur du vill använda Coavira.")
-    if (role === "client" && !consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
+    if (!consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
 
     if (!isSupabaseEnabled) {
-      // Demoläge: gå till demovyn för vald kontotyp (Sara eller Elin). Namn/telefon finns redan i demodatan.
-      router.push(HOME_FOR_ROLE[role])
+      // Demoläge: gå till klientdemon (Sara). Namn/telefon finns redan i demodatan.
+      router.push(HOME_FOR_ROLE.client)
       return
     }
     if (!name.trim()) return setError("Ange ditt namn.")
@@ -85,10 +79,10 @@ export function OnboardingForm() {
     setPending(true)
     const sb = getSupabase()
     const { error: rpcError } = await sb.rpc("complete_onboarding", {
-      p_role: role,
+      p_role: "client",
       p_full_name: name.trim(),
       p_phone: normalized,
-      p_health_data_consent: role === "client" && consent,
+      p_health_data_consent: consent,
     })
     if (rpcError && !/redan vald/i.test(rpcError.message)) {
       setPending(false)
@@ -96,7 +90,7 @@ export function OnboardingForm() {
     }
     // Ny JWT med rollen i user_metadata, sedan hel sidladdning (proxy.ts läser cookien).
     await sb.auth.refreshSession()
-    window.location.href = HOME_FOR_ROLE[role]
+    window.location.href = HOME_FOR_ROLE.client
   }
 
   if (loading) {
@@ -112,7 +106,7 @@ export function OnboardingForm() {
   return (
     <AuthCard
       title="Välkommen till Coavira"
-      description="Berätta hur du vill använda appen. Kontotypen väljs en gång."
+      description="Bekräfta dina uppgifter så kommer du igång med träningen."
       footer={
         isSupabaseEnabled ? (
           <button
@@ -135,29 +129,8 @@ export function OnboardingForm() {
       <form onSubmit={submit} className="space-y-4" noValidate>
         <FormError message={error} />
         {!isSupabaseEnabled && (
-          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-            Demoläge: du loggas in som Sara (klient) eller Elin (PT) med påhittad data.
-          </p>
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Demoläge: du loggas in som klienten Sara med påhittad data.</p>
         )}
-        <fieldset className="grid gap-2 sm:grid-cols-2">
-          <legend className="mb-2 text-sm font-medium">Hur vill du använda Coavira?</legend>
-          {ROLES.map(({ value, title, sub, icon: Icon }) => (
-            <label
-              key={value}
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition-colors has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
-                role === value ? "border-primary bg-primary/10 ring-1 ring-primary" : "hover:bg-muted/60"
-              )}
-            >
-              <input type="radio" name="role" value={value} checked={role === value} onChange={() => setRole(value)} className="sr-only" />
-              <Icon className={cn("mt-0.5 size-5 shrink-0", role === value ? "text-primary" : "text-muted-foreground")} />
-              <span>
-                <span className="block font-medium">{title}</span>
-                <span className="block text-xs text-muted-foreground">{sub}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
 
         {isSupabaseEnabled && (
           <>
@@ -182,8 +155,7 @@ export function OnboardingForm() {
           </>
         )}
 
-        {role === "client" && (
-          <div className="flex items-start gap-3 rounded-lg border p-3">
+        <div className="flex items-start gap-3 rounded-lg border p-3">
             <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
             <Label htmlFor="consent" className="text-sm leading-snug font-normal">
               Jag samtycker till att Coavira behandlar mina hälsouppgifter (träning, vikt och kost) så att min PT kan coacha mig. Jag kan när som helst
@@ -193,11 +165,16 @@ export function OnboardingForm() {
               </Link>
             </Label>
           </div>
-        )}
 
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending || (!isSupabaseEnabled && !role)}>
+        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
           {pending ? "Sparar…" : "Kom igång"}
         </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Är du PT? PT-konton skapas av Coavira efter granskning.{" "}
+          <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
+            Logga in med dina uppgifter
+          </Link>
+        </p>
       </form>
     </AuthCard>
   )

@@ -22,8 +22,9 @@ export const MIN_PASSWORD = 8
  *
  * - signUp() skapar användaren i auth.users. Telefonnumret skickas som metadata
  *   och sparas av triggern handle_new_user() på profilen (E.164).
- * - Kontotyp (PT/klient), namn och samtycke väljs i välkomststeget efteråt, så
- *   att samma flöde fungerar för Apple och Google.
+ * - Registreringen skapar bara klientkonton. PT-konton skapas av Coavira.
+ *   Namn och samtycke lämnas i välkomststeget efteråt, så att samma flöde
+ *   fungerar för Apple och Google.
  * - Med e-postbekräftelse påslagen visas "Kolla din e-post"; länken leder via
  *   /auth/callback till välkomststeget.
  */
@@ -90,7 +91,7 @@ export function SignupForm() {
   return (
     <AuthCard
       title="Registrera dig"
-      description="Skapa ditt Coavira-konto. Du väljer om du tränar eller är PT i nästa steg."
+      description="Skapa ditt Coavira-konto för att hitta en PT, boka pass och följa din träning."
       footer={
         <>
           Har du redan ett konto?{" "}

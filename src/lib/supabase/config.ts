@@ -19,13 +19,25 @@ export const HOME_FOR_ROLE: Record<UserRole, string> = { client: "/klient", trai
 /** Välkomststeget där nya konton (e-post, Apple, Google) väljer kontotyp. */
 export const ONBOARDING_PATH = "/valkommen"
 
+/** Inloggningsrutan för PT:er (konton som Coavira skapat i förväg). */
+export const PT_LOGIN_PATH = "/logga-in/pt"
+
+interface RoleSource {
+  app_metadata?: Record<string, unknown> | null
+  user_metadata?: Record<string, unknown> | null
+}
+
 /**
- * Kontotypen väljs i välkomststeget och speglas i user_metadata (för navigering;
- * RLS läser profiles.role). null = kontot har inte valt kontotyp än.
+ * Kontotypen för navigeringen (RLS läser profiles.role).
+ *
+ * PT-rollen godtas BARA från app_metadata, som sätts av databasen/admin och
+ * inte kan ändras av användaren. user_metadata kan användaren skriva själv,
+ * så därifrån godtas bara "client". null = kontotyp inte vald än.
  */
-export function roleFromMetadata(meta: unknown): UserRole | null {
-  const role = (meta as { role?: string } | null)?.role
-  return role === "trainer" || role === "client" ? role : null
+export function roleFromClaims(user: RoleSource | null | undefined): UserRole | null {
+  const app = user?.app_metadata?.role
+  if (app === "trainer" || app === "client") return app
+  return user?.user_metadata?.role === "client" ? "client" : null
 }
 
 /** Startsidan för en inloggad användare. */

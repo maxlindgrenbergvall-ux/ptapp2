@@ -11,17 +11,19 @@ const W1 = "33333333-0000-4000-8000-000000000001"
 const N1 = "77777777-0000-4000-8000-000000000001"
 
 const users = {
-  "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" } },
-  "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" } },
+  "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" }, app_metadata: { role: "client" } },
+  "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer" } },
   // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
-  "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" } },
+  "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" }, app_metadata: {} },
+  // v7: försökte registrera sig som PT via user_metadata – räknas inte.
+  "fejk@test.se": { id: "77777777-0000-4000-8000-000000000002", email: "fejk@test.se", password: "hemligt123", user_metadata: { role: "trainer", name: "Fejk" }, app_metadata: {} },
 }
 const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]))
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
 const token = (u) =>
-  `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: u.id, role: "authenticated", aud: "authenticated", email: u.email, user_metadata: u.user_metadata, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000), session_id: "s1" })}.c2ln`
-const userJson = (u) => ({ id: u.id, aud: "authenticated", role: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: {}, created_at: "2026-01-01T00:00:00Z" })
+  `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: u.id, role: "authenticated", aud: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: u.app_metadata, exp: Math.floor(Date.now() / 1000) + 3600, iat: Math.floor(Date.now() / 1000), session_id: "s1" })}.c2ln`
+const userJson = (u) => ({ id: u.id, aud: "authenticated", role: "authenticated", email: u.email, user_metadata: u.user_metadata, app_metadata: u.app_metadata, created_at: "2026-01-01T00:00:00Z" })
 const session = (u) => ({ access_token: token(u), refresh_token: `r-${u.id}`, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: userJson(u) })
 
 const exercises = [
@@ -73,7 +75,7 @@ function fixtures(uid, table) {
   switch (table) {
     case "profiles": {
       const meta = byId[uid].user_metadata
-      return [{ id: uid, role: meta.role ?? null, full_name: meta.full_name ?? meta.name }]
+      return [{ id: uid, role: byId[uid].app_metadata.role ?? null, full_name: meta.full_name ?? meta.name }]
     }
     case "exercises": return exercises
     case "scheduled_workouts": return [workout]
@@ -148,7 +150,9 @@ http.createServer(async (req, res) => {
     if (m[1] && table === "complete_onboarding") {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
+      if (p.p_role !== "client") return send(403, { code: "42501", message: "PT-konton skapas av Coavira och kan inte registreras i appen" })
       Object.assign(byId[uid].user_metadata, { role: p.p_role, full_name: p.p_full_name, phone: p.p_phone })
+      byId[uid].app_metadata.role = p.p_role
       return send(200, null)
     }
     if (m[1] && rpc[table]) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }

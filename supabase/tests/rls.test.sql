@@ -46,16 +46,16 @@ grant execute on all functions in schema test to anon, authenticated;
 \set QUIET off
 
 -- ---------------------------------------------------------------- konton ---
-insert into auth.users (email, raw_user_meta_data) values
-  ('pt@test.se',  '{"role":"trainer","full_name":"Elin PT"}'),
-  ('pt2@test.se', '{"role":"trainer","full_name":"Annan PT"}'),
-  ('c1@test.se',  '{"role":"client","full_name":"Sara Klient","health_data_consent":true}'),
-  ('c2@test.se',  '{"role":"client","full_name":"Jonas Klient","health_data_consent":true}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('pt@test.se', '{"role":"trainer","full_name":"Elin PT"}', '{"role":"trainer"}'),
+  ('pt2@test.se', '{"role":"trainer","full_name":"Annan PT"}', '{"role":"trainer"}'),
+  ('c1@test.se', '{"role":"client","full_name":"Sara Klient","health_data_consent":true}', '{}'),
+  ('c2@test.se', '{"role":"client","full_name":"Jonas Klient","health_data_consent":true}', '{}');
 
 select test.eq((select count(*) from profiles), 4::bigint, 'profil skapas vid registrering');
 select test.eq((select count(*) from trainers), 2::bigint, 'PT-rad skapas för PT-konton');
 -- Sedan v6: kontot skapas, men blir inte ett klientkonto förrän samtycke lämnats i välkomststeget.
-insert into auth.users (email, raw_user_meta_data) values ('nej@test.se', '{"role":"client","full_name":"Utan samtycke"}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values ('nej@test.se', '{"role":"client","full_name":"Utan samtycke"}', '{}');
 select test.eq((select role from profiles where full_name = 'Utan samtycke'), null::user_role,
   'klient utan hälsodatasamtycke blir inte ett klientkonto');
 select test.fails($$update profiles set role = 'client', health_data_consent_at = null where full_name = 'Utan samtycke'$$,

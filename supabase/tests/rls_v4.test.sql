@@ -2,11 +2,11 @@
 -- bekräftelse, avbokning, blockeringar, dubbelbokningsskydd och integritet.
 \set ON_ERROR_STOP on
 
-insert into auth.users (email, raw_user_meta_data) values
-  ('pt7@test.se', '{"role":"trainer","full_name":"PT Sju"}'),
-  ('c7@test.se',  '{"role":"client","full_name":"Klient Sju","health_data_consent":true}'),
-  ('c8@test.se',  '{"role":"client","full_name":"Klient Åtta","health_data_consent":true}'),
-  ('c9@test.se',  '{"role":"client","full_name":"Klient Nio","health_data_consent":true}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('pt7@test.se', '{"role":"trainer","full_name":"PT Sju"}', '{"role":"trainer"}'),
+  ('c7@test.se', '{"role":"client","full_name":"Klient Sju","health_data_consent":true}', '{}'),
+  ('c8@test.se', '{"role":"client","full_name":"Klient Åtta","health_data_consent":true}', '{}'),
+  ('c9@test.se', '{"role":"client","full_name":"Klient Nio","health_data_consent":true}', '{}');
 
 -- Testdag D = om tio dagar (långt bortom minsta framförhållning), i PT:ns tidszon.
 select (current_date + 10) as d, extract(isodow from current_date + 10)::int as dow,

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSupabase } from "@/lib/supabase/client"
-import { homeFor, isSupabaseEnabled, ONBOARDING_PATH, roleFromMetadata } from "@/lib/supabase/config"
+import { homeFor, isSupabaseEnabled, ONBOARDING_PATH, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 
 export function LoginForm() {
   const router = useRouter()
@@ -38,7 +38,7 @@ export function LoginForm() {
       setPending(false)
       return
     }
-    const role = roleFromMetadata(data.user.user_metadata)
+    const role = roleFromClaims(data.user)
     const home = homeFor(role)
     const next = params.get("next")
     // Hel sidladdning så att proxy.ts och servern ser den nya sessionscookien.
@@ -56,6 +56,12 @@ export function LoginForm() {
           <Link href="/registrera" className="font-medium text-foreground underline underline-offset-4">
             Registrera dig
           </Link>
+          <span className="mt-3 block text-xs">
+            Är du PT?{" "}
+            <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
+              Logga in med kontot du fått av Coavira
+            </Link>
+          </span>
         </>
       }
     >

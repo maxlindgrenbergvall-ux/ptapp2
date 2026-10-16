@@ -5,7 +5,7 @@ import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
+import { isSupabaseEnabled, PT_LOGIN_PATH } from "@/lib/supabase/config"
 
 const POINTS = [
   { icon: CalendarCheck, text: "Boka och flytta pass med din PT" },
@@ -14,8 +14,8 @@ const POINTS = [
 ]
 
 /**
- * Startsidan: inloggning och registrering. Kontotyp (PT eller klient) väljs först
- * efter registreringen, i välkomststeget. Inloggade skickas vidare av proxy.ts.
+ * Startsidan: inloggning och registrering för klienter. PT-konton skapas av
+ * Coavira och loggar in via PT-inloggningen. Inloggade skickas vidare av proxy.ts.
  */
 export default function Home() {
   return (
@@ -46,6 +46,12 @@ export default function Home() {
             Har du redan ett konto?{" "}
             <Link href="/logga-in" className="font-medium text-foreground underline underline-offset-4">
               Logga in
+            </Link>
+          </p>
+          <p className="text-center text-xs text-muted-foreground">
+            Är du PT?{" "}
+            <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
+              PT-inloggning
             </Link>
           </p>
         </div>

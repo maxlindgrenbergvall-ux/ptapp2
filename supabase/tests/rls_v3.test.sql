@@ -1,11 +1,11 @@
 -- RLS-tester för v3 (livsmedelsprodukter, matposter med streckkod, övningsnamn per klient).
 \set ON_ERROR_STOP on
 
-insert into auth.users (email, raw_user_meta_data) values
-  ('pt5@test.se', '{"role":"trainer","full_name":"PT Fem"}'),
-  ('pt6@test.se', '{"role":"trainer","full_name":"PT Sex"}'),
-  ('c5@test.se',  '{"role":"client","full_name":"Klient Fem","health_data_consent":true}'),
-  ('c6@test.se',  '{"role":"client","full_name":"Klient Sex","health_data_consent":true}');
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
+  ('pt5@test.se', '{"role":"trainer","full_name":"PT Fem"}', '{"role":"trainer"}'),
+  ('pt6@test.se', '{"role":"trainer","full_name":"PT Sex"}', '{"role":"trainer"}'),
+  ('c5@test.se', '{"role":"client","full_name":"Klient Fem","health_data_consent":true}', '{}'),
+  ('c6@test.se', '{"role":"client","full_name":"Klient Sex","health_data_consent":true}', '{}');
 
 select test.login('c5@test.se');
 insert into coaching_relationships (trainer_id, client_id) values (test.uid('pt5@test.se'), auth.uid());
