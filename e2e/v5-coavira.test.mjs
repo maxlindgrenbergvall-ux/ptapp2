@@ -228,7 +228,12 @@ await openBell(p)
 check(await popover(p).locator("text=Sara Lindqvist accepterade den nya tiden").isVisible(), "PT:n aviseras när klienten accepterar")
 check(await popover(p).locator("text=Sara Lindqvist avbokade ett pass").isVisible(), "PT:n aviseras direkt när klienten avbokar")
 await closeBell(p)
+// Dagvyn två dagar fram (veckovyn visar bara innevarande vecka, t.ex. på en söndag).
+await p.click('[role=tab]:has-text("Dag")')
+await p.click('button[aria-label="Nästa"]')
+await p.click('button[aria-label="Nästa"]')
 const locked2 = p.locator('button[aria-label*="Bekräftat pass: Sara Lindqvist, 15:00–16:00"]')
+await locked2.waitFor()
 check((await locked2.count()) === 1 && !(await locked2.getAttribute("aria-label")).includes("dra för att"), "accepterat pass är låst")
 
 // ------------------------------------------------- 7. PT skapar erbjudande ---

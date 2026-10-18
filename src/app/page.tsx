@@ -5,7 +5,7 @@ import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
-import { isSupabaseEnabled, PT_LOGIN_PATH } from "@/lib/supabase/config"
+import { isSupabaseEnabled, PT_LOGIN_PATH, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
 const POINTS = [
   { icon: CalendarCheck, text: "Boka och flytta pass med din PT" },
@@ -59,6 +59,10 @@ export default function Home() {
         {!isSupabaseEnabled && (
           <p className="rounded-lg bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
             Demoläge: inga riktiga konton skapas. Välj valfri metod för att prova flödet med påhittad data.
+            <span className="mt-1 block">
+              {/* Hjälp vid felsökning: vilka Supabase-uppgifter saknades när appen byggdes? */}
+              Saknas vid bygget: {[!SUPABASE_URL && "Supabase-URL", !SUPABASE_KEY && "publik nyckel"].filter(Boolean).join(" och ")}.
+            </span>
           </p>
         )}
       </section>
