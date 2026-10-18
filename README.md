@@ -26,7 +26,8 @@ npm run dev                  # http://localhost:3000
    7. `supabase/migrations/20261020000000_v7_admin_created_trainers.sql`. Den gör att PT-konton bara kan skapas av en admin (rollen läses från `app_metadata`) och lägger till `admin_make_trainer()`.
    8. `supabase/migrations/20261021000000_v8_trainers_email_only.sql`. Den gör att PT-konton inte kan kopplas till Apple eller Google.
    9. `supabase/migrations/20261022000000_v9_swedish_food_products.sql`. Den lägger till enhet (g/ml), bild och svensk marknad på produkter och enhet på matposter.
-   10. `supabase/seed.sql`
+   10. `supabase/migrations/20261023000000_v10_calendar_feeds.sql`. Den lägger till kalenderlänkar (iCal) för synk med Google, Outlook och Apple.
+   11. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
@@ -191,6 +192,21 @@ npm run dev                  # http://localhost:3000
 - **Egen cache:** produkter som sökts fram eller skannats sparas i `food_products` (av servern) och söks först. Svenska varor hittas då direkt, även om Open Food Facts är långsamt, nere eller har nått sin sökgräns (cirka 10 sökningar per minut).
 - **Saknas varan?** *Lägg till egen produkt* finns både efter skanning och direkt i sökningen. Namnet förifylls, och man väljer mat eller dryck och kan ange streckkod. Produkten sparas privat på kontot och hittas under *Mina produkter* och vid nästa skanning.
 
+## Nytt i v10: kalendersynk, förnamn, mobilkalender och animationer
+
+- **Synka kalender** (PT- och klientkalendern):
+  - **Prenumerationslänk:** en hemlig länk per användare, `/api/calendar/feed/{token}.ics`. Den läggs till med ett klick i Google Kalender (`calendar.google.com/calendar/r?cid=webcal://…`), Outlook.com och Microsoft 365 (`…/calendar/0/addfromweb?url=…`) eller Apple Kalender (`webcal://`). Nya, flyttade och avbokade pass uppdateras automatiskt.
+  - **Vad som skickas:** bara tid, rubrik, plats och status (`calendar_feed()`, security definer). Anteckningar och hälsodata följer aldrig med.
+  - **Byt länk:** länken kan bytas, och då slutar den gamla fungera.
+  - **.ics-fil:** passen kan också laddas ner som en fil för engångsimport. Det fungerar även i demoläget.
+  - OAuth-baserad tvåvägssynk kan läggas till senare. Envägssynken via iCal fungerar redan med alla stora kalenderappar.
+- **Förnamn från profilen:** hälsningar ("Hej {förnamn}!") och alla namn i gränssnittet hämtas från profilen (`src/lib/names.ts`). Hårdkodade namn är borta, och demoläget hämtar namnen från demodatan.
+- **Klientens kalender på mobil:**
+  - Fliken *Vecka* (standard) har en veckoslider överst: svep eller använd pilarna och *Idag*. Under den visas bara den valda dagens pass, och tomma dagar har en genväg till nästa pass.
+  - Fliken *Lista* visar alla kommande pass.
+  - Väntande tider visas som en kort rad överst.
+- **Animationer på mobil:** staplar och diagram startar när de syns (`useInView` med IntersectionObserver) i stället för vid sidladdning, så att de inte redan är klara när man scrollat dit. Knappar trycks ner lite vid tryck, och den grå tryckblinken är borta. `prefers-reduced-motion` respekteras i hela appen.
+
 ## Arkitektur
 
 ```
@@ -295,9 +311,10 @@ node e2e/v3-features.test.mjs   # mot e2e/mock-openfoodfacts.mjs; kamerafallet l
 node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräftat, blockering, krockar, vyer
 node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
 node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, UPC/EAN, egen produkt
+node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v9`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v10`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.

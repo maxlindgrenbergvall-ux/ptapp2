@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 
+import { RevealOnView } from "@/components/motion"
 import {
   ChartContainer,
   ChartLegend,
@@ -243,7 +244,10 @@ function ChartFrame({
           </table>
         </div>
       ) : (
-        <div role="img" aria-label={caption}>{children}</div>
+        // Diagrammet ritas (och animeras) först när det syns – även långt ner på mobilen.
+        <div role="img" aria-label={caption}>
+          <RevealOnView minHeight={192}>{children}</RevealOnView>
+        </div>
       )}
       <figcaption className="text-right">
         <button type="button" onClick={() => setShowTable((s) => !s)} className="text-xs text-muted-foreground underline-offset-4 hover:underline">

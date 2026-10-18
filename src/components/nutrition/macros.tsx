@@ -1,3 +1,4 @@
+import { useGrowOnView } from "@/components/motion"
 import { cn } from "@/lib/utils"
 
 /**
@@ -56,6 +57,7 @@ export function MacroSplitBar({ value, className }: { value: Macros; className?:
 export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; value: number; target: number }) {
   const m = MACROS.find((x) => x.key === macro)!
   const pct = target > 0 ? Math.round((value / target) * 100) : 0
+  const [ref, shown] = useGrowOnView<HTMLDivElement>(Math.min(pct, 100))
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -69,6 +71,7 @@ export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; valu
         </span>
       </div>
       <div
+        ref={ref}
         className="h-1.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
         aria-label={m.label}
@@ -76,7 +79,7 @@ export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; valu
         aria-valuemin={0}
         aria-valuemax={target}
       >
-        <div className={cn("h-full rounded-full transition-all", m.dot)} style={{ width: `${Math.min(pct, 100)}%` }} />
+        <div className={cn("h-full rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none", m.dot)} style={{ width: `${shown}%` }} />
       </div>
     </div>
   )
@@ -85,6 +88,7 @@ export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; valu
 /** Kalorier mot mål, i varumärkesgrönt. */
 export function KcalMeter({ value, target, className }: { value: number; target: number; className?: string }) {
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0
+  const [ref, shown] = useGrowOnView<HTMLDivElement>(pct)
   const diff = target - value
   return (
     <div className={cn("space-y-2", className)}>
@@ -97,8 +101,8 @@ export function KcalMeter({ value, target, className }: { value: number; target:
           {diff >= 0 ? `${Math.round(diff)} kvar` : `${Math.round(-diff)} över`}
         </div>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-primary/15" role="progressbar" aria-label="Kalorier" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={target}>
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+      <div ref={ref} className="h-2 overflow-hidden rounded-full bg-primary/15" role="progressbar" aria-label="Kalorier" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={target}>
+        <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${shown}%` }} />
       </div>
     </div>
   )

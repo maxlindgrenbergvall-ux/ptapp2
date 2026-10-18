@@ -33,7 +33,7 @@ export function PtLoginForm() {
     e.preventDefault()
     setError(null)
     if (!isSupabaseEnabled) {
-      // Demoläge: PT-demon (Elin).
+      // Demoläge: PT-demon.
       router.push(HOME_FOR_ROLE.trainer)
       return
     }
@@ -100,7 +100,7 @@ export function PtLoginForm() {
           <ShieldCheck className="mt-0.5 size-4 shrink-0" />
           {isSupabaseEnabled
             ? "PT-konton skapas av Coavira efter granskning och loggar bara in med e-post och lösenord. Vill du bli PT på Coavira? Kontakta oss."
-            : "Demoläge: du loggas in som PT:n Elin med påhittad data."}
+            : "Demoläge: du loggas in som en demo-PT med påhittad data."}
         </p>
       </form>
     </AuthCard>

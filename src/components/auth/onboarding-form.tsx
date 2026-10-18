@@ -68,7 +68,7 @@ export function OnboardingForm() {
     if (!consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
 
     if (!isSupabaseEnabled) {
-      // Demoläge: gå till klientdemon (Sara). Namn/telefon finns redan i demodatan.
+      // Demoläge: gå till klientdemon. Namn/telefon finns redan i demodatan.
       router.push(HOME_FOR_ROLE.client)
       return
     }
@@ -129,7 +129,7 @@ export function OnboardingForm() {
       <form onSubmit={submit} className="space-y-4" noValidate>
         <FormError message={error} />
         {!isSupabaseEnabled && (
-          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Demoläge: du loggas in som klienten Sara med påhittad data.</p>
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Demoläge: du loggas in som en demoklient med påhittad data.</p>
         )}
 
         {isSupabaseEnabled && (

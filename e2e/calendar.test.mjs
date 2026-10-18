@@ -27,6 +27,7 @@ p.on("console", (m) => m.type() === "error" && errors.push(`${p.url()} console: 
 // 1. Klientens kalender från demodatan
 await p.goto(base + "/klient/kalender")
 await p.waitForSelector("text=Mina pass")
+await p.click('[role=tab]:has-text("Lista") >> visible=true')
 check(await p.locator("text=Bekräftat").first().isVisible(), "klienten ser sitt bekräftade pass")
 const pendingBefore = await p.locator("text=Väntar på bekräftelse från PT").count()
 check(pendingBefore >= 1, `seedad förfrågan visas som väntande (${pendingBefore})`)
@@ -48,6 +49,7 @@ ok(`bokningsförfrågan skickad (${slotText})`)
 
 await p.goto(base + "/klient/kalender")
 await p.waitForSelector("text=Mina pass")
+await p.click('[role=tab]:has-text("Lista") >> visible=true')
 check((await p.locator("text=Väntar på bekräftelse från PT").count()) === pendingBefore + 1, "ny förfrågan visas som väntande hos klienten")
 check(await p.locator("text=/förfrågningar? väntar/").isVisible(), "banner om väntande förfrågningar")
 
@@ -75,6 +77,7 @@ check((await request.count()) === 0, "förfrågan försvinner från panelen efte
 await p.setViewportSize({ width: 390, height: 844 })
 await p.goto(base + "/klient/kalender")
 await p.waitForSelector("text=Mina pass")
+await p.click('[role=tab]:has-text("Lista") >> visible=true')
 check((await p.locator("text=Väntar på bekräftelse från PT").count()) === pendingBefore, "klientens förfrågan är inte längre väntande")
 const card = p.locator("li, article", { hasText: slotText }).filter({ hasText: "Bekräftat" })
 check((await card.count()) >= 1, "passet är bekräftat i klientens kalender")

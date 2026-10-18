@@ -374,10 +374,10 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
     } catch {}
   }, [data, engine])
 
-  const me = React.useMemo<Me>(() => {
-    const id = role === "trainer" ? DEMO_TRAINER_ID : DEMO_CLIENT_ID
-    return { id, role, name: role === "trainer" ? "Elin Söderberg" : "Sara Lindqvist" }
-  }, [role])
+  // Namnet hämtas från demoprofilen i datan (aldrig hårdkodat i gränssnittet).
+  const id = role === "trainer" ? DEMO_TRAINER_ID : DEMO_CLIENT_ID
+  const name = (role === "trainer" ? data?.trainers.find((t) => t.id === id)?.name : data?.clients.find((c) => c.id === id)?.name) ?? ""
+  const me = React.useMemo<Me>(() => ({ id, role, name }), [id, role, name])
 
   const actions = React.useMemo(() => {
     // I demoläget finns ingen databastrigger: räkna fram motpartens aviseringar här.

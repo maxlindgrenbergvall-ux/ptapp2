@@ -91,7 +91,7 @@ check(log.some((e) => e.rejected) && log.some((e) => e.body?.body === "Hej igen"
 await p.screenshot({ path: `${out}/sb-rejected.png` })
 
 // 8. Kalender: bekräftat pass från databasen och bokningsförfrågan från RPC-tider
-await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=PT-pass")
+await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=Mina pass"); await p.click('[role=tab]:has-text("Lista") >> visible=true'); await p.waitForSelector("text=PT-pass")
 check(await p.locator("text=Bekräftat").first().isVisible(), "klientkalendern visar bekräftat pass från Supabase")
 await p.goto(`${base}/klient/hitta/11111111-0000-4000-8000-000000000001`)
 await p.click('button:has-text("Boka")'); await p.waitForSelector("text=Välj en ledig tid")
@@ -105,11 +105,12 @@ const req = log.find((e) => e.table === "calendar_events" && e.method === "POST"
 // status sätts inte av klienten – databasen ger 'pending' som standard och RLS tillåter inget annat.
 check(req && req.body.status === undefined && req.body.client_id === "22222222-0000-4000-8000-000000000001", "bokningsförfrågan sparas som pending i calendar_events")
 await p.click('a:has-text("Visa mina pass")')
+await p.waitForSelector("text=Mina pass >> visible=true"); await p.click('[role=tab]:has-text("Lista") >> visible=true')
 await p.waitForSelector("text=Väntar på bekräftelse från PT")
 ok("förfrågan visas som väntande i klientkalendern")
 
 // 8b. Aviseringar från databasen och ombokningsflödet (v5)
-await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=Ny tid – ditt svar behövs")
+await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=Mina pass"); await p.click('[role=tab]:has-text("Lista") >> visible=true'); await p.waitForSelector("text=Ny tid – ditt svar behövs")
 // 1 oläst avisering + 1 erbjudande (klienten öppnade PT:ns profil ovan → intresse för styrkelyft).
 const bellLabel = await p.locator('button[aria-label^="Aviseringar"]').getAttribute("aria-label")
 check(bellLabel === "Aviseringar, 2 nya", `olästa aviseringar och matchande erbjudanden laddas från databasen (${bellLabel})`)
@@ -123,6 +124,26 @@ await p.waitForTimeout(800)
 log = await getLog()
 check(log.some((e) => e.table === "notifications" && e.method === "PATCH" && e.body?.read_at && e.query.includes("55555555")), "lästa aviseringar sparas (bara read_at)")
 check(log.some((e) => e.table === "calendar_events" && e.method === "PATCH" && e.body?.status === "confirmed" && e.query.includes("44444444-0000-4000-8000-000000000002")), "klienten accepterar PT:ns nya tid (status confirmed)")
+
+// 8c. Kalendersynk (v10): prenumerationslänk för Google/Outlook/Apple och .ics-flödet
+await p.goto(`${base}/klient/kalender`); await p.waitForSelector("text=Mina pass")
+await p.click('button:has-text("Synka kalender") >> visible=true')
+await p.waitForSelector("text=Lägg till i Google Kalender")
+const feedUrl = await p.inputValue("#feed-url")
+check(/\/api\/calendar\/feed\/[0-9a-f]{64}\.ics$/.test(feedUrl), "synk: personlig kalenderlänk skapas")
+const google = await p.getAttribute('a:has-text("Lägg till i Google Kalender")', "href")
+check(google.startsWith("https://calendar.google.com/calendar/r?cid=webcal%3A%2F%2F"), "synk: Google Kalender-länk (webcal)")
+const outlook = await p.getAttribute('a:has-text("Lägg till i Outlook.com")', "href")
+check(outlook.startsWith("https://outlook.live.com/calendar/0/addfromweb?url=") && outlook.includes(encodeURIComponent(feedUrl)), "synk: Outlook-länk")
+await p.screenshot({ path: `${out}/sb-kalendersynk.png` })
+await p.keyboard.press("Escape")
+const feed = await fetch(feedUrl)
+const ics = await feed.text()
+check(feed.headers.get("content-type")?.startsWith("text/calendar") && ics.startsWith("BEGIN:VCALENDAR"), "synk: länken ger en iCal-kalender")
+check(ics.includes("SUMMARY:PT-pass med Elin Test") && ics.includes("STATUS:CONFIRMED") && ics.includes("LOCATION:Gymmet"), "synk: passet med PT:ns namn, status och plats")
+check(!ics.includes("Ta med"), "synk: anteckningar följer inte med")
+const bad = await fetch(feedUrl.replace(/[0-9a-f]{64}/, "cd".repeat(32)))
+check(bad.ok && !(await bad.text()).includes("BEGIN:VEVENT"), "synk: okänd länk ger en tom kalender")
 
 // 9. Logga ut rensar lokal data
 await p.goto(`${base}/klient`); await p.waitForSelector("text=Testpass")

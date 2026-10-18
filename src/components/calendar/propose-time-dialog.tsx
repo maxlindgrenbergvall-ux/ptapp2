@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { formatDayShort, formatTimeRange } from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import type { CalendarEvent, Slot } from "@/types/domain"
+import { firstName } from "@/lib/names"
 
 /**
  * Klient: föreslå en ny tid för ett preliminärt pass. Bara lediga tider hos PT:n
@@ -25,7 +26,7 @@ export function ProposeTimeDialog({
   const { data, actions } = useAppData()
   const [slot, setSlot] = React.useState<Slot | null>(null)
   const trainer = event ? data.trainers.find((t) => t.id === event.trainerId) : undefined
-  const first = trainer?.name.split(" ")[0] ?? "PT:n"
+  const first = firstName(trainer?.name, "PT:n")
 
   const close = (o: boolean) => {
     if (!o) setSlot(null)

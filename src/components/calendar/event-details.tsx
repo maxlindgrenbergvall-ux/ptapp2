@@ -13,6 +13,7 @@ import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import { SESSION_MODE_LABEL, type CalendarEvent } from "@/types/domain"
+import { firstName } from "@/lib/names"
 
 /** Detaljer för en kalenderpost med åtgärder efter status. */
 export function EventDetailsDialog({
@@ -78,7 +79,7 @@ export function EventDetailsDialog({
             <div className="space-y-1 rounded-lg border border-dashed border-warning/70 bg-warning/10 px-3 py-2">
               <p className="flex items-center gap-1.5 font-medium">
                 <Hourglass className="size-3.5 text-warning" />
-                {ev.awaiting === "client" ? `Väntar på att ${client?.name.split(" ")[0] ?? "klienten"} svarar` : "Väntar på ditt svar"}
+                {ev.awaiting === "client" ? `Väntar på att ${firstName(client?.name, "klienten")} svarar` : "Väntar på ditt svar"}
               </p>
               {ev.previousStart && ev.previousEnd && (
                 <p className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground tabular">

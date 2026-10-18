@@ -29,6 +29,7 @@ import { recordInterest } from "@/lib/offers/interests"
 import { isFreeOffer } from "@/lib/offers/policy"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
+import { firstName } from "@/lib/names"
 
 export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const { data, me } = useAppData()
@@ -182,7 +183,7 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
               <DialogDescription>
                 {formatDayLong(new Date(sent.start))} · {formatTimeRange(new Date(sent.start), new Date(sent.end))}
                 <br />
-                Väntar på bekräftelse från {trainer.name.split(" ")[0]}. Du ser statusen under Kalender.
+                Väntar på bekräftelse från {firstName(trainer.name)}. Du ser statusen under Kalender.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2">
@@ -197,10 +198,10 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Boka {trainer.name.split(" ")[0]}</DialogTitle>
-              <DialogDescription>Välj en ledig tid. Bokningen blir klar när {trainer.name.split(" ")[0]} bekräftat den.</DialogDescription>
+              <DialogTitle>Boka {firstName(trainer.name)}</DialogTitle>
+              <DialogDescription>Välj en ledig tid. Bokningen blir klar när {firstName(trainer.name)} bekräftat den.</DialogDescription>
             </DialogHeader>
-            <SlotPicker trainerId={open ? trainer.id : null} trainerFirstName={trainer.name.split(" ")[0]} value={slot} onChange={setSlot} />
+            <SlotPicker trainerId={open ? trainer.id : null} trainerFirstName={firstName(trainer.name)} value={slot} onChange={setSlot} />
                 {slot && (
                   <>
                     {modes.length > 1 && (

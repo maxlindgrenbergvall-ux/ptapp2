@@ -167,6 +167,27 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Mobil: ingen grå blink vid tryck (knapparna har egen tryckeffekt). */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Snabbare tryck på mobil (ingen dubbeltryckszoom på knappar och länkar). */
+  a,
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="option"] {
+    touch-action: manipulation;
+  }
+  /* Respektera "minska rörelse" i iOS/Android/datorns inställningar. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
   /* Siffror i loggar och tabeller ska inte hoppa när de ändras. */
   .tabular {

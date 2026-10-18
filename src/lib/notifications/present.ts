@@ -3,6 +3,7 @@
  */
 import { formatDayShort, formatTimeRange } from "@/lib/calendar/time"
 import type { AppNotification, NotificationKind, UserRole } from "@/types/domain"
+import { firstName } from "@/lib/names"
 
 export interface NotificationGroup {
   id: string
@@ -51,7 +52,7 @@ const whenPrev = (n: AppNotification) =>
 /** Rubrik och detaljrad för en grupp, sett från mottagaren. */
 export function describeGroup(g: NotificationGroup, role: UserRole): { title: string; detail: string; previous?: string } {
   // Klienten ser sin PT:s förnamn; PT:n ser klientens fullständiga namn (har många klienter).
-  const who = role === "client" ? g.actorName.split(" ")[0] : g.actorName
+  const who = role === "client" ? firstName(g.actorName) : g.actorName
   const n = g.items[0]
   switch (g.kind) {
     case "booking_requested":

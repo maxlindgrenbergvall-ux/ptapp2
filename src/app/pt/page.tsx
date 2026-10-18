@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
+import { firstName } from "@/lib/names"
 import { addDays, formatShort, relativeDay, todayISO } from "@/lib/date"
 import type { ClientStatus } from "@/types/domain"
 
@@ -70,7 +71,10 @@ export default function PtOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Översikt" description={`Hej Elin! Så här ser det ut idag, ${formatShort(today)}`} />
+      <PageHeader
+        title="Översikt"
+        description={`${firstName(me.name) ? `Hej ${firstName(me.name)}! ` : ""}Så här ser det ut idag, ${formatShort(today)}`}
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Aktiva klienter" value={activeClients.length} sub={`${clients.length} totalt`} icon={Users} />

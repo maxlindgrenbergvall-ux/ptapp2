@@ -15,6 +15,7 @@ import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
 import { setsDone, setsTotal } from "@/lib/training"
 import { cn } from "@/lib/utils"
+import { firstName } from "@/lib/names"
 
 const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
@@ -52,7 +53,7 @@ export default function TodayPage() {
     <div className="space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">{formatDay(today)}</p>
-        <h1 className="text-2xl font-bold tracking-tight">Hej {client.name.split(" ")[0]}!</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Hej {firstName(client.name)}!</h1>
       </div>
 
       <ol className="grid grid-cols-7 gap-1" aria-label="Veckan">

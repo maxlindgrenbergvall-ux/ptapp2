@@ -67,7 +67,9 @@ const offerRows = [{
   price_sek: 1900, discount_percent: null, valid_until: null, active: true, created_at: `${TODAY}T08:00:00Z`,
 }]
 const slots = [3, 4].flatMap((d) => [8, 9].map((h) => ({ start_time: at(d, h), end_time: at(d, h + 1) })))
+const FEED_TOKEN = "ab".repeat(32)
 const rpc = {
+  calendar_feed_token: FEED_TOKEN,
   available_slots: slots,
   next_available_slots: [{ trainer_id: T1, start_time: slots[0].start_time }],
 }
@@ -149,6 +151,16 @@ http.createServer(async (req, res) => {
     return send(200, { id: "88888888-0000-4000-8000-000000000001", aud: "authenticated", email: p.email, user_metadata: p.data ?? {}, identities: [{ id: "i1", provider: "email" }], created_at: new Date().toISOString() })
   }
 
+  // ---- kalenderlänk (v10): calendar_feed anropas av servern utan inloggning, med token som nyckel.
+  if (url.pathname === "/rest/v1/rpc/calendar_feed") {
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "RPC", table: "calendar_feed", body: p })
+    if (p.p_token !== FEED_TOKEN) return send(200, [])
+    return send(200, [{
+      id: EV1, title: "PT-pass", start_time: at(2, 7), end_time: at(2, 8), status: "confirmed", kind: "session", mode: "onsite",
+      location: "Gymmet", counterpart: "Elin Test", owner_name: "Sara Test", owner_role: "client", updated_at: new Date().toISOString(),
+    }])
+  }
   // ---- rest
   const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
   if (m) {

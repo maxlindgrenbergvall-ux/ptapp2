@@ -107,6 +107,8 @@ await closeBell(p)
 
 // -------------------------------- 4. klienten föreslår en ny tid ---
 await p.goto(base + "/klient/kalender")
+await p.waitForSelector("text=Mina pass")
+await p.click('[role=tab]:has-text("Lista") >> visible=true')
 await p.waitForSelector("text=Ny tid – ditt svar behövs")
 check(await p.locator("text=/har föreslagit en ny tid/").isVisible(), "banner om tid som väntar på klientens svar")
 await p.screenshot({ path: `${out}/v5-klient-ny-tid.png`, fullPage: true })
@@ -215,6 +217,7 @@ await closeBell(p)
 
 await p.goto(base + "/klient/kalender")
 await p.waitForSelector("text=Mina pass")
+await p.click('[role=tab]:has-text("Lista") >> visible=true')
 const accepted = p.locator("li", { hasText: "15:00–16:00" }).filter({ hasText: "Bekräftat" })
 check((await accepted.count()) === 1, "accepterad tid är bekräftad i klientens kalender")
 // Avboka ett bekräftat pass → PT:n aviseras.

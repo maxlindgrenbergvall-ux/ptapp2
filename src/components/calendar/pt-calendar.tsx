@@ -5,6 +5,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { AvailabilityDialog } from "@/components/calendar/availability-dialog"
+import { CalendarSyncButton } from "@/components/calendar/calendar-sync-dialog"
 import { EventDetailsDialog } from "@/components/calendar/event-details"
 import { EventFormDialog } from "@/components/calendar/event-form-dialog"
 import { buildItems, TONE_DOT, TONE_LABEL, type CalItem, type Tone } from "@/components/calendar/items"
@@ -21,6 +22,7 @@ import { addDays, formatDayLong, formatDayShort, formatMonth, formatTimeRange, i
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
 import type { CalendarEvent } from "@/types/domain"
+import { firstName } from "@/lib/names"
 
 const LEGEND: Tone[] = ["pending", "confirmed", "planned", "block", "completed"]
 
@@ -69,7 +71,7 @@ export function PtCalendar() {
       return
     }
     toast.success(`Ny tid föreslagen till ${item.title}`, {
-      description: `${formatDayShort(start)} ${formatTimeRange(start, end)} · ${item.title.split(" ")[0]} får en avisering och kan acceptera eller föreslå en annan tid.`,
+      description: `${formatDayShort(start)} ${formatTimeRange(start, end)} · ${firstName(item.title)} får en avisering och kan acceptera eller föreslå en annan tid.`,
     })
   }
   const dragProps = { onMove, canMove, pendingMove }
@@ -86,6 +88,7 @@ export function PtCalendar() {
         description="Bokningar, egna pass och blockerad tid. Bekräftade pass syns direkt i klientens kalender."
         actions={
           <>
+            <CalendarSyncButton className="h-9" />
             <Button variant="outline" onClick={() => setAvailabilityOpen(true)}>
               <CalendarClock /> Tillgänglighet
             </Button>
