@@ -4,6 +4,7 @@
  */
 import { addDays, todayISO } from "@/lib/date"
 import exerciseLibrary from "@/lib/exercise-library.json"
+import { sessionBalance } from "@/lib/services/balance"
 import type {
   AppData,
   AppNotification,
@@ -14,11 +15,13 @@ import type {
   FoodEntry,
   Message,
   NutritionPlan,
+  Purchase,
   ScheduledWorkout,
   SetLog,
   SleepLog,
   Trainer,
   TrainerOffer,
+  TrainerService,
   WaterLog,
   WorkoutExercise,
   WorkoutTemplate,
@@ -597,9 +600,103 @@ function makeMessages(today: string): Message[] {
   ]
 }
 
+/** Tjänstemeny per PT, prissatt utifrån PT:ns timpris. */
+function makeServices(trainers: Trainer[]): TrainerService[] {
+  const round50 = (n: number) => Math.round(n / 50) * 50
+  return trainers.flatMap((t) => {
+    const p = t.pricePerSession
+    const svc = (kind: TrainerService["kind"], title: string, description: string, sessions: number, priceSek: number, durationWeeks?: number): TrainerService => ({
+      id: `svc-${t.id}-${kind}`,
+      trainerId: t.id,
+      kind,
+      title,
+      description,
+      sessions,
+      includesNutrition: kind === "nutrition" || kind === "full",
+      durationWeeks,
+      priceSek,
+      active: true,
+    })
+    const list = [
+      svc("single", "Enstaka pass", "Ett PT-pass på 60 minuter.", 1, p),
+      svc("package", "Träningsprogram 5 pass", "Fem pass och ett personligt program att följa mellan passen.", 5, round50(p * 5 * 0.92), 5),
+    ]
+    // Kalisthenics-instruktören erbjuder ingen kostcoaching.
+    if (t.id !== "t4") {
+      list.push(
+        svc("full", "Helhetspaket – träning och kost", "Sex pass, träningsprogram och ett kostschema med uppföljning varje vecka.", 6, round50(p * 6 * 0.9 + 900), 8),
+        svc("nutrition", "Kostcoaching", "Personligt kostschema med recept och uppföljning varje vecka.", 0, 1190, 4)
+      )
+    }
+    return list
+  })
+}
+
+/**
+ * Köp i demon: det som redan är schemalagt räknas som "tidigare pass" (som i
+ * migrationen), plus ett nytt köp per klient så att det finns pass kvar.
+ */
+function makePurchases(data: AppData, today: string): Purchase[] {
+  const at = `${addDays(today, -30)}T10:00:00.000Z`
+  const bought: Record<string, [string, number, boolean, number]> = {
+    c1: ["Helhetspaket – träning och kost", 12, true, 9900],
+    c2: ["Träningsprogram 5 pass", 5, false, 3900],
+    c3: ["Träningsprogram 5 pass", 5, false, 3900],
+    c4: ["Enstaka pass", 1, false, 850],
+  }
+  return data.clients
+    .filter((c) => c.trainerId && c.status !== "pending")
+    .flatMap((c) => {
+      const used = sessionBalance(data, c.trainerId!, c.id).used
+      const base = { clientId: c.id, trainerId: c.trainerId!, status: "paid" as const, createdAt: at, paidAt: at }
+      const list: Purchase[] = [
+        {
+          ...base,
+          id: `pu-${c.id}-legacy`,
+          checkoutId: `co-${c.id}-legacy`,
+          kind: "legacy",
+          title: "Tidigare pass",
+          sessions: used,
+          includesNutrition: data.nutritionPlans.some((n) => n.clientId === c.id),
+          priceSek: 0,
+        },
+      ]
+      const b = bought[c.id]
+      if (b) {
+        list.push({
+          ...base,
+          id: `pu-${c.id}-1`,
+          checkoutId: `co-${c.id}-1`,
+          kind: b[2] ? "full" : b[1] === 1 ? "single" : "package",
+          title: b[0],
+          sessions: b[1],
+          includesNutrition: b[2],
+          priceSek: b[3],
+        })
+      }
+      return list
+    })
+}
+
 export function createSeedData(today = todayISO()): AppData {
-  return {
-    trainers: makeTrainers(today),
+  const trainers = makeTrainers(today)
+  const data: AppData = {
+    trainers,
+    services: makeServices(trainers),
+    purchases: [],
+    recipes: [
+      {
+        id: "rc-t1-frukost",
+        trainerId: "t1",
+        name: "Proteinfrukost med ägg",
+        notes: "Snabb frukost med ca 35 g protein.",
+        items: [
+          { name: "Ägg", grams: 120, unit: "st", qty: 2, pieceG: 60, per100: { kcal: 143, protein: 12.6, carbs: 0.7, fat: 9.5 }, kcal: 172, protein: 15.1, carbs: 0.8, fat: 11.4 },
+          { name: "Kvarg naturell", grams: 150, unit: "g", per100: { kcal: 63, protein: 11, carbs: 4, fat: 0.2 }, kcal: 95, protein: 16.5, carbs: 6, fat: 0.3 },
+          { name: "Havregryn", grams: 40, unit: "g", per100: { kcal: 370, protein: 13, carbs: 59, fat: 7 }, kcal: 148, protein: 5.2, carbs: 23.6, fat: 2.8 },
+        ],
+      },
+    ],
     clients: makeClients(today),
     exercises,
     templates,
@@ -615,4 +712,6 @@ export function createSeedData(today = todayISO()): AppData {
     customFoods: [],
     offers: makeOffers(today),
   }
+  data.purchases = makePurchases(data, today)
+  return data
 }

@@ -7,10 +7,12 @@ export interface Food {
   protein: number
   carbs: number
   fat: number
+  /** Vanlig portion/styckvikt i gram (från biblioteket). */
+  servingG?: number
 }
 
 /** Grundbiblioteket i den enkla form som kostbyggaren använder (per 100 g). */
-export const FOODS: Food[] = FOOD_LIBRARY.map((f) => ({ name: f.name, ...f.per100 }))
+export const FOODS: Food[] = FOOD_LIBRARY.map((f) => ({ name: f.name, ...f.per100, servingG: f.servingG }))
 
 export function scaleFood(food: Food, grams: number) {
   const f = grams / 100

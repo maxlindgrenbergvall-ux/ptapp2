@@ -22,6 +22,8 @@ export function LoginForm() {
   const [error, setError] = React.useState<string | null>(
     params.get("fel") === "lank" ? "Länken var ogiltig eller har gått ut. Försök igen." : null
   )
+  // E-posten bekräftades men länken öppnades i en annan webbläsare än registreringen.
+  const confirmed = params.get("bekraftad") === "1"
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,6 +71,11 @@ export function LoginForm() {
       <OrDivider />
       <form onSubmit={submit} className="space-y-4">
         <FormError message={error} />
+        {confirmed && !error && (
+          <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
+            Din e-post är bekräftad. Logga in för att fortsätta.
+          </p>
+        )}
         <div className="space-y-2">
           <Label htmlFor="email">E-post</Label>
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Apple, Plus, Save, Trash2, X } from "lucide-react"
+import { AlertTriangle, Apple, BookOpen, Lock, Plus, Save, Trash2, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -18,11 +18,18 @@ import {
 } from "@/components/nutrition/macros"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
-import { kcalFromMacros, scaleFood } from "@/lib/foods"
-import type { MacroTargets, Meal, NutritionPlan } from "@/types/domain"
+import { kcalFromMacros } from "@/lib/foods"
+import { amountOf, itemFromFood, setAmount, switchUnit } from "@/lib/nutrition/meal-items"
+import { hasNutritionAccess } from "@/lib/services/balance"
+import { cn } from "@/lib/utils"
+import type { MacroTargets, Meal, MealItem, MealUnit, NutritionPlan, Recipe } from "@/types/domain"
 
 const PRESETS: { name: string; targets: MacroTargets }[] = [
   { name: "Viktnedgång", targets: { kcal: 1800, protein: 140, carbs: 170, fat: 60 } },
@@ -59,12 +66,14 @@ export function NutritionBuilder() {
     setPlan(data.nutritionPlans.find((p) => p.clientId === id) ?? emptyPlan(id, me.id, actions.newId))
   }
 
+  const unlocked = clientId ? hasNutritionAccess(data, me.id, clientId) : false
   const totals = sumMacros(plan.meals.flatMap((m) => m.items))
   const macroKcal = kcalFromMacros(plan.targets.protein, plan.targets.carbs, plan.targets.fat)
   const macroMismatch = plan.targets.kcal > 0 && Math.abs(macroKcal - plan.targets.kcal) > plan.targets.kcal * 0.05
 
   const setTarget = (key: keyof MacroTargets, value: number) =>
     setPlan({ ...plan, targets: { ...plan.targets, [key]: Math.max(0, Math.round(value) || 0) } })
+  const recipes = data.recipes.filter((r) => r.trainerId === me.id)
   const updateMeal = (id: string, patch: Partial<Meal>) =>
     setPlan({ ...plan, meals: plan.meals.map((m) => (m.id === id ? { ...m, ...patch } : m)) })
 
@@ -92,14 +101,16 @@ export function NutritionBuilder() {
                 {clients.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
+                    {!hasNutritionAccess(data, me.id, c.id) && " (ingen kost köpt)"}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Button
-              disabled={!dirty}
+              disabled={!dirty || !unlocked}
               onClick={() => {
-                actions.saveNutritionPlan(plan)
+                const error = actions.saveNutritionPlan(plan)
+                if (error) return toast.error(error)
                 toast.success("Kostschemat är sparat och syns för klienten")
               }}
             >
@@ -108,6 +119,16 @@ export function NutritionBuilder() {
           </>
         }
       />
+
+      {!unlocked && (
+        <p className="flex items-start gap-2 rounded-xl border border-dashed p-3 text-sm" data-testid="builder-lock">
+          <Lock className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {clients.find((c) => c.id === clientId)?.name ?? "Klienten"} har inte köpt kostcoaching. Du kan förbereda ett schema, men det kan
+            sparas och visas för klienten först när klienten köpt en tjänst med kost.
+          </span>
+        </p>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
         <div className="min-w-0 space-y-8">
@@ -167,6 +188,7 @@ export function NutritionBuilder() {
                   <MealEditor
                     key={meal.id}
                     meal={meal}
+                    recipes={recipes}
                     onChange={(patch) => updateMeal(meal.id, patch)}
                     onRemove={() => setPlan({ ...plan, meals: plan.meals.filter((m) => m.id !== meal.id) })}
                   />
@@ -192,6 +214,7 @@ export function NutritionBuilder() {
               <MacroTargetRow key={m.key} macro={m.key} value={totals[m.key]} target={plan.targets[m.key]} />
             ))}
           </div>
+          <RecipeLibrary recipes={recipes} />
         </aside>
       </div>
     </div>
@@ -219,14 +242,13 @@ function TargetInput({
         {label}
       </label>
       <div className="flex items-baseline gap-1">
-        <input
+        <NumberInput
           id={id}
-          type="number"
-          inputMode="numeric"
           min={0}
+          max={10000}
           value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full min-w-0 bg-transparent text-lg font-semibold tabular outline-none"
+          onValueChange={(v) => onChange(v ?? 0)}
+          className="h-auto w-full min-w-0 rounded-none border-0 bg-transparent px-0 py-0 text-lg font-semibold tabular shadow-none focus-visible:ring-0 md:text-lg dark:bg-transparent"
         />
         <span className="text-xs text-muted-foreground">{unit}</span>
       </div>
@@ -234,19 +256,19 @@ function TargetInput({
   )
 }
 
-function MealEditor({ meal, onChange, onRemove }: { meal: Meal; onChange: (patch: Partial<Meal>) => void; onRemove: () => void }) {
+function MealEditor({
+  meal,
+  recipes,
+  onChange,
+  onRemove,
+}: {
+  meal: Meal
+  recipes: Recipe[]
+  onChange: (patch: Partial<Meal>) => void
+  onRemove: () => void
+}) {
   const totals = sumMacros(meal.items)
-
-  const setGrams = (idx: number, grams: number) => {
-    const g = Math.max(0, Math.round(grams) || 0)
-    onChange({
-      items: meal.items.map((item, i) => {
-        if (i !== idx || item.grams <= 0) return i === idx ? { ...item, grams: g } : item
-        const f = g / item.grams
-        return { ...item, grams: g, kcal: Math.round(item.kcal * f), protein: Math.round(item.protein * f), carbs: Math.round(item.carbs * f), fat: Math.round(item.fat * f) }
-      }),
-    })
-  }
+  const [saving, setSaving] = React.useState(false)
 
   return (
     <li className="rounded-2xl border border-border/60 bg-card">
@@ -273,41 +295,239 @@ function MealEditor({ meal, onChange, onRemove }: { meal: Meal; onChange: (patch
         <MacroInline value={totals} />
       </div>
 
-      {meal.items.length > 0 && (
-        <ul className="mt-2 divide-y divide-border/60 border-t border-border/60">
-          {meal.items.map((item, idx) => (
-            <li key={idx} className="flex items-center gap-3 px-4 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-              <span className="hidden sm:inline">
+      <ItemList items={meal.items} onChange={(items) => onChange({ items })} />
+
+      <div className="flex flex-col gap-2 p-3 sm:flex-row">
+        <FoodSearch
+          className="min-w-0 flex-1"
+          placeholder="Lägg till livsmedel…"
+          onPick={(f) => onChange({ items: [...meal.items, itemFromFood(f)] })}
+        />
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          {recipes.length > 0 && (
+            <Select
+              value=""
+              onValueChange={(id) => {
+                const r = recipes.find((x) => x.id === id)
+                if (!r) return
+                onChange({ items: [...meal.items, ...r.items.map((i) => ({ ...i }))] })
+                toast.success(`${r.name} tillagt i ${meal.name.toLowerCase()}`)
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-40" aria-label={`Lägg till recept i ${meal.name}`}>
+                <BookOpen /> <SelectValue placeholder="Recept" />
+              </SelectTrigger>
+              <SelectContent>
+                {recipes.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {meal.items.length > 0 && (
+            <Button variant="outline" className={cn(recipes.length === 0 && "col-span-2")} onClick={() => setSaving(true)}>
+              <Save /> Spara som recept
+            </Button>
+          )}
+        </div>
+      </div>
+      <RecipeDialog
+        open={saving}
+        onOpenChange={setSaving}
+        initial={{ name: meal.name, notes: "", items: meal.items }}
+      />
+    </li>
+  )
+}
+
+/** Livsmedelsrader med mängd i gram eller styck. Makrona räknas om från värdena per 100 g. */
+function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: MealItem[]) => void }) {
+  if (!items.length) return null
+  const update = (idx: number, fn: (item: MealItem) => MealItem) => onChange(items.map((item, i) => (i === idx ? fn(item) : item)))
+  return (
+    <ul className="mt-2 divide-y divide-border/60 border-t border-border/60">
+      {items.map((item, idx) => {
+        const unit = item.unit ?? "g"
+        return (
+          <li key={idx} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 px-4 py-2 text-sm sm:flex">
+            <span className="min-w-0 truncate sm:flex-1">
+              {item.name}
+              <span className="block sm:hidden">
                 <MacroInline value={item} />
               </span>
-              <label className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={item.grams}
-                  onChange={(e) => setGrams(idx, Number(e.target.value))}
-                  className="w-14 rounded-md bg-muted px-1.5 py-1 text-right text-sm text-foreground tabular outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  aria-label={`Gram ${item.name}`}
-                />
-                g
-              </label>
-              <span className="w-14 shrink-0 text-right text-muted-foreground tabular">{item.kcal} kcal</span>
+            </span>
+            <span className="hidden sm:inline">
+              <MacroInline value={item} />
+            </span>
+            <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
+              <NumberInput
+                decimal={unit === "st"}
+                min={0}
+                max={unit === "st" ? 50 : 5000}
+                value={amountOf(item)}
+                onValueChange={(v) => update(idx, (it) => setAmount(it, v ?? 0))}
+                className="h-8 w-16 bg-muted px-1.5 text-right text-sm tabular"
+                aria-label={`Mängd ${item.name}`}
+              />
+              <UnitToggle value={unit} name={item.name} onChange={(u) => update(idx, (it) => switchUnit(it, u))} />
+              <span className="w-12 text-xs text-muted-foreground tabular" aria-label="Uppskattad vikt">
+                {unit === "st" ? `≈${item.grams} g` : ""}
+              </span>
+              <span className="w-16 text-right text-muted-foreground tabular">{item.kcal} kcal</span>
               <button
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label={`Ta bort ${item.name}`}
-                onClick={() => onChange({ items: meal.items.filter((_, i) => i !== idx) })}
+                onClick={() => onChange(items.filter((_, i) => i !== idx))}
               >
                 <X className="size-3.5" />
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="p-3">
-        <FoodSearch placeholder="Lägg till livsmedel (100 g, ändra efteråt)…" onPick={(f) => onChange({ items: [...meal.items, scaleFood(f, 100)] })} />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** Gram eller styck (ml finns inte i kostbyggaren – drycker anges i gram). */
+function UnitToggle({ value, name, onChange }: { value: MealUnit; name: string; onChange: (u: MealUnit) => void }) {
+  return (
+    <div role="radiogroup" aria-label={`Enhet för ${name}`} className="flex rounded-md bg-muted p-0.5 text-xs">
+      {(["g", "st"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          role="radio"
+          aria-checked={value === u}
+          onClick={() => onChange(u)}
+          className={cn("rounded px-2 py-1", value === u ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+        >
+          {u}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** PT:ns sparade recept: skapa, ändra och ta bort. Läggs in i klientens måltider via "Recept". */
+function RecipeLibrary({ recipes }: { recipes: Recipe[] }) {
+  const { actions } = useAppData()
+  const [editing, setEditing] = React.useState<Recipe | "new" | null>(null)
+  return (
+    <section className="space-y-2 border-t pt-4" aria-labelledby="recipes-title">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="recipes-title" className="text-sm font-medium text-muted-foreground">
+          Mina recept
+        </h2>
+        <Button size="xs" variant="ghost" onClick={() => setEditing("new")}>
+          <Plus /> Nytt recept
+        </Button>
       </div>
-    </li>
+      {recipes.length === 0 && <p className="text-xs text-muted-foreground">Spara en måltid som recept eller skapa ett nytt.</p>}
+      <ul className="space-y-1">
+        {recipes.map((r) => (
+          <li key={r.id} className="flex items-center gap-2 text-sm">
+            <button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => setEditing(r)}>
+              {r.name}
+            </button>
+            <span className="shrink-0 text-xs text-muted-foreground tabular">{sumMacros(r.items).kcal} kcal</span>
+            <button
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+              aria-label={`Ta bort recept ${r.name}`}
+              onClick={() => {
+                if (!window.confirm(`Ta bort receptet "${r.name}"?`)) return
+                actions.deleteRecipe(r.id)
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <RecipeDialog
+        key={editing === null ? "closed" : editing === "new" ? "new" : editing.id}
+        open={editing !== null}
+        onOpenChange={(o) => !o && setEditing(null)}
+        initial={editing && editing !== "new" ? editing : { name: "", notes: "", items: [] }}
+      />
+    </section>
+  )
+}
+
+function RecipeDialog({
+  open,
+  onOpenChange,
+  initial,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initial: { id?: string; name: string; notes: string; items: MealItem[] }
+}) {
+  const { actions } = useAppData()
+  const [name, setName] = React.useState(initial.name)
+  const [notes, setNotes] = React.useState(initial.notes)
+  const [items, setItems] = React.useState<MealItem[]>(initial.items)
+  // Öppnas på nytt (t.ex. från en annan måltid) → börja från måltidens innehåll.
+  const [wasOpen, setWasOpen] = React.useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(initial.name)
+      setNotes(initial.notes)
+      setItems(initial.items)
+    }
+  }
+  const totals = sumMacros(items)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-lg">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (name.trim().length < 2) return toast.error("Ge receptet ett namn")
+            if (!items.length) return toast.error("Lägg till minst ett livsmedel")
+            actions.saveRecipe({ id: initial.id ?? actions.newId(), name: name.trim().slice(0, 80), notes: notes.trim().slice(0, 1000), items })
+            toast.success(`Receptet "${name.trim()}" är sparat`)
+            onOpenChange(false)
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{initial.id ? "Ändra recept" : "Spara recept"}</DialogTitle>
+            <DialogDescription>
+              Receptet sparas i ditt bibliotek. Lägg in det i en klients måltid med &quot;Recept&quot; i kostschemat.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="recipe-name">Namn</Label>
+            <Input id="recipe-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Proteinfrukost" />
+          </div>
+          <div className="rounded-xl border">
+            <ItemList items={items} onChange={setItems} />
+            <div className="p-3">
+              <FoodSearch placeholder="Lägg till livsmedel…" onPick={(f) => setItems([...items, itemFromFood(f)])} />
+            </div>
+            <div className="border-t px-4 py-2 text-sm">
+              <span className="font-medium tabular">{totals.kcal} kcal</span> <MacroInline value={totals} className="ml-2" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="recipe-notes">Instruktioner (valfritt)</Label>
+            <Textarea id="recipe-notes" rows={3} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Avbryt
+            </Button>
+            <Button type="submit">
+              <Save /> Spara recept
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

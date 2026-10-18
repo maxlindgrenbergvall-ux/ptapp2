@@ -1,9 +1,10 @@
 "use client"
 
-import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Utensils } from "lucide-react"
+import { CalendarCheck, Check, ChevronRight, Dumbbell, Lock, Play, Search, Utensils } from "lucide-react"
 import Link from "next/link"
 
 import { ExtraFood, SleepTracker, WaterTracker } from "@/components/client/trackers"
+import { ServiceMenu } from "@/components/services/service-menu"
 import { PersonAvatar } from "@/components/common"
 import { KcalMeter, MACROS, MacroTargetRow, sumMacros } from "@/components/nutrition/macros"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,8 @@ import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/da
 import { setsDone, setsTotal } from "@/lib/training"
 import { cn } from "@/lib/utils"
 import { firstName } from "@/lib/names"
+import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
+import type { Trainer } from "@/types/domain"
 
 const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
@@ -26,7 +29,10 @@ export default function TodayPage() {
   const trainer = data.trainers.find((t) => t.id === client.trainerId)
   const workouts = workoutsFor(data, client.id)
   const todays = workouts.filter((w) => w.date === today)
-  const plan = data.nutritionPlans.find((p) => p.clientId === client.id)
+  // Kostråd från PT:n kräver köpt kostcoaching (databasen döljer annars planen helt).
+  const nutritionUnlocked = Boolean(trainer && hasNutritionAccess(data, trainer.id, client.id))
+  const plan = nutritionUnlocked ? data.nutritionPlans.find((p) => p.clientId === client.id) : undefined
+  const balance = trainer ? sessionBalance(data, trainer.id, client.id) : null
   const checked = new Set(
     data.mealChecks.filter((m) => m.clientId === client.id && m.date === today).map((m) => m.mealId)
   )
@@ -160,7 +166,9 @@ export default function TodayPage() {
         </h2>
         <Card className="gap-4 py-5">
           <CardContent className="space-y-5 px-5">
-            {targets ? (
+            {!nutritionUnlocked ? (
+              <NutritionLock trainer={trainer} />
+            ) : targets ? (
               <>
                 <KcalMeter value={eaten.kcal} target={targets.kcal} />
                 <div className="space-y-3">
@@ -238,6 +246,7 @@ export default function TodayPage() {
                 {booking
                   ? `Nästa pass: ${formatSlot(booking.start)}${booking.status === "pending" ? (booking.awaiting === "client" ? " · ny tid – ditt svar behövs" : " · väntar på bekräftelse") : " · bekräftat"}`
                   : "Ingen bokad session"}
+                {balance && balance.paid > 0 && ` · ${balance.remaining} pass kvar`}
               </div>
             </div>
             <ChevronRight className="size-4 text-muted-foreground" />
@@ -250,6 +259,37 @@ export default function TodayPage() {
           </Button>
         )}
       </section>
+    </div>
+  )
+}
+
+/** Kostråden är låsta tills klienten köpt kostcoaching (egen kostloggning fungerar ändå). */
+function NutritionLock({ trainer }: { trainer?: Trainer }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-dashed p-4" data-testid="nutrition-lock">
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
+          <Lock className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-medium">Kostråd ingår inte i ditt paket</p>
+          <p className="text-sm text-muted-foreground">
+            {trainer
+              ? `Lägg till kostcoaching hos ${firstName(trainer.name)} för att få ett personligt kostschema, recept och uppföljning.`
+              : "Välj en PT som erbjuder kostcoaching för att få ett personligt kostschema."}
+          </p>
+        </div>
+      </div>
+      {trainer ? (
+        <ServiceMenu trainer={trainer} only={(s) => s.includesNutrition} className="sm:grid-cols-1" />
+      ) : (
+        <Button asChild variant="outline" className="w-full">
+          <Link href="/klient/hitta">
+            <Search /> Hitta en PT
+          </Link>
+        </Button>
+      )}
+      <p className="text-xs text-muted-foreground">Du kan alltid logga det du äter själv nedan.</p>
     </div>
   )
 }

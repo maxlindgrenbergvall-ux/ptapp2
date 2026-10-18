@@ -6,6 +6,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { SlotPicker } from "@/components/calendar/slot-picker"
+import { ServiceMenu } from "@/components/services/service-menu"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
 import { Badge } from "@/components/ui/badge"
@@ -22,10 +23,12 @@ import {
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { formatSek } from "@/lib/money"
 import { useAppData } from "@/lib/data/store"
 import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
 import { formatShort, todayISO } from "@/lib/date"
 import { recordInterest } from "@/lib/offers/interests"
+import { sessionBalance } from "@/lib/services/balance"
 import { isFreeOffer } from "@/lib/offers/policy"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
@@ -40,11 +43,16 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
   React.useEffect(() => {
     if (specialties) recordInterest(me.id, specialties.split(",") as Trainer["specialties"], "profile")
   }, [specialties, me.id])
+  // Tillbaka från Stripe utan att betala.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("kop") === "avbrutet") toast("Betalningen avbröts – inget har dragits.")
+  }, [])
   if (!trainer) return <EmptyState icon={X} title="Tränaren hittades inte" />
   const today = todayISO()
   const offers = data.offers.filter((o) => o.trainerId === trainer.id && o.active && !isFreeOffer(o) && (!o.validUntil || o.validUntil >= today))
 
   const isMyTrainer = client.trainerId === trainer.id && client.status !== "pending"
+  const balance = sessionBalance(data, trainer.id, me.id)
 
   return (
     <div className="space-y-6">
@@ -67,7 +75,7 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           <Rating value={trainer.rating} count={trainer.reviews.length} />
           <span className="text-muted-foreground">·</span>
           <span className="tabular">
-            <span className="font-semibold">{trainer.pricePerSession} kr</span> / pass
+            <span className="font-semibold">{formatSek(trainer.pricePerSession)}</span> / pass
           </span>
           <span className="text-muted-foreground">·</span>
           <span>{trainer.yearsExperience} år</span>
@@ -93,6 +101,20 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           </Button>
         )}
       </div>
+
+      <section id="tjanster" className="scroll-mt-20 space-y-2" aria-labelledby="services-title">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 id="services-title" className="font-semibold">
+            Tjänster
+          </h2>
+          {balance.paid > 0 && (
+            <p className="text-sm text-muted-foreground" data-testid="session-balance">
+              Du har <span className="font-medium text-foreground tabular">{balance.remaining}</span> av {balance.paid} pass kvar
+            </p>
+          )}
+        </div>
+        <ServiceMenu trainer={trainer} />
+      </section>
 
       {offers.length > 0 && (
         <section className="space-y-2" aria-labelledby="offers-title">
@@ -145,7 +167,8 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
 }
 
 function BookingDialog({ trainer }: { trainer: Trainer }) {
-  const { actions } = useAppData()
+  const { actions, data, me } = useAppData()
+  const balance = sessionBalance(data, trainer.id, me.id)
   const [open, setOpen] = React.useState(false)
   const [slot, setSlot] = React.useState<Slot | null>(null)
   const [mode, setMode] = React.useState<SessionMode>(trainer.coachingMode === "remote" ? "remote" : "onsite")
@@ -195,11 +218,33 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
               </Button>
             </div>
           </div>
+        ) : balance.remaining < 1 ? (
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Köp pass för att boka</DialogTitle>
+              <DialogDescription>
+                {balance.paid > 0
+                  ? `Du har använt alla ${balance.paid} pass du köpt hos ${firstName(trainer.name)}.`
+                  : `Välj en tjänst hos ${firstName(trainer.name)} först. Varje bokning använder ett betalt pass.`}
+              </DialogDescription>
+            </DialogHeader>
+            <Button
+              className="w-full"
+              onClick={() => {
+                setOpen(false)
+                document.getElementById("tjanster")?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }}
+            >
+              Visa tjänster och priser
+            </Button>
+          </div>
         ) : (
           <>
             <DialogHeader>
               <DialogTitle>Boka {firstName(trainer.name)}</DialogTitle>
-              <DialogDescription>Välj en ledig tid. Bokningen blir klar när {firstName(trainer.name)} bekräftat den.</DialogDescription>
+              <DialogDescription>
+                Välj en ledig tid. Bokningen blir klar när {firstName(trainer.name)} bekräftat den. Du har {balance.remaining} pass kvar.
+              </DialogDescription>
             </DialogHeader>
             <SlotPicker trainerId={open ? trainer.id : null} trainerFirstName={firstName(trainer.name)} value={slot} onChange={setSlot} />
                 {slot && (
@@ -251,7 +296,7 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
                   setSent(slot)
                 }}
               >
-                Skicka bokningsförfrågan · {trainer.pricePerSession} kr
+                Skicka bokningsförfrågan
               </Button>
             </DialogFooter>
           </>

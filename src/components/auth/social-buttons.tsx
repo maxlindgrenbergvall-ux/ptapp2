@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { authErrorMessage } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
+import { authCallbackUrl } from "@/lib/auth-redirect"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
@@ -36,7 +37,7 @@ export function SocialButtons({ next, onError }: { next?: string; onError?: (mes
     const { error } = await getSupabase().auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}`,
+        redirectTo: authCallbackUrl(target),
         // Google: visa kontoväljaren även om man bara har ett konto inloggat.
         ...(provider === "google" ? { queryParams: { prompt: "select_account" } } : {}),
       },

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { DASHBOARD_PATH } from "@/lib/auth-redirect"
 import {
   homeFor,
   isSupabaseEnabled,
@@ -11,7 +12,7 @@ import {
   SUPABASE_URL,
 } from "@/lib/supabase/config"
 
-const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH]
+const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH, DASHBOARD_PATH]
 /** Startsidan är inloggnings-/registreringssidan. */
 const AUTH_PAGES = ["/", "/logga-in", PT_LOGIN_PATH, "/registrera"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
@@ -25,6 +26,19 @@ const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-loseno
  */
 export async function proxy(request: NextRequest) {
   if (!isSupabaseEnabled) return NextResponse.next()
+
+  // E-postlänkar som hamnat på fel sida (t.ex. Site URL = startsidan när
+  // redirect-adressen inte var godkänd i Supabase): skicka koden vidare.
+  const params = request.nextUrl.searchParams
+  if (!request.nextUrl.pathname.startsWith("/auth/") && !request.nextUrl.pathname.startsWith("/api/")) {
+    const target = params.get("code") ? "/auth/callback" : params.get("token_hash") && params.get("type") ? "/auth/confirm" : null
+    if (target) {
+      const url = request.nextUrl.clone()
+      url.pathname = target
+      if (!url.searchParams.get("next")) url.searchParams.set("next", DASHBOARD_PATH)
+      return NextResponse.redirect(url)
+    }
+  }
 
   let response = NextResponse.next({ request })
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -76,7 +90,7 @@ export async function proxy(request: NextRequest) {
     await supabase.auth.signOut()
     return redirect(`${PT_LOGIN_PATH}?fel=social`)
   }
-  if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH) return redirect(home)
+  if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH || path === DASHBOARD_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)
 
   return response

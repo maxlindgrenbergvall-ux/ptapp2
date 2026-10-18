@@ -204,11 +204,12 @@ export function WaterTracker({ date }: { date: ISODate }) {
         <Button variant="outline" size="icon" aria-label="Ta bort ett glas" onClick={() => actions.addWater(date, -GLASS)} disabled={ml === 0}>
           <Minus />
         </Button>
-        <Button variant="secondary" className="flex-1" onClick={() => actions.addWater(date, GLASS)}>
-          <Plus /> Glas · 250 ml
+        {/* Smala mobiler: bara mängden, så att knapparna ryms bredvid varandra. */}
+        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till ett glas, 250 ml" onClick={() => actions.addWater(date, GLASS)}>
+          <Plus /> <span className="hidden min-[400px]:inline">Glas ·</span> 250 ml
         </Button>
-        <Button variant="secondary" className="flex-1" onClick={() => actions.addWater(date, 500)}>
-          <Plus /> Flaska · 500 ml
+        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till en flaska, 500 ml" onClick={() => actions.addWater(date, 500)}>
+          <Plus /> <span className="hidden min-[400px]:inline">Flaska ·</span> 500 ml
         </Button>
       </div>
     </section>

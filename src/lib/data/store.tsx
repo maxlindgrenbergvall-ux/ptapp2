@@ -30,6 +30,7 @@ import {
 import { findConflict } from "@/lib/calendar/slots"
 import { diffNotifications } from "@/lib/notifications/rules"
 import { forgetInterests } from "@/lib/offers/interests"
+import { hasNutritionAccess, noCreditMessage, sessionBalance } from "@/lib/services/balance"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
@@ -51,7 +52,10 @@ import type {
   ISODate,
   Me,
   NutritionPlan,
+  Purchase,
+  Recipe,
   SetLog,
+  TrainerService,
   UserRole,
   WeightEntry,
   WorkoutStatus,
@@ -64,8 +68,8 @@ export interface SyncState {
   pending: number
 }
 
-// Ny nyckel vid namnbytet till Coavira: demon börjar om med färsk data (inkl. aviseringar och erbjudanden).
-const DEMO_KEY = "coavira:demo:v1"
+// Ny nyckel när demodatan ändrar form (v2: tjänster, köp och recept) – demon börjar om med färsk data.
+const DEMO_KEY = "coavira:demo:v2"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
 const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
 
@@ -107,13 +111,20 @@ function createActions(ctx: {
     },
     setWorkoutStatus: (workoutId: ID, status: WorkoutStatus, comment?: string) =>
       commit({ type: "setWorkoutStatus", workoutId, status, comment, completedAt: status === "completed" ? now() : undefined }),
-    scheduleWorkout: (clientId: ID, template: WorkoutTemplate, date: ISODate) => {
+    /**
+     * PT: schemalägg ett pass. Returnerar ett felmeddelande om klienten inte har
+     * betalda pass kvar (databasen kontrollerar samma sak).
+     */
+    scheduleWorkout: (clientId: ID, template: WorkoutTemplate, date: ISODate): string | null => {
+      const balance = sessionBalance(getData(), me.id, clientId)
+      if (balance.remaining < 1) return noCreditMessage(balance)
       const id = newId()
       commit({
         type: "addWorkout",
         workout: {
           id,
           clientId,
+          trainerId: me.id,
           templateId: template.id,
           name: template.name,
           date,
@@ -123,10 +134,67 @@ function createActions(ctx: {
           logs: [],
         },
       })
+      return null
     },
     saveTemplate: (template: WorkoutTemplate) => commit({ type: "upsertTemplate", template }),
     deleteTemplate: (templateId: ID) => commit({ type: "deleteTemplate", templateId }),
-    saveNutritionPlan: (plan: NutritionPlan) => commit({ type: "upsertNutritionPlan", plan }),
+    /** PT: spara kostplanen. Kräver att klienten köpt kostcoaching. */
+    saveNutritionPlan: (plan: NutritionPlan): string | null => {
+      if (!hasNutritionAccess(getData(), me.id, plan.clientId)) return "Klienten har inte köpt kostcoaching."
+      commit({ type: "upsertNutritionPlan", plan })
+      return null
+    },
+    saveRecipe: (recipe: Omit<Recipe, "trainerId">) => commit({ type: "saveRecipe", recipe: { ...recipe, trainerId: me.id } }),
+    deleteRecipe: (recipeId: ID) => commit({ type: "deleteRecipe", recipeId }),
+    /** PT: skapa eller ändra en tjänst i menyn. */
+    saveService: (service: Omit<TrainerService, "trainerId">) => commit({ type: "saveService", service: { ...service, trainerId: me.id } }),
+    deleteService: (serviceId: ID) => commit({ type: "deleteService", serviceId }),
+    /**
+     * Klient: köp en eller flera tjänster hos samma PT. Med Supabase skickas
+     * klienten till Stripe Checkout (servern hämtar priserna); i demoläget
+     * simuleras en godkänd betalning direkt.
+     */
+    checkout: async (serviceIds: ID[]): Promise<string | null> => {
+      const data = getData()
+      const services = serviceIds.map((id) => data.services.find((x) => x.id === id)).filter((x): x is TrainerService => Boolean(x))
+      if (!services.length || services.length !== serviceIds.length) return "Tjänsten finns inte längre."
+      if (new Set(services.map((x) => x.trainerId)).size !== 1) return "Alla tjänster måste vara hos samma PT."
+      const self = data.clients.find((c) => c.id === me.id)
+      if (self?.trainerId && self.trainerId !== services[0].trainerId && self.status !== "pending") return "Du tränar redan med en annan PT."
+      if (ctx.mode === "demo") {
+        const checkoutId = newId()
+        const purchases: Purchase[] = services.map((x) => ({
+          id: newId(),
+          checkoutId,
+          clientId: me.id,
+          trainerId: x.trainerId,
+          serviceId: x.id,
+          kind: x.kind,
+          title: x.title,
+          sessions: x.sessions,
+          includesNutrition: x.includesNutrition,
+          priceSek: x.priceSek,
+          status: "paid",
+          createdAt: now(),
+          paidAt: now(),
+        }))
+        ctx.dispatch({ type: "upsertPurchases", purchases, today: todayISO() })
+        return null
+      }
+      try {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ serviceIds }),
+        })
+        const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+        if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
+        window.location.assign(body.url)
+        return null
+      } catch {
+        return "Ingen uppkoppling – försök igen."
+      }
+    },
     toggleMeal: (clientId: ID, date: ISODate, mealId: ID) => {
       const checked = !getData().mealChecks.some((m) => m.clientId === clientId && m.date === date && m.mealId === mealId)
       commit({ type: "setMealCheck", clientId, date, mealId, checked })
@@ -165,9 +233,8 @@ function createActions(ctx: {
     requestBooking: (trainerId: ID, slot: Slot, mode: SessionMode, note?: string): string | null => {
       const data = getData()
       if (findConflict(data.events, trainerId, new Date(slot.start), new Date(slot.end))) return "Tiden hann bokas av någon annan."
-      const self = data.clients.find((c) => c.id === me.id)
-      // Första bokningen hos en PT är också en förfrågan om coachning.
-      if (self && !self.trainerId) commit({ type: "requestCoaching", trainerId, clientId: me.id, goal: "" })
+      // Varje bokning tar ett betalt pass.
+      if (sessionBalance(data, trainerId, me.id).remaining < 1) return "Du har inga betalda pass kvar hos PT:n. Köp pass för att boka."
       commit({
         type: "addEvent",
         event: {
@@ -224,6 +291,11 @@ function createActions(ctx: {
     createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">): string | null => {
       const conflict = findConflict(getData().events, me.id, new Date(input.start), new Date(input.end))
       if (conflict) return `Krockar med "${conflict.title || "en annan händelse"}".`
+      // Ett pass med klient (utan kopplat träningspass) tar ett betalt pass.
+      if (input.kind === "session" && input.clientId && !input.workoutId && input.status !== "cancelled") {
+        const balance = sessionBalance(getData(), me.id, input.clientId)
+        if (balance.remaining < 1) return noCreditMessage(balance)
+      }
       // Ett preliminärt pass med klient väntar på att klienten bekräftar.
       const awaiting = input.status === "pending" ? ("client" as const) : undefined
       commit({ type: "addEvent", event: { ...input, awaiting, id: newId(), trainerId: me.id, createdBy: me.id } })

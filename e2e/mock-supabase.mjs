@@ -68,11 +68,26 @@ const offerRows = [{
 }]
 const slots = [3, 4].flatMap((d) => [8, 9].map((h) => ({ start_time: at(d, h), end_time: at(d, h + 1) })))
 const FEED_TOKEN = "ab".repeat(32)
+// v11: tjänster och köp. Sara har köpt 5 pass (3 använda: ett pass + två kalenderpass) men ingen kost.
+const S_SINGLE = "99999999-0000-4000-8000-000000000001"
+const S_FOOD = "99999999-0000-4000-8000-000000000002"
+const CO_PAID = "aaaaaaaa-0000-4000-8000-000000000001"
+const CO_NEW = "aaaaaaaa-0000-4000-8000-000000000002"
+const serviceRows = [
+  { id: S_SINGLE, trainer_id: T1, kind: "single", title: "Enstaka pass", description: "", sessions: 1, includes_nutrition: false, duration_weeks: null, price_sek: 800, active: true },
+  { id: S_FOOD, trainer_id: T1, kind: "nutrition", title: "Kostcoaching", description: "Kostschema", sessions: 0, includes_nutrition: true, duration_weeks: 4, price_sek: 1190, active: true },
+]
+const purchaseRows = [
+  { id: "bbbbbbbb-0000-4000-8000-000000000001", checkout_id: CO_PAID, client_id: C1, trainer_id: T1, service_id: null, kind: "package", title: "Program 5 pass", sessions: 5, includes_nutrition: false, price_sek: 3500, status: "paid", created_at: `${TODAY}T08:00:00Z`, paid_at: `${TODAY}T08:01:00Z`, stripe_session_id: "cs_old" },
+  { id: "bbbbbbbb-0000-4000-8000-000000000002", checkout_id: CO_NEW, client_id: C1, trainer_id: T1, service_id: S_SINGLE, kind: "single", title: "Enstaka pass", sessions: 1, includes_nutrition: false, price_sek: 800, status: "pending", created_at: `${TODAY}T09:00:00Z`, paid_at: null, stripe_session_id: "cs_test_1" },
+]
 const rpc = {
   calendar_feed_token: FEED_TOKEN,
   available_slots: slots,
   next_available_slots: [{ trainer_id: T1, start_time: slots[0].start_time }],
+  attach_checkout_session: null,
 }
+const SERVICE_KEY = "service-test"
 
 function fixtures(uid, table) {
   const client = uid === C1
@@ -95,6 +110,9 @@ function fixtures(uid, table) {
     case "weight_entries": return client ? [] : []
     case "meal_checks": return []
     case "workout_templates": return []
+    case "trainer_services": return serviceRows
+    case "purchases": return purchaseRows
+    case "recipes": return []
     default: return []
   }
 }
@@ -139,6 +157,19 @@ http.createServer(async (req, res) => {
   try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
   if (url.pathname === "/auth/v1/user") return uid && byId[uid] ? send(200, userJson(byId[uid])) : send(401, { msg: "invalid JWT" })
   if (url.pathname === "/auth/v1/logout") return send(204)
+  // v11: bekräftelselänk med token_hash (/auth/confirm → verifyOtp).
+  if (url.pathname === "/auth/v1/verify" && req.method === "POST") {
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "POST", table: "auth.verify", body: p })
+    const u = p.token_hash === "th_sara" ? users["sara@test.se"] : p.token_hash === "th_ny" ? users["ny@test.se"] : null
+    return u ? send(200, session(u)) : send(403, { code: 403, error_code: "otp_expired", msg: "Email link is invalid or has expired" })
+  }
+  // v11: servern (service role) markerar en kassa som betald.
+  if (url.pathname === "/rest/v1/rpc/mark_checkout_paid" || url.pathname === "/rest/v1/rpc/mark_checkout_refunded") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(401, { code: "42501", message: "permission denied" })
+    log.push({ method: "RPC", table: url.pathname.split("/").pop(), body: JSON.parse(body || "{}") })
+    return send(200, 1)
+  }
   // "Glömt lösenordet?" / PT väljer lösenord.
   if (url.pathname === "/auth/v1/recover") {
     log.push({ method: "POST", table: "auth.recover", body: JSON.parse(body || "{}"), query: url.search })
@@ -174,7 +205,18 @@ http.createServer(async (req, res) => {
       byId[uid].app_metadata.role = p.p_role
       return send(200, null)
     }
-    if (m[1] && rpc[table]) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
+    if (m[1] && table === "create_checkout") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      const lines = serviceRows.filter((x) => p.p_service_ids.includes(x.id))
+      return send(200, {
+        checkout_id: CO_NEW,
+        trainer_id: T1,
+        total_sek: lines.reduce((a, x) => a + x.price_sek, 0),
+        lines: lines.map((x) => ({ purchase_id: x.id, title: x.title, price_sek: x.price_sek, kind: x.kind })),
+      })
+    }
+    if (m[1] && table in rpc) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
     if (req.method === "GET") {
       const rows = fixtures(uid, table)
       if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) return send(200, rows[0])

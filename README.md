@@ -27,9 +27,16 @@ npm run dev                  # http://localhost:3000
    8. `supabase/migrations/20261021000000_v8_trainers_email_only.sql`. Den gör att PT-konton inte kan kopplas till Apple eller Google.
    9. `supabase/migrations/20261022000000_v9_swedish_food_products.sql`. Den lägger till enhet (g/ml), bild och svensk marknad på produkter och enhet på matposter.
    10. `supabase/migrations/20261023000000_v10_calendar_feeds.sql`. Den lägger till kalenderlänkar (iCal) för synk med Google, Outlook och Apple.
-   11. `supabase/seed.sql`
-3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
-   `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
+   11. `supabase/migrations/20261024000000_v11_services_purchases_nutrition.sql`. Den lägger till tjänster, köp och betalning, passgräns, kostlås, recept och låsta certifikat. Befintliga klienter får ett köp för det som redan är schemalagt.
+   12. `supabase/seed.sql`
+3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
+   - *Site URL*: produktionsadressen, t.ex. `https://app.coavira.com`. Inte localhost och inte en Vercel-förhandsadress.
+   - *Redirect URLs*: `https://app.coavira.com/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
+   - **Authentication → Emails → Templates**: byt länken i *Confirm signup* till
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
+     och i *Reset password* till
+     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/nytt-losenord`.
+     Då loggas användaren in direkt och hamnar i appen, även om länken öppnas på en annan enhet eller i mejlappens webbläsare.
 4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
    - **Google:** skapa ett OAuth-klient-id (typ *Web*) i Google Cloud Console med redirect-URI `https://<projekt>.supabase.co/auth/v1/callback`, och klistra in Client ID och Secret i Supabase.
    - **Apple:** skapa ett *Services ID* med *Sign in with Apple* och samma return-URL, och en nyckel (.p8). Fyll i Services ID, Team ID, Key ID och nyckeln i Supabase.
@@ -43,7 +50,12 @@ npm run dev                  # http://localhost:3000
    - I Dashboard: välj **Authentication → Add user** (e-post, *Auto Confirm*, valfritt engångslösenord som aldrig delas) och kör sedan `select admin_make_trainer('pt@exempel.se', 'Namn', '070…');` i SQL Editor.
 
    Säg till PT:n att gå till `/logga-in/pt` och trycka på **Välj lösenord** (*Glömt lösenordet?*). Hen anger sin e-post, öppnar länken i mejlet och väljer ett eget lösenord. Därefter loggar PT:n in med e-post och lösenord, fyller i **Min profil** och publicerar. PT-konton kan **inte** logga in med Apple eller Google.
-8. Valfritt:
+8. **Betalning (Stripe)**, krävs för att klienter ska kunna köpa pass:
+   - Sätt serverhemligheterna `STRIPE_SECRET_KEY` (sk_live_… eller sk_test_…), `STRIPE_WEBHOOK_SECRET` (whsec_…) och `SUPABASE_SERVICE_ROLE_KEY` i Vercel. Ingen av dem får ha prefixet `NEXT_PUBLIC_`.
+   - I Stripe, under **Developers → Webhooks**, lägg till `https://<domän>/api/stripe/webhook` med händelserna `checkout.session.completed`, `checkout.session.async_payment_succeeded` och `charge.refunded`.
+   - Utan Stripe-nycklar visar kassan "Kortbetalning är inte aktiverad än". En betalning utanför appen (t.ex. Swish) kan registreras manuellt i SQL Editor med `select mark_checkout_paid('<checkout_id>', null, null, null);`.
+   - Verifierade certifikat läggs in av admin: `select admin_set_certifications('pt@exempel.se', array['Licensierad PT']);`.
+9. Valfritt:
    - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet, så att flödet ändå går att testa.
    - **Samtal:** under *Realtime → Settings*, stäng av *Allow public access*, så att bara privata kanaler med RLS används. Behöver ni fungera bakom strikta brandväggar eller på vissa mobilnät, ange en TURN-server i `NEXT_PUBLIC_ICE_SERVERS`.
 
@@ -207,6 +219,37 @@ npm run dev                  # http://localhost:3000
   - Väntande tider visas som en kort rad överst.
 - **Animationer på mobil:** staplar och diagram startar när de syns (`useInView` med IntersectionObserver) i stället för vid sidladdning, så att de inte redan är klara när man scrollat dit. Knappar trycks ner lite vid tryck, och den grå tryckblinken är borta. `prefers-reduced-motion` respekteras i hela appen.
 
+## Nytt i v11: tjänster, betalning, passgräns, kost och auth-länkar
+
+- **E-postlänkar loggar in direkt.**
+  - `/auth/confirm` verifierar `token_hash` och fungerar på alla enheter.
+  - `/auth/callback` byter PKCE-koden. Öppnas länken i en annan webbläsare visas "Din e-post är bekräftad – logga in".
+  - `/dashboard` skickar vidare till rätt startsida (eller välkomststeget).
+  - En `?code=` som hamnat på fel sida skickas vidare av `proxy.ts`.
+- **Certifikat** kan bara sättas av Coavira (`admin_set_certifications`; trigger spärrar PT-kontot). PT-profilen visar verifierade certifikat och hänvisar till certifiering@coavira.com.
+- **Sifferfält** (`NumberInput`) utan inledande nollor ("01"), med svenskt decimaltecken. Priser visas med `formatSek`.
+- **Tjänster:** PT:n sätter ihop sin meny med fyra typer av tjänster:
+  - enstaka pass
+  - träningsprogram med fast antal pass
+  - ren kostcoaching
+  - helhetspaket (träning och kost)
+- **Köp:**
+  - Klienten väljer en tjänst. Saknar den kost och PT:n erbjuder kostcoaching visas: *"Kosten är det som syns på riktigt – vill du lägga till kostcoaching av {förnamn}?"*.
+  - Betalningen sker via Stripe Checkout. Priserna hämtas i databasen (`create_checkout`), och bara servern kan markera köp som betalda (webhook eller `/api/checkout/verify`).
+- **Betalt köp ⇒ aktiv klient:** klienten hamnar direkt i PT:ns Klientöversikt (trigger på `purchases`).
+- **Passgräns:**
+  - *Betalda pass* är summan av pass i betalda köp.
+  - *Använda pass* är schemalagda träningspass plus aktiva kalenderpass utan kopplat träningspass.
+  - Triggers på `scheduled_workouts` och `calendar_events` stoppar allt utöver det betalda, med lås per PT–klient-par mot samtidiga anrop.
+  - Avbokade pass ger tillbaka passet.
+  - Saldot visas för både PT och klient.
+- **Kostlås:** kostschemat kan bara sparas av PT:n och läsas av klienten när klienten köpt kost (RLS och trigger). Klienten ser i stället ett låskort med köpknapp.
+- **Kostbyggaren:**
+  - Varje rad sparar näringsvärden per 100 g och räknar om från dem. Det rättar buggen där värdena försvann när gram ändrades.
+  - Enheterna är g och st (t.ex. "3 ägg ≈ 180 g") – ml är borttaget.
+  - Egna recept (`recipes`) kan sparas och läggas in i klienters måltider.
+- **Mobil:** knapparna i klientvyn (Pausa/Schemalägg pass), sidhuvudens knappar, kalenderns verktygsrad, passbyggaren och vattenknapparna radbryts i stället för att överlappa.
+
 ## Arkitektur
 
 ```
@@ -312,9 +355,11 @@ node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräf
 node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
 node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, UPC/EAN, egen produkt
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
+node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
+# Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v10`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v11`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -332,6 +377,9 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v10`) och ett migreringstest för v4 kont
 - Wearable-tokens är oläsbara för inloggade användare.
 - Egna produkter är privata, och den delade produktcachen kan bara skrivas av servern.
 - Övningsnamn kan bara sättas av klientens aktiva PT.
+- v11: PT kan inte ändra certifikat. Köp kan inte skapas eller markeras betalda av klienten. Priset hämtas från tjänsten, och fel belopp avvisas.
+- v11: en betalning aktiverar relationen. Pass 6 av 5 stoppas både som träningspass och i kalendern, och en avbokning ger tillbaka passet.
+- v11: kostplan kräver köpt kost (och låses vid återbetalning). Klienten kan inte köpa hos en annan PT än sin aktiva, och recept är privata.
 
 Supabase-e2e:n kör en mock av Supabase och kontrollerar:
 - Inloggning och felmeddelanden.

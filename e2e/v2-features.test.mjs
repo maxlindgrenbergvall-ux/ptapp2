@@ -44,8 +44,8 @@ await m.waitForSelector("text=Dagens kost")
 // Vatten
 const liters = async () => (await m.locator("#water-title").locator("xpath=../..").locator(".text-2xl").innerText()).trim()
 const before = await liters()
-await m.click("text=Glas · 250 ml")
-await m.click("text=Flaska · 500 ml")
+await m.click('button[aria-label="Lägg till ett glas, 250 ml"]')
+await m.click('button[aria-label="Lägg till en flaska, 500 ml"]')
 check((await liters()) === "0,75 l" && before === "0,0 l", `vatten: +250 +500 ml → ${await liters()}`)
 await m.click('button[aria-label="Ta bort ett glas"]')
 check((await liters()) === "0,5 l", "vatten: ångra ett glas")
@@ -128,12 +128,17 @@ await d.waitForSelector("text=Coaching-typ")
 await d.click('role=radio[name=/Distanscoaching/]')
 await d.setInputFiles('input[type=file]', pngFile)
 await d.waitForFunction(() => document.querySelector("img[src^='data:image']"))
-await d.fill("#cert", "Kettlebell nivå 1")
-await d.keyboard.press("Enter")
-await d.waitForSelector("text=Kettlebell nivå 1")
+// v11: certifikat läggs inte till av PT:n själv – de verifieras manuellt av Coavira.
+check((await d.locator("#cert").count()) === 0, "PT-profil: PT kan inte lägga till certifikat själv")
+check(
+  (await d.locator("[data-testid=cert-info]").innerText()).includes(
+    "Alla certifikat, licenser och intyg måste skickas in till oss för manuell verifiering via certifiering@coavira.com innan de godkänns på din profil."
+  ),
+  "PT-profil: informationstexten om manuell verifiering visas"
+)
 await d.click('button:has-text("Spara")')
 await d.waitForSelector("text=Profilen är sparad")
-ok("PT-profil: profilbild, coaching-typ och certifiering sparade")
+ok("PT-profil: profilbild och coaching-typ sparade")
 await d.screenshot({ path: `${out}/v2-pt-profil.png`, fullPage: true })
 
 await d.goto(`${base}/pt/kost`)
@@ -165,11 +170,11 @@ const old = await page({ width: 390, height: 844 })
 await old.goto(`${base}/klient`)
 await old.waitForSelector("text=Dagens kost")
 await old.evaluate(() => {
-  const s = JSON.parse(localStorage["coavira:demo:v1"])
+  const s = JSON.parse(localStorage["coavira:demo:v2"])
   for (const k of ["foodEntries", "waterLogs", "sleepLogs", "wearables"]) delete s.data[k]
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fältet ska bort, som i v1-data
   s.data.trainers = s.data.trainers.map(({ coachingMode, certifications, ...t }) => ({ ...t, offersRemote: coachingMode !== "onsite" }))
-  localStorage["coavira:demo:v1"] = JSON.stringify(s)
+  localStorage["coavira:demo:v2"] = JSON.stringify(s)
 })
 for (const path of ["/klient", "/klient/framsteg", "/klient/chatt", "/pt/klienter/c1", "/pt/profil"]) {
   await old.goto(`${base}${path}`)

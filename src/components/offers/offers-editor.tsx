@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -166,13 +167,12 @@ function OfferForm({ offer, specialties, onDone }: { offer?: TrainerOffer; speci
         {priceKind !== "none" && (
           <div className="space-y-1.5">
             <Label htmlFor="offer-amount">{priceKind === "discount" ? "Rabatt (%)" : "Pris (kr)"}</Label>
-            <Input
+            {/* Ingen tyst begränsning här: formuläret förklarar varför 0 kr eller 100 % inte går. */}
+            <NumberInput
               id="offer-amount"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={priceKind === "discount" ? MAX_DISCOUNT_PERCENT : 100000}
-              value={amount} onChange={(e) => setAmount(e.target.value)} />
+              value={amount === "" ? undefined : Number(amount)}
+              onValueChange={(v) => setAmount(v === undefined ? "" : String(v))}
+            />
           </div>
         )}
       </div>

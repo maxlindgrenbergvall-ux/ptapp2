@@ -19,17 +19,21 @@ import type {
   FoodProduct,
   SleepLog,
   WearableConnection,
+  Client,
   ClientStatus,
   ID,
   ISODate,
   Message,
   NutritionPlan,
+  Purchase,
+  Recipe,
   ScheduledWorkout,
   SetLog,
   Trainer,
   WeightEntry,
   WorkoutStatus,
   WorkoutTemplate,
+  TrainerService,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
 
@@ -65,6 +69,10 @@ export type PersistableAction =
   | { type: "upsertSleep"; log: SleepLog }
   | { type: "setExerciseAlias"; trainerId: ID; clientId: ID; exerciseId: ID; name: string | null }
   | { type: "upsertCustomFood"; product: FoodProduct }
+  | { type: "saveService"; service: TrainerService }
+  | { type: "deleteService"; serviceId: ID }
+  | { type: "saveRecipe"; recipe: Recipe }
+  | { type: "deleteRecipe"; recipeId: ID }
 
 /** Fält PT:n kan ändra på en händelse (klient, PT och typ är låsta). */
 export type EventPatch = Partial<Pick<CalendarEvent, "title" | "start" | "end" | "mode" | "location" | "notes" | "workoutId">>
@@ -79,7 +87,6 @@ export type TrainerProfilePatch = Partial<
     | "pricePerSession"
     | "coachingMode"
     | "avatarUrl"
-    | "certifications"
     | "minNoticeMinutes"
     | "isPublished"
   >
@@ -93,6 +100,10 @@ export type LocalAction =
   | { type: "addNotification"; notification: AppNotification }
   | { type: "setWearables"; connections: WearableConnection[] }
   | { type: "mergeSleepLogs"; logs: SleepLog[] }
+  /** Köp från servern (eller demoläget). Ett betalt köp gör klienten aktiv hos PT:n, som databasen. */
+  | { type: "upsertPurchases"; purchases: Purchase[]; today?: ISODate }
+  /** PT: en ny klient (t.ex. efter ett köp) som inte fanns när datan laddades. */
+  | { type: "addClient"; client: Client }
 
 export type Action = PersistableAction | LocalAction
 
@@ -341,6 +352,39 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "setWearables":
       return { ...data, wearables: action.connections }
+
+    case "saveService":
+      return { ...data, services: upsertBy(data.services, action.service, (x) => x.id === action.service.id) }
+
+    case "deleteService":
+      return { ...data, services: data.services.filter((x) => x.id !== action.serviceId) }
+
+    case "saveRecipe":
+      return { ...data, recipes: upsertBy(data.recipes, action.recipe, (r) => r.id === action.recipe.id) }
+
+    case "deleteRecipe":
+      return { ...data, recipes: data.recipes.filter((r) => r.id !== action.recipeId) }
+
+    case "addClient":
+      if (data.clients.some((c) => c.id === action.client.id)) return data
+      return { ...data, clients: [...data.clients, action.client] }
+
+    case "upsertPurchases": {
+      const purchases = action.purchases.reduce((list, p) => upsertBy(list, p, (x) => x.id === p.id), data.purchases)
+      const paid = action.purchases.filter((p) => p.status === "paid")
+      const clients = data.clients.map((c) => {
+        const p = paid.find((x) => x.clientId === c.id)
+        if (!p) return c
+        const fresh = c.trainerId !== p.trainerId || c.status === "pending"
+        return {
+          ...c,
+          trainerId: p.trainerId,
+          status: "active" as const,
+          startDate: fresh ? (action.today ?? c.startDate) : c.startDate,
+        }
+      })
+      return { ...data, purchases, clients }
+    }
   }
 }
 
@@ -400,6 +444,9 @@ export function normalizeAppData(raw: unknown): AppData | null {
     notifications: list(d.notifications),
     // Inga gratispass: rensa bort sådana erbjudanden ur äldre sparad data.
     offers: list<TrainerOffer>(d.offers).filter((o) => !isFreeOffer(o)),
+    services: list(d.services),
+    purchases: list(d.purchases),
+    recipes: list(d.recipes),
   }
 }
 

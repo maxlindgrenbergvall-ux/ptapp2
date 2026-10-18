@@ -8,6 +8,7 @@ import { AuthCard, authErrorMessage, DemoNotice, FormError } from "@/components/
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { authCallbackUrl } from "@/lib/auth-redirect"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, PT_LOGIN_PATH } from "@/lib/supabase/config"
 
@@ -36,7 +37,7 @@ function ForgotPassword() {
     e.preventDefault()
     setPending(true)
     const { error: authError } = await getSupabase().auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/nytt-losenord`,
+      redirectTo: authCallbackUrl("/nytt-losenord"),
     })
     setPending(false)
     // Samma besked oavsett om kontot finns, så att formuläret inte avslöjar vilka som är kunder.

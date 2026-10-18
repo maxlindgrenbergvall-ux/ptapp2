@@ -30,7 +30,7 @@ export function FoodSearch({
   const [active, setActive] = React.useState(0)
   const query = q.trim().toLowerCase()
   // Utan sökord visas några vanliga baslivsmedel; annars rankad sökning (tål å/ä/ö-varianter).
-  const matches: Food[] = (query ? searchLibrary(query, 8) : FOOD_LIBRARY.slice(0, 6)).map((f) => ({ name: f.name, ...f.per100 }))
+  const matches: Food[] = (query ? searchLibrary(query, 8) : FOOD_LIBRARY.slice(0, 6)).map((f) => ({ name: f.name, ...f.per100, servingG: f.servingG }))
 
   const pick = (food: Food | undefined) => {
     if (!food) return

@@ -148,6 +148,8 @@ export type WorkoutStatus = "planned" | "in_progress" | "completed" | "skipped"
 export interface ScheduledWorkout {
   id: ID
   clientId: ID
+  /** PT:n som schemalade passet (saknas i äldre sparad data = klientens PT). */
+  trainerId?: ID
   templateId: ID | null
   name: string
   date: ISODate
@@ -158,13 +160,33 @@ export interface ScheduledWorkout {
   clientComment?: string
 }
 
+/** Enhet i kostbyggaren: gram eller styck (t.ex. "2 ägg"). */
+export type MealUnit = "g" | "st"
+
 export interface MealItem {
   name: string
+  /** Total vikt i gram (vid "st": antal × vikt per styck). */
   grams: number
   kcal: number
   protein: number
   carbs: number
   fat: number
+  /** Näringsvärden per 100 g – makrona räknas alltid fram ur dessa. */
+  per100?: Per100
+  unit?: MealUnit
+  /** Antal styck när unit = "st". */
+  qty?: number
+  /** Uppskattad vikt per styck i gram. */
+  pieceG?: number
+}
+
+/** PT:ns sparade recept i kostbyggaren. Läggs in i klienternas måltider. */
+export interface Recipe {
+  id: ID
+  trainerId: ID
+  name: string
+  notes: string
+  items: MealItem[]
 }
 
 export interface Meal {
@@ -416,6 +438,61 @@ export interface AppData {
   notifications: AppNotification[]
   /** PT-erbjudanden: egna (PT) eller aktiva från publicerade PT:er (klient). */
   offers: TrainerOffer[]
+  /** PT:ernas tjänstemenyer (pass, paket, kost). */
+  services: TrainerService[]
+  /** Köp: klientens egna, eller PT:ns klienters. */
+  purchases: Purchase[]
+  /** PT:ns egna recept. */
+  recipes: Recipe[]
+}
+
+// ================================================================ tjänster ===
+
+/**
+ * single = enstaka pass, package = träningsprogram med ett fast antal pass,
+ * nutrition = ren kostcoaching, full = helhetspaket (träning + kost).
+ */
+export type ServiceKind = "single" | "package" | "nutrition" | "full"
+
+export const SERVICE_KIND_LABEL: Record<ServiceKind, string> = {
+  single: "Enstaka pass",
+  package: "Träningsprogram",
+  nutrition: "Kostcoaching",
+  full: "Helhetspaket (träning + kost)",
+}
+
+export interface TrainerService {
+  id: ID
+  trainerId: ID
+  kind: ServiceKind
+  title: string
+  description: string
+  /** Antal pass som ingår (0 för ren kostcoaching). */
+  sessions: number
+  includesNutrition: boolean
+  durationWeeks?: number
+  priceSek: number
+  active: boolean
+}
+
+export type PurchaseStatus = "pending" | "paid" | "cancelled" | "refunded"
+
+/** Ett köp av en tjänst (ögonblicksbild av tjänsten vid köpet). */
+export interface Purchase {
+  id: ID
+  checkoutId: ID
+  clientId: ID
+  trainerId: ID
+  serviceId?: ID
+  /** "legacy" = pass från innan betalning fanns i appen. */
+  kind: ServiceKind | "legacy"
+  title: string
+  sessions: number
+  includesNutrition: boolean
+  priceSek: number
+  status: PurchaseStatus
+  createdAt: ISODateTime
+  paidAt?: ISODateTime
 }
 
 // ============================================================ aviseringar ===

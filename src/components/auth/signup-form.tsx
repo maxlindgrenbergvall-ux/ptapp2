@@ -11,6 +11,7 @@ import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { authCallbackUrl, DASHBOARD_PATH } from "@/lib/auth-redirect"
 import { normalizePhone } from "@/lib/phone"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
@@ -74,7 +75,7 @@ export function SignupForm() {
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${ONBOARDING_PATH}`,
+        emailRedirectTo: authCallbackUrl(DASHBOARD_PATH),
         // Läses av databastriggern handle_new_user() som skapar profilen.
         data: { phone: normalized },
       },

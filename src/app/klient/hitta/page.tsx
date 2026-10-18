@@ -8,6 +8,7 @@ import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/c
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { formatSek } from "@/lib/money"
 import { useNextSlots } from "@/lib/calendar/use-slots"
 import { useAppData } from "@/lib/data/store"
 import { formatSlot } from "@/lib/date"
@@ -183,7 +184,7 @@ export default function DiscoverPage() {
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <div className="font-semibold tabular">{t.pricePerSession} kr</div>
+                      <div className="font-semibold tabular">{formatSek(t.pricePerSession)}</div>
                       <div className="text-xs text-muted-foreground">per pass</div>
                     </div>
                   </div>

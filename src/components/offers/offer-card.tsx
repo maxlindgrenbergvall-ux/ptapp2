@@ -1,6 +1,7 @@
 import { Sparkles, Tag, X } from "lucide-react"
 import Link from "next/link"
 
+import { formatSek } from "@/lib/money"
 import { formatShort } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import { SPECIALTY_LABEL, type Trainer, type TrainerOffer } from "@/types/domain"
@@ -8,7 +9,7 @@ import { SPECIALTY_LABEL, type Trainer, type TrainerOffer } from "@/types/domain
 /** Pris eller rabatt i kortform, t.ex. "−20 %" eller "2 100 kr". */
 export function offerPriceLabel(o: Pick<TrainerOffer, "priceSek" | "discountPercent">) {
   if (o.discountPercent) return `−${o.discountPercent} %`
-  if (o.priceSek !== undefined) return `${o.priceSek.toLocaleString("sv-SE")} kr`
+  if (o.priceSek !== undefined) return formatSek(o.priceSek)
   return null
 }
 

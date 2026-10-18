@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Pencil, Scale, Trophy, X } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Pencil, Scale, Ticket, Trophy, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { adherence, exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
+import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
 import { oneRepMaxSeries, setsDone, setsTotal, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
@@ -53,6 +54,8 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   const completed = workouts.filter((w) => w.status === "completed").length
   const adh = adherence(workouts, 28, today)
   const plan = data.nutritionPlans.find((p) => p.clientId === client.id)
+  const balance = sessionBalance(data, me.id, client.id)
+  const nutritionAccess = hasNutritionAccess(data, me.id, client.id)
 
   return (
     <div className="space-y-6">
@@ -62,20 +65,24 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </Link>
       </Button>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <PersonAvatar name={client.name} className="size-14 text-lg" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
-            <ClientStatusBadge status={client.status} />
+      {/* Mobil: namn överst och knapparna i ett eget rutnät under, så att de aldrig överlappar. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <PersonAvatar name={client.name} className="size-14 shrink-0 text-lg" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight break-words">{client.name}</h1>
+              <ClientStatusBadge status={client.status} />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {client.goal ? `Mål: ${client.goal} · ` : ""}Klient sedan {formatShort(client.startDate)}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Mål: {client.goal} · Klient sedan {formatShort(client.startDate)}
-          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:flex-wrap sm:justify-end" data-testid="client-actions">
           {client.status === "pending" && (
             <Button
+              className="w-full sm:w-auto"
               onClick={() => {
                 actions.setClientStatus(client.id, "active")
                 toast.success(`${client.name} är nu aktiv klient`)
@@ -85,20 +92,26 @@ export function ClientDetail({ clientId }: { clientId: string }) {
             </Button>
           )}
           {client.status === "active" && (
-            <Button variant="outline" onClick={() => actions.setClientStatus(client.id, "paused")}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => actions.setClientStatus(client.id, "paused")}>
               Pausa
             </Button>
           )}
           {client.status === "paused" && (
-            <Button variant="outline" onClick={() => actions.setClientStatus(client.id, "active")}>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => actions.setClientStatus(client.id, "active")}>
               Återaktivera
             </Button>
           )}
-          <ScheduleWorkoutDialog clientId={client.id} />
+          <ScheduleWorkoutDialog clientId={client.id} className="w-full sm:w-auto" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatTile
+          label="Betalda pass kvar"
+          icon={Ticket}
+          value={balance.remaining}
+          sub={balance.paid ? `${balance.used} av ${balance.paid} använda` : "Inga köpta pass"}
+        />
         <StatTile
           label="Vikt"
           icon={Scale}
@@ -164,9 +177,11 @@ export function ClientDetail({ clientId }: { clientId: string }) {
             <CardHeader>
               <CardTitle>{plan ? plan.name : "Inget kostschema"}</CardTitle>
               <CardDescription>
-                {plan
-                  ? `${plan.targets.kcal} kcal · P ${plan.targets.protein} g · K ${plan.targets.carbs} g · F ${plan.targets.fat} g`
-                  : "Skapa ett kostschema i kostbyggaren."}
+                {!nutritionAccess
+                  ? "Klienten har inte köpt kostcoaching. Kostschemat låses upp när klienten köper en tjänst med kost."
+                  : plan
+                    ? `${plan.targets.kcal} kcal · P ${plan.targets.protein} g · K ${plan.targets.carbs} g · F ${plan.targets.fat} g`
+                    : "Skapa ett kostschema i kostbyggaren."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -317,8 +332,9 @@ function FeedbackDialog({ workout }: { workout: ScheduledWorkout }) {
   )
 }
 
-function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
+function ScheduleWorkoutDialog({ clientId, className }: { clientId: string; className?: string }) {
   const { data, actions, me } = useAppData()
+  const balance = sessionBalance(data, me.id, clientId)
   const templates = data.templates.filter((t) => t.trainerId === me.id)
   const [open, setOpen] = React.useState(false)
   const [templateId, setTemplateId] = React.useState(templates[0]?.id ?? "")
@@ -327,7 +343,8 @@ function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
   const submit = () => {
     const tpl = templates.find((t) => t.id === templateId)
     if (!tpl || !date) return
-    actions.scheduleWorkout(clientId, tpl, toISODate(date))
+    const error = actions.scheduleWorkout(clientId, tpl, toISODate(date))
+    if (error) return toast.error(error)
     setOpen(false)
     toast.success(`${tpl.name} schemalagt ${formatShort(toISODate(date))}`)
   }
@@ -335,7 +352,7 @@ function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className={className}>
           <CalendarPlus /> Schemalägg pass
         </Button>
       </DialogTrigger>
@@ -344,6 +361,14 @@ function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
           <DialogTitle>Schemalägg pass</DialogTitle>
           <DialogDescription>Passet kopieras från mallen, så senare ändringar i mallen påverkar inte detta pass.</DialogDescription>
         </DialogHeader>
+        <p
+          className={balance.remaining > 0 ? "rounded-lg bg-muted px-3 py-2 text-sm" : "rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"}
+          data-testid="schedule-balance"
+        >
+          {balance.remaining > 0
+            ? `${balance.remaining} av ${balance.paid} betalda pass kvar.`
+            : `Inga betalda pass kvar (${balance.used} av ${balance.paid} använda). Klienten behöver köpa fler pass innan du kan schemalägga.`}
+        </p>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Passmall</Label>
@@ -371,7 +396,7 @@ function ScheduleWorkoutDialog({ clientId }: { clientId: string }) {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!templateId || !date}>
+          <Button onClick={submit} disabled={!templateId || !date || balance.remaining < 1}>
             Schemalägg
           </Button>
         </DialogFooter>

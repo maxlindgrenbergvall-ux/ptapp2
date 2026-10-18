@@ -113,10 +113,11 @@ export function PtCalendar() {
                 <ChevronRight />
               </Button>
             </div>
-            <h2 className="min-w-0 flex-1 truncate text-lg font-semibold" aria-live="polite">
+            {/* Mobil: rubriken på en egen rad under knapparna i stället för att trängas och kapas. */}
+            <h2 className="order-last w-full min-w-0 truncate text-lg font-semibold sm:order-none sm:w-auto sm:flex-1" aria-live="polite">
               {heading}
             </h2>
-            <Tabs value={view} onValueChange={(v) => setView(v as CalendarView)}>
+            <Tabs value={view} onValueChange={(v) => setView(v as CalendarView)} className="ml-auto sm:ml-0">
               <TabsList>
                 <TabsTrigger value="month">Månad</TabsTrigger>
                 <TabsTrigger value="week">Vecka</TabsTrigger>

@@ -9,11 +9,10 @@ import {
   Link2,
   Loader2,
   MapPin,
-  Plus,
   Repeat,
   Save,
+  ShieldCheck,
   Wifi,
-  X,
 } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
@@ -21,12 +20,15 @@ import { toast } from "sonner"
 
 import { PageHeader, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { OffersEditor } from "@/components/offers/offers-editor"
+import { ServicesEditor } from "@/components/services/services-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { formatSek } from "@/lib/money"
 import type { TrainerProfilePatch } from "@/lib/data/state"
 import { useAppData } from "@/lib/data/store"
 import { ACCEPT, uploadFile } from "@/lib/storage"
@@ -45,8 +47,8 @@ export function TrainerProfileEditor() {
     pricePerSession: trainer?.pricePerSession ?? 0,
     coachingMode: trainer?.coachingMode ?? ("onsite" as CoachingMode),
     avatarUrl: trainer?.avatarUrl ?? "",
-    certifications: trainer?.certifications ?? ([] as string[]),
   }))
+  const hasServices = data.services.some((x) => x.trainerId === me.id && x.active)
 
   if (!trainer) return null
 
@@ -55,6 +57,7 @@ export function TrainerProfileEditor() {
     form.specialties.length === 0 && "minst en inriktning",
     form.bio.trim().length < 40 && "en presentation (minst 40 tecken)",
     form.pricePerSession <= 0 && "pris",
+    !hasServices && "minst en tjänst",
   ].filter(Boolean) as string[]
 
   const dirty = (Object.keys(form) as (keyof typeof form)[]).some(
@@ -106,25 +109,21 @@ export function TrainerProfileEditor() {
                   <Input id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
                 </Field>
                 <Field label="Pris per pass (kr)" htmlFor="price">
-                  <Input
+                  <NumberInput
                     id="price"
-                    type="number"
-                    inputMode="numeric"
                     min={0}
-                    step={50}
+                    max={100000}
                     value={form.pricePerSession}
-                    onChange={(e) => setForm({ ...form, pricePerSession: Math.max(0, Number(e.target.value)) })}
+                    onValueChange={(v) => setForm({ ...form, pricePerSession: v ?? 0 })}
                   />
                 </Field>
                 <Field label="Års erfarenhet" htmlFor="years">
-                  <Input
+                  <NumberInput
                     id="years"
-                    type="number"
-                    inputMode="numeric"
                     min={0}
                     max={80}
                     value={form.yearsExperience}
-                    onChange={(e) => setForm({ ...form, yearsExperience: Math.min(80, Math.max(0, Number(e.target.value))) })}
+                    onValueChange={(v) => setForm({ ...form, yearsExperience: Math.min(80, v ?? 0) })}
                   />
                 </Field>
               </div>
@@ -181,10 +180,7 @@ export function TrainerProfileEditor() {
                   )
                 })}
               </div>
-              <CertificationsEditor
-                value={form.certifications}
-                onChange={(certifications) => setForm({ ...form, certifications })}
-              />
+              <VerifiedCertifications certifications={trainer.certifications} />
             </div>
           </Section>
 
@@ -199,6 +195,13 @@ export function TrainerProfileEditor() {
               placeholder="Vem är du, hur jobbar du och vem passar du för?"
             />
             <p className="mt-1 text-right text-xs text-muted-foreground tabular">{form.bio.length}/2000</p>
+          </Section>
+
+          <Section
+            title="Tjänster och priser"
+            description="Det klienter kan köpa av dig. Klienten betalar i appen, och du kan bara schemalägga så många pass som klienten har betalat för."
+          >
+            <ServicesEditor />
           </Section>
 
           <Section
@@ -375,57 +378,38 @@ function AvatarPicker({
   )
 }
 
-function CertificationsEditor({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const [draft, setDraft] = React.useState("")
-  const add = () => {
-    const c = draft.trim().slice(0, 60)
-    if (!c || value.some((v) => v.toLowerCase() === c.toLowerCase()) || value.length >= 20) return
-    onChange([...value, c])
-    setDraft("")
-  }
+/**
+ * Certifikat kan inte läggas till av PT:n själv – Coavira verifierar dem
+ * manuellt och lägger in dem (databasen spärrar ändringar från PT-kontot).
+ */
+function VerifiedCertifications({ certifications }: { certifications: string[] }) {
   return (
     <div className="space-y-2">
-      <Label htmlFor="cert" className="text-xs text-muted-foreground">
-        Certifieringar och utbildningar
-      </Label>
-      {value.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5">
-          {value.map((c) => (
+      <p className="text-xs text-muted-foreground">Verifierade certifieringar</p>
+      {certifications.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Verifierade certifieringar">
+          {certifications.map((c) => (
             <li key={c}>
-              <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5 py-1 pr-1">
+              <Badge variant="outline" className="gap-1 border-primary/30 bg-primary/5 py-1">
                 <BadgeCheck className="text-primary" />
                 {c}
-                <button
-                  type="button"
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-muted"
-                  aria-label={`Ta bort ${c}`}
-                  onClick={() => onChange(value.filter((v) => v !== c))}
-                >
-                  <X className="size-3" />
-                </button>
               </Badge>
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">Inga verifierade certifieringar än.</p>
       )}
-      <div className="flex gap-2">
-        <Input
-          id="cert"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              add()
-            }
-          }}
-          placeholder="T.ex. Licensierad PT, Kettlebell nivå 1"
-          maxLength={60}
-        />
-        <Button type="button" variant="outline" onClick={add} disabled={!draft.trim()}>
-          <Plus /> Lägg till
-        </Button>
-      </div>
+      <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-sm" data-testid="cert-info">
+        <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+        <span>
+          Alla certifikat, licenser och intyg måste skickas in till oss för manuell verifiering via{" "}
+          <a href="mailto:certifiering@coavira.com" className="font-medium underline underline-offset-4">
+            certifiering@coavira.com
+          </a>{" "}
+          innan de godkänns på din profil.
+        </span>
+      </p>
     </div>
   )
 }
@@ -438,7 +422,7 @@ function TrainerCardPreview({ trainer }: { trainer: Trainer }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="truncate font-semibold">{trainer.name}</h3>
-            <span className="shrink-0 font-semibold tabular">{trainer.pricePerSession} kr</span>
+            <span className="shrink-0 font-semibold tabular">{formatSek(trainer.pricePerSession)}</span>
           </div>
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="size-3" /> {trainer.city || "Stad saknas"} · {COACHING_MODE_LABEL[trainer.coachingMode]}

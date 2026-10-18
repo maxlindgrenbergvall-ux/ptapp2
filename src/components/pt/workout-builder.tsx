@@ -38,10 +38,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { sessionBalance } from "@/lib/services/balance"
 import { useAppData } from "@/lib/data/store"
 import { formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { ACCEPT, safeName, uploadFile } from "@/lib/storage"
@@ -268,7 +270,6 @@ function SortableExerciseRow({
   const exercise = data.exercises.find((e) => e.id === item.exerciseId)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const [showNotes, setShowNotes] = React.useState(Boolean(item.notes || item.videoUrl))
-  const num = (v: string) => (v === "" ? undefined : Number(v))
 
   return (
     <li
@@ -308,25 +309,25 @@ function SortableExerciseRow({
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
             <Field label="Set">
-              <Input type="number" min={1} max={20} inputMode="numeric" value={item.sets} onChange={(e) => onUpdate({ sets: Math.max(1, Number(e.target.value) || 1) })} />
+              <NumberInput min={1} max={20} value={item.sets} onValueChange={(v) => v !== undefined && onUpdate({ sets: Math.min(20, Math.max(1, v)) })} />
             </Field>
             <Field label="Reps">
               <Input value={item.reps} onChange={(e) => onUpdate({ reps: e.target.value })} />
             </Field>
             <Field label="Kg">
-              <Input type="number" min={0} step={2.5} inputMode="decimal" value={item.targetKg ?? ""} onChange={(e) => onUpdate({ targetKg: num(e.target.value) })} />
+              <NumberInput decimal min={0} max={1000} value={item.targetKg} onValueChange={(v) => onUpdate({ targetKg: v })} />
             </Field>
             <Field label="Vila (s)">
-              <Input type="number" min={0} step={15} inputMode="numeric" value={item.restSec} onChange={(e) => onUpdate({ restSec: Number(e.target.value) || 0 })} />
+              <NumberInput min={0} max={900} value={item.restSec} onValueChange={(v) => onUpdate({ restSec: v ?? 0 })} />
             </Field>
             <Field label="RPE">
-              <Input type="number" min={1} max={10} step={0.5} inputMode="decimal" value={item.rpe ?? ""} onChange={(e) => onUpdate({ rpe: num(e.target.value) })} />
+              <NumberInput decimal min={1} max={10} value={item.rpe} onValueChange={(v) => onUpdate({ rpe: v })} />
             </Field>
           </div>
           {showNotes && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
               <Textarea
                 placeholder="Instruktioner till klienten"
                 rows={3}
@@ -421,9 +422,17 @@ function AssignDialog({ template, disabled }: { template?: WorkoutTemplate; disa
   const [clientId, setClientId] = React.useState(clients[0]?.id ?? "")
   const [dates, setDates] = React.useState<Date[]>([])
 
+  const balance = clientId ? sessionBalance(data, me.id, clientId) : null
+  const tooMany = balance !== null && dates.length > balance.remaining
+
   const submit = () => {
     if (!template || !clientId || dates.length === 0) return
-    for (const d of dates) actions.scheduleWorkout(clientId, template, toISODate(d))
+    // Aldrig fler pass än klienten har betalat för.
+    if (tooMany) return toast.error(`Klienten har bara ${balance?.remaining ?? 0} betalda pass kvar.`)
+    for (const d of dates) {
+      const error = actions.scheduleWorkout(clientId, template, toISODate(d))
+      if (error) return toast.error(error)
+    }
     const name = clients.find((c) => c.id === clientId)?.name
     toast.success(`${template.name} tilldelat ${name}`, {
       description: dates.map((d) => formatShort(toISODate(d))).join(", "),
@@ -460,6 +469,12 @@ function AssignDialog({ template, disabled }: { template?: WorkoutTemplate; disa
               </SelectContent>
             </Select>
           </div>
+          {balance && (
+            <p className={cn("rounded-lg px-3 py-2 text-sm", tooMany || balance.remaining < 1 ? "bg-destructive/10 text-destructive" : "bg-muted")}>
+              {balance.remaining} av {balance.paid} betalda pass kvar
+              {tooMany ? ` – välj högst ${balance.remaining} ${balance.remaining === 1 ? "dag" : "dagar"}.` : "."}
+            </p>
+          )}
           <div className="flex justify-center rounded-md border">
             <Calendar
               mode="multiple"
@@ -471,7 +486,7 @@ function AssignDialog({ template, disabled }: { template?: WorkoutTemplate; disa
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!clientId || dates.length === 0}>
+          <Button onClick={submit} disabled={!clientId || dates.length === 0 || tooMany}>
             Tilldela {dates.length > 0 && `(${dates.length} pass)`}
           </Button>
         </DialogFooter>
@@ -538,7 +553,7 @@ function ExerciseVideoField({
         </Button>
       </form>
       <input ref={inputRef} type="file" accept={ACCEPT["exercise-videos"]} className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
-      <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" disabled={busy} onClick={() => inputRef.current?.click()}>
+      <Button type="button" variant="ghost" size="sm" className="h-auto min-h-8 w-full py-1.5 whitespace-normal text-muted-foreground" disabled={busy} onClick={() => inputRef.current?.click()}>
         {busy ? <Loader2 className="animate-spin" /> : <Upload />} {busy ? "Laddar upp…" : "eller ladda upp en video (max 200 MB)"}
       </Button>
     </div>
