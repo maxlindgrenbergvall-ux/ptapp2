@@ -146,10 +146,11 @@ interface FoodRow {
   carbs_g: number | string
   fat_g: number | string
   grams: number | string | null
+  unit?: "g" | "ml" | null
   barcode: string | null
   product_id: string | null
 }
-interface ProductRow {
+export interface ProductRow {
   id: string
   barcode: string | null
   name: string
@@ -160,6 +161,9 @@ interface ProductRow {
   fat_100g: number | string
   serving_g: number | string | null
   source: "openfoodfacts" | "custom"
+  unit?: "g" | "ml" | null
+  image_url?: string | null
+  sold_in_se?: boolean | null
 }
 interface AliasRow {
   client_id: string
@@ -340,6 +344,7 @@ export const toFood = (r: FoodRow): FoodEntry => ({
   carbs: Number(r.carbs_g),
   fat: Number(r.fat_g),
   grams: r.grams === null ? undefined : Number(r.grams),
+  unit: r.unit === "ml" ? "ml" : undefined,
   barcode: r.barcode ?? undefined,
   productId: r.product_id ?? undefined,
 })
@@ -351,6 +356,9 @@ export const toProduct = (r: ProductRow): FoodProduct => ({
   barcode: r.barcode ?? undefined,
   per100: { kcal: Number(r.kcal_100g), protein: Number(r.protein_100g), carbs: Number(r.carbs_100g), fat: Number(r.fat_100g) },
   servingG: r.serving_g === null ? undefined : Number(r.serving_g),
+  unit: r.unit === "ml" ? "ml" : "g",
+  soldInSweden: r.sold_in_se ?? undefined,
+  imageUrl: r.image_url ?? undefined,
   source: r.source,
 })
 
@@ -847,6 +855,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           carbs_g: e.carbs,
           fat_g: e.fat,
           grams: e.grams ?? null,
+          unit: e.unit ?? "g",
           barcode: e.barcode ?? null,
           // Bara riktiga produkt-id:n (baslivsmedel i appen har inga databas-id).
           product_id: e.productId && UUID.test(e.productId) ? e.productId : null,
@@ -890,6 +899,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           carbs_100g: r1(p.per100.carbs),
           fat_100g: r1(p.per100.fat),
           serving_g: p.servingG ?? null,
+          unit: p.unit ?? "g",
           source: "custom",
           created_by: me.id,
           updated_at: new Date().toISOString(),

@@ -1,5 +1,6 @@
 /**
- * Grundbibliotek med vanliga livsmedel. Värden per 100 g (ätlig del),
+ * Grundbibliotek med vanliga livsmedel. Värden per 100 g (ätlig del) eller
+ * per 100 ml för drycker,
  * avrundade och i linje med Livsmedelsverkets livsmedelsdatabas. Märkesvaror
  * och streckkoder hämtas från Open Food Facts (se /api/food).
  *
@@ -285,12 +286,16 @@ const slug = (s: string) =>
     .replace(/[^\w]+/g, "-")
     .replace(/^-|-$/g, "")
 
+/** Drycker och mjölk mäts i ml (värdena gäller då per 100 ml). */
+const LIQUIDS = new Set(["Mjölk 3 %", "Mellanmjölk 1,5 %", "Lättmjölk 0,5 %", "Laktosfri mjölk 1,5 %", "Havredryck", "Sojadryck"])
+
 export const FOOD_LIBRARY: (FoodProduct & { category: FoodCategory; keywords: string })[] = ROWS.map(
   ([name, category, kcal, protein, carbs, fat, servingG, keywords]) => ({
     id: `lib:${slug(name)}`,
     name,
     per100: { kcal, protein, carbs, fat },
     servingG,
+    unit: category === "Drycker" || LIQUIDS.has(name) ? ("ml" as const) : ("g" as const),
     source: "library",
     category,
     keywords: keywords ?? "",

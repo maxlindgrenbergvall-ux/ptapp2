@@ -234,7 +234,9 @@ export interface FoodEntry {
   protein: number
   carbs: number
   fat: number
+  /** Mängd i gram, eller i ml för drycker (se unit). */
   grams?: number
+  unit?: FoodUnit
   barcode?: string
   productId?: ID
 }
@@ -256,11 +258,17 @@ export interface FoodProduct {
   brand?: string
   barcode?: string
   per100: Per100
-  /** Vanlig portion i gram (t.ex. 1 burk = 330). */
+  /** Vanlig portion i gram eller ml (t.ex. 1 burk = 330 ml, 1 bar = 55 g). */
   servingG?: number
+  /** Näringsvärden per 100 g eller per 100 ml (drycker). Standard: g. */
+  unit?: FoodUnit
+  /** Säljs i Sverige enligt Open Food Facts (rangordnas först i sökningen). */
+  soldInSweden?: boolean
   source: FoodProductSource
   imageUrl?: string
 }
+
+export type FoodUnit = "g" | "ml"
 
 /** PT:ns eget namn på en övning för en viss klient. */
 export interface ExerciseAlias {

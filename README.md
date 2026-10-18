@@ -25,7 +25,8 @@ npm run dev                  # http://localhost:3000
    6. `supabase/migrations/20261019000000_v6_auth_onboarding_no_free.sql`. Den lägger till registrering med telefonnummer, välkomststeget (`complete_onboarding`) och regler mot gratispass.
    7. `supabase/migrations/20261020000000_v7_admin_created_trainers.sql`. Den gör att PT-konton bara kan skapas av en admin (rollen läses från `app_metadata`) och lägger till `admin_make_trainer()`.
    8. `supabase/migrations/20261021000000_v8_trainers_email_only.sql`. Den gör att PT-konton inte kan kopplas till Apple eller Google.
-   9. `supabase/seed.sql`
+   9. `supabase/migrations/20261022000000_v9_swedish_food_products.sql`. Den lägger till enhet (g/ml), bild och svensk marknad på produkter och enhet på matposter.
+   10. `supabase/seed.sql`
 3. **Authentication → URL Configuration**: sätt *Site URL* till appens adress och lägg till
    `https://<din-domän>/auth/callback` (och `http://localhost:3000/auth/callback`) under *Redirect URLs*.
 4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
@@ -179,6 +180,17 @@ npm run dev                  # http://localhost:3000
   - **I appen:** `proxy.ts` avslutar en PT-session som skapats via OAuth (`amr = oauth`) och visar en förklaring på PT-inloggningen.
 - **Första inloggningen:** PT-kontot registreras med bara e-post. På `/logga-in/pt` finns rutan *Första gången? Välj lösenord*. Den leder till `/glomt-losenord?pt=1`, där PT:n får en länk för att välja sitt eget lösenord. Ingen behöver skicka lösenord.
 
+## Nytt i v9: svenska livsmedel, drycker och snacks
+
+- **Sök och skanna mot Open Food Facts med svenska varor först** (`src/lib/openfoodfacts.ts`, anropas bara från servern med `User-Agent`):
+  - **Streckkod:** `GET /api/v2/product/{ean}?fields=…&lc=sv&cc=se`. Både UPC-A (12 siffror) och EAN-13 med inledande nolla provas.
+  - **Sök:** `GET /cgi/search.pl?search_terms=…&tagtype_0=countries&tag_0=sweden[&tagtype_1=brands&tag_1=barebells]&sort_by=unique_scans_n&lc=sv&cc=se`. Först söks produkter som säljs i Sverige, sedan samma varumärke i alla länder och sist hela databasen. Sökningen slutar när det finns tillräckligt många träffar.
+- **Varumärken:** `src/lib/swedish-brands.ts` känner igen cirka 60 vanliga butiksmärken (Barebells, Nocco, Celsius, Coca-Cola, Gainomax, Felix, Marabou, Oatly, ICA, Coop, Garant …). Nämner sökningen ett märke filtreras det på det, så att "barebells cookie" eller "nocco" ger rätt produkter. Populära märken visas som snabbval i sökningen.
+- **Rangordning:** rätt varumärke och svensk marknad kommer först, sedan namnmatchning och popularitet.
+- **Drycker i ml:** läsk, energidryck och mjölk anges per 100 ml, och portionen hämtas från förpackningen ("33 cl" blir en burk på 330 ml, en bar 55 g). Matposter sparas med enhet.
+- **Egen cache:** produkter som sökts fram eller skannats sparas i `food_products` (av servern) och söks först. Svenska varor hittas då direkt, även om Open Food Facts är långsamt, nere eller har nått sin sökgräns (cirka 10 sökningar per minut).
+- **Saknas varan?** *Lägg till egen produkt* finns både efter skanning och direkt i sökningen. Namnet förifylls, och man väljer mat eller dryck och kan ange streckkod. Produkten sparas privat på kontot och hittas under *Mina produkter* och vid nästa skanning.
+
 ## Arkitektur
 
 ```
@@ -282,9 +294,10 @@ node e2e/v3-features.test.mjs   # mot e2e/mock-openfoodfacts.mjs; kamerafallet l
                                 # ur en genererad video (node e2e/make-barcode-video.mjs)
 node e2e/calendar.test.mjs      # boka → väntar → PT accepterar → bekräftat, blockering, krockar, vyer
 node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden, dra-och-släpp och ombokning
+node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, UPC/EAN, egen produkt
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v8`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v9`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.

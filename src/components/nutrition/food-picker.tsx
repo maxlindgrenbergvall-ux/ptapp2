@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Barcode, Clock, Globe, Loader2, PackagePlus, Search, Star, WifiOff } from "lucide-react"
+import { ArrowLeft, Barcode, Clock, Globe, Loader2, PackagePlus, Plus, Search, Star, Tag, WifiOff } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -9,15 +9,18 @@ import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { searchLibrary, searchProducts, forGrams } from "@/lib/food-search"
+import { forGrams, isValidBarcode, searchLibrary, searchProducts } from "@/lib/food-search"
+import { POPULAR_BRANDS } from "@/lib/swedish-brands"
 import { cn } from "@/lib/utils"
-import type { FoodEntry, FoodProduct } from "@/types/domain"
+import type { FoodEntry, FoodProduct, FoodUnit } from "@/types/domain"
 
 export type NewFoodEntry = Omit<FoodEntry, "id" | "clientId" | "date">
 
 /**
  * Lägg till mat: sök (senaste, egna produkter, baslivsmedel, märkesvaror från
- * Open Food Facts) eller skanna streckkoden. Välj mängd och se makron direkt.
+ * Open Food Facts – svenska varor först) eller skanna streckkoden. Välj mängd
+ * (g eller ml för drycker) och se makron direkt. Saknas varan kan den läggas
+ * till som egen produkt, som sparas och hittas nästa gång.
  */
 export function FoodPicker({
   onAdd,
@@ -36,6 +39,8 @@ export function FoodPicker({
   const [selected, setSelected] = React.useState<FoodProduct | null>(null)
   const [scanOpen, setScanOpen] = React.useState(false)
   const [lookup, setLookup] = React.useState<{ code: string; status: "loading" | "missing" | "error" } | null>(null)
+  /** Lägg till egen produkt direkt från sökningen (namnet förifylls med frågan). */
+  const [manual, setManual] = React.useState<string | null>(null)
   const online = useOnlineSearch(query)
 
   const q = query.trim()
@@ -53,7 +58,9 @@ export function FoodPicker({
   }
 
   const onScanned = async (code: string) => {
-    const own = customFoods.find((p) => p.barcode === code) ?? recent.find((p) => p.barcode === code)
+    // Samma vara kan ha skannats som EAN-13 eller UPC-A (12 siffror).
+    const same = (b?: string) => !!b && (b === code || b.replace(/^0/, "") === code.replace(/^0/, ""))
+    const own = customFoods.find((p) => same(p.barcode)) ?? recent.find((p) => same(p.barcode))
     if (own) return pick(own)
     setLookup({ code, status: "loading" })
     try {
@@ -83,22 +90,28 @@ export function FoodPicker({
     )
   }
 
-  if (lookup?.status === "missing" || lookup?.status === "error") {
+  if (lookup?.status === "missing" || lookup?.status === "error" || manual !== null) {
     return (
       <CustomProductForm
-        barcode={lookup.code}
-        reason={lookup.status}
-        onCancel={() => setLookup(null)}
+        barcode={lookup?.code}
+        initialName={manual ?? ""}
+        reason={manual !== null ? "manual" : (lookup!.status as "missing" | "error")}
+        onCancel={() => {
+          setLookup(null)
+          setManual(null)
+        }}
         onSave={(p) => {
           onSaveCustom(p)
           setLookup(null)
+          setManual(null)
           pick(p)
+          toast.success("Produkten är sparad", { description: "Den finns under Mina produkter nästa gång." })
         }}
       />
     )
   }
 
-  const showPanel = open && (q.length > 0 || recents.length > 0 || mine.length > 0)
+  const showPanel = open
 
   return (
     <div className="relative">
@@ -141,6 +154,25 @@ export function FoodPicker({
           className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-xl border bg-popover p-1 shadow-xl"
           onMouseDown={(e) => e.preventDefault()}
         >
+          {!q && (
+            <div className="px-2.5 pt-1.5 pb-1">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                <Tag className="size-3" /> Populära varumärken
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {POPULAR_BRANDS.map((b) => (
+                  <button
+                    key={b.tag}
+                    type="button"
+                    onClick={() => setQuery(b.name)}
+                    className="rounded-full border bg-background px-2.5 py-1 text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <Group title="Senaste" icon={Clock} items={recents} onPick={pick} />
           <Group title="Mina produkter" icon={Star} items={mine} onPick={pick} />
           <Group title="Baslivsmedel" items={library} onPick={pick} />
@@ -160,7 +192,7 @@ export function FoodPicker({
                     <WifiOff className="size-3" /> Kunde inte söka märkesvaror just nu
                   </span>
                 ) : online.status === "done" && brands.length === 0 ? (
-                  "Inga märkesvaror hittades"
+                  "Inga märkesvaror hittades – prova att skanna streckkoden eller lägg till varan själv."
                 ) : null
               }
             />
@@ -168,8 +200,15 @@ export function FoodPicker({
           {q && library.length === 0 && mine.length === 0 && recents.length === 0 && q.length < 3 && (
             <p className="px-3 py-3 text-sm text-muted-foreground">Inga träffar. Skriv minst tre bokstäver för att söka märkesvaror.</p>
           )}
+          <button
+            type="button"
+            onClick={() => setManual(q)}
+            className="mt-1 flex w-full items-center gap-2 rounded-lg border-t px-2.5 py-2.5 text-left text-sm text-primary hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+          >
+            <Plus className="size-4" /> Hittar du inte varan? Lägg till egen produkt
+          </button>
           <div className="flex items-center justify-between gap-2 border-t px-2 pt-1.5 pb-1 text-[11px] text-muted-foreground">
-            <span>Märkesvaror: Open Food Facts (ODbL)</span>
+            <span>Märkesvaror: Open Food Facts (ODbL), svenska varor först</span>
             <button type="button" className="underline-offset-4 hover:underline" onClick={() => setOpen(false)}>
               Stäng
             </button>
@@ -218,9 +257,15 @@ function Group({
           )}
           <span className="min-w-0 flex-1">
             <span className="block truncate">{p.name}</span>
-            {p.brand && <span className="block truncate text-xs text-muted-foreground">{p.brand}</span>}
+            {(p.brand || p.servingG) && (
+              <span className="block truncate text-xs text-muted-foreground">
+                {[p.brand, p.servingG && `${p.servingG} ${p.unit ?? "g"}`].filter(Boolean).join(" · ")}
+              </span>
+            )}
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground tabular">{Math.round(p.per100.kcal)} kcal/100 g</span>
+          <span className="shrink-0 text-xs text-muted-foreground tabular">
+            {Math.round(p.per100.kcal)} kcal/100 {p.unit ?? "g"}
+          </span>
         </button>
       ))}
       {status && <div className="px-2.5 py-1.5 text-xs text-muted-foreground">{status}</div>}
@@ -265,13 +310,17 @@ function useOnlineSearch(query: string) {
 
 // ------------------------------------------------------------------ portion ---
 
+/** Snabbval för mängd: drycker i ml (burk 330, flaska 500), övrigt i gram. */
+const AMOUNTS: Record<FoodUnit, number[]> = { g: [50, 100, 150, 200], ml: [100, 250, 330, 500] }
+
 function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: (e: NewFoodEntry) => void; onBack: () => void }) {
-  const [grams, setGrams] = React.useState(String(product.servingG ?? 100))
+  const unit: FoodUnit = product.unit ?? "g"
+  const [grams, setGrams] = React.useState(String(product.servingG ?? (unit === "ml" ? 330 : 100)))
   const g = Math.max(0, Number(grams.replace(",", ".")) || 0)
   const macros = forGrams(product.per100, g)
   const chips = [
-    ...(product.servingG ? [{ label: `1 portion (${product.servingG} g)`, value: product.servingG }] : []),
-    ...[50, 100, 150, 200].filter((v) => v !== product.servingG).map((v) => ({ label: `${v} g`, value: v })),
+    ...(product.servingG ? [{ label: `1 ${unit === "ml" ? "förpackning" : "portion"} (${product.servingG} ${unit})`, value: product.servingG }] : []),
+    ...AMOUNTS[unit].filter((v) => v !== product.servingG).map((v) => ({ label: `${v} ${unit}`, value: v })),
   ].slice(0, 5)
 
   return (
@@ -279,11 +328,12 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
       className="space-y-3 rounded-xl border bg-card p-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (g <= 0 || g > 5000) return toast.error("Ange en mängd mellan 1 och 5000 g")
+        if (g <= 0 || g > 5000) return toast.error(`Ange en mängd mellan 1 och 5000 ${unit}`)
         onAdd({
           name: product.brand && !product.name.toLowerCase().includes(product.brand.toLowerCase()) ? `${product.name} (${product.brand})` : product.name,
           ...macros,
           grams: g,
+          unit,
           barcode: product.barcode,
           productId: product.id,
         })
@@ -296,7 +346,7 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{product.name}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {[product.brand, product.barcode && `EAN ${product.barcode}`, `${Math.round(product.per100.kcal)} kcal/100 g`].filter(Boolean).join(" · ")}
+            {[product.brand, product.barcode && `EAN ${product.barcode}`, `${Math.round(product.per100.kcal)} kcal/100 ${unit}`].filter(Boolean).join(" · ")}
           </div>
         </div>
       </div>
@@ -323,10 +373,10 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
             value={grams}
             onChange={(e) => setGrams(e.target.value)}
             className="h-10 w-24 text-right text-lg font-semibold tabular"
-            aria-label="Mängd i gram"
+            aria-label={unit === "ml" ? "Mängd i milliliter" : "Mängd i gram"}
             autoFocus
           />
-          <span className="text-sm text-muted-foreground">g</span>
+          <span className="text-sm text-muted-foreground">{unit}</span>
         </div>
         <div className="min-w-0 flex-1 text-right">
           <div className="text-lg font-semibold tabular">{macros.kcal} kcal</div>
@@ -343,17 +393,21 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
 // ----------------------------------------------------------- egen produkt ---
 
 function CustomProductForm({
-  barcode,
+  barcode: scanned,
+  initialName = "",
   reason,
   onSave,
   onCancel,
 }: {
   barcode?: string
-  reason: "missing" | "error"
+  initialName?: string
+  /** missing/error = efter skanning, manual = från sökningen. */
+  reason: "missing" | "error" | "manual"
   onSave: (p: FoodProduct) => void
   onCancel: () => void
 }) {
-  const [f, setF] = React.useState({ name: "", brand: "", kcal: "", protein: "", carbs: "", fat: "", serving: "" })
+  const [f, setF] = React.useState({ name: initialName, brand: "", kcal: "", protein: "", carbs: "", fat: "", serving: "", ean: "" })
+  const [unit, setUnit] = React.useState<FoodUnit>("g")
   const n = (v: string) => Math.max(0, Number(v.replace(",", ".")) || 0)
   return (
     <form
@@ -362,14 +416,17 @@ function CustomProductForm({
         e.preventDefault()
         if (!f.name.trim()) return toast.error("Ange produktens namn")
         const per100 = { kcal: n(f.kcal), protein: Math.min(100, n(f.protein)), carbs: Math.min(100, n(f.carbs)), fat: Math.min(100, n(f.fat)) }
-        if (per100.kcal <= 0 || per100.kcal > 1000) return toast.error("Ange energi per 100 g (står på förpackningen)")
+        if (per100.kcal < 0 || per100.kcal > 1000 || f.kcal.trim() === "") return toast.error(`Ange energi per 100 ${unit} (står på förpackningen)`)
+        const ean = f.ean.replace(/\D/g, "")
+        if (ean && !isValidBarcode(ean)) return toast.error("Streckkoden verkar inte stämma – kontrollera siffrorna eller lämna fältet tomt")
         onSave({
           id: crypto.randomUUID(),
           name: f.name.trim().slice(0, 160),
           brand: f.brand.trim() || undefined,
-          barcode,
+          barcode: scanned ?? (ean || undefined),
           per100,
           servingG: n(f.serving) || undefined,
+          unit,
           source: "custom",
         })
       }}
@@ -377,19 +434,56 @@ function CustomProductForm({
       <div className="flex items-start gap-2">
         <PackagePlus className="mt-0.5 size-5 shrink-0 text-primary" />
         <div className="text-sm">
-          <div className="font-medium">{reason === "missing" ? "Produkten finns inte i databasen" : "Kunde inte hämta produkten just nu"}</div>
+          <div className="font-medium">
+            {reason === "missing" ? "Produkten finns inte i databasen" : reason === "error" ? "Kunde inte hämta produkten just nu" : "Lägg till egen produkt"}
+          </div>
           <p className="text-xs text-muted-foreground">
-            Lägg till den själv med värdena från förpackningen{barcode ? ` (EAN ${barcode})` : ""}. Nästa gång du skannar den hittas den direkt.
+            Fyll i värdena från förpackningen{scanned ? ` (EAN ${scanned})` : ""}. Produkten sparas på ditt konto och hittas direkt nästa gång du söker eller skannar.
           </p>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Input className="col-span-2" placeholder="Namn, t.ex. Proteinbar choklad" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} aria-label="Namn" autoFocus />
         <Input placeholder="Varumärke (valfritt)" value={f.brand} onChange={(e) => setF({ ...f, brand: e.target.value })} aria-label="Varumärke" />
-        <Input inputMode="decimal" placeholder="Portion i g (valfritt)" value={f.serving} onChange={(e) => setF({ ...f, serving: e.target.value })} aria-label="Portion i gram" />
+        <Input
+          inputMode="decimal"
+          placeholder={`Portion i ${unit} (valfritt)`}
+          value={f.serving}
+          onChange={(e) => setF({ ...f, serving: e.target.value })}
+          aria-label={unit === "ml" ? "Portion i milliliter" : "Portion i gram"}
+        />
+        {!scanned && (
+          <Input
+            className="col-span-2"
+            inputMode="numeric"
+            placeholder="Streckkod (valfritt, siffrorna under strecken)"
+            value={f.ean}
+            onChange={(e) => setF({ ...f, ean: e.target.value })}
+            aria-label="Streckkod"
+          />
+        )}
+      </div>
+      <div role="radiogroup" aria-label="Näringsvärden anges per" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
+        {(
+          [
+            ["g", "Mat (per 100 g)"],
+            ["ml", "Dryck (per 100 ml)"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={unit === value}
+            onClick={() => setUnit(value)}
+            className={cn("rounded-md py-1.5", unit === value ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       <fieldset className="space-y-1.5">
-        <legend className="text-xs text-muted-foreground">Per 100 g</legend>
+        <legend className="text-xs text-muted-foreground">Per 100 {unit}</legend>
         <div className="grid grid-cols-4 gap-2">
           {(
             [

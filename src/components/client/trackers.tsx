@@ -43,6 +43,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
         barcode: e.barcode,
         per100: { kcal: e.kcal * f, protein: e.protein * f, carbs: e.carbs * f, fat: e.fat * f },
         servingG: e.grams,
+        unit: e.unit,
         source: e.barcode ? "openfoodfacts" : "library",
       })
       if (out.length >= 12) break
@@ -68,7 +69,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-baseline gap-1">
                   <span className="truncate">{e.name}</span>
-                  {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} g</span> : null}
+                  {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} {e.unit ?? "g"}</span> : null}
                 </div>
                 <MacroInline value={e} />
               </div>
