@@ -9,6 +9,7 @@ import { ChatThread } from "@/components/chat/chat-thread"
 import { PageHeader, PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { callThread } from "@/lib/calls/thread"
 import { useAppData } from "@/lib/data/store"
 import { formatShort, toISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -19,7 +20,8 @@ export default function PtMessagesPage() {
 
   const threads = clients
     .map((c) => {
-      const msgs = data.messages.filter((m) => m.threadId === c.id)
+      // Bara PT:ns egen tråd med klienten (klienten kan ha flera PT:er).
+      const msgs = data.messages.filter((m) => m.threadId === c.id && m.trainerId === me.id)
       const last = msgs.reduce<(typeof msgs)[number] | undefined>((a, m) => (!a || m.sentAt > a.sentAt ? m : a), undefined)
       const unread = msgs.filter((m) => m.senderId !== me.id && !m.readAt).length
       return { client: c, last, unread }
@@ -50,7 +52,7 @@ export default function PtMessagesPage() {
                     {last && <span className="shrink-0 text-xs text-muted-foreground">{formatShort(toISODate(new Date(last.sentAt)))}</span>}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
-                    {last ? `${last.senderId === me.id ? "Du: " : ""}${last.body}` : "Ingen konversation än"}
+                    {last ? `${last.senderId === me.id ? "Du: " : ""}${last.body || "Bilaga"}` : "Ingen konversation än"}
                   </p>
                 </div>
                 {unread > 0 && (
@@ -72,9 +74,16 @@ export default function PtMessagesPage() {
               <Link href={`/pt/klienter/${active.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
                 {active.name}
               </Link>
-              <CallButtons threadId={active.id} peerId={active.id} peerName={active.name} disabled={active.status === "pending"} />
+              <CallButtons threadId={callThread(active.id, me.id)} peerId={active.id} peerName={active.name} disabled={active.status === "pending"} />
             </div>
-            <ChatThread key={active.id} threadId={active.id} meId={me.id} className="flex-1" />
+            <ChatThread
+              key={active.id}
+              threadId={active.id}
+              trainerId={me.id}
+              meId={me.id}
+              peer={active.status === "pending" ? undefined : { id: active.id, name: active.name }}
+              className="flex-1"
+            />
           </div>
         ) : (
           <div className="hidden items-center justify-center text-sm text-muted-foreground md:flex">Välj en konversation</div>

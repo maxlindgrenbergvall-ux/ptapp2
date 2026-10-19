@@ -14,6 +14,7 @@ import type {
   AvailabilityRule,
   CalendarEvent,
   Client,
+  CoachingRelationship,
   ClientStatus,
   Exercise,
   ExerciseAlias,
@@ -22,6 +23,7 @@ import type {
   Me,
   Message,
   NutritionPlan,
+  ProgressEntry,
   Purchase,
   Recipe,
   Review,
@@ -47,6 +49,8 @@ interface ProfileRow {
   /** null = kontot har inte valt kontotyp i välkomststeget än. */
   role: "client" | "trainer" | null
   full_name: string
+  interests?: string[] | null
+  focus?: string | null
 }
 
 /** Kontot finns men kontotyp är inte vald (nytt konto via e-post, Apple eller Google). */
@@ -62,6 +66,8 @@ interface TrainerRow {
   avatar_url: string | null
   certifications: string[] | null
   is_published: boolean
+  offers_training?: boolean
+  offers_nutrition?: boolean
   profile?: { full_name: string } | null
   min_notice_minutes?: number | null
   reviews?: ReviewRow[]
@@ -80,7 +86,7 @@ interface RelationshipRow {
   goal: string
   started_at: string | null
   created_at: string
-  client?: { full_name: string } | null
+  client?: { full_name: string; interests?: string[] | null; focus?: string | null } | null
 }
 interface WorkoutRow {
   id: string
@@ -120,10 +126,12 @@ interface NutritionRow {
   carbs_g: number
   fat_g: number
   meals: NutritionPlan["meals"]
+  is_active?: boolean
 }
 interface MessageRow {
   id: string
   client_id: string
+  trainer_id?: string | null
   sender_id: string
   body: string
   workout_id: string | null
@@ -294,6 +302,8 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   avatarUrl: r.avatar_url ?? undefined,
   certifications: r.certifications ?? [],
   isPublished: r.is_published,
+  offersTraining: r.offers_training ?? true,
+  offersNutrition: r.offers_nutrition ?? true,
   minNoticeMinutes: r.min_notice_minutes ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
@@ -344,11 +354,30 @@ const toPlan = (r: NutritionRow): NutritionPlan => ({
   name: r.name,
   targets: { kcal: r.kcal, protein: r.protein_g, carbs: r.carbs_g, fat: r.fat_g },
   meals: r.meals ?? [],
+  active: r.is_active ?? true,
+})
+
+interface ProgressRow {
+  id: string
+  client_id: string
+  metric: string
+  value: number | string
+  date: string
+  note: string | null
+}
+const toProgress = (r: ProgressRow): ProgressEntry => ({
+  id: r.id,
+  clientId: r.client_id,
+  metric: r.metric,
+  value: Number(r.value),
+  date: r.date,
+  note: r.note || undefined,
 })
 
 export const toMessage = (r: MessageRow): Message => ({
   id: r.id,
   threadId: r.client_id,
+  ...(r.trainer_id ? { trainerId: r.trainer_id } : {}),
   senderId: r.sender_id,
   body: r.body,
   workoutId: r.workout_id ?? undefined,
@@ -547,7 +576,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
   const uid = auth.user.id
 
-  const profile = must<ProfileRow>(await sb.from("profiles").select("id, role, full_name").eq("id", uid).single(), "profil")
+  const profile = must<ProfileRow>(await sb.from("profiles").select("id, role, full_name, interests, focus").eq("id", uid).single(), "profil")
   if (!profile.role) throw new OnboardingRequired("Välj kontotyp")
   const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email }
   const since = addDays(todayISO(), -HISTORY_DAYS)
@@ -557,13 +586,14 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases] = await Promise.all([
+  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases, progress] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
     // Kalendern: 90 dagar bakåt och allt framåt (RLS: PT:ns egna / klientens egna).
     sb.from("calendar_events").select("*").gte("end_time", new Date(Date.now() - 90 * 86_400_000).toISOString()).order("start_time"),
-    sb.from("nutrition_plans").select("*").eq("is_active", true),
+    // Klient: aktivt schema + förslag från PT:er hon/han köpt kost av. PT: egna + det som gäller (RLS).
+    sb.from("nutrition_plans").select("*").order("updated_at"),
     sb.from("food_entries").select("*").gte("date", trackerSince).order("created_at"),
     sb.from("water_logs").select("client_id, date, ml").gte("date", trackerSince),
     sb.from("sleep_logs").select("*").gte("date", trackerSince).order("date"),
@@ -580,6 +610,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       : sb.from("trainer_services").select("*").eq("active", true).order("price_sek").limit(500),
     // Köp där jag är klient eller PT (RLS). Obetalda kassor visas inte.
     sb.from("purchases").select("*").neq("status", "cancelled").order("created_at"),
+    // Mätpunkter (Framsteg): klientens egna, eller PT:ns klienters (RLS).
+    sb.from("progress_entries").select("*").order("date").limit(2000),
   ])
 
   const base = {
@@ -599,6 +631,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     offers: must<OfferRow[]>(offers, "erbjudanden").map(toOffer),
     services: must<ServiceRow[]>(services, "tjänster").map(toService),
     purchases: must<PurchaseRow[]>(purchases, "köp").map(toPurchase),
+    progressEntries: must<ProgressRow[]>(progress, "mätpunkter").map(toProgress),
   }
 
   if (me.role === "trainer") {
@@ -606,7 +639,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
-        .select("*, client:profiles!coaching_relationships_client_id_fkey(full_name)")
+        .select("*, client:profiles!coaching_relationships_client_id_fkey(full_name, interests, focus)")
         .eq("trainer_id", uid)
         .neq("status", "ended"),
       sb.from("weight_entries").select("client_id, date, kg").gte("date", since).order("date"),
@@ -623,6 +656,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       status: r.status === "ended" ? "paused" : r.status,
       startDate: r.started_at ?? r.created_at.slice(0, 10),
       weightLog: weightRows.filter((w) => w.client_id === r.client_id).map((w) => ({ date: w.date, kg: Number(w.kg) })),
+      interests: r.client?.interests ?? [],
+      focus: r.client?.focus ?? "",
     }))
     return {
       me,
@@ -633,6 +668,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
         availabilityRules: must<RuleRow[]>(rules, "tillgänglighet").map(toRule),
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
+        relationships: clients.map((c) => ({ trainerId: uid, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
         mealChecks: [],
         wearables: [],
         customFoods: [],
@@ -660,7 +696,17 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     status: rel && rel.status !== "ended" ? rel.status : "pending",
     startDate: rel?.started_at ?? todayISO(),
     weightLog: must<{ date: string; kg: number | string }[]>(weights, "vikt").map((w) => ({ date: w.date, kg: Number(w.kg) })),
+    interests: profile.interests ?? [],
+    focus: profile.focus ?? "",
   }
+  // Alla PT:er klienten tränar med (flera samtidigt är tillåtet).
+  const relationships: CoachingRelationship[] = relRows.map((r) => ({
+    trainerId: r.trainer_id,
+    clientId: uid,
+    status: r.status,
+    goal: r.goal,
+    startDate: r.started_at ?? r.created_at.slice(0, 10),
+  }))
   return {
     me,
     data: {
@@ -670,6 +716,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       templates: [],
       availabilityRules: [],
       recipes: [],
+      relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
         date: m.date,
@@ -784,6 +831,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           carbs_g: p.targets.carbs,
           fat_g: p.targets.fat,
           meals: p.meals,
+          // Databasen gör schemat till ett förslag om en annan PT:s schema gäller.
           is_active: true,
           updated_at: new Date().toISOString(),
         })
@@ -808,20 +856,17 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           sender_id: m.senderId,
           body: m.body,
           workout_id: m.workoutId ?? null,
+          ...(m.trainerId ? { trainer_id: m.trainerId } : {}),
           sent_at: m.sentAt,
           attachments: (m.attachments ?? []).map(toAttachmentRow),
         })
       )
     }
-    case "markThreadRead":
-      return result(
-        sb
-          .from("messages")
-          .update({ read_at: action.readAt })
-          .eq("client_id", action.threadId)
-          .neq("sender_id", action.readerId)
-          .is("read_at", null)
-      )
+    case "markThreadRead": {
+      let q = sb.from("messages").update({ read_at: action.readAt }).eq("client_id", action.threadId).neq("sender_id", action.readerId)
+      if (action.trainerId) q = q.eq("trainer_id", action.trainerId)
+      return result(q.is("read_at", null))
+    }
     case "addWeight":
       return result(sb.from("weight_entries").upsert({ client_id: action.clientId, date: action.entry.date, kg: action.entry.kg }))
     case "requestCoaching":
@@ -926,6 +971,8 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.avatarUrl !== undefined) row.avatar_url = p.avatarUrl || null
       if (p.minNoticeMinutes !== undefined) row.min_notice_minutes = p.minNoticeMinutes
       if (p.isPublished !== undefined) row.is_published = p.isPublished
+      if (p.offersTraining !== undefined) row.offers_training = p.offersTraining
+      if (p.offersNutrition !== undefined) row.offers_nutrition = p.offersNutrition
       return result(sb.from("trainers").update(row).eq("id", action.trainerId))
     }
     case "addFoodEntry": {
@@ -1017,6 +1064,26 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     }
     case "deleteRecipe":
       return result(sb.from("recipes").delete().eq("id", action.recipeId))
+    case "leaveTrainer":
+      return result(sb.rpc("end_coaching", { p_trainer: action.trainerId }))
+    case "chooseNutritionPlan":
+      return result(sb.rpc("choose_nutrition_plan", { p_plan: action.planId }))
+    case "updateClientProfile": {
+      const p = action.patch
+      const row: Record<string, unknown> = {}
+      if (p.name !== undefined) row.full_name = p.name
+      if (p.interests !== undefined) row.interests = p.interests
+      if (p.focus !== undefined) row.focus = p.focus
+      return result(sb.from("profiles").update(row).eq("id", action.clientId))
+    }
+    case "addProgressEntry": {
+      const e = action.entry
+      return result(
+        sb.from("progress_entries").insert({ id: e.id, client_id: e.clientId, metric: e.metric, value: e.value, date: e.date, note: e.note ?? "" })
+      )
+    }
+    case "deleteProgressEntry":
+      return result(sb.from("progress_entries").delete().eq("id", action.id))
     case "upsertSleep": {
       const l = action.log
       return result(

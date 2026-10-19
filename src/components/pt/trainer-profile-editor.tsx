@@ -9,7 +9,10 @@ import {
   Link2,
   Loader2,
   MapPin,
+  Check,
+  Dumbbell,
   Repeat,
+  Salad,
   Save,
   ShieldCheck,
   Wifi,
@@ -47,6 +50,8 @@ export function TrainerProfileEditor() {
     pricePerSession: trainer?.pricePerSession ?? 0,
     coachingMode: trainer?.coachingMode ?? ("onsite" as CoachingMode),
     avatarUrl: trainer?.avatarUrl ?? "",
+    offersTraining: trainer?.offersTraining ?? true,
+    offersNutrition: trainer?.offersNutrition ?? true,
   }))
   const hasServices = data.services.some((x) => x.trainerId === me.id && x.active)
 
@@ -128,6 +133,59 @@ export function TrainerProfileEditor() {
                 </Field>
               </div>
             </div>
+          </Section>
+
+          <Section
+            title="Vad erbjuder du?"
+            description="Erbjuder du bara kost säljer du inga pass, och erbjuder du bara träning kan klienter inte köpa kostcoaching av dig."
+          >
+            <div role="group" aria-label="Utbud" className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["offersTraining", Dumbbell, "Träning", "Pass, program och uppföljning"],
+                  ["offersNutrition", Salad, "Kost", "Kostschema, recept och kostcoaching"],
+                ] as const
+              ).map(([key, Icon, label, hint]) => {
+                const on = form[key]
+                const other = key === "offersTraining" ? form.offersNutrition : form.offersTraining
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      // Minst ett måste vara valt.
+                      if (on && !other) return toast.error("Du behöver erbjuda träning, kost eller båda")
+                      setForm({ ...form, [key]: !on })
+                    }}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border p-3 text-left transition-colors",
+                      on ? "border-primary bg-primary/10 ring-1 ring-primary" : "hover:bg-muted"
+                    )}
+                  >
+                    <Icon className={cn("mt-0.5 size-4 shrink-0", on ? "text-primary" : "text-muted-foreground")} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">{label}</span>
+                      <span className="block text-xs text-muted-foreground">{hint}</span>
+                    </span>
+                    <span
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center rounded-md border",
+                        on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+                      )}
+                      aria-hidden
+                    >
+                      {on && <Check className="size-3.5" />}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {(!form.offersTraining || !form.offersNutrition) && (
+              <p className="text-xs text-muted-foreground">
+                Tjänster som innehåller {form.offersTraining ? "kost" : "pass"} pausas när du sparar.
+              </p>
+            )}
           </Section>
 
           <Section title="Coaching-typ" description="Hur du träffar dina klienter. Visas som filter i sökningen.">

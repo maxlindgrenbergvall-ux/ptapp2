@@ -28,7 +28,8 @@ npm run dev                  # http://localhost:3000
    9. `supabase/migrations/20261022000000_v9_swedish_food_products.sql`. Den lägger till enhet (g/ml), bild och svensk marknad på produkter och enhet på matposter.
    10. `supabase/migrations/20261023000000_v10_calendar_feeds.sql`. Den lägger till kalenderlänkar (iCal) för synk med Google, Outlook och Apple.
    11. `supabase/migrations/20261024000000_v11_services_purchases_nutrition.sql`. Den lägger till tjänster, köp och betalning, passgräns, kostlås, recept och låsta certifikat. Befintliga klienter får ett köp för det som redan är schemalagt.
-   12. `supabase/seed.sql`
+   12. `supabase/migrations/20261025000000_v12_multi_pt_interests.sql`. Den lägger till flera PT:er per klient, Lämna PT, ett aktivt kostschema, PT-utbud (träning/kost), intressen och mätpunkter.
+   13. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: produktionsadressen, t.ex. `https://app.coavira.com`. Inte localhost och inte en Vercel-förhandsadress.
    - *Redirect URLs*: `https://app.coavira.com/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
@@ -250,6 +251,35 @@ npm run dev                  # http://localhost:3000
   - Egna recept (`recipes`) kan sparas och läggas in i klienters måltider.
 - **Mobil:** knapparna i klientvyn (Pausa/Schemalägg pass), sidhuvudens knappar, kalenderns verktygsrad, passbyggaren och vattenknapparna radbryts i stället för att överlappa.
 
+## Nytt i v12: flera PT:er, kostval, PT-utbud, intressen och ny meny
+
+- **Stripe-rättning:**
+  - Kassan använder det officiella `stripe`-SDK:t med typade parametrar: `line_items` är en array, och `unit_amount`/`quantity` är heltal i öre.
+  - Den överflödiga `currency` på sessionsnivå är borttagen.
+  - Stripes felkod och meddelande loggas i Vercel och visas för klienten.
+  - Webhooken verifieras med `stripe.webhooks.constructEvent`.
+- **Flera PT:er:**
+  - En klient kan ha flera aktiva PT:er samtidigt.
+  - Varje PT ser klientens träning men ändrar bara sina egna pass och scheman.
+  - Chatten är en tråd per PT (`messages.trainer_id`), och samtalskanalen är `call:{klient}:{pt}`.
+  - *Lämna PT* (`end_coaching`) tar bort PT:ns åtkomst direkt, avbokar kommande pass och stänger av PT:ns kostschema. PT:n kan inte själv öppna relationen igen.
+- **Ett aktivt kostschema:**
+  - Ett unikt index tillåter bara ett aktivt schema per klient.
+  - Sparar en andra PT ett schema blir det ett förslag, och klienten väljer vilket som gäller (`choose_nutrition_plan`).
+- **PT-utbud:**
+  - `offers_training` och `offers_nutrition` bestämmer vad PT:n erbjuder: en kost-PT säljer inga pass och en tränings-PT ingen kost (trigger).
+  - Sökningen kan filtreras på Träning/Kost.
+  - Nya inriktningar: Cykling, Kondition och Kost.
+- **Intressen och Framsteg:**
+  - Intressen och fokus väljs i välkomststeget och i Profilinställningar.
+  - `src/lib/interests.ts` kopplar varje intresse till mätpunkter, t.ex. Cykling → Bästa tid på milen och Snitt-watt, Styrkelyft → 1RM ur passloggen.
+  - Loggade värden sparas i `progress_entries` och syns för klientens PT:er.
+- **Chatt och samtal:**
+  - Samtal visas som brickor i chatten, och missade samtal har en röd markering och knappen *Ring upp*.
+  - Bubblorna grupperas och "Läst" visas.
+  - Samtalsläget har ny design: gradient, frostad kontrollrad med etiketter och en ny ring/lägg-på-ikon.
+- **Logomenyn:** Coavira-loggan öppnar en meny med Inställningar, Profilinställningar, Min data och sekretess och Anslutningar. Sekretess och anslutningar har flyttats från Framsteg till egna sidor.
+
 ## Arkitektur
 
 ```
@@ -356,10 +386,11 @@ node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden
 node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, UPC/EAN, egen produkt
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
+node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v11`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v12`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -379,6 +410,7 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v11`) och ett migreringstest för v4 kont
 - Övningsnamn kan bara sättas av klientens aktiva PT.
 - v11: PT kan inte ändra certifikat. Köp kan inte skapas eller markeras betalda av klienten. Priset hämtas från tjänsten, och fel belopp avvisas.
 - v11: en betalning aktiverar relationen. Pass 6 av 5 stoppas både som träningspass och i kalendern, och en avbokning ger tillbaka passet.
+- v12: tre PT:er samtidigt, PT:er ser inte varandras chattar eller samtal och ändrar inte varandras pass eller scheman, bara ett aktivt kostschema, och klienten väljer det. Lämna PT stänger åtkomsten och PT:n kan inte återaktivera relationen. Kost-PT säljer inga pass, och intressen och mätpunkter är privata.
 - v11: kostplan kräver köpt kost (och låses vid återbetalning). Klienten kan inte köpa hos en annan PT än sin aktiva, och recept är privata.
 
 Supabase-e2e:n kör en mock av Supabase och kontrollerar:

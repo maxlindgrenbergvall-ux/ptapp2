@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
@@ -29,6 +31,9 @@ export function OnboardingForm() {
   const [name, setName] = React.useState("")
   const [phone, setPhone] = React.useState("")
   const [consent, setConsent] = React.useState(false)
+  // Intressen och mål styr mätpunkterna under Framsteg och syns för klientens PT:er.
+  const [interests, setInterests] = React.useState<string[]>([])
+  const [focus, setFocus] = React.useState("")
   const [loading, setLoading] = React.useState(isSupabaseEnabled)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -87,6 +92,11 @@ export function OnboardingForm() {
     if (rpcError && !/redan vald/i.test(rpcError.message)) {
       setPending(false)
       return setError(/telefon/i.test(rpcError.message) ? "Ogiltigt telefonnummer." : rpcError.message)
+    }
+    if (interests.length || focus.trim()) {
+      // Valfritt – ett fel här stoppar inte registreringen (kan ändras i profilen).
+      const { data: u } = await sb.auth.getUser()
+      if (u.user) await sb.from("profiles").update({ interests, focus: focus.trim().slice(0, 300) }).eq("id", u.user.id)
     }
     // Ny JWT med rollen i user_metadata, sedan hel sidladdning (proxy.ts läser cookien).
     await sb.auth.refreshSession()
@@ -154,6 +164,23 @@ export function OnboardingForm() {
             </div>
           </>
         )}
+
+        <div className="space-y-2">
+          <Label>Vad tränar du för?</Label>
+          <p className="text-xs text-muted-foreground">Välj det som passar – vi visar rätt mätpunkter under Framsteg. Kan ändras när som helst.</p>
+          <InterestPicker value={interests} onChange={setInterests} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="focus">Vad vill du utveckla? (valfritt)</Label>
+          <Textarea
+            id="focus"
+            rows={2}
+            maxLength={300}
+            value={focus}
+            onChange={(e) => setFocus(e.target.value)}
+            placeholder="T.ex. springa milen under 50 minuter"
+          />
+        </div>
 
         <div className="flex items-start gap-3 rounded-lg border p-3">
             <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />

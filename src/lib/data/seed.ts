@@ -116,6 +116,8 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "both",
       certifications: ["Licensierad PT (SCA)", "Kostrådgivare", "Hyrox-tränare"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: true,
       reviews: [
         { id: "r1", author: "Sara L.", rating: 5, text: "Gick från 60 till 95 kg i knäböj på ett halvår. Tydliga program och snabb feedback.", date: addDays(today, -20) },
         { id: "r2", author: "Jonas P.", rating: 5, text: "Perfekt inför min första Hyrox. Visste exakt vad jag skulle göra varje dag.", date: addDays(today, -64) },
@@ -134,6 +136,8 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "remote",
       certifications: ["Hyrox Elite", "Löpcoach nivå 2"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: false,
       reviews: [
         { id: "r4", author: "Linnea", rating: 5, text: "Sänkte min Hyrox-tid med 11 minuter.", date: addDays(today, -15) },
         { id: "r5", author: "Erik", rating: 5, text: "Grym på löpteknik.", date: addDays(today, -40) },
@@ -151,6 +155,8 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "onsite",
       certifications: ["Leg. fysioterapeut", "Pre- & postnatal coach"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: false,
       reviews: [
         { id: "r6", author: "Anna", rating: 5, text: "Tryggaste PT jag haft efter förlossningen.", date: addDays(today, -30) },
       ],
@@ -167,6 +173,8 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "both",
       certifications: ["Kalisthenics-instruktör"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: false,
       reviews: [
         { id: "r7", author: "Oskar", rating: 5, text: "Fick min första muscle-up efter 10 veckor!", date: addDays(today, -22) },
         { id: "r8", author: "Ida", rating: 4, text: "Bra upplägg, appen gjorde det lätt att följa.", date: addDays(today, -80) },
@@ -184,6 +192,8 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "both",
       certifications: ["Licensierad PT", "Kostrådgivare"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: true,
       reviews: [
         { id: "r9", author: "Peter", rating: 5, text: "-14 kg på ett år utan att svälta.", date: addDays(today, -50) },
       ],
@@ -200,9 +210,28 @@ function makeTrainers(today: string): Trainer[] {
       coachingMode: "onsite",
       certifications: ["Licensierad PT", "Rehabtränare"],
       isPublished: true,
+      offersTraining: true,
+      offersNutrition: true,
       reviews: [
         { id: "r10", author: "Kalle", rating: 5, text: "Ryggen håller och marken går upp. Bästa investeringen.", date: addDays(today, -9) },
       ],
+    },
+    {
+      // Ren kost-PT: säljer inga träningspass.
+      id: "t7",
+      name: "Nora Ek",
+      city: "Malmö",
+      specialties: ["kost", "viktminskning"],
+      bio: "Legitimerad dietist. Jag hjälper dig äta för dina mål – kostschema, recept och uppföljning varje vecka, helt på distans.",
+      yearsExperience: 7,
+      pricePerSession: 600,
+      rating: 4.9,
+      coachingMode: "remote",
+      certifications: ["Legitimerad dietist"],
+      isPublished: true,
+      offersTraining: false,
+      offersNutrition: true,
+      reviews: [{ id: "r20", author: "Linn", rating: 5, text: "Äntligen ett kostschema jag faktiskt orkar följa.", date: addDays(today, -15) }],
     },
   ]
 }
@@ -216,9 +245,19 @@ function makeClients(today: string): Client[] {
     }))
 
   return [
-    { id: "c1", name: "Sara Lindqvist", trainerId: "t1", goal: "Bli starkare – 100 kg knäböj", status: "active", startDate: addDays(today, -84), weightLog: weights(68, 1.5, 12) },
-    { id: "c2", name: "Jonas Pettersson", trainerId: "t1", goal: "Hyrox Stockholm under 1:20", status: "active", startDate: addDays(today, -60), weightLog: weights(86, -3, 9) },
-    { id: "c3", name: "Mira Karlsson", trainerId: "t1", goal: "Gå ner 8 kg", status: "active", startDate: addDays(today, -120), weightLog: weights(79, -6.5, 12) },
+    {
+      id: "c1",
+      name: "Sara Lindqvist",
+      trainerId: "t1",
+      goal: "Bli starkare – 100 kg knäböj",
+      status: "active",
+      startDate: addDays(today, -84),
+      weightLog: weights(68, 1.5, 12),
+      interests: ["styrkelyft", "hyrox"],
+      focus: "100 kg i knäböj och under 1:30 på Hyrox",
+    },
+    { id: "c2", name: "Jonas Pettersson", trainerId: "t1", goal: "Hyrox Stockholm under 1:20", status: "active", startDate: addDays(today, -60), weightLog: weights(86, -3, 9), interests: ["hyrox", "lopning"] },
+    { id: "c3", name: "Mira Karlsson", trainerId: "t1", goal: "Gå ner 8 kg", status: "active", startDate: addDays(today, -120), weightLog: weights(79, -6.5, 12), interests: ["viktminskning"] },
     { id: "c4", name: "Emil Holm", trainerId: "t1", goal: "Första styrkelyftstävlingen", status: "active", startDate: addDays(today, -40), weightLog: weights(92, 0.5, 6) },
     { id: "c5", name: "Fatima Ali", trainerId: "t1", goal: "Komma tillbaka efter knäoperation", status: "paused", startDate: addDays(today, -150), weightLog: weights(64, -1, 10) },
     { id: "c6", name: "Lukas Berg", trainerId: "t1", goal: "Allmän styrka och rörlighet", status: "pending", startDate: today, weightLog: [] },
@@ -597,6 +636,8 @@ function makeMessages(today: string): Message[] {
     { id: "msg5", threadId: "c2", senderId: "c2", body: "Wall balls är min svagaste station. Kan vi lägga in mer?", sentAt: at(-1, 8, 30) },
     { id: "msg7", threadId: "c3", senderId: "c3", body: "Vågen visade -0,8 kg den här veckan 🎉", sentAt: at(-2, 7, 50) },
     { id: "msg8", threadId: "c4", senderId: "t1", body: "Grym marklyft igår. Vila från tunga drag till fredag.", sentAt: at(-3, 10) },
+    // Saras andra PT (Hyrox).
+    { id: "msg9", threadId: "c1", trainerId: "t2", senderId: "t2", body: "Hej Sara! Veckans fokus: SkiErg-intervaller 6×500 m. Logga tiderna under Framsteg.", sentAt: at(-1, 18, 15) },
   ]
 }
 
@@ -617,17 +658,18 @@ function makeServices(trainers: Trainer[]): TrainerService[] {
       priceSek,
       active: true,
     })
-    const list = [
-      svc("single", "Enstaka pass", "Ett PT-pass på 60 minuter.", 1, p),
-      svc("package", "Träningsprogram 5 pass", "Fem pass och ett personligt program att följa mellan passen.", 5, round50(p * 5 * 0.92), 5),
-    ]
-    // Kalisthenics-instruktören erbjuder ingen kostcoaching.
-    if (t.id !== "t4") {
+    // Tjänsterna följer PT:ns utbud: en kost-PT säljer inga pass och tvärtom.
+    const list: TrainerService[] = []
+    if (t.offersTraining) {
       list.push(
-        svc("full", "Helhetspaket – träning och kost", "Sex pass, träningsprogram och ett kostschema med uppföljning varje vecka.", 6, round50(p * 6 * 0.9 + 900), 8),
-        svc("nutrition", "Kostcoaching", "Personligt kostschema med recept och uppföljning varje vecka.", 0, 1190, 4)
+        svc("single", "Enstaka pass", "Ett PT-pass på 60 minuter.", 1, p),
+        svc("package", t.id === "t2" ? "Hyrox-program 4 pass" : "Träningsprogram 5 pass", "Pass och ett personligt program att följa mellan passen.", t.id === "t2" ? 4 : 5, round50(p * (t.id === "t2" ? 4 : 5) * 0.92), 5)
       )
     }
+    if (t.offersTraining && t.offersNutrition) {
+      list.push(svc("full", "Helhetspaket – träning och kost", "Sex pass, träningsprogram och ett kostschema med uppföljning varje vecka.", 6, round50(p * 6 * 0.9 + 900), 8))
+    }
+    if (t.offersNutrition) list.push(svc("nutrition", "Kostcoaching", "Personligt kostschema med recept och uppföljning varje vecka.", 0, 1190, 4))
     return list
   })
 }
@@ -644,7 +686,11 @@ function makePurchases(data: AppData, today: string): Purchase[] {
     c3: ["Träningsprogram 5 pass", 5, false, 3900],
     c4: ["Enstaka pass", 1, false, 850],
   }
-  return data.clients
+  const extra: Purchase[] = [
+    // Sara tränar även Hyrox med Ahmed (flera PT:er samtidigt).
+    { id: "pu-c1-t2", checkoutId: "co-c1-t2", clientId: "c1", trainerId: "t2", kind: "package", title: "Hyrox-program 4 pass", sessions: 4, includesNutrition: false, priceSek: 2750, status: "paid", createdAt: at, paidAt: at },
+  ]
+  return [...extra, ...data.clients
     .filter((c) => c.trainerId && c.status !== "pending")
     .flatMap((c) => {
       const used = sessionBalance(data, c.trainerId!, c.id).used
@@ -675,7 +721,7 @@ function makePurchases(data: AppData, today: string): Purchase[] {
         })
       }
       return list
-    })
+    })]
 }
 
 export function createSeedData(today = todayISO()): AppData {
@@ -711,7 +757,20 @@ export function createSeedData(today = todayISO()): AppData {
     exerciseAliases: [{ clientId: "c1", exerciseId: "e-bss", name: "Bulgarisk utfallsböj (bakre fot på låg bänk)" }],
     customFoods: [],
     offers: makeOffers(today),
+    relationships: [],
+    progressEntries: [
+      { id: "pe-1", clientId: "c1", metric: "hyrox_total", value: 5880, date: addDays(today, -56) },
+      { id: "pe-2", clientId: "c1", metric: "hyrox_total", value: 5610, date: addDays(today, -21) },
+      { id: "pe-3", clientId: "c1", metric: "hyrox_ski", value: 262, date: addDays(today, -21) },
+      { id: "pe-4", clientId: "c1", metric: "hyrox_ski", value: 251, date: addDays(today, -4) },
+    ],
   }
+  // Relationer: varje klient med sin PT, och Sara även med Ahmed (Hyrox).
+  data.relationships = [
+    ...data.clients.map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
+    { trainerId: "t2", clientId: "c1", status: "active" as const, goal: "Hyrox under 1:30", startDate: addDays(today, -21) },
+  ]
+  data.messages = data.messages.map((m) => ({ ...m, trainerId: m.trainerId ?? "t1" }))
   data.purchases = makePurchases(data, today)
   return data
 }

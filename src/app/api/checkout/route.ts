@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { isStripeEnabled, stripe, type CheckoutSession } from "@/lib/payments/stripe"
+import { checkoutSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface CheckoutRpc {
@@ -33,33 +33,23 @@ export async function POST(request: NextRequest) {
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Kunde inte skapa kassan." }, { status: 400 })
   const checkout = data as CheckoutRpc
 
-  const origin = request.nextUrl.origin
   try {
-    const session = await stripe<CheckoutSession>(
-      "POST",
-      "/v1/checkout/sessions",
-      {
-        mode: "payment",
-        locale: "sv",
-        currency: "sek",
-        customer_email: auth.user.email,
-        client_reference_id: checkout.checkout_id,
-        metadata: { checkout_id: checkout.checkout_id, client_id: auth.user.id, trainer_id: checkout.trainer_id },
-        payment_intent_data: { metadata: { checkout_id: checkout.checkout_id } },
-        line_items: checkout.lines.map((l) => ({
-          quantity: 1,
-          price_data: { currency: "sek", unit_amount: l.price_sek * 100, product_data: { name: l.title } },
-        })),
-        success_url: `${origin}/klient/kop?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}/klient/hitta/${checkout.trainer_id}?kop=avbrutet`,
-      },
-      `checkout-${checkout.checkout_id}`
-    )
+    const params = checkoutSessionParams({
+      checkoutId: checkout.checkout_id,
+      clientId: auth.user.id,
+      trainerId: checkout.trainer_id,
+      email: auth.user.email,
+      lines: checkout.lines.map((l) => ({ title: l.title, priceSek: l.price_sek })),
+      origin: request.nextUrl.origin,
+    })
+    const session = await getStripe().checkout.sessions.create(params, { idempotencyKey: `checkout-${checkout.checkout_id}` })
     await supabase.rpc("attach_checkout_session", { p_checkout: checkout.checkout_id, p_session: session.id })
     if (!session.url) throw new Error("Stripe gav ingen betalningslänk")
     return NextResponse.json({ url: session.url })
   } catch (e) {
-    console.error("stripe checkout", e)
-    return NextResponse.json({ error: "Betalningen kunde inte startas. Försök igen om en stund." }, { status: 502 })
+    // Stripes egna felkod och meddelande loggas (syns i Vercel → Logs) och visas för klienten.
+    const { message, log } = describeStripeError(e)
+    console.error("stripe checkout", { checkoutId: checkout.checkout_id, ...log })
+    return NextResponse.json({ error: `Betalningen kunde inte startas: ${message}` }, { status: 502 })
   }
 }

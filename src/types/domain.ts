@@ -19,6 +19,9 @@ export const SPECIALTIES = [
   "postnatal",
   "lopning",
   "bodybuilding",
+  "cykling",
+  "kondition",
+  "kost",
 ] as const
 export type Specialty = (typeof SPECIALTIES)[number]
 
@@ -31,6 +34,9 @@ export const SPECIALTY_LABEL: Record<Specialty, string> = {
   postnatal: "Post-natal",
   lopning: "Löpning",
   bodybuilding: "Bodybuilding",
+  cykling: "Cykling",
+  kondition: "Kondition",
+  kost: "Kost & nutrition",
 }
 
 export type CoachingMode = "remote" | "onsite" | "both"
@@ -71,9 +77,21 @@ export interface Trainer {
   certifications: string[]
   /** Syns i PT-sökningen först när PT:n publicerat profilen. */
   isPublished: boolean
+  /** Vad PT:n erbjuder. En kost-PT säljer inga pass och en tränings-PT ingen kost. */
+  offersTraining: boolean
+  offersNutrition: boolean
 }
 
 export type ClientStatus = "active" | "paused" | "pending"
+
+/** En klients relation med en PT. En klient kan ha flera PT:er samtidigt. */
+export interface CoachingRelationship {
+  trainerId: ID
+  clientId: ID
+  status: ClientStatus | "ended"
+  goal: string
+  startDate: ISODate
+}
 
 export interface WeightEntry {
   date: ISODate
@@ -83,11 +101,29 @@ export interface WeightEntry {
 export interface Client {
   id: ID
   name: string
+  /**
+   * Klientens "huvud-PT" (den första aktiva). Alla PT-relationer finns i
+   * AppData.relationships – en klient kan ha flera PT:er samtidigt.
+   */
   trainerId: ID | null
   goal: string
   status: ClientStatus
   startDate: ISODate
   weightLog: WeightEntry[]
+  /** Intressen/träningsområden (nycklar i src/lib/interests.ts). Syns för klientens PT:er. */
+  interests?: string[]
+  /** Vad klienten vill utveckla, med egna ord. */
+  focus?: string
+}
+
+/** En loggad mätpunkt, t.ex. "Bästa tid på milen". Tider lagras i sekunder. */
+export interface ProgressEntry {
+  id: ID
+  clientId: ID
+  metric: string
+  value: number
+  date: ISODate
+  note?: string
 }
 
 export type MuscleGroup =
@@ -210,6 +246,12 @@ export interface NutritionPlan {
   name: string
   targets: MacroTargets
   meals: Meal[]
+  /**
+   * Gäller schemat just nu? Klienten har högst ett aktivt schema. Ett schema
+   * från en annan PT än det aktiva är ett förslag tills klienten väljer det.
+   * (Saknas i äldre data = aktivt.)
+   */
+  active?: boolean
 }
 
 export interface MealCheck {
@@ -220,8 +262,10 @@ export interface MealCheck {
 
 export interface Message {
   id: ID
-  /** En tråd per PT–klient-relation; tråd-id = klient-id. */
+  /** Tråd-id = klient-id. Med flera PT:er skiljs trådarna åt med trainerId. */
   threadId: ID
+  /** PT:n i tråden (en tråd per PT–klient-par). */
+  trainerId?: ID
   senderId: ID
   body: string
   sentAt: ISODateTime
@@ -444,6 +488,10 @@ export interface AppData {
   purchases: Purchase[]
   /** PT:ns egna recept. */
   recipes: Recipe[]
+  /** PT–klient-relationer (klient: alla egna; PT: egna klienter). */
+  relationships: CoachingRelationship[]
+  /** Loggade mätpunkter för intressena (Framsteg). */
+  progressEntries: ProgressEntry[]
 }
 
 // ================================================================ tjänster ===

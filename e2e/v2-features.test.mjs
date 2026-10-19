@@ -89,8 +89,8 @@ await m.waitForURL(/\/klient\/pass\//)
 await m.waitForSelector("text=Passet är genomfört")
 ok("historik: tryck på tillfälle öppnar passets logg")
 
-// Wearables (demo)
-await m.goto(`${base}/klient/framsteg`)
+// Wearables (demo) – v12: under Anslutningar i logomenyn
+await m.goto(`${base}/klient/anslutningar`)
 await m.locator("#wearables-title >> xpath=../../.. >> button:has-text('Anslut')").first().click()
 await m.waitForSelector("text=Senast synkad")
 ok("wearables: Fitbit (demo) ansluten och synkad")
@@ -118,7 +118,9 @@ await m.screenshot({ path: `${out}/v2-samtal.png` })
 await m.click('button[aria-label="Stäng av mikrofonen"]')
 check(await m.locator('button[aria-label="Slå på mikrofonen"]').count() === 1, "samtal: mikrofon av/på")
 await m.click('button[aria-label="Lägg på"]')
-await m.waitForSelector("text=/Videosamtal · \\d+ min/")
+// v12: samtalet visas som en bricka i chatten (med längd och "Ring upp").
+await m.waitForSelector('[data-testid=call-card]:has-text("Videosamtal"):has-text("min")')
+check((await m.locator('[data-testid=call-card] button[aria-label^="Ring upp"]').count()) >= 1, "samtal: brickan har Ring upp")
 ok("samtal: lagt på, samtalet loggas i chatten")
 
 // ------------------------------------------------------------------- PT ---
@@ -170,11 +172,11 @@ const old = await page({ width: 390, height: 844 })
 await old.goto(`${base}/klient`)
 await old.waitForSelector("text=Dagens kost")
 await old.evaluate(() => {
-  const s = JSON.parse(localStorage["coavira:demo:v2"])
+  const s = JSON.parse(localStorage["coavira:demo:v3"])
   for (const k of ["foodEntries", "waterLogs", "sleepLogs", "wearables"]) delete s.data[k]
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fältet ska bort, som i v1-data
   s.data.trainers = s.data.trainers.map(({ coachingMode, certifications, ...t }) => ({ ...t, offersRemote: coachingMode !== "onsite" }))
-  localStorage["coavira:demo:v2"] = JSON.stringify(s)
+  localStorage["coavira:demo:v3"] = JSON.stringify(s)
 })
 for (const path of ["/klient", "/klient/framsteg", "/klient/chatt", "/pt/klienter/c1", "/pt/profil"]) {
   await old.goto(`${base}${path}`)

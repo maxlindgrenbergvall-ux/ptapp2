@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 
-import { BrandLogo } from "@/components/brand"
+import { AppMenu } from "@/components/app-menu"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { PersonAvatar } from "@/components/common"
 import { NotificationBell } from "@/components/notifications/notification-bell"
@@ -46,7 +46,7 @@ export function PtShell({ children }: { children: React.ReactNode }) {
               <SidebarContent onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
-          <BrandLogo suffix="PT" />
+          <AppMenu suffix="PT" />
           <div className="ml-auto">
             <NotificationBell />
           </div>
@@ -65,14 +65,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { data, actions, me, mode, signOut } = useAppData()
   const trainer = data.trainers.find((t) => t.id === me.id)
   const clientIds = data.clients.filter((c) => c.trainerId === me.id).map((c) => c.id)
-  const unread = useUnreadCount(me.id, clientIds)
+  const unread = useUnreadCount(me.id, clientIds, me.id)
   const now = new Date().toISOString()
   const pendingRequests = data.events.filter((e) => e.trainerId === me.id && e.status === "pending" && e.awaiting !== "client" && e.end > now).length
 
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className="hidden h-11 items-center justify-between pl-2 lg:flex">
-        <BrandLogo suffix="PT" />
+        <AppMenu suffix="PT" />
         <NotificationBell align="start" />
       </div>
       <nav className="flex flex-col gap-1" aria-label="Huvudmeny">

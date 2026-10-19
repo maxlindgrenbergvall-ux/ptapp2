@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, BadgeCheck, CalendarDays, Hourglass, MapPin, MessageCircle, X } from "lucide-react"
+import { ArrowLeft, BadgeCheck, CalendarDays, Dumbbell, Hourglass, MapPin, MessageCircle, Salad, UserMinus, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -29,6 +29,7 @@ import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
 import { formatShort, todayISO } from "@/lib/date"
 import { recordInterest } from "@/lib/offers/interests"
 import { sessionBalance } from "@/lib/services/balance"
+import { relationshipWith } from "@/lib/data/selectors"
 import { isFreeOffer } from "@/lib/offers/policy"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SESSION_MODE_LABEL, type SessionMode, type Slot, type Trainer } from "@/types/domain"
@@ -37,7 +38,6 @@ import { firstName } from "@/lib/names"
 export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const { data, me } = useAppData()
   const trainer = data.trainers.find((t) => t.id === trainerId)
-  const client = data.clients.find((c) => c.id === me.id)!
   const specialties = trainer?.specialties.join(",")
   // Att öppna en profil är en (svag) signal om intresse för PT:ns kategorier (sparas bara lokalt).
   React.useEffect(() => {
@@ -51,7 +51,8 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
   const today = todayISO()
   const offers = data.offers.filter((o) => o.trainerId === trainer.id && o.active && !isFreeOffer(o) && (!o.validUntil || o.validUntil >= today))
 
-  const isMyTrainer = client.trainerId === trainer.id && client.status !== "pending"
+  const rel = relationshipWith(data, me.id, trainer.id)
+  const isMyTrainer = rel?.status === "active" || rel?.status === "paused"
   const balance = sessionBalance(data, trainer.id, me.id)
 
   return (
@@ -85,10 +86,22 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
             <SpecialtyBadge key={s} specialty={s} />
           ))}
         </div>
+        <OfferingBadges trainer={trainer} />
+        {isMyTrainer && (
+          <Badge variant="secondary" className="gap-1">
+            <BadgeCheck className="text-primary" /> Din PT
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <BookingDialog trainer={trainer} />
+        {trainer.offersTraining ? (
+          <BookingDialog trainer={trainer} />
+        ) : (
+          <Button size="lg" className="h-12" onClick={() => document.getElementById("tjanster")?.scrollIntoView({ behavior: "smooth" })}>
+            <Salad /> Kostcoaching
+          </Button>
+        )}
         {isMyTrainer ? (
           <Button asChild variant="outline" size="lg" className="h-12">
             <Link href="/klient/chatt">
@@ -141,6 +154,8 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           </div>
         </section>
       )}
+
+      {isMyTrainer && <LeaveTrainerButton trainer={trainer} />}
 
       <section className="space-y-2">
         <h2 className="font-semibold">Om mig</h2>
@@ -301,6 +316,77 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
             </DialogFooter>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Vad PT:n erbjuder: träning, kost eller båda. */
+export function OfferingBadges({ trainer, className }: { trainer: Trainer; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap justify-center gap-1.5", className)} aria-label="Erbjuder">
+      {trainer.offersTraining && (
+        <Badge variant="outline" className="gap-1">
+          <Dumbbell /> Träning
+        </Badge>
+      )}
+      {trainer.offersNutrition && (
+        <Badge variant="outline" className="gap-1">
+          <Salad /> Kost
+        </Badge>
+      )}
+    </div>
+  )
+}
+
+/** Klient: avsluta samarbetet. PT:n tappar åtkomst direkt och kommande pass avbokas. */
+export function LeaveTrainerButton({ trainer, className }: { trainer: Trainer; className?: string }) {
+  const { data, me, actions } = useAppData()
+  const [open, setOpen] = React.useState(false)
+  const balance = sessionBalance(data, trainer.id, me.id)
+  const upcoming = data.events.filter(
+    (e) => e.clientId === me.id && e.trainerId === trainer.id && (e.status === "pending" || e.status === "confirmed") && e.start > new Date().toISOString()
+  ).length
+  const name = firstName(trainer.name)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" className={cn("w-full text-muted-foreground hover:text-destructive", className)}>
+          <UserMinus /> Lämna {name}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Lämna {trainer.name}?</DialogTitle>
+          <DialogDescription>
+            {name} slutar se din träning, kost och chatt direkt. Dina andra PT:er påverkas inte.
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="space-y-1.5 text-sm">
+          {upcoming > 0 && <li>• {upcoming} kommande pass avbokas.</li>}
+          <li>• Ett kostschema från {name} slutar gälla.</li>
+          {balance.remaining > 0 && (
+            <li>
+              • Du har {balance.remaining} betalda pass kvar. Kontakta {name} om återbetalning innan du lämnar.
+            </li>
+          )}
+          <li>• Du kan börja igen senare genom att köpa en ny tjänst.</li>
+        </ul>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            Avbryt
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              actions.leaveTrainer(trainer.id)
+              setOpen(false)
+              toast.success(`Du har lämnat ${trainer.name}`)
+            }}
+          >
+            Lämna {name}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

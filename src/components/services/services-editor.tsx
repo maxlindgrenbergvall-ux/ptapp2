@@ -88,8 +88,13 @@ export function ServicesEditor() {
 
 function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: () => void }) {
   const { data, me, actions } = useAppData()
-  const basePrice = data.trainers.find((t) => t.id === me.id)?.pricePerSession || 0
-  const [kind, setKind] = React.useState<ServiceKind>(service?.kind ?? "package")
+  const self = data.trainers.find((t) => t.id === me.id)
+  const basePrice = self?.pricePerSession || 0
+  // Bara tjänster som ryms i PT:ns utbud (träning, kost eller båda).
+  const kinds = KINDS.filter(
+    (k) => (k.sessions === 0 || self?.offersTraining !== false) && ((k.kind !== "nutrition" && k.kind !== "full") || self?.offersNutrition !== false)
+  )
+  const [kind, setKind] = React.useState<ServiceKind>(service?.kind ?? kinds.find((k) => k.kind === "package")?.kind ?? kinds[0]?.kind ?? "single")
   const [title, setTitle] = React.useState(service?.title ?? "")
   const [description, setDescription] = React.useState(service?.description ?? "")
   const [sessions, setSessions] = React.useState<number | undefined>(service?.sessions ?? 5)
@@ -137,7 +142,7 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
       </DialogHeader>
 
       <div role="radiogroup" aria-label="Typ av tjänst" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {KINDS.map((k) => (
+        {kinds.map((k) => (
           <button
             key={k.kind}
             type="button"

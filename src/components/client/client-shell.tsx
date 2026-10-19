@@ -1,15 +1,14 @@
 "use client"
 
-import { CalendarDays, Home, LineChart, LogOut, MessageCircle, Search } from "lucide-react"
+import { CalendarDays, Home, LineChart, MessageCircle, Search } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
 
-import { BrandLogo } from "@/components/brand"
+import { AppMenu } from "@/components/app-menu"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
-import { Button } from "@/components/ui/button"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
 
@@ -23,7 +22,7 @@ const NAV = [
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { me, mode, signOut, sync } = useAppData()
+  const { me, sync } = useAppData()
   const unread = useUnreadCount(me.id, [me.id])
   const { data } = useAppData()
   const nowIso = new Date().toISOString()
@@ -36,14 +35,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x">
       {!focusMode && (
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
-          <BrandLogo />
+          <AppMenu />
           <div className="flex items-center gap-1">
             <NotificationBell />
-            {mode === "supabase" && (
-              <Button variant="ghost" size="icon" aria-label="Logga ut" onClick={() => void signOut()}>
-                <LogOut />
-              </Button>
-            )}
           </div>
         </header>
       )}

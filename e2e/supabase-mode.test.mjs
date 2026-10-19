@@ -88,6 +88,7 @@ await p.waitForSelector("text=En ändring kunde inte sparas")
 await p.waitForTimeout(800)
 log = await getLog()
 check(log.some((e) => e.rejected) && log.some((e) => e.body?.body === "Hej igen"), "avvisad ändring släpps och nästa skickas ändå")
+check(log.find((e) => e.body?.body === "Hej igen")?.body.trainer_id === "11111111-0000-4000-8000-000000000001", "v12: meddelandet skickas i tråden med rätt PT (trainer_id)")
 await p.screenshot({ path: `${out}/sb-rejected.png` })
 
 // 8. Kalender: bekräftat pass från databasen och bokningsförfrågan från RPC-tider
@@ -149,7 +150,8 @@ check(bad.ok && !(await bad.text()).includes("BEGIN:VEVENT"), "synk: okänd län
 await p.goto(`${base}/klient`); await p.waitForSelector("text=Testpass")
 await p.waitForTimeout(1200) // cachen skrivs avstudsat
 check(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("coavira:cache"))), "offlinecache finns när man är inloggad")
-await p.click('button[aria-label="Logga ut"]')
+await p.click('button[aria-label="Coavira-menyn"]')
+await p.click('[role=menuitem]:has-text("Logga ut")')
 await p.waitForURL(/\/logga-in/)
 check(!(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("coavira:")))), "utloggning rensar cache och kö")
 await p.goto(`${base}/klient`)
@@ -343,6 +345,22 @@ log = await getLog()
 const paid = log.find((e) => e.table === "mark_checkout_paid")
 check(paid?.body.p_checkout === "aaaaaaaa-0000-4000-8000-000000000002" && paid.body.p_amount_sek === 800, "servern bekräftar betalningen hos Stripe och markerar kassan betald")
 await v.waitForURL(`${base}/klient`)
+
+// 16. v12: intressen i profilen och Lämna PT
+await v.waitForSelector("text=Dagens kost")
+await v.goto(`${base}/klient/profil`)
+await v.click('[role=group][aria-label=Intressen] button:has-text("Cykling")')
+await v.click('button:has-text("Spara profilen")')
+await v.waitForSelector("text=Profilen är sparad")
+await v.waitForTimeout(500)
+log = await getLog()
+check(log.some((e) => e.table === "profiles" && e.method === "PATCH" && JSON.stringify(e.body.interests) === JSON.stringify(["cykling"])), "intressena sparas på profilen")
+await v.click('button:has-text("Lämna Elin")')
+await v.click('[role=dialog] button:has-text("Lämna Elin")')
+await v.waitForSelector("text=Du har lämnat Elin Test")
+await v.waitForTimeout(500)
+log = await getLog()
+check(log.some((e) => e.table === "end_coaching" && e.body?.p_trainer === "11111111-0000-4000-8000-000000000001"), "Lämna PT anropar end_coaching")
 await c5.close()
 
 // Webhook: bara signerade anrop från Stripe godtas.

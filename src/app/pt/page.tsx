@@ -28,7 +28,7 @@ export default function PtOverviewPage() {
   const today = todayISO()
 
   const clients = data.clients.filter((c) => c.trainerId === me.id)
-  const unread = useUnreadCount(me.id, clients.map((c) => c.id))
+  const unread = useUnreadCount(me.id, clients.map((c) => c.id), me.id)
 
   const rows = clients
     .map((c) => {

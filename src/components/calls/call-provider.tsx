@@ -6,7 +6,9 @@ import { toast } from "sonner"
 import { CallOverlay } from "@/components/calls/call-overlay"
 import { CallEngine, CallError, IDLE, type CallState } from "@/lib/calls/call-engine"
 import { DemoTransport, SupabaseTransport, type CallKind, type Peer } from "@/lib/calls/signaling"
+import { myTrainers } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
+import { callThread, parseCallThread } from "@/lib/calls/thread"
 import { getSupabase } from "@/lib/supabase/client"
 
 interface CallCtx {
@@ -37,20 +39,26 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setState,
         {
           // `actions` är stabilt så länge samma användare är inloggad.
-          log: (threadId, text) => actions.sendMessage(threadId, text),
+          // Samtalstråden är "klient:pt" – loggen hamnar i rätt PT–klient-tråd.
+          log: (threadId, text) => {
+            const { clientId, trainerId } = parseCallThread(threadId)
+            actions.sendMessage(clientId, text, undefined, { trainerId })
+          },
           notify: (text) => toast(text),
         },
         mode === "demo"
       )
   )
 
-  // Trådar att lyssna på: klienten har sin egen, PT:n en per aktiv klient.
+  // Trådar att lyssna på: en per PT–klient-par (klienten kan ha flera PT:er).
   const threadIds = React.useMemo(
     () =>
       me.role === "client"
-        ? [me.id]
-        : data.clients.filter((c) => c.trainerId === me.id && (c.status === "active" || c.status === "paused")).map((c) => c.id),
-    [me, data.clients]
+        ? myTrainers(data, me.id).map((t) => callThread(me.id, t.id))
+        : data.clients
+            .filter((c) => c.trainerId === me.id && (c.status === "active" || c.status === "paused"))
+            .map((c) => callThread(c.id, me.id)),
+    [me, data]
   )
   const key = threadIds.join(",")
   React.useEffect(() => {

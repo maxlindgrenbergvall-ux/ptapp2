@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { StrengthChart, SessionsChart, WeightChart } from "@/components/charts/progress-charts"
 import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
+import { InterestChips, MetricsGrid } from "@/components/progress/metrics"
 import { ClientStatusBadge, EmptyState, PersonAvatar, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { adherence, exerciseName, workoutsFor } from "@/lib/data/selectors"
+import { callThread } from "@/lib/calls/thread"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
@@ -54,6 +56,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   const completed = workouts.filter((w) => w.status === "completed").length
   const adh = adherence(workouts, 28, today)
   const plan = data.nutritionPlans.find((p) => p.clientId === client.id)
+  const self = data.trainers.find((t) => t.id === me.id)
   const balance = sessionBalance(data, me.id, client.id)
   const nutritionAccess = hasNutritionAccess(data, me.id, client.id)
 
@@ -77,6 +80,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
             <p className="text-sm text-muted-foreground">
               {client.goal ? `Mål: ${client.goal} · ` : ""}Klient sedan {formatShort(client.startDate)}
             </p>
+            <InterestChips interests={client.interests} className="mt-1.5" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0 sm:flex-wrap sm:justify-end" data-testid="client-actions">
@@ -101,7 +105,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
               Återaktivera
             </Button>
           )}
-          <ScheduleWorkoutDialog clientId={client.id} className="w-full sm:w-auto" />
+          {self?.offersTraining !== false && <ScheduleWorkoutDialog clientId={client.id} className="w-full sm:w-auto" />}
         </div>
       </div>
 
@@ -137,6 +141,16 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </TabsList>
 
         <TabsContent value="progress" className="grid gap-6 pt-2 lg:grid-cols-2">
+          {/* Klientens egna mål och mätpunkter (styrs av intressena klienten valt). */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Mål och mätpunkter</CardTitle>
+              <CardDescription>{client.focus ? `“${client.focus}”` : "Utifrån klientens intressen"}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MetricsGrid clientId={client.id} interests={client.interests} />
+            </CardContent>
+          </Card>
           <HabitsSummary clientId={client.id} />
           <Card>
             <CardHeader>
@@ -207,9 +221,15 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <Card className="h-[32rem] gap-0 overflow-hidden py-0">
             <div className="flex items-center justify-between border-b px-4 py-2">
               <span className="text-sm text-muted-foreground">Chatt med {client.name}</span>
-              <CallButtons threadId={client.id} peerId={client.id} peerName={client.name} disabled={client.status === "pending"} />
+              <CallButtons threadId={callThread(client.id, me.id)} peerId={client.id} peerName={client.name} disabled={client.status === "pending"} />
             </div>
-            <ChatThread threadId={client.id} meId={me.id} className="min-h-0 flex-1" />
+            <ChatThread
+              threadId={client.id}
+              trainerId={me.id}
+              meId={me.id}
+              peer={client.status === "pending" ? undefined : { id: client.id, name: client.name }}
+              className="min-h-0 flex-1"
+            />
           </Card>
         </TabsContent>
       </Tabs>

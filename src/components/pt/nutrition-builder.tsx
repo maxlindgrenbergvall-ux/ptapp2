@@ -56,14 +56,19 @@ export function NutritionBuilder() {
   const { data, actions, me } = useAppData()
   const clients = data.clients.filter((c) => c.trainerId === me.id && c.status !== "pending")
   const [clientId, setClientId] = React.useState(clients[0]?.id ?? "")
-  const existing = data.nutritionPlans.find((p) => p.clientId === clientId)
+  // PT:ns eget schema för klienten (klienten kan ha scheman från flera PT:er).
+  const mine = (id: string) => data.nutritionPlans.find((p) => p.clientId === id && p.trainerId === me.id)
+  const existing = mine(clientId)
+  // Gäller en annan PT:s schema just nu? Då blir PT:ns schema ett förslag som klienten kan välja.
+  const otherActive = data.nutritionPlans.find((p) => p.clientId === clientId && p.trainerId !== me.id && p.active !== false)
   const [plan, setPlan] = React.useState<NutritionPlan>(() => existing ?? emptyPlan(clientId, me.id, actions.newId))
-  const dirty = JSON.stringify(plan) !== JSON.stringify(existing)
+  const comparable = (p?: NutritionPlan) => (p ? JSON.stringify({ ...p, active: undefined }) : "")
+  const dirty = comparable(plan) !== comparable(existing)
 
   const switchClient = (id: string) => {
     if (dirty && !window.confirm("Du har osparade ändringar. Byta klient ändå?")) return
     setClientId(id)
-    setPlan(data.nutritionPlans.find((p) => p.clientId === id) ?? emptyPlan(id, me.id, actions.newId))
+    setPlan(mine(id) ?? emptyPlan(id, me.id, actions.newId))
   }
 
   const unlocked = clientId ? hasNutritionAccess(data, me.id, clientId) : false
@@ -109,9 +114,13 @@ export function NutritionBuilder() {
             <Button
               disabled={!dirty || !unlocked}
               onClick={() => {
-                const error = actions.saveNutritionPlan(plan)
-                if (error) return toast.error(error)
-                toast.success("Kostschemat är sparat och syns för klienten")
+                const res = actions.saveNutritionPlan(plan)
+                if ("error" in res) return toast.error(res.error)
+                if (res.proposal) {
+                  toast.success("Sparat som förslag", {
+                    description: "Klienten följer just nu ett schema från en annan PT och väljer själv vilket som ska gälla.",
+                  })
+                } else toast.success("Kostschemat är sparat och syns för klienten")
               }}
             >
               <Save /> Spara
@@ -119,6 +128,18 @@ export function NutritionBuilder() {
           </>
         }
       />
+
+      {unlocked && (otherActive || existing?.active === false) && (
+        <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-sm" data-testid="builder-other-active">
+          <Apple className="mt-0.5 size-4 shrink-0" />
+          <span>
+            {otherActive
+              ? `Klienten följer just nu "${otherActive.name}" (${otherActive.targets.kcal} kcal) från en annan PT. `
+              : "Ditt schema är inte aktivt just nu. "}
+            En klient kan bara ha ett aktivt kostschema – ditt schema sparas som ett förslag som klienten kan välja.
+          </span>
+        </p>
+      )}
 
       {!unlocked && (
         <p className="flex items-start gap-2 rounded-xl border border-dashed p-3 text-sm" data-testid="builder-lock">

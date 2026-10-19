@@ -25,6 +25,7 @@ import {
   type Action,
   type EventPatch,
   type PersistableAction,
+  type ClientProfilePatch,
   type TrainerProfilePatch,
 } from "@/lib/data/state"
 import { findConflict } from "@/lib/calendar/slots"
@@ -68,8 +69,8 @@ export interface SyncState {
   pending: number
 }
 
-// Ny nyckel när demodatan ändrar form (v2: tjänster, köp och recept) – demon börjar om med färsk data.
-const DEMO_KEY = "coavira:demo:v2"
+// Ny nyckel när demodatan ändrar form (v3: flera PT:er, intressen och mätpunkter) – demon börjar om med färsk data.
+const DEMO_KEY = "coavira:demo:v3"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
 const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
 
@@ -139,11 +140,29 @@ function createActions(ctx: {
     saveTemplate: (template: WorkoutTemplate) => commit({ type: "upsertTemplate", template }),
     deleteTemplate: (templateId: ID) => commit({ type: "deleteTemplate", templateId }),
     /** PT: spara kostplanen. Kräver att klienten köpt kostcoaching. */
-    saveNutritionPlan: (plan: NutritionPlan): string | null => {
-      if (!hasNutritionAccess(getData(), me.id, plan.clientId)) return "Klienten har inte köpt kostcoaching."
-      commit({ type: "upsertNutritionPlan", plan })
-      return null
+    saveNutritionPlan: (plan: NutritionPlan): { error: string } | { proposal: boolean } => {
+      if (!hasNutritionAccess(getData(), me.id, plan.clientId)) return { error: "Klienten har inte köpt kostcoaching." }
+      commit({ type: "upsertNutritionPlan", plan: { ...plan, active: true } })
+      // Gäller en annan PT:s schema blir detta ett förslag som klienten kan välja.
+      const saved = getData().nutritionPlans.find((p) => p.id === plan.id)
+      return { proposal: saved?.active === false }
     },
+    /** Klient: välj vilket kostschema som gäller. Bara ett kan vara aktivt. */
+    chooseNutritionPlan: (planId: ID | null) => commit({ type: "chooseNutritionPlan", clientId: me.id, planId }),
+    /** Klient: avsluta samarbetet med en PT. */
+    leaveTrainer: (trainerId: ID) => commit({ type: "leaveTrainer", clientId: me.id, trainerId, at: now() }),
+    /** Klient: namn, intressen och fokus (syns för klientens PT:er). */
+    updateProfile: (patch: ClientProfilePatch) => {
+      const clean: ClientProfilePatch = {
+        ...(patch.name !== undefined ? { name: patch.name.trim().slice(0, 120) } : {}),
+        ...(patch.interests ? { interests: [...new Set(patch.interests)].slice(0, 12) } : {}),
+        ...(patch.focus !== undefined ? { focus: patch.focus.trim().slice(0, 300) } : {}),
+      }
+      commit({ type: "updateClientProfile", clientId: me.id, patch: clean })
+    },
+    addProgressEntry: (metric: string, value: number, date: ISODate, note?: string) =>
+      commit({ type: "addProgressEntry", entry: { id: newId(), clientId: me.id, metric, value, date, note: note?.trim() || undefined } }),
+    deleteProgressEntry: (id: ID) => commit({ type: "deleteProgressEntry", id }),
     saveRecipe: (recipe: Omit<Recipe, "trainerId">) => commit({ type: "saveRecipe", recipe: { ...recipe, trainerId: me.id } }),
     deleteRecipe: (recipeId: ID) => commit({ type: "deleteRecipe", recipeId }),
     /** PT: skapa eller ändra en tjänst i menyn. */
@@ -159,8 +178,6 @@ function createActions(ctx: {
       const services = serviceIds.map((id) => data.services.find((x) => x.id === id)).filter((x): x is TrainerService => Boolean(x))
       if (!services.length || services.length !== serviceIds.length) return "Tjänsten finns inte längre."
       if (new Set(services.map((x) => x.trainerId)).size !== 1) return "Alla tjänster måste vara hos samma PT."
-      const self = data.clients.find((c) => c.id === me.id)
-      if (self?.trainerId && self.trainerId !== services[0].trainerId && self.status !== "pending") return "Du tränar redan med en annan PT."
       if (ctx.mode === "demo") {
         const checkoutId = newId()
         const purchases: Purchase[] = services.map((x) => ({
@@ -203,15 +220,18 @@ function createActions(ctx: {
      * Skickar ett meddelande. `extra.id` används när bilagor laddats upp i förväg
      * till en sökväg med meddelandets id.
      */
-    sendMessage: (threadId: ID, body: string, workoutId?: ID, extra?: { id?: ID; attachments?: Attachment[] }) => {
+    sendMessage: (threadId: ID, body: string, workoutId?: ID, extra?: { id?: ID; attachments?: Attachment[]; trainerId?: ID }) => {
       const text = body.trim()
       const attachments = extra?.attachments?.slice(0, 10)
       if (!text && !attachments?.length) return
+      // En tråd per PT–klient-par: PT:n är alltid avsändarens PT eller den valda PT:n.
+      const trainerId = me.role === "trainer" ? me.id : (extra?.trainerId ?? getData().clients.find((c) => c.id === threadId)?.trainerId ?? undefined)
       commit({
         type: "addMessage",
         message: {
           id: extra?.id ?? newId(),
           threadId,
+          trainerId,
           senderId: me.id,
           body: text.slice(0, 2000),
           workoutId,
@@ -220,9 +240,12 @@ function createActions(ctx: {
         },
       })
     },
-    markThreadRead: (threadId: ID) => {
-      const hasUnread = getData().messages.some((m) => m.threadId === threadId && m.senderId !== me.id && !m.readAt)
-      if (hasUnread) commit({ type: "markThreadRead", threadId, readerId: me.id, readAt: now() })
+    markThreadRead: (threadId: ID, trainerId?: ID) => {
+      const t = me.role === "trainer" ? me.id : trainerId
+      const hasUnread = getData().messages.some(
+        (m) => m.threadId === threadId && (!t || m.trainerId === t) && m.senderId !== me.id && !m.readAt
+      )
+      if (hasUnread) commit({ type: "markThreadRead", threadId, readerId: me.id, readAt: now(), trainerId: t })
     },
     addWeight: (clientId: ID, entry: WeightEntry) => commit({ type: "addWeight", clientId, entry }),
     // ----- kalender

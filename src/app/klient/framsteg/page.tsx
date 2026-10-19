@@ -1,26 +1,16 @@
 "use client"
 
-import { ChevronRight, Download, Flame, Plus, ShieldCheck, Trash2, Trophy } from "lucide-react"
+import { ChevronRight, Flame, Plus, ShieldCheck, Trophy } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
-import { WearablesCard } from "@/components/client/trackers"
+import { MetricsGrid } from "@/components/progress/metrics"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
@@ -28,37 +18,35 @@ import { exerciseHistory, oneRepMaxSeries, setsDone, workoutVolume } from "@/lib
 import type { ScheduledWorkout } from "@/types/domain"
 
 export default function ProgressPage() {
-  const { data, actions, me, mode, deleteAccount } = useAppData()
+  const { data, actions, me } = useAppData()
   const client = data.clients.find((c) => c.id === me.id)!
   const workouts = workoutsFor(data, client.id)
   const completed = workouts.filter((w) => w.status === "completed").sort((a, b) => b.date.localeCompare(a.date))
   const [kg, setKg] = React.useState("")
 
   const squat = oneRepMaxSeries("e-squat", workouts)
+  // Styrkediagrammet visas för styrkeintressen (eller när inga intressen är valda och det finns lyft).
+  const strengthInterests = ["styrkelyft", "bodybuilding", "kalisthenics"]
+  const showStrength = client.interests?.length ? client.interests.some((k) => strengthInterests.includes(k)) : squat.length > 0
   const streak = weekStreak(completed.map((w) => w.date))
-
-  const exportData = () => {
-    // Dataportabilitet (GDPR art. 20): all data om klienten i maskinläsbart format.
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      profile: client,
-      workouts,
-      nutritionPlans: data.nutritionPlans.filter((p) => p.clientId === client.id),
-      mealChecks: data.mealChecks.filter((m) => m.clientId === client.id),
-      messages: data.messages.filter((m) => m.threadId === client.id),
-      calendar: data.events.filter((e) => e.clientId === client.id),
-    }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }))
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `min-traningsdata-${todayISO()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Framsteg</h1>
+
+      {/* Mätpunkterna styrs av intressena: Cykling → tid på milen och watt, Styrkelyft → 1RM osv. */}
+      <section className="space-y-3" aria-labelledby="goals-title">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 id="goals-title" className="font-semibold">
+            Dina mål
+          </h2>
+          <Link href="/klient/profil" className="text-sm text-primary underline-offset-4 hover:underline">
+            Ändra intressen
+          </Link>
+        </div>
+        {client.focus && <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm">“{client.focus}”</p>}
+        <MetricsGrid clientId={client.id} interests={client.interests} editable />
+      </section>
 
       <div className="grid grid-cols-2 gap-3">
         <StatTile
@@ -70,6 +58,7 @@ export default function ProgressPage() {
         <StatTile label="Veckor i rad" icon={Flame} value={streak} sub={`${completed.length} pass totalt`} />
       </div>
 
+      {showStrength && (
       <Card>
         <CardHeader>
           <CardTitle>Styrka</CardTitle>
@@ -79,6 +68,7 @@ export default function ProgressPage() {
           <StrengthChart workouts={workouts} />
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -145,69 +135,15 @@ export default function ProgressPage() {
         </ul>
       </section>
 
-      <WearablesCard />
-
-      <Card className="bg-muted/40">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ShieldCheck className="size-4" /> Din data
-          </CardTitle>
-          <CardDescription>
-            Din träning, vikt och kost delas bara med din PT. Du kan när som helst ladda ner allt eller be om att få det raderat.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={exportData}>
-              <Download /> Ladda ner min data (JSON)
-            </Button>
-            {mode === "supabase" && <DeleteAccountDialog onConfirm={deleteAccount} />}
-          </div>
-        </CardContent>
-      </Card>
+      <Link
+        href="/klient/sekretess"
+        className="flex items-center gap-3 rounded-xl border p-4 text-sm transition-colors hover:bg-muted/60"
+      >
+        <ShieldCheck className="size-4 text-muted-foreground" />
+        <span className="flex-1">Min data och sekretess</span>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </Link>
     </div>
-  )
-}
-
-function DeleteAccountDialog({ onConfirm }: { onConfirm: () => Promise<void> }) {
-  const [open, setOpen] = React.useState(false)
-  const [text, setText] = React.useState("")
-  const [pending, setPending] = React.useState(false)
-  const CONFIRM = "RADERA"
-  return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setText(""))}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-          <Trash2 /> Radera mitt konto
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Radera kontot permanent?</DialogTitle>
-          <DialogDescription>
-            All din data raderas direkt och kan inte återställas: pass, loggar, vikt, kost, meddelanden och bokningar.
-            Ladda gärna ner din data först.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="confirm-delete">Skriv {CONFIRM} för att bekräfta</Label>
-          <Input id="confirm-delete" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" />
-        </div>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            disabled={text !== CONFIRM || pending}
-            onClick={async () => {
-              setPending(true)
-              await onConfirm()
-              setPending(false)
-            }}
-          >
-            {pending ? "Raderar…" : "Radera allt"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

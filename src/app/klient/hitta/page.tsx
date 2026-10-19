@@ -33,6 +33,14 @@ export default function DiscoverPage() {
   const [city, setCity] = React.useState("all")
   const [remoteOnly, setRemoteOnly] = React.useState(false)
   const [sort, setSort] = React.useState<SortKey>("match")
+  // PT-utbud: vissa PT:er erbjuder bara träning, andra bara kost.
+  const [offering, setOffering] = React.useState<"all" | "training" | "nutrition">("all")
+  // Länk från kostlåset: /klient/hitta?inriktning=kost.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("inriktning") !== "kost") return
+    const id = requestAnimationFrame(() => setOffering("nutrition"))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   const cities = [...new Set(data.trainers.filter((t) => t.isPublished && t.city).map((t) => t.city))].sort()
   const published = data.trainers.filter((t) => t.isPublished)
@@ -53,6 +61,7 @@ export default function DiscoverPage() {
         PRICE[price].test(t.pricePerSession) &&
         (city === "all" || t.city === city) &&
         (!remoteOnly || offersRemote(t.coachingMode)) &&
+        (offering === "all" || (offering === "training" ? t.offersTraining : t.offersNutrition)) &&
         (!text ||
           t.name.toLowerCase().includes(text) ||
           t.bio.toLowerCase().includes(text) ||
@@ -90,6 +99,27 @@ export default function DiscoverPage() {
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök namn eller nyckelord" className="h-11 pl-9" aria-label="Sök PT" />
+      </div>
+
+      <div role="radiogroup" aria-label="Erbjuder" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+        {(
+          [
+            ["all", "Allt"],
+            ["training", "Träning"],
+            ["nutrition", "Kost"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={offering === value}
+            onClick={() => setOffering(value)}
+            className={cn("rounded-md py-1.5 text-sm", offering === value ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Inriktning">

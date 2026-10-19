@@ -21,10 +21,12 @@ import type {
   WearableConnection,
   Client,
   ClientStatus,
+  CoachingRelationship,
   ID,
   ISODate,
   Message,
   NutritionPlan,
+  ProgressEntry,
   Purchase,
   Recipe,
   ScheduledWorkout,
@@ -47,7 +49,7 @@ export type PersistableAction =
   | { type: "upsertNutritionPlan"; plan: NutritionPlan }
   | { type: "setMealCheck"; clientId: ID; date: ISODate; mealId: ID; checked: boolean }
   | { type: "addMessage"; message: Message }
-  | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string }
+  | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string; trainerId?: ID }
   | { type: "addWeight"; clientId: ID; entry: WeightEntry }
   | { type: "requestCoaching"; trainerId: ID; clientId: ID; goal: string }
   | { type: "addEvent"; event: CalendarEvent }
@@ -73,6 +75,16 @@ export type PersistableAction =
   | { type: "deleteService"; serviceId: ID }
   | { type: "saveRecipe"; recipe: Recipe }
   | { type: "deleteRecipe"; recipeId: ID }
+  /** Klient: lämna en PT (relationen avslutas, kommande pass avbokas, PT:ns kostschema slutar gälla). */
+  | { type: "leaveTrainer"; clientId: ID; trainerId: ID; at: string }
+  /** Klient: välj vilket kostschema som gäller (null = inget). */
+  | { type: "chooseNutritionPlan"; clientId: ID; planId: ID | null }
+  /** Klient: namn, intressen och fokus. */
+  | { type: "updateClientProfile"; clientId: ID; patch: ClientProfilePatch }
+  | { type: "addProgressEntry"; entry: ProgressEntry }
+  | { type: "deleteProgressEntry"; id: ID }
+
+export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus">>
 
 /** Fält PT:n kan ändra på en händelse (klient, PT och typ är låsta). */
 export type EventPatch = Partial<Pick<CalendarEvent, "title" | "start" | "end" | "mode" | "location" | "notes" | "workoutId">>
@@ -89,6 +101,8 @@ export type TrainerProfilePatch = Partial<
     | "avatarUrl"
     | "minNoticeMinutes"
     | "isPublished"
+    | "offersTraining"
+    | "offersNutrition"
   >
 >
 
@@ -154,12 +168,61 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     case "deleteTemplate":
       return { ...data, templates: data.templates.filter((t) => t.id !== action.templateId) }
 
-    case "upsertNutritionPlan":
-      // En aktiv kostplan per klient.
+    case "upsertNutritionPlan": {
+      // Samma regel som databasen: högst ett aktivt schema per klient. Är en annan
+      // PT:s schema aktivt blir det sparade schemat ett förslag.
+      const plan = action.plan
+      const others = data.nutritionPlans.filter((p) => p.id !== plan.id)
+      const otherActive = others.some((p) => p.clientId === plan.clientId && isActivePlan(p) && p.trainerId !== plan.trainerId)
+      const active = isActivePlan(plan) && !otherActive
       return {
         ...data,
-        nutritionPlans: [...data.nutritionPlans.filter((p) => p.clientId !== action.plan.clientId), action.plan],
+        nutritionPlans: [
+          ...others
+            // PT:ns tidigare scheman för klienten ersätts av det nya.
+            .filter((p) => !(p.clientId === plan.clientId && p.trainerId === plan.trainerId)),
+          { ...plan, active },
+        ],
       }
+    }
+
+    case "chooseNutritionPlan":
+      return {
+        ...data,
+        nutritionPlans: data.nutritionPlans.map((p) => (p.clientId === action.clientId ? { ...p, active: p.id === action.planId } : p)),
+      }
+
+    case "leaveTrainer": {
+      const { clientId, trainerId } = action
+      const relationships = data.relationships.map((r) =>
+        r.clientId === clientId && r.trainerId === trainerId ? { ...r, status: "ended" as const } : r
+      )
+      const nextPrimary = relationships.find((r) => r.clientId === clientId && (r.status === "active" || r.status === "paused"))
+      return {
+        ...data,
+        relationships,
+        clients: data.clients.map((c) =>
+          c.id === clientId && c.trainerId === trainerId
+            ? { ...c, trainerId: nextPrimary?.trainerId ?? null, status: nextPrimary ? (nextPrimary.status as ClientStatus) : "pending" }
+            : c
+        ),
+        events: data.events.map((e) =>
+          e.clientId === clientId && e.trainerId === trainerId && e.kind === "session" && (e.status === "pending" || e.status === "confirmed") && e.start > action.at
+            ? { ...e, status: "cancelled" as const, cancelledBy: clientId, awaiting: undefined }
+            : e
+        ),
+        nutritionPlans: data.nutritionPlans.map((p) => (p.clientId === clientId && p.trainerId === trainerId ? { ...p, active: false } : p)),
+      }
+    }
+
+    case "updateClientProfile":
+      return { ...data, clients: data.clients.map((c) => (c.id === action.clientId ? { ...c, ...action.patch } : c)) }
+
+    case "addProgressEntry":
+      return { ...data, progressEntries: upsertBy(data.progressEntries, action.entry, (e) => e.id === action.entry.id) }
+
+    case "deleteProgressEntry":
+      return { ...data, progressEntries: data.progressEntries.filter((e) => e.id !== action.id) }
 
     case "setMealCheck": {
       const { clientId, date, mealId, checked } = action
@@ -177,7 +240,12 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     case "markThreadRead": {
       let changed = false
       const messages = data.messages.map((m) => {
-        if (m.threadId === action.threadId && m.senderId !== action.readerId && !m.readAt) {
+        if (
+          m.threadId === action.threadId &&
+          (!action.trainerId || m.trainerId === action.trainerId) &&
+          m.senderId !== action.readerId &&
+          !m.readAt
+        ) {
           changed = true
           return { ...m, readAt: action.readAt }
         }
@@ -205,6 +273,9 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     case "requestCoaching":
       return {
         ...data,
+        relationships: data.relationships.some((r) => r.clientId === action.clientId && r.trainerId === action.trainerId)
+          ? data.relationships
+          : [...data.relationships, { trainerId: action.trainerId, clientId: action.clientId, status: "pending", goal: action.goal, startDate: "" }],
         clients: data.clients.map((c) =>
           c.id === action.clientId && !c.trainerId
             ? { ...c, trainerId: action.trainerId, status: "pending", goal: action.goal || c.goal }
@@ -295,6 +366,11 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     case "setClientStatus":
       return {
         ...data,
+        relationships: data.relationships.map((r) =>
+          r.clientId === action.clientId && (r.trainerId === data.clients.find((c) => c.id === action.clientId)?.trainerId)
+            ? { ...r, status: action.status, startDate: action.startedAt ?? r.startDate }
+            : r
+        ),
         clients: data.clients.map((c) =>
           c.id === action.clientId
             ? { ...c, status: action.status, startDate: action.startedAt ?? c.startDate }
@@ -302,11 +378,19 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         ),
       }
 
-    case "updateTrainerProfile":
-      return {
-        ...data,
-        trainers: data.trainers.map((t) => (t.id === action.trainerId ? { ...t, ...action.patch } : t)),
-      }
+    case "updateTrainerProfile": {
+      const trainers = data.trainers.map((t) => (t.id === action.trainerId ? { ...t, ...action.patch } : t))
+      const t = trainers.find((x) => x.id === action.trainerId)
+      // Som databasen: tjänster utanför PT:ns utbud pausas.
+      const services = t
+        ? data.services.map((x) =>
+            x.trainerId === t.id && x.active && ((x.sessions > 0 && !t.offersTraining) || (x.includesNutrition && !t.offersNutrition))
+              ? { ...x, active: false }
+              : x
+          )
+        : data.services
+      return { ...data, trainers, services }
+    }
 
     case "addFoodEntry":
       return { ...data, foodEntries: upsertBy(data.foodEntries, action.entry, (e) => e.id === action.entry.id) }
@@ -367,26 +451,51 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "addClient":
       if (data.clients.some((c) => c.id === action.client.id)) return data
-      return { ...data, clients: [...data.clients, action.client] }
+      return {
+        ...data,
+        clients: [...data.clients, action.client],
+        relationships: action.client.trainerId
+          ? upsertBy(
+              data.relationships,
+              { trainerId: action.client.trainerId, clientId: action.client.id, status: action.client.status, goal: action.client.goal, startDate: action.client.startDate },
+              (r) => r.clientId === action.client.id && r.trainerId === action.client.trainerId
+            )
+          : data.relationships,
+      }
 
     case "upsertPurchases": {
+      // Som databasen: ett betalt köp gör klienten aktiv hos PT:n (flera PT:er är tillåtet).
       const purchases = action.purchases.reduce((list, p) => upsertBy(list, p, (x) => x.id === p.id), data.purchases)
       const paid = action.purchases.filter((p) => p.status === "paid")
+      let relationships = data.relationships
+      for (const p of paid) {
+        const existing = relationships.find((r) => r.clientId === p.clientId && r.trainerId === p.trainerId)
+        const fresh = !existing || existing.status === "ended" || existing.status === "pending"
+        const rel: CoachingRelationship = {
+          trainerId: p.trainerId,
+          clientId: p.clientId,
+          status: "active",
+          goal: existing?.goal ?? "",
+          startDate: fresh ? (action.today ?? existing?.startDate ?? "") : existing!.startDate,
+        }
+        relationships = upsertBy(relationships, rel, (r) => r.clientId === p.clientId && r.trainerId === p.trainerId)
+      }
       const clients = data.clients.map((c) => {
         const p = paid.find((x) => x.clientId === c.id)
         if (!p) return c
+        // Huvud-PT:n byts bara om klienten saknar en aktiv PT (eller det är samma PT).
+        const keep = c.trainerId && c.trainerId !== p.trainerId && c.status !== "pending"
+        if (keep) return c
         const fresh = c.trainerId !== p.trainerId || c.status === "pending"
-        return {
-          ...c,
-          trainerId: p.trainerId,
-          status: "active" as const,
-          startDate: fresh ? (action.today ?? c.startDate) : c.startDate,
-        }
+        return { ...c, trainerId: p.trainerId, status: "active" as const, startDate: fresh ? (action.today ?? c.startDate) : c.startDate }
       })
-      return { ...data, purchases, clients }
+      return { ...data, purchases, clients, relationships }
     }
   }
 }
+
+/** Äldre data saknar `active` – då är schemat aktivt. */
+export const isActivePlan = (p: NutritionPlan) => p.active !== false
 
 /** Spelar upp köade ändringar ovanpå (ny)laddad data. */
 export function replay(data: AppData, actions: PersistableAction[]): AppData {
@@ -418,15 +527,20 @@ export function normalizeAppData(raw: unknown): AppData | null {
         reviews: list(t.reviews),
         specialties: list(t.specialties),
         isPublished: t.isPublished ?? true,
+        offersTraining: t.offersTraining ?? true,
+        offersNutrition: t.offersNutrition ?? true,
       }
     }),
-    clients: list(d.clients),
+    clients: list<Client>(d.clients),
     exercises: list(d.exercises),
     templates: list(d.templates),
     workouts: list(d.workouts),
     nutritionPlans: list(d.nutritionPlans),
     mealChecks: list(d.mealChecks),
-    messages: list(d.messages),
+    // v12: en tråd per PT–klient-par. Äldre meddelanden hör till klientens PT.
+    messages: list<Message>(d.messages).map((m) =>
+      m.trainerId ? m : { ...m, trainerId: list<Client>(d.clients).find((c) => c.id === m.threadId)?.trainerId ?? undefined }
+    ),
     // v1–v3: bookings + enstaka lediga tider → kalenderhändelser + datumregler.
     // v4: preliminära pass saknar awaiting → den som skapade passet väntar på motparten.
     events: (Array.isArray(d.events) ? list<CalendarEvent>(d.events) : list<OldBooking>(d.bookings).map(bookingToEvent)).map((e) =>
@@ -447,6 +561,13 @@ export function normalizeAppData(raw: unknown): AppData | null {
     services: list(d.services),
     purchases: list(d.purchases),
     recipes: list(d.recipes),
+    // v12: relationer (flera PT:er). Äldre data: härled från klienternas PT.
+    relationships: Array.isArray(d.relationships)
+      ? list<CoachingRelationship>(d.relationships)
+      : list<Client>(d.clients)
+          .filter((c) => c.trainerId)
+          .map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
+    progressEntries: list(d.progressEntries),
   }
 }
 

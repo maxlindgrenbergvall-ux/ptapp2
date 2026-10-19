@@ -2,6 +2,7 @@
 
 import { CalendarCheck, Check, ChevronRight, Dumbbell, Lock, Play, Search, Utensils } from "lucide-react"
 import Link from "next/link"
+import { toast } from "sonner"
 
 import { ExtraFood, SleepTracker, WaterTracker } from "@/components/client/trackers"
 import { ServiceMenu } from "@/components/services/service-menu"
@@ -11,14 +12,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { exerciseName, workoutsFor } from "@/lib/data/selectors"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { exerciseName, myTrainers, nutritionPlansFor, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
 import { setsDone, setsTotal } from "@/lib/training"
 import { cn } from "@/lib/utils"
 import { firstName } from "@/lib/names"
 import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
-import type { Trainer } from "@/types/domain"
+import type { NutritionPlan, Trainer } from "@/types/domain"
 
 const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
@@ -26,21 +28,21 @@ export default function TodayPage() {
   const { data, actions, me } = useAppData()
   const today = todayISO()
   const client = data.clients.find((c) => c.id === me.id)!
-  const trainer = data.trainers.find((t) => t.id === client.trainerId)
+  const trainers = myTrainers(data, client.id)
   const workouts = workoutsFor(data, client.id)
   const todays = workouts.filter((w) => w.date === today)
-  // Kostråd från PT:n kräver köpt kostcoaching (databasen döljer annars planen helt).
-  const nutritionUnlocked = Boolean(trainer && hasNutritionAccess(data, trainer.id, client.id))
-  const plan = nutritionUnlocked ? data.nutritionPlans.find((p) => p.clientId === client.id) : undefined
-  const balance = trainer ? sessionBalance(data, trainer.id, client.id) : null
+  // Kostråd kräver köpt kostcoaching hos någon av klientens PT:er (databasen döljer annars planerna).
+  // Med flera PT:er gäller högst ETT kostschema åt gången – klienten väljer vilket.
+  const nutritionTrainers = trainers.filter((t) => hasNutritionAccess(data, t.id, client.id))
+  const nutritionUnlocked = nutritionTrainers.length > 0
+  const { current, all: allPlans } = nutritionPlansFor(data, client.id)
+  const plans = allPlans.filter((p) => nutritionTrainers.some((t) => t.id === p.trainerId))
+  const plan = nutritionUnlocked && current && plans.includes(current) ? current : undefined
   const checked = new Set(
     data.mealChecks.filter((m) => m.clientId === client.id && m.date === today).map((m) => m.mealId)
   )
   const now = new Date().toISOString()
   // Nästa kommande pass i kalendern (bekräftat eller väntande).
-  const booking = data.events
-    .filter((e) => e.clientId === client.id && (e.status === "confirmed" || e.status === "pending") && e.end >= now)
-    .sort((a, b) => a.start.localeCompare(b.start))[0]
 
   // Veckoremsa måndag–söndag med markering för pass.
   const monday = addDays(today, -((parseISODate(today).getDay() + 6) % 7))
@@ -166,8 +168,9 @@ export default function TodayPage() {
         </h2>
         <Card className="gap-4 py-5">
           <CardContent className="space-y-5 px-5">
+            {(plans.length > 1 || (plans.length === 1 && !plan)) && <PlanChooser plans={plans} current={plan?.id ?? null} />}
             {!nutritionUnlocked ? (
-              <NutritionLock trainer={trainer} />
+              <NutritionLock trainers={trainers} />
             ) : targets ? (
               <>
                 <KcalMeter value={eaten.kcal} target={targets.kcal} />
@@ -179,7 +182,7 @@ export default function TodayPage() {
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Din PT har inte lagt upp något kostschema än. Du kan ändå logga det du äter nedan
+                {plans.length ? "Välj vilket kostschema som ska gälla ovan." : "Din PT har inte lagt upp något kostschema än."} Du kan ändå logga det du äter nedan
                 {eaten.kcal > 0 && ` (${Math.round(eaten.kcal)} kcal idag)`}.
               </p>
             )}
@@ -229,42 +232,52 @@ export default function TodayPage() {
         <SleepTracker date={today} />
       </div>
 
-      {/* PT */}
+      {/* PT:er – en klient kan ha flera samtidigt */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 font-semibold">
-          <CalendarCheck className="size-4" /> Din PT
+          <CalendarCheck className="size-4" /> {trainers.length > 1 ? "Dina PT:er" : "Din PT"}
         </h2>
-        {trainer ? (
-          <Link
-            href={`/klient/hitta/${trainer.id}`}
-            className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/60"
-          >
-            <PersonAvatar name={trainer.name} src={trainer.avatarUrl} className="size-10" />
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">{trainer.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {booking
-                  ? `Nästa pass: ${formatSlot(booking.start)}${booking.status === "pending" ? (booking.awaiting === "client" ? " · ny tid – ditt svar behövs" : " · väntar på bekräftelse") : " · bekräftat"}`
-                  : "Ingen bokad session"}
-                {balance && balance.paid > 0 && ` · ${balance.remaining} pass kvar`}
+        {trainers.map((t) => {
+          const next = data.events
+            .filter((e) => e.clientId === client.id && e.trainerId === t.id && (e.status === "confirmed" || e.status === "pending") && e.end >= now)
+            .sort((a, b) => a.start.localeCompare(b.start))[0]
+          const balance = sessionBalance(data, t.id, client.id)
+          return (
+            <Link
+              key={t.id}
+              href={`/klient/hitta/${t.id}`}
+              className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/60"
+            >
+              <PersonAvatar name={t.name} src={t.avatarUrl} className="size-10" />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">{t.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {next
+                    ? `Nästa pass: ${formatSlot(next.start)}${next.status === "pending" ? (next.awaiting === "client" ? " · ny tid – ditt svar behövs" : " · väntar på bekräftelse") : " · bekräftat"}`
+                    : t.offersTraining
+                      ? "Ingen bokad session"
+                      : "Kostcoaching"}
+                  {balance.paid > 0 && ` · ${balance.remaining} pass kvar`}
+                </div>
               </div>
-            </div>
-            <ChevronRight className="size-4 text-muted-foreground" />
-          </Link>
-        ) : (
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/klient/hitta">
-              <Search /> Hitta din PT
+              <ChevronRight className="size-4 text-muted-foreground" />
             </Link>
-          </Button>
-        )}
+          )
+        })}
+        <Button asChild variant="outline" className="w-full">
+          <Link href="/klient/hitta">
+            <Search /> {trainers.length ? "Hitta fler PT:er" : "Hitta din PT"}
+          </Link>
+        </Button>
       </section>
     </div>
   )
 }
 
 /** Kostråden är låsta tills klienten köpt kostcoaching (egen kostloggning fungerar ändå). */
-function NutritionLock({ trainer }: { trainer?: Trainer }) {
+function NutritionLock({ trainers }: { trainers: Trainer[] }) {
+  // Bara PT:er som faktiskt erbjuder kost kan sälja kostcoaching.
+  const sellers = trainers.filter((t) => t.offersNutrition)
   return (
     <div className="space-y-3 rounded-xl border border-dashed p-4" data-testid="nutrition-lock">
       <div className="flex items-start gap-3">
@@ -274,22 +287,57 @@ function NutritionLock({ trainer }: { trainer?: Trainer }) {
         <div className="min-w-0">
           <p className="font-medium">Kostråd ingår inte i ditt paket</p>
           <p className="text-sm text-muted-foreground">
-            {trainer
-              ? `Lägg till kostcoaching hos ${firstName(trainer.name)} för att få ett personligt kostschema, recept och uppföljning.`
-              : "Välj en PT som erbjuder kostcoaching för att få ett personligt kostschema."}
+            {sellers.length
+              ? `Lägg till kostcoaching hos ${sellers.map((t) => firstName(t.name)).join(" eller ")} för att få ett personligt kostschema, recept och uppföljning.`
+              : trainers.length
+                ? "Dina PT:er erbjuder inte kostrådgivning. Hitta en PT eller dietist som gör det."
+                : "Välj en PT som erbjuder kostcoaching för att få ett personligt kostschema."}
           </p>
         </div>
       </div>
-      {trainer ? (
-        <ServiceMenu trainer={trainer} only={(s) => s.includesNutrition} className="sm:grid-cols-1" />
-      ) : (
+      {sellers.map((t) => (
+        <ServiceMenu key={t.id} trainer={t} only={(s) => s.includesNutrition} className="sm:grid-cols-1" />
+      ))}
+      {!sellers.length && (
         <Button asChild variant="outline" className="w-full">
-          <Link href="/klient/hitta">
-            <Search /> Hitta en PT
+          <Link href="/klient/hitta?inriktning=kost">
+            <Search /> Hitta kostcoaching
           </Link>
         </Button>
       )}
       <p className="text-xs text-muted-foreground">Du kan alltid logga det du äter själv nedan.</p>
+    </div>
+  )
+}
+
+/** Har klienten scheman från flera PT:er väljer hon/han vilket som gäller – bara ett åt gången. */
+function PlanChooser({ plans, current }: { plans: NutritionPlan[]; current: string | null }) {
+  const { data, actions } = useAppData()
+  const name = (p: NutritionPlan) => data.trainers.find((t) => t.id === p.trainerId)?.name ?? "PT"
+  return (
+    <div className="space-y-1.5 rounded-xl bg-muted/60 p-3" data-testid="plan-chooser">
+      <label htmlFor="active-plan" className="text-xs text-muted-foreground">
+        Kostschema som gäller (bara ett åt gången)
+      </label>
+      <Select
+        value={current ?? ""}
+        onValueChange={(id) => {
+          actions.chooseNutritionPlan(id)
+          const p = plans.find((x) => x.id === id)
+          if (p) toast.success(`${p.name} gäller nu`, { description: `Från ${name(p)}. Dina andra scheman är pausade.` })
+        }}
+      >
+        <SelectTrigger id="active-plan" className="w-full bg-background">
+          <SelectValue placeholder="Välj kostschema" />
+        </SelectTrigger>
+        <SelectContent>
+          {plans.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              {p.name} · {name(p)} · {p.targets.kcal} kcal
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

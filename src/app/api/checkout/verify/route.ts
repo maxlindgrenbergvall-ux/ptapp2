@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { isStripeEnabled, stripe, type CheckoutSession } from "@/lib/payments/stripe"
+import { getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseAdmin, hasServiceRole } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -29,14 +29,14 @@ export async function GET(request: NextRequest) {
   if (own.every((r) => r.status === "paid")) return NextResponse.json({ status: "paid" })
   if (!isStripeEnabled()) return NextResponse.json({ status: "pending" })
 
-  const session = await stripe<CheckoutSession>("GET", `/v1/checkout/sessions/${sessionId}`).catch(() => null)
+  const session = await getStripe().checkout.sessions.retrieve(sessionId).catch(() => null)
   if (session && session.client_reference_id !== own[0].checkout_id) return NextResponse.json({ status: "unknown" }, { status: 404 })
   if (!session || session.payment_status !== "paid") return NextResponse.json({ status: session?.status === "expired" ? "expired" : "pending" })
   if (hasServiceRole()) {
     const { error } = await createSupabaseAdmin().rpc("mark_checkout_paid", {
       p_checkout: own[0].checkout_id,
       p_session: session.id,
-      p_payment_intent: session.payment_intent,
+      p_payment_intent: typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null),
       p_amount_sek: session.amount_total === null ? null : Math.round(session.amount_total / 100),
     })
     if (error) return NextResponse.json({ status: "pending" })
