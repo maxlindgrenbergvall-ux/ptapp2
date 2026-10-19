@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
 import { kcalFromMacros } from "@/lib/foods"
-import { amountOf, itemFromFood, setAmount, switchUnit } from "@/lib/nutrition/meal-items"
+import { amountOf, itemFromFood, setAmount, switchUnit, unitOptions } from "@/lib/nutrition/meal-items"
 import { hasNutritionAccess } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
 import { MEAL_UNIT_LABEL, type MacroTargets, type Meal, type MealItem, type MealUnit, type NutritionPlan, type Recipe } from "@/types/domain"
@@ -384,15 +384,15 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
             </span>
             <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
               <NumberInput
-                decimal={unit !== "g"}
+                decimal={unit !== "g" && unit !== "ml"}
                 min={0}
-                max={unit === "g" ? 5000 : 50}
+                max={unit === "g" || unit === "ml" ? 5000 : 50}
                 value={amountOf(item)}
                 onValueChange={(v) => update(idx, (it) => setAmount(it, v ?? 0))}
                 className="h-8 w-16 bg-muted px-1.5 text-right text-sm tabular"
                 aria-label={`Mängd ${item.name}`}
               />
-              <UnitToggle value={unit} name={item.name} onChange={(u) => update(idx, (it) => switchUnit(it, u))} />
+              <UnitToggle item={item} onChange={(u) => update(idx, (it) => switchUnit(it, u))} />
               <span className="w-12 text-xs text-muted-foreground tabular" aria-label="Uppskattad vikt">
                 {unit !== "g" ? `≈${item.grams} g` : ""}
               </span>
@@ -413,17 +413,27 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
 }
 
 /**
- * Enhet för en rad: gram, styck eller köksmått (dl, msk, tsk). Köksmått räknas
- * om till gram med livsmedlets densitet. (ml finns inte – drycker anges i dl.)
+ * Enhet för en rad – bara de logiska för livsmedlet (allowedUnits): vätskor i
+ * dl/ml, ris/pasta/gryn i g/dl, kött/fisk/fasta livsmedel bara i g. Volym
+ * räknas om till gram med livsmedlets densitet.
  */
-function UnitToggle({ value, name, onChange }: { value: MealUnit; name: string; onChange: (u: MealUnit) => void }) {
+function UnitToggle({ item, onChange }: { item: MealItem; onChange: (u: MealUnit) => void }) {
+  const value = item.unit ?? "g"
+  const units = unitOptions(item)
+  if (units.length === 1) {
+    return (
+      <span className="flex h-8 w-[4.25rem] items-center px-2 text-xs text-muted-foreground" aria-label={`Enhet för ${item.name}`}>
+        {MEAL_UNIT_LABEL[value]}
+      </span>
+    )
+  }
   return (
     <Select value={value} onValueChange={(v) => onChange(v as MealUnit)}>
-      <SelectTrigger size="sm" className="h-8 w-[4.25rem] px-2 text-xs" aria-label={`Enhet för ${name}`}>
+      <SelectTrigger size="sm" className="h-8 w-[4.25rem] px-2 text-xs" aria-label={`Enhet för ${item.name}`}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(["g", "st", "dl", "msk", "tsk"] as const).map((u) => (
+        {units.map((u) => (
           <SelectItem key={u} value={u} className="text-sm">
             {MEAL_UNIT_LABEL[u]}
           </SelectItem>

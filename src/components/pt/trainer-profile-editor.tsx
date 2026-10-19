@@ -48,7 +48,7 @@ export function TrainerProfileEditor() {
     coachingMode: trainer?.coachingMode ?? ("onsite" as CoachingMode),
     avatarUrl: trainer?.avatarUrl ?? "",
     offersTraining: trainer?.offersTraining ?? true,
-    offersNutrition: trainer?.offersNutrition ?? true,
+    offersNutrition: trainer?.offersNutrition ?? false,
   }))
   const hasServices = data.services.some((x) => x.trainerId === me.id && x.active)
 

@@ -553,7 +553,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
         specialties: list(t.specialties),
         isPublished: t.isPublished ?? true,
         offersTraining: t.offersTraining ?? true,
-        offersNutrition: t.offersNutrition ?? true,
+        offersNutrition: t.offersNutrition ?? false,
       }
     }),
     clients: list<Client>(d.clients),

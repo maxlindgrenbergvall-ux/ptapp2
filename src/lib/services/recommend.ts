@@ -17,11 +17,20 @@ const nutritionService = (data: AppData, trainerId: ID) =>
     .filter((s) => s.trainerId === trainerId && s.active && s.includesNutrition)
     .sort((a, b) => Number(b.kind === "nutrition") - Number(a.kind === "nutrition") || a.priceSek - b.priceSek)[0]
 
+/**
+ * Erbjuder PT:n kostschema på riktigt? Kräver BÅDE att PT:n kryssat i "Kost" i
+ * sin profil OCH att hen har en aktiv tjänst som innehåller kostcoaching.
+ * Används av sökfiltret "Kostschema", taggen på PT-profilen och rekommendationerna.
+ */
+export function offersNutritionPlan(data: AppData, trainer: Trainer): boolean {
+  return trainer.offersNutrition && nutritionService(data, trainer.id) !== undefined
+}
+
 export function nutritionRecommendations(data: AppData, clientId: ID): { mine: NutritionPick[]; others: NutritionPick[] } {
   const mineIds = new Set(myTrainers(data, clientId).map((t) => t.id))
   const interests = new Set(data.clients.find((c) => c.id === clientId)?.interests ?? [])
   const pick = (t: Trainer): NutritionPick[] => {
-    const service = t.offersNutrition ? nutritionService(data, t.id) : undefined
+    const service = offersNutritionPlan(data, t) ? nutritionService(data, t.id) : undefined
     return service ? [{ trainer: t, service }] : []
   }
   const mine = myTrainers(data, clientId).flatMap(pick)

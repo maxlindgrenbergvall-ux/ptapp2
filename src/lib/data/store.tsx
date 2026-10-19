@@ -34,6 +34,7 @@ import { forgetInterests } from "@/lib/offers/interests"
 import { hasNutritionAccess, noCreditMessage, sessionBalance } from "@/lib/services/balance"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
+import { completeBlocker, verifyBlocker } from "@/lib/workout-rules"
 import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import type {
   AppData,
@@ -139,8 +140,16 @@ function createActions(ctx: {
       }
       commit({ type: "upsertSetLog", workoutId, log })
     },
-    setWorkoutStatus: (workoutId: ID, status: WorkoutStatus, comment?: string) =>
-      commit({ type: "setWorkoutStatus", workoutId, status, comment, completedAt: status === "completed" ? now() : undefined }),
+    /** Returnerar ett felmeddelande om passet inte har ägt rum än (databasen spärrar samma sak). */
+    setWorkoutStatus: (workoutId: ID, status: WorkoutStatus, comment?: string): string | null => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (w && status === "completed" && w.status !== "completed") {
+        const blocked = completeBlocker(getData(), w)
+        if (blocked) return blocked
+      }
+      commit({ type: "setWorkoutStatus", workoutId, status, comment, completedAt: status === "completed" ? now() : undefined })
+      return null
+    },
     /**
      * PT: schemalägg ett pass. Returnerar ett felmeddelande om klienten inte har
      * betalda pass kvar (databasen kontrollerar samma sak).
@@ -171,14 +180,18 @@ function createActions(ctx: {
      * PT: klarmarkera ett pass. Vikter, reps och set har PT:n redan kontrollerat
      * och rättat i passvyn; här bekräftas passet med en kommentar.
      */
-    verifyWorkout: (workoutId: ID, comment?: string) => {
+    verifyWorkout: (workoutId: ID, comment?: string): string | null => {
       const w = getData().workouts.find((x) => x.id === workoutId)
-      if (!w) return
+      if (!w) return "Passet hittades inte."
+      // Inte i förtid och inte utan vikter (databasen spärrar samma sak).
+      const blocked = verifyBlocker(getData(), w)
+      if (blocked) return blocked
       const linked = getData().events.filter(
         (e) => (e.workoutId === workoutId || e.id === w.eventId) && (e.status === "confirmed" || e.status === "pending")
       )
       commit({ type: "verifyWorkout", workoutId, verifiedAt: now(), verifiedBy: me.id, comment: comment?.trim().slice(0, 1000) || undefined })
       for (const e of linked) commit({ type: "setEventStatus", eventId: e.id, status: "completed" })
+      return null
     },
     /** Klient: skapa ett eget pass (egen tracking, oberoende av PT). Returnerar passets id. */
     createOwnWorkout: (name: string, date: ISODate, exercises: WorkoutTemplate["exercises"]): ID => {
@@ -372,8 +385,15 @@ function createActions(ctx: {
       commit({ type: "setEventStatus", eventId, status: accept ? "confirmed" : "cancelled", cancelledBy: accept ? undefined : me.id })
     },
     /** Avboka (klient eller PT) eller markera som genomfört (PT). */
-    setEventStatus: (eventId: ID, status: EventStatus) =>
-      commit({ type: "setEventStatus", eventId, status, cancelledBy: status === "cancelled" ? me.id : undefined }),
+    /** Returnerar ett felmeddelande om passet markeras som genomfört innan det har börjat. */
+    setEventStatus: (eventId: ID, status: EventStatus): string | null => {
+      const ev = getData().events.find((e) => e.id === eventId)
+      if (ev && status === "completed" && ev.status !== "completed" && new Date(ev.start).getTime() > Date.now()) {
+        return "Passet kan inte markeras som genomfört innan det har börjat."
+      }
+      commit({ type: "setEventStatus", eventId, status, cancelledBy: status === "cancelled" ? me.id : undefined })
+      return null
+    },
     /** PT: nytt pass, inbokad klient eller blockering. Returnerar felmeddelande vid krock. */
     createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">, opts?: { template?: WorkoutTemplate }): string | null => {
       const conflict = findConflict(getData().events, me.id, new Date(input.start), new Date(input.end))

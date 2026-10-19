@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Eye, Info, Minus, PlayCircle, Plus, ShieldCheck, Timer, Trash2, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, PlayCircle, Plus, ShieldCheck, Timer, Trash2, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -24,6 +24,7 @@ import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
+import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
 import type { ScheduledWorkout, WorkoutExercise } from "@/types/domain"
 
@@ -86,6 +87,11 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const clientName = data.clients.find((c) => c.id === workout.clientId)?.name
   const done = setsDone(workout)
   const total = setsTotal(workout)
+  // Tidsspärr: passet kan inte markeras som genomfört (eller klarmarkeras) innan det har ägt rum.
+  // Klienten kan ändå se passet och logga set i förväg.
+  const started = hasWorkoutStarted(data, workout)
+  const startsAt = started ? "" : startsAtLabel(data, workout)
+  const sections = groupBySection(workout.exercises)
 
   const onSetDone = (exercise: WorkoutExercise) => {
     // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
@@ -133,12 +139,12 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             </Button>
           )}
           {trainerMode && !workout.verifiedAt && (
-            <Button size="sm" onClick={() => setFinishOpen(true)}>
+            <Button size="sm" onClick={() => setFinishOpen(true)} disabled={!started} title={started ? undefined : `Kan klarmarkeras ${startsAt}`}>
               <ClipboardCheck /> Klarmarkera
             </Button>
           )}
           {!trainerMode && !readOnly && workout.status !== "completed" && (
-            <Button size="sm" onClick={() => setFinishOpen(true)} disabled={done === 0}>
+            <Button size="sm" onClick={() => setFinishOpen(true)} disabled={done === 0 || !started} title={started ? undefined : `Kan avslutas ${startsAt}`}>
               Avsluta
             </Button>
           )}
@@ -161,9 +167,20 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             </Button>
           </div>
         )}
-        {trainerMode && !workout.verifiedAt && (
+        {!started && !preview && !workout.verifiedAt && workout.status !== "completed" && (
+          <p className="flex gap-2 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm" data-testid="workout-not-started">
+            <Clock className="mt-0.5 size-4 shrink-0 text-warning" />
+            <span>
+              {trainerMode
+                ? `Passet har inte ägt rum än. Du kan se och förbereda programmet, men det kan klarmarkeras först ${startsAt}.`
+                : `Du kan följa passet och logga set redan nu, men det kan markeras som genomfört först ${startsAt}.`}
+            </span>
+          </p>
+        )}
+        {trainerMode && !workout.verifiedAt && started && (
           <p className="rounded-lg bg-muted px-3 py-2 text-sm">
-            Kontrollera vad som faktiskt gjordes: rätta vikter och reps, bocka av genomförda set och tryck sedan <b>Klarmarkera</b>.
+            Kontrollera vad som faktiskt gjordes: fyll i/rätta vikterna (krävs för viktövningar), reps och set, bocka av genomförda set och tryck sedan{" "}
+            <b>Klarmarkera</b>.
             {workout.status === "completed" && workout.clientComment && <> Klientens kommentar: &quot;{workout.clientComment}&quot;</>}
           </p>
         )}
@@ -181,21 +198,29 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             {workout.clientComment && <p className="text-xs text-muted-foreground">Klientens kommentar: &quot;{workout.clientComment}&quot;</p>}
           </div>
         )}
-        {workout.exercises.map((exercise, idx) => (
-          <ExerciseCard
-            key={exercise.id}
-            index={idx}
-            workout={workout}
-            exercise={exercise}
-            history={history}
-            open={openId === exercise.id}
-            onToggle={() => setOpenId(openId === exercise.id ? null : exercise.id)}
-            readOnly={readOnly}
-            onLog={(log) => actions.logSet(workout.id, log)}
-            onSetDone={() => onSetDone(exercise)}
-          />
+        {sections.map((group) => (
+          <section key={group.section} className="space-y-3" aria-label={group.label} data-section={group.section}>
+            {/* Rubriker bara när passet har uppvärmning/nedvarvning. */}
+            {sections.length > 1 || group.section !== "main" ? (
+              <h2 className="px-1 pt-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{group.label}</h2>
+            ) : null}
+            {group.exercises.map((exercise) => (
+              <ExerciseCard
+                key={exercise.id}
+                index={workout.exercises.indexOf(exercise)}
+                workout={workout}
+                exercise={exercise}
+                history={history}
+                open={openId === exercise.id}
+                onToggle={() => setOpenId(openId === exercise.id ? null : exercise.id)}
+                readOnly={readOnly}
+                onLog={(log) => actions.logSet(workout.id, log)}
+                onSetDone={() => onSetDone(exercise)}
+              />
+            ))}
+          </section>
         ))}
-        {!readOnly && !trainerMode && workout.status !== "completed" && done === total && (
+        {!readOnly && !trainerMode && workout.status !== "completed" && done === total && started && (
           <Button size="lg" className="h-14 w-full bg-brand text-base text-brand-foreground hover:bg-brand/90" onClick={() => setFinishOpen(true)}>
             <Check /> Alla set klara – avsluta passet
           </Button>
@@ -210,7 +235,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           onOpenChange={setFinishOpen}
           workout={workout}
           onVerify={(comment) => {
-            actions.verifyWorkout(workout.id, comment)
+            const error = actions.verifyWorkout(workout.id, comment)
+            if (error) return toast.error(error)
             toast.success("Passet är klarmarkerat", { description: `${clientName ?? "Klienten"} ser din kontroll och kommentar.` })
             router.push(home)
           }}
@@ -221,7 +247,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           onOpenChange={setFinishOpen}
           workout={workout}
           onFinish={(comment) => {
-            actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
+            const error = actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
+            if (error) return toast.error(error)
             // Kommentaren går till passets PT (egna pass har ingen PT).
             const pt = workout.trainerId ?? (workout.byClient ? undefined : data.clients.find((c) => c.id === me.id)?.trainerId ?? undefined)
             if (comment && pt) actions.sendMessage(me.id, comment, workout.id, { trainerId: pt })
@@ -270,7 +297,8 @@ function ExerciseCard({
   const last = lastPerformance(exercise.exerciseId, history)
   const doneCount = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length
   const complete = doneCount >= exercise.sets
-  const usesWeight = (exercise.targetKg ?? 0) > 0 || (last?.kg ?? 0) > 0
+  // Viktövningar (skivstång, hantlar, maskin …) visar alltid kg – vikten måste fyllas i.
+  const usesWeight = usesWeights(data.exercises.find((x) => x.id === exercise.exerciseId)) || (exercise.targetKg ?? 0) > 0 || (last?.kg ?? 0) > 0
   const panelId = `ex-${exercise.id}`
 
   return (
@@ -575,6 +603,9 @@ function VerifyDialog({
   const [comment, setComment] = React.useState("")
   const done = setsDone(workout)
   const total = setsTotal(workout)
+  // Vikterna får inte lämnas tomma: alla genomförda set i viktövningar måste ha en vikt.
+  const missing = new Set(exercisesMissingWeights(data, workout).map((e) => e.id))
+  const blocker = verifyBlocker(data, workout)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
@@ -588,12 +619,17 @@ function VerifyDialog({
           {workout.exercises.map((e) => {
             const sets = workout.logs.filter((l) => l.workoutExerciseId === e.id && l.done).sort((a, b) => a.setIndex - b.setIndex)
             return (
-              <li key={e.id} className="flex items-start justify-between gap-3 px-3 py-2">
+              <li key={e.id} className={cn("flex items-start justify-between gap-3 px-3 py-2", missing.has(e.id) && "bg-destructive/10")}>
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{exerciseName(data, e.exerciseId, workout.clientId)}</span>
                   <span className="block text-xs text-muted-foreground tabular">
                     {sets.length ? sets.map((l) => (l.kg ? `${l.kg}×${l.reps}` : `${l.reps}`)).join(", ") : "Inga set"}
                   </span>
+                  {missing.has(e.id) && (
+                    <span className="flex items-center gap-1 text-xs font-medium text-destructive" data-testid="weights-missing">
+                      <TriangleAlert className="size-3" /> Vikt saknas
+                    </span>
+                  )}
                 </span>
                 <span className={cn("shrink-0 text-xs tabular", sets.length >= e.sets ? "text-success" : "text-muted-foreground")}>
                   {sets.length}/{e.sets}
@@ -610,11 +646,16 @@ function VerifyDialog({
           maxLength={1000}
           aria-label="Kommentar om passet"
         />
+        {blocker && (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+            {blocker}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Fortsätt rätta
           </Button>
-          <Button onClick={() => onVerify(comment.trim())}>
+          <Button onClick={() => onVerify(comment.trim())} disabled={Boolean(blocker)}>
             <ClipboardCheck /> Bekräfta genomfört
           </Button>
         </DialogFooter>

@@ -43,6 +43,7 @@ import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { parseISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
+import { SECTION_LABEL, sectionOf } from "@/lib/workout-rules"
 import { SESSION_MODE_LABEL, type CalendarEvent, type ScheduledWorkout } from "@/types/domain"
 import { firstName } from "@/lib/names"
 
@@ -558,6 +559,7 @@ function ProgramPreview({ workoutId, upcoming }: { workoutId: string; upcoming: 
           <li key={e.id} className="flex justify-between gap-2">
             <span className="truncate">
               {i + 1}. {exerciseName(data, e.exerciseId, me.id)}
+              {sectionOf(e) !== "main" && <span className="ml-1 text-[10px] uppercase">· {SECTION_LABEL[sectionOf(e)]}</span>}
             </span>
             <span className="shrink-0 tabular">
               {e.sets} × {e.reps}

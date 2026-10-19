@@ -203,8 +203,10 @@ await amount.click()
 await p.keyboard.type("1")
 check((await oats.innerText()).includes("≈35 g"), "1 dl havregryn ≈ 35 g")
 await oats.locator('[aria-label="Enhet för Havregryn"]').click()
-await p.click('[role=option]:has-text("msk")')
-check((await oats.locator('[aria-label="Enhet för Havregryn"]').innerText()).trim() === "msk", "matsked kan väljas")
+// v14: gryn anges bara i gram eller dl (inte msk/tsk).
+const oatUnits = (await p.locator("[role=option]").allInnerTexts()).map((t) => t.trim())
+check(oatUnits.join(",") === "g,dl", `havregryn: bara g och dl (${oatUnits.join(", ")})`)
+await p.keyboard.press("Escape")
 await p.screenshot({ path: `${out}/v13-kokmatt.png`, fullPage: true })
 
 // Mobil: inga sidor i sidled

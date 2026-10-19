@@ -14,6 +14,7 @@ import { formatDayLong, formatDayShort, formatTimeRange } from "@/lib/calendar/t
 import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
 import { cn } from "@/lib/utils"
+import { hasWorkoutStarted } from "@/lib/workout-rules"
 import { SESSION_MODE_LABEL, type CalendarEvent } from "@/types/domain"
 import { firstName } from "@/lib/names"
 
@@ -88,7 +89,7 @@ export function EventDetailsDialog({
               {client && !workout.byClient && (
                 <Button asChild size="sm" variant={workout.verifiedAt ? "outline" : "default"} className="w-full">
                   <Link href={`/pt/klienter/${client.id}/pass/${workout.id}`}>
-                    <ClipboardCheck /> {workout.verifiedAt ? "Visa passet" : past || workout.status !== "planned" ? "Kontrollera och klarmarkera" : "Öppna programmet"}
+                    <ClipboardCheck /> {workout.verifiedAt ? "Visa passet" : hasWorkoutStarted(data, workout) ? "Kontrollera och klarmarkera" : "Öppna programmet"}
                   </Link>
                 </Button>
               )}
@@ -195,7 +196,8 @@ export function EventDetailsDialog({
                 {past && !workout && (
                   <Button
                     onClick={() => {
-                      actions.setEventStatus(ev.id, "completed")
+                      const error = actions.setEventStatus(ev.id, "completed")
+                      if (error) return toast.error(error)
                       toast.success("Markerat som genomfört")
                       close()
                     }}

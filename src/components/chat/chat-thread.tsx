@@ -12,7 +12,8 @@ import { useAppData } from "@/lib/data/store"
 import { formatShort, formatTime, toISODate } from "@/lib/date"
 import { ACCEPT, attachmentKind, formatBytes, MAX_BYTES, safeName, uploadFile } from "@/lib/storage"
 import { cn } from "@/lib/utils"
-import { callThread, parseCallLog, type CallLog } from "@/lib/calls/thread"
+import { hasCallAccess } from "@/lib/calls/access"
+import { callThread, parseCallLog, parseCallThread, type CallLog } from "@/lib/calls/thread"
 import type { Attachment, ID } from "@/types/domain"
 
 /**
@@ -240,7 +241,10 @@ function CallCard({
   peer?: { id: ID; name: string }
   callThreadId: string
 }) {
+  const { data } = useAppData()
   const { start, state } = useCall()
+  const { clientId, trainerId } = parseCallThread(callThreadId)
+  const canCall = hasCallAccess(data, clientId, trainerId)
   const video = call.kind === "video"
   const kindLabel = video ? "videosamtal" : "röstsamtal"
   const title = call.missed ? (mine ? "Inget svar" : `Missat ${kindLabel}`) : video ? "Videosamtal" : "Röstsamtal"
@@ -269,7 +273,7 @@ function CallCard({
             {sub && ` · ${sub}`}
           </p>
         </div>
-        {peer && (
+        {peer && canCall && (
           <Button
             size="sm"
             variant={call.missed && !mine ? "default" : "secondary"}

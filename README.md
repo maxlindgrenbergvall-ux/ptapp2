@@ -30,7 +30,8 @@ npm run dev                  # http://localhost:3000
    11. `supabase/migrations/20261024000000_v11_services_purchases_nutrition.sql`. Den lägger till tjänster, köp och betalning, passgräns, kostlås, recept och låsta certifikat. Befintliga klienter får ett köp för det som redan är schemalagt.
    12. `supabase/migrations/20261025000000_v12_multi_pt_interests.sql`. Den lägger till flera PT:er per klient, Lämna PT, ett aktivt kostschema, PT-utbud (träning/kost), intressen och mätpunkter.
    13. `supabase/migrations/20261026000000_v13_own_workouts_verify_avatar.sql`. Den lägger till klientens egna pass, PT:ns klarmarkering, program kopplade till bokade pass, profilbild för klienter och "Dagens kost" i realtid.
-   14. `supabase/seed.sql`
+   14. `supabase/migrations/20261027000000_v14_fixes_rules.sql`. Den rättar RLS-felet vid profilbildsuppladdning, kost-PT-flaggan, spärrar genomförda pass i förtid, kräver vikter vid klarmarkering och låser samtal utan köp eller bokat pass.
+   15. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: produktionsadressen, t.ex. `https://app.coavira.com`. Inte localhost och inte en Vercel-förhandsadress.
    - *Redirect URLs*: `https://app.coavira.com/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
@@ -281,6 +282,28 @@ npm run dev                  # http://localhost:3000
   - Samtalsläget har ny design: gradient, frostad kontrollrad med etiketter och en ny ring/lägg-på-ikon.
 - **Logomenyn:** Coavira-loggan öppnar en meny med Inställningar, Profilinställningar, Min data och sekretess och Anslutningar. Sekretess och anslutningar har flyttats från Framsteg till egna sidor.
 
+## Nytt i v14: buggfixar och regler
+
+- **Profilbild – "new row violates row-level security policy":**
+  - Uppladdningen gör upsert (`INSERT … ON CONFLICT DO UPDATE … RETURNING`), som kräver INSERT, UPDATE **och** SELECT på `storage.objects`.
+  - Bucketen `avatars` saknade SELECT-policy och UPDATE saknade `WITH CHECK`. Migration v14 lägger till båda, begränsade till den egna mappen `{auth.uid()}/…`. Gäller både klienter och PT:er.
+  - Appen visar ett begripligt felmeddelande om behörighet ändå saknas.
+- **Kost-PT:er:**
+  - Buggen: `trainers.offers_nutrition` var `true` som standard, så PT:er som aldrig sålt kost visades under "Se andra PT:s som erbjuder kostschema".
+  - Nu `false` som standard, och befintliga PT:er rättas utifrån om de har en aktiv kosttjänst.
+  - I appen kräver filtret **Kostschema** (söksidan), taggen **Kostschema** (sökkort och PT-profil) och rekommendationerna både ikryssad kost och en aktiv tjänst som innehåller kostcoaching (`offersNutritionPlan`).
+- **Inga genomförda pass i förtid:**
+  - Pass kan inte markeras som genomförda eller klarmarkeras innan passdagen har kommit och ett kopplat kalenderpass har börjat. Det gäller både PT och klient (triggers i databasen, samma regel i appen via `src/lib/workout-rules.ts`).
+  - Klienten kan fortfarande se passet, "Starta ändå nu" och logga set i förväg, men "Avsluta" är spärrat. Passet försvinner inte i förtid.
+- **Vikter krävs:** PT:n kan inte klarmarkera förrän minst ett set är genomfört och alla genomförda set i viktövningar (skivstång, hantlar, kettlebell, kabel, maskin …) har en vikt. Kontrollfönstret visar "Vikt saknas" per övning.
+- **Uppvärmning och nedvarvning:** varje övning i passbyggaren har en del (Uppvärmning, Huvudpass eller Nedvarvning). Mallen sparas i den ordningen och passvyn och kalendern visar delarna.
+- **Logiska enheter i kosten** (`allowedUnits` i `src/lib/nutrition/meal-items.ts`, samma regler för PT och klient):
+  - Vätskor (mjölk, juice, dryck): dl och ml. Olja: msk, tsk, ml och dl.
+  - Ris, pasta, gryn, flingor, bönor, kvarg/yoghurt: g och dl.
+  - Ägg, frukt, bröd: st och g. Smör, honung, socker, pulver, frön, såser: g, msk och tsk.
+  - Kött, fisk, fågel och andra fasta livsmedel: bara g.
+- **Samtal kräver köp eller bokat pass:** ett gratiskonto kan inte ringa någon PT. `has_call_access` (betalt köp eller bekräftat/genomfört pass mellan paret) krävs nu av `can_access_call`. I appen visas ett lås med förklaring i stället för ring-knapparna.
+
 ## Nytt i v13: klarmarkering, förhandsvisning, egna pass, profilbild och köksmått
 
 - **Klarmarkera pass (PT):**
@@ -414,11 +437,12 @@ node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, 
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
 node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarkering, program i kalendern, profilbild, kamera, kost, dl/msk
+node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v13`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v14`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -439,6 +463,7 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v13`) och ett migreringstest för v4 kont
 - v11: PT kan inte ändra certifikat. Köp kan inte skapas eller markeras betalda av klienten. Priset hämtas från tjänsten, och fel belopp avvisas.
 - v11: en betalning aktiverar relationen. Pass 6 av 5 stoppas både som träningspass och i kalendern, och en avbokning ger tillbaka passet.
 - v13: klienten skapar, ändrar och tar bort sina egna pass, men kan inte skapa pass i PT:ns namn eller klarmarkera. Egna pass tar inga betalda pass, och PT:n ser dem men kan inte ändra dem. Program kopplat till ett bokat pass tar inget extra pass. Bara passets PT klarmarkerar, och profilbilden måste vara en https-adress eller en bild.
+- v14: profilbilden kan laddas upp och ersättas (upsert) i den egna mappen men inte i någon annans. Kost-PT-flaggan följer aktiva kosttjänster. Varken PT eller klient kan markera ett pass som genomfört innan det ägt rum, klarmarkering kräver vikter i viktövningar, och samtal kräver köp eller bokat pass.
 - v12: tre PT:er samtidigt, PT:er ser inte varandras chattar eller samtal och ändrar inte varandras pass eller scheman, bara ett aktivt kostschema, och klienten väljer det. Lämna PT stänger åtkomsten och PT:n kan inte återaktivera relationen. Kost-PT säljer inga pass, och intressen och mätpunkter är privata.
 - v11: kostplan kräver köpt kost (och låses vid återbetalning). Klienten kan inte köpa hos en annan PT än sin aktiva, och recept är privata.
 

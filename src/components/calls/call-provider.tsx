@@ -8,6 +8,7 @@ import { CallEngine, CallError, IDLE, type CallState } from "@/lib/calls/call-en
 import { DemoTransport, SupabaseTransport, type CallKind, type Peer } from "@/lib/calls/signaling"
 import { myTrainers } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
+import { hasCallAccess } from "@/lib/calls/access"
 import { callThread, parseCallThread } from "@/lib/calls/thread"
 import { getSupabase } from "@/lib/supabase/client"
 
@@ -54,9 +55,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const threadIds = React.useMemo(
     () =>
       me.role === "client"
-        ? myTrainers(data, me.id).map((t) => callThread(me.id, t.id))
+        ? myTrainers(data, me.id)
+            .filter((t) => hasCallAccess(data, me.id, t.id))
+            .map((t) => callThread(me.id, t.id))
         : data.clients
-            .filter((c) => c.trainerId === me.id && (c.status === "active" || c.status === "paused"))
+            // Bara par med köp eller bokat pass kan ringa (databasen spärrar kanalen annars).
+            .filter((c) => c.trainerId === me.id && (c.status === "active" || c.status === "paused") && hasCallAccess(data, c.id, me.id))
             .map((c) => callThread(c.id, me.id)),
     [me, data]
   )

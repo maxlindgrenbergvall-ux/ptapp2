@@ -35,6 +35,7 @@ import { callThread } from "@/lib/calls/thread"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { cn } from "@/lib/utils"
+import { hasWorkoutStarted } from "@/lib/workout-rules"
 import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
 import { setsDone, setsTotal, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
@@ -251,7 +252,8 @@ function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; 
   const clientTrainer = data.clients.find((c) => c.id === clientId)?.trainerId
   // Bara PT:ns egna pass kan klarmarkeras (inte klientens egna eller en annan PT:s).
   const mine = (w: ScheduledWorkout) => !w.byClient && (w.trainerId ?? clientTrainer) === me.id
-  const canVerify = (w: ScheduledWorkout) => mine(w) && !w.verifiedAt && (w.status === "completed" || w.status === "in_progress" || w.date <= today)
+  // Klarmarkering först när passets tid har inträffat (dag + ev. kopplat kalenderpass), aldrig i förtid.
+  const canVerify = (w: ScheduledWorkout) => mine(w) && !w.verifiedAt && hasWorkoutStarted(data, w)
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">

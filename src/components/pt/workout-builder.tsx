@@ -48,8 +48,9 @@ import { useAppData } from "@/lib/data/store"
 import { formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { ACCEPT, safeName, uploadFile } from "@/lib/storage"
 import { cn } from "@/lib/utils"
+import { SECTION_LABEL, sectionOf, sortBySection, WORKOUT_SECTIONS } from "@/lib/workout-rules"
 import { parseVideo } from "@/lib/video"
-import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutTemplate } from "@/types/domain"
+import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutSection, WorkoutTemplate } from "@/types/domain"
 
 const MUSCLE_GROUPS: MuscleGroup[] = ["ben", "bröst", "rygg", "axlar", "armar", "bål", "helkropp", "kondition"]
 
@@ -83,7 +84,8 @@ export function WorkoutBuilder() {
   const save = () => {
     if (!draft) return
     if (!draft.name.trim()) return toast.error("Passet behöver ett namn")
-    actions.saveTemplate({ ...draft, name: draft.name.trim() })
+    // Uppvärmning först, nedvarvning sist – ordningen inom varje del behålls.
+    actions.saveTemplate({ ...draft, name: draft.name.trim(), exercises: sortBySection(draft.exercises) })
     toast.success("Mallen är sparad")
   }
 
@@ -309,7 +311,21 @@ function SortableExerciseRow({
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <Field label="Del">
+              <Select value={sectionOf(item)} onValueChange={(v) => onUpdate({ section: v === "main" ? undefined : (v as WorkoutSection) })}>
+                <SelectTrigger className="w-full" aria-label={`Del av passet för ${exercise?.name ?? "övningen"}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORKOUT_SECTIONS.map((sec) => (
+                    <SelectItem key={sec} value={sec}>
+                      {SECTION_LABEL[sec]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="Set">
               <NumberInput min={1} max={20} value={item.sets} onValueChange={(v) => v !== undefined && onUpdate({ sets: Math.min(20, Math.max(1, v)) })} />
             </Field>

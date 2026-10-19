@@ -309,7 +309,7 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   certifications: r.certifications ?? [],
   isPublished: r.is_published,
   offersTraining: r.offers_training ?? true,
-  offersNutrition: r.offers_nutrition ?? true,
+  offersNutrition: r.offers_nutrition ?? false,
   minNoticeMinutes: r.min_notice_minutes ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,

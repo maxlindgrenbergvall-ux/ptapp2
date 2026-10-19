@@ -146,10 +146,15 @@ export interface Exercise {
   videoUrl?: string
 }
 
+/** Del av passet: uppvärmning, huvudpass (standard) eller nedvarvning. */
+export type WorkoutSection = "warmup" | "main" | "cooldown"
+
 /** En övning i ett pass, med PT:ns målvärden. */
 export interface WorkoutExercise {
   id: ID
   exerciseId: ID
+  /** Valfri del av passet; saknas = huvudpass. */
+  section?: WorkoutSection
   sets: number
   /** Fritext så att intervall fungerar, t.ex. "8–10" eller "AMRAP". */
   reps: string
@@ -211,9 +216,9 @@ export interface ScheduledWorkout {
  * deciliter, matsked (15 ml) och tesked (5 ml). Styck och köksmått räknas om
  * till gram (MealItem.grams) med styckvikt respektive densitet.
  */
-export type MealUnit = "g" | "st" | "dl" | "msk" | "tsk"
+export type MealUnit = "g" | "st" | "ml" | "dl" | "msk" | "tsk"
 
-export const MEAL_UNIT_LABEL: Record<MealUnit, string> = { g: "g", st: "st", dl: "dl", msk: "msk", tsk: "tsk" }
+export const MEAL_UNIT_LABEL: Record<MealUnit, string> = { g: "g", st: "st", ml: "ml", dl: "dl", msk: "msk", tsk: "tsk" }
 
 export interface MealItem {
   name: string
@@ -226,7 +231,7 @@ export interface MealItem {
   /** Näringsvärden per 100 g – makrona räknas alltid fram ur dessa. */
   per100?: Per100
   unit?: MealUnit
-  /** Antal i vald enhet när unit ≠ "g" (styck, dl, msk eller tsk). */
+  /** Antal i vald enhet när unit ≠ "g" (styck, ml, dl, msk eller tsk). */
   qty?: number
   /** Uppskattad vikt per styck i gram. */
   pieceG?: number

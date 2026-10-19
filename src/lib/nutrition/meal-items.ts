@@ -4,10 +4,13 @@
  * med kvoten ny/gammal vikt – vid 0 g blev de 0 för alltid, och värdena
  * "försvann" när PT:n ändrade gramvärdet.)
  *
- * Enheter: gram, styck och köksmått (dl, msk, tsk). Styck räknas om till gram
- * med en uppskattad styckvikt (1 ägg ≈ 60 g) och köksmått med livsmedlets
- * densitet (1 dl havregryn ≈ 35 g, 1 msk olja ≈ 14 g). Ingen ml-enhet: drycker
- * anges i dl eller gram.
+ * Enheter: gram, styck och volym (ml, dl, msk, tsk). Styck räknas om till gram
+ * med en uppskattad styckvikt (1 ägg ≈ 60 g) och volym med livsmedlets
+ * densitet (1 dl havregryn ≈ 35 g, 1 msk olja ≈ 14 g).
+ *
+ * Bara logiska enheter per livsmedelstyp (se allowedUnits): vätskor i dl/ml,
+ * ris/pasta/gryn i g/dl, kött/fisk/fågel och andra fasta livsmedel bara i g.
+ * Samma regler gäller i PT:ns kostbyggare och i klientens matlogg.
  */
 import { FOOD_LIBRARY } from "@/lib/food-library"
 import type { Food } from "@/lib/foods"
@@ -41,10 +44,73 @@ const PIECES: [RegExp, number][] = [
   [/proteinbar|bar\b/i, 55],
 ]
 
-/** Milliliter per köksmått. */
-export const VOLUME_ML = { dl: 100, msk: 15, tsk: 5 } as const
+/** Milliliter per volymenhet. */
+export const VOLUME_ML = { ml: 1, dl: 100, msk: 15, tsk: 5 } as const
 export type VolumeUnit = keyof typeof VOLUME_ML
-export const isVolume = (u: MealUnit | undefined): u is VolumeUnit => u === "dl" || u === "msk" || u === "tsk"
+export const isVolume = (u: MealUnit | undefined): u is VolumeUnit => u === "ml" || u === "dl" || u === "msk" || u === "tsk"
+/** Steg vid avrundning: hela ml, annars kvarts mått (¼ dl, ½ tsk). */
+const volumeStep = (u: VolumeUnit) => (u === "ml" ? 1 : 0.25)
+
+// ------------------------------------------------------ logiska enheter ---
+
+/**
+ * Livsmedelstyp, som styr vilka enheter som är logiska:
+ *  - liquid    mjölk, juice, dryck, buljong … → dl, ml
+ *  - oil       olja → msk, tsk, ml, dl
+ *  - grain     ris, pasta, gryn, flingor, mjöl, bönor, bär, kvarg/yoghurt → g, dl
+ *  - countable ägg, frukt, bröd, potatis … → st, g
+ *  - spoon     smör, honung, socker, pulver, frön, såser → g, msk, tsk
+ *  - solid     kött, fisk, fågel och övriga fasta livsmedel → bara g
+ */
+export type FoodKind = "liquid" | "oil" | "grain" | "countable" | "spoon" | "solid"
+
+export const KIND_UNITS: Record<FoodKind, MealUnit[]> = {
+  liquid: ["dl", "ml"],
+  oil: ["msk", "tsk", "ml", "dl"],
+  grain: ["g", "dl"],
+  countable: ["st", "g"],
+  spoon: ["g", "msk", "tsk"],
+  solid: ["g"],
+}
+
+const SOLID_EXCEPTIONS = /choklad|chips|godis|glass|bulle|kaka\b|kex/i
+const OIL = /(?<!k)olja|(^|\s)oil\b/i
+const LIQUID =
+  /mjölk(?!choklad|pulver)|dryck|juice|vatten(?!melon)|kaffe|(^|\s)läsk|(^|\s)cola|smoothie|kefir|(^|\s)(fil|te|öl)(\s|$)|grädde|buljong|fond\b|soppa|nektar|saft/i
+const MEAT =
+  /kött|fläsk|biff|färs|kyckling|kalkon|lax|torsk|fisk|tonfisk|räk|skinka|bacon|korv|filé|entrecote|lamm|älg|hjort|vilt|sej|makrill|sill|kassler|anka|kräft|mussl|skaldjur|pollock|rödspätta|regnbåge|kotlett|grytbit|högrev|rostbiff|salami|chorizo|sardin|pulled/i
+/** Vätskor som innehåller kött/fisk är fortfarande vätskor. */
+const SOUP = /buljong|soppa|fond\b/i
+/** Rätter som mäts som ris/gryn trots "vatten"/"tomat" i namnet. */
+const GRAIN_FIRST = /gröt|tomatsås|pastasås|krossade tomater/i
+const GRAIN =
+  /ris\b|risgryn|basmati|jasmin|gryn|flingor|müsli|musli|granola|cornflakes|havrefras|mjöl|pasta|makaroner|spagetti|nudlar|bulgur|couscous|quinoa|matvete|bönor|linser|kikärt|majs|ärtor|bär|blåbär|hallon|jordgubb|kvarg|yoghurt|skyr|keso|kesella|cottage|gröt/i
+const SPOON = /smör|margarin|bregott|crème fraiche|gräddfil|färskost|honung|sirap|sylt|marmelad|socker|kakao|pulver|frön|chiafrö|linfrö|majonnäs|ketchup|senap|dressing|pesto|hummus|sås|kanel|(^|\s)salt$|tahini/i
+
+export function foodKind(name: string): FoodKind {
+  const lib = FOOD_LIBRARY.find((x) => x.name.toLowerCase() === name.toLowerCase())
+  if (SOLID_EXCEPTIONS.test(name)) return "solid"
+  if (SOUP.test(name)) return "liquid"
+  // Kött, fisk och fågel: alltid gram (även kycklingfilé, köttbullar och tonfisk i olja).
+  if (MEAT.test(name) || lib?.category === "Kött & chark" || lib?.category === "Fisk & skaldjur") return "solid"
+  if (GRAIN_FIRST.test(name)) return "grain"
+  if (OIL.test(name)) return "oil"
+  if (LIQUID.test(name) || lib?.unit === "ml") return "liquid"
+  if (isCountable(name)) return "countable"
+  if (GRAIN.test(name)) return "grain"
+  if (SPOON.test(name)) return "spoon"
+  return "solid"
+}
+
+/** Logiska enheter för ett livsmedel, förvald enhet först. */
+export const allowedUnits = (name: string): MealUnit[] => KIND_UNITS[foodKind(name)]
+
+/** Enheterna att välja mellan för en rad: de logiska + radens nuvarande (äldre rader). */
+export function unitOptions(item: MealItem): MealUnit[] {
+  const units = allowedUnits(item.name)
+  const current = item.unit ?? "g"
+  return units.includes(current) ? units : [...units, current]
+}
 
 /**
  * Densitet i gram per milliliter för vanliga livsmedel (Livsmedelsverkets
@@ -102,14 +168,21 @@ export function per100Of(item: MealItem): Per100 | undefined {
   return FOOD_LIBRARY.find((x) => x.name.toLowerCase() === item.name.toLowerCase())?.per100
 }
 
-/** Ny rad från sökningen: styck för t.ex. ägg och frukt, annars 100 g. */
+/**
+ * Ny rad från sökningen i livsmedlets förvalda enhet: 1 st ägg/frukt,
+ * 2 dl mjölk, 1 msk olja, annars 100 g.
+ */
 export function itemFromFood(food: Food): MealItem {
   const per100: Per100 = { kcal: food.kcal, protein: food.protein, carbs: food.carbs, fat: food.fat }
-  if (isCountable(food.name)) {
+  const unit = allowedUnits(food.name)[0]
+  if (unit === "st") {
     const pieceG = pieceWeight(food.name, food.servingG) ?? 100
     return { name: food.name, unit: "st", qty: 1, pieceG, grams: pieceG, per100, ...macrosFor(per100, pieceG) }
   }
-  return { name: food.name, unit: "g", grams: 100, per100, ...macrosFor(per100, 100) }
+  const base: MealItem = { name: food.name, unit: "g", grams: 100, per100, ...macrosFor(per100, 100) }
+  if (unit === "dl") return setAmount(base, 2, "dl")
+  if (unit === "msk") return setAmount(base, 1, "msk")
+  return base
 }
 
 /** Ändra mängd och/eller enhet. Makrona räknas alltid om från per100. */
@@ -118,7 +191,8 @@ export function setAmount(item: MealItem, amount: number, unit: MealUnit = item.
   const a = Math.max(0, Number.isFinite(amount) ? amount : 0)
   if (isVolume(unit)) {
     const gPerMl = item.gPerMl ?? densityOf(item.name)
-    const qty = Math.round(a * 4) / 4 // kvarts mått räcker (¼ dl, ½ tsk)
+    const step = volumeStep(unit)
+    const qty = Math.round(a / step) * step
     const grams = Math.round(qty * VOLUME_ML[unit] * gPerMl)
     const { pieceG: _p, ...rest } = item
     void _p
@@ -142,7 +216,8 @@ export function switchUnit(item: MealItem, unit: MealUnit): MealItem {
   if (isVolume(unit)) {
     const gPerMl = item.gPerMl ?? densityOf(item.name)
     const perUnit = VOLUME_ML[unit] * gPerMl
-    const qty = item.grams > 0 ? Math.max(0.25, Math.round((item.grams / perUnit) * 4) / 4) : 1
+    const step = volumeStep(unit)
+    const qty = item.grams > 0 ? Math.max(step, Math.round(item.grams / perUnit / step) * step) : 1
     return setAmount({ ...item, gPerMl }, qty, unit)
   }
   if (unit === "st") {
@@ -152,5 +227,5 @@ export function switchUnit(item: MealItem, unit: MealUnit): MealItem {
   return setAmount(item, item.grams, "g")
 }
 
-/** Mängden som den visas: "2" (st/dl/msk/tsk) eller "120" (g). */
+/** Mängden som den visas: "2" (st/ml/dl/msk/tsk) eller "120" (g). */
 export const amountOf = (item: MealItem) => ((item.unit ?? "g") === "g" ? item.grams : (item.qty ?? 1))

@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { forGrams, isValidBarcode, searchLibrary, searchProducts } from "@/lib/food-search"
 import { POPULAR_BRANDS } from "@/lib/swedish-brands"
 import { cn } from "@/lib/utils"
-import type { FoodEntry, FoodProduct, FoodUnit } from "@/types/domain"
+import { allowedUnits, densityOf, foodKind, KIND_UNITS, pieceWeight, VOLUME_ML } from "@/lib/nutrition/meal-items"
+import { MEAL_UNIT_LABEL, type FoodEntry, type FoodProduct, type FoodUnit, type MealUnit } from "@/types/domain"
 
 export type NewFoodEntry = Omit<FoodEntry, "id" | "clientId" | "date">
 
@@ -310,30 +311,77 @@ function useOnlineSearch(query: string) {
 
 // ------------------------------------------------------------------ portion ---
 
-/** Snabbval för mängd: drycker i ml (burk 330, flaska 500), övrigt i gram. */
-const AMOUNTS: Record<FoodUnit, number[]> = { g: [50, 100, 150, 200], ml: [100, 250, 330, 500] }
+/** Snabbval för mängd per enhet: drycker i ml (burk 330, flaska 500), övrigt i gram eller mått. */
+const AMOUNTS: Record<MealUnit, number[]> = {
+  g: [50, 100, 150, 200],
+  ml: [100, 250, 330, 500],
+  dl: [1, 2, 3],
+  st: [1, 2, 3],
+  msk: [1, 2],
+  tsk: [1, 2],
+}
+
+/**
+ * Logiska enheter för en produkt – samma regler som i PT:ns kostbyggare
+ * (allowedUnits): vätskor i ml/dl, ris/pasta/gryn i g/dl, ägg/frukt i st/g,
+ * kött/fisk/fasta livsmedel bara i g. Produktens basenhet (g eller ml) först.
+ */
+function portionUnits(product: FoodProduct): MealUnit[] {
+  const base: FoodUnit = product.unit ?? "g"
+  const kind = foodKind(product.name)
+  const logical = base === "ml" || kind === "liquid" ? KIND_UNITS.liquid : allowedUnits(product.name)
+  return [base, ...logical.filter((u) => u !== base && !(base === "ml" && u === "g"))]
+}
+
+/** Mängd i vald enhet → mängd i produktens basenhet (g eller ml). */
+function toBase(product: FoodProduct, unit: MealUnit, amount: number): number {
+  const base: FoodUnit = product.unit ?? "g"
+  const density = densityOf(product.name)
+  if (unit === base) return amount
+  if (unit === "g") return amount / density // bas ml
+  if (unit === "st") {
+    const g = amount * (pieceWeight(product.name, product.servingG) ?? 100)
+    return base === "ml" ? g / density : g
+  }
+  const ml = amount * VOLUME_ML[unit]
+  return base === "ml" ? ml : ml * density
+}
+
+const roundFor = (unit: MealUnit, n: number) => (unit === "g" || unit === "ml" ? Math.round(n) : Math.max(0.25, Math.round(n * 4) / 4))
 
 function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: (e: NewFoodEntry) => void; onBack: () => void }) {
-  const unit: FoodUnit = product.unit ?? "g"
-  const [grams, setGrams] = React.useState(String(product.servingG ?? (unit === "ml" ? 330 : 100)))
-  const g = Math.max(0, Number(grams.replace(",", ".")) || 0)
+  const base: FoodUnit = product.unit ?? "g"
+  const units = portionUnits(product)
+  const [unit, setUnit] = React.useState<MealUnit>(units[0])
+  const [amount, setAmount] = React.useState(String(product.servingG ?? (base === "ml" ? 330 : 100)))
+  const a = Math.max(0, Number(amount.replace(",", ".")) || 0)
+  // Allt sparas i produktens basenhet (gram, eller ml för drycker).
+  const g = Math.round(toBase(product, unit, a))
   const macros = forGrams(product.per100, g)
   const chips = [
-    ...(product.servingG ? [{ label: `1 ${unit === "ml" ? "förpackning" : "portion"} (${product.servingG} ${unit})`, value: product.servingG }] : []),
-    ...AMOUNTS[unit].filter((v) => v !== product.servingG).map((v) => ({ label: `${v} ${unit}`, value: v })),
+    ...(product.servingG && unit === base
+      ? [{ label: `1 ${base === "ml" ? "förpackning" : "portion"} (${product.servingG} ${base})`, value: product.servingG }]
+      : []),
+    ...AMOUNTS[unit].filter((v) => unit !== base || v !== product.servingG).map((v) => ({ label: `${v.toLocaleString("sv-SE")} ${MEAL_UNIT_LABEL[unit]}`, value: v })),
   ].slice(0, 5)
+  const switchTo = (u: MealUnit) => {
+    // Behåll ungefär samma mängd i den nya enheten.
+    const perUnit = toBase(product, u, 1)
+    setAmount(String(roundFor(u, perUnit > 0 ? g / perUnit : 1)).replace(".", ","))
+    setUnit(u)
+  }
 
   return (
     <form
       className="space-y-3 rounded-xl border bg-card p-3"
       onSubmit={(e) => {
         e.preventDefault()
-        if (g <= 0 || g > 5000) return toast.error(`Ange en mängd mellan 1 och 5000 ${unit}`)
+        if (g <= 0 || g > 5000) return toast.error(`Ange en mängd mellan 1 och 5000 ${base}`)
         onAdd({
           name: product.brand && !product.name.toLowerCase().includes(product.brand.toLowerCase()) ? `${product.name} (${product.brand})` : product.name,
           ...macros,
           grams: g,
-          unit,
+          unit: base,
           barcode: product.barcode,
           productId: product.id,
         })
@@ -346,7 +394,7 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{product.name}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {[product.brand, product.barcode && `EAN ${product.barcode}`, `${Math.round(product.per100.kcal)} kcal/100 ${unit}`].filter(Boolean).join(" · ")}
+            {[product.brand, product.barcode && `EAN ${product.barcode}`, `${Math.round(product.per100.kcal)} kcal/100 ${base}`].filter(Boolean).join(" · ")}
           </div>
         </div>
       </div>
@@ -355,11 +403,11 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
           <button
             key={c.label}
             type="button"
-            onClick={() => setGrams(String(c.value))}
-            aria-pressed={g === c.value}
+            onClick={() => setAmount(String(c.value).replace(".", ","))}
+            aria-pressed={a === c.value}
             className={cn(
               "rounded-full border px-3 py-1 text-xs transition-colors",
-              g === c.value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+              a === c.value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
             )}
           >
             {c.label}
@@ -370,14 +418,32 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
         <div className="flex items-center gap-1.5">
           <Input
             inputMode="decimal"
-            value={grams}
-            onChange={(e) => setGrams(e.target.value)}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
             className="h-10 w-24 text-right text-lg font-semibold tabular"
-            aria-label={unit === "ml" ? "Mängd i milliliter" : "Mängd i gram"}
+            aria-label={unit === "ml" ? "Mängd i milliliter" : unit === "g" ? "Mängd i gram" : `Mängd i ${MEAL_UNIT_LABEL[unit]}`}
             autoFocus
           />
-          <span className="text-sm text-muted-foreground">{unit}</span>
+          {units.length > 1 ? (
+            <div role="radiogroup" aria-label="Enhet" className="flex rounded-md bg-muted p-0.5">
+              {units.map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  role="radio"
+                  aria-checked={unit === u}
+                  onClick={() => switchTo(u)}
+                  className={cn("rounded px-2 py-1 text-xs", unit === u ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
+                >
+                  {MEAL_UNIT_LABEL[u]}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">{unit}</span>
+          )}
         </div>
+        {unit !== base && <span className="text-xs text-muted-foreground tabular">≈{g} {base}</span>}
         <div className="min-w-0 flex-1 text-right">
           <div className="text-lg font-semibold tabular">{macros.kcal} kcal</div>
           <MacroInline value={macros} className="justify-end" />

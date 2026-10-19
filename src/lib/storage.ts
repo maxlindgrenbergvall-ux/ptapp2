@@ -71,7 +71,14 @@ export async function uploadFile(bucket: Bucket, path: string, file: File): Prom
   const body = bucket === "avatars" ? await dataUrlToBlob(await resizeImage(file, 512)) : file
   const sb = getSupabase()
   const { error } = await sb.storage.from(bucket).upload(path, body, { contentType: body.type || file.type, upsert: bucket === "avatars" })
-  if (error) throw new UploadError(error.message)
+  if (error) {
+    // RLS: man får bara skriva i sin egen mapp ({uid}/…), se migration v14.
+    throw new UploadError(
+      /row-level security|unauthorized|403/i.test(error.message)
+        ? "Bilden kunde inte sparas: du har bara behörighet till din egen profilbild. Logga in igen och försök på nytt."
+        : error.message
+    )
+  }
   if (bucket === "avatars") {
     // Cache-buster så att en ny bild syns direkt trots samma sökväg.
     return `${sb.storage.from(bucket).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`

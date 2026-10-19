@@ -137,7 +137,8 @@ check((await egg.innerText()).includes("≈180 g"), "3 ägg ≈ 180 g")
 check((await egg.innerText()).includes("252 kcal"), "näringsvärdet räknas från styck (3 ägg = 252 kcal)")
 await egg.locator('[aria-label="Enhet för Ägg"]').click()
 const units = (await p.locator("[role=option]").allInnerTexts()).map((t) => t.trim())
-check(!units.includes("ml") && ["g", "st", "dl", "msk", "tsk"].every((u) => units.includes(u)), `enheter i kostbyggaren: ${units.join(", ")} (ingen ml)`)
+// v14: bara logiska enheter – ägg i styck eller gram.
+check(units.join(",") === "st,g", `enheter för ägg i kostbyggaren: ${units.join(", ")} (st, g)`)
 
 // Gram-buggen: 0 g och sedan 150 g ska ge värden igen.
 await p.click('[role=option]:has-text("g") >> nth=0')

@@ -29,6 +29,7 @@ import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
 import { formatShort, todayISO } from "@/lib/date"
 import { recordInterest } from "@/lib/offers/interests"
 import { sessionBalance } from "@/lib/services/balance"
+import { offersNutritionPlan } from "@/lib/services/recommend"
 import { relationshipWith } from "@/lib/data/selectors"
 import { isFreeOffer } from "@/lib/offers/policy"
 import { cn } from "@/lib/utils"
@@ -323,6 +324,9 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
 
 /** Vad PT:n erbjuder: träning, kost eller båda. */
 export function OfferingBadges({ trainer, className }: { trainer: Trainer; className?: string }) {
+  const { data } = useAppData()
+  // "Kostschema" visas bara om PT:n kryssat i kost OCH har en aktiv kosttjänst.
+  const nutrition = offersNutritionPlan(data, trainer)
   return (
     <div className={cn("flex flex-wrap justify-center gap-1.5", className)} aria-label="Erbjuder">
       {trainer.offersTraining && (
@@ -330,12 +334,17 @@ export function OfferingBadges({ trainer, className }: { trainer: Trainer; class
           <Dumbbell /> Träning
         </Badge>
       )}
-      {trainer.offersNutrition && (
-        <Badge variant="outline" className="gap-1">
-          <Salad /> Kost
-        </Badge>
-      )}
+      {nutrition && <NutritionTag />}
     </div>
+  )
+}
+
+/** Tydlig tagg för PT:er som säljer kostschema – samma på söksidan och PT-profilen. */
+export function NutritionTag({ className }: { className?: string }) {
+  return (
+    <Badge className={cn("gap-1 bg-success/15 text-success", className)} data-testid="nutrition-tag">
+      <Salad /> Kostschema
+    </Badge>
   )
 }
 

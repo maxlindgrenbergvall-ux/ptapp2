@@ -13,6 +13,8 @@ import { useNextSlots } from "@/lib/calendar/use-slots"
 import { useAppData } from "@/lib/data/store"
 import { formatSlot } from "@/lib/date"
 import { categoriesInText, recordInterest } from "@/lib/offers/interests"
+import { offersNutritionPlan } from "@/lib/services/recommend"
+import { NutritionTag } from "@/components/client/trainer-profile"
 import { cn } from "@/lib/utils"
 import { offersRemote, SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
 
@@ -52,16 +54,17 @@ export default function DiscoverPage() {
       const nextSlot = nextSlots[t.id]
       // Matchning: andel valda inriktningar som PT:n har.
       const match = selected.length ? selected.filter((s) => t.specialties.includes(s)).length / selected.length : 1
-      return { trainer: t, nextSlot, match }
+      // Kostschema = PT:n har kryssat i "Kost" OCH säljer en aktiv kosttjänst.
+      return { trainer: t, nextSlot, match, nutrition: offersNutritionPlan(data, t) }
     })
-    .filter(({ trainer: t, match }) => {
+    .filter(({ trainer: t, match, nutrition }) => {
       const text = q.trim().toLowerCase()
       return (
         (selected.length === 0 || match > 0) &&
         PRICE[price].test(t.pricePerSession) &&
         (city === "all" || t.city === city) &&
         (!remoteOnly || offersRemote(t.coachingMode)) &&
-        (offering === "all" || (offering === "training" ? t.offersTraining : t.offersNutrition)) &&
+        (offering === "all" || (offering === "training" ? t.offersTraining : nutrition)) &&
         (!text ||
           t.name.toLowerCase().includes(text) ||
           t.bio.toLowerCase().includes(text) ||
@@ -106,7 +109,7 @@ export default function DiscoverPage() {
           [
             ["all", "Allt"],
             ["training", "Träning"],
-            ["nutrition", "Kost"],
+            ["nutrition", "Kostschema"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -198,7 +201,7 @@ export default function DiscoverPage() {
             <EmptyState icon={Search} title="Ingen PT matchar" text="Prova att ta bort ett filter." />
           </li>
         )}
-        {results.map(({ trainer: t, nextSlot, match }) => (
+        {results.map(({ trainer: t, nextSlot, match, nutrition }) => (
           <li key={t.id}>
             <Link href={`/klient/hitta/${t.id}`} className="block rounded-2xl border bg-card p-4 transition-colors hover:border-foreground/30">
               <div className="flex gap-3">
@@ -223,6 +226,7 @@ export default function DiscoverPage() {
               </div>
               <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{t.bio}</p>
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {nutrition && <NutritionTag />}
                 {t.specialties.map((s) => (
                   <SpecialtyBadge key={s} specialty={s} />
                 ))}
@@ -244,3 +248,4 @@ export default function DiscoverPage() {
     </div>
   )
 }
+
