@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, CalendarPlus, Check, Cookie, Droplet, MessageSquareReply, Moon, Pencil, Scale, Ticket, Trophy, X } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Check, ClipboardCheck, Cookie, Droplet, MessageSquareReply, Moon, Pencil, Scale, ShieldCheck, Ticket, Trophy, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
@@ -10,6 +10,7 @@ import { StrengthChart, SessionsChart, WeightChart } from "@/components/charts/p
 import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
 import { InterestChips, MetricsGrid } from "@/components/progress/metrics"
+import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
 import { ClientStatusBadge, EmptyState, PersonAvatar, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,8 +34,9 @@ import { adherence, exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { callThread } from "@/lib/calls/thread"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
+import { cn } from "@/lib/utils"
 import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
-import { oneRepMaxSeries, setsDone, setsTotal, workoutVolume } from "@/lib/training"
+import { setsDone, setsTotal, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
 export function ClientDetail({ clientId }: { clientId: string }) {
@@ -52,10 +54,10 @@ export function ClientDetail({ clientId }: { clientId: string }) {
   const weights = client.weightLog
   const weightNow = weights.at(-1)
   const weightChange = weights.length > 1 ? weights.at(-1)!.kg - weights[0].kg : null
-  const squat = oneRepMaxSeries("e-squat", workouts)
   const completed = workouts.filter((w) => w.status === "completed").length
   const adh = adherence(workouts, 28, today)
-  const plan = data.nutritionPlans.find((p) => p.clientId === client.id)
+  // PT:ns eget schema för klienten (det som gäller kan komma från en annan PT, se Dagens kost).
+  const plan = data.nutritionPlans.find((p) => p.clientId === client.id && p.trainerId === me.id)
   const self = data.trainers.find((t) => t.id === me.id)
   const balance = sessionBalance(data, me.id, client.id)
   const nutritionAccess = hasNutritionAccess(data, me.id, client.id)
@@ -71,7 +73,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
       {/* Mobil: namn överst och knapparna i ett eget rutnät under, så att de aldrig överlappar. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-4">
-          <PersonAvatar name={client.name} className="size-14 shrink-0 text-lg" />
+          <PersonAvatar name={client.name} src={client.avatarUrl} className="size-14 shrink-0 text-lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h1 className="text-2xl font-semibold tracking-tight break-words">{client.name}</h1>
@@ -122,12 +124,8 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           value={weightNow ? `${weightNow.kg.toFixed(1)} kg` : "–"}
           sub={weightChange === null ? "Inga vägningar" : `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(1)} kg sedan start`}
         />
-        <StatTile
-          label="Knäböj, uppsk. 1RM"
-          icon={Trophy}
-          value={squat.length ? `${squat.at(-1)!.e1rm} kg` : "–"}
-          sub={squat.length > 1 ? `+${(squat.at(-1)!.e1rm - squat[0].e1rm).toFixed(1)} kg sedan start` : undefined}
-        />
+        {/* 1RM och andra mätpunkter styrs av klientens intressen (se "Mål och mätpunkter"). */}
+        <StatTile label="Egna pass, 30 dagar" icon={Trophy} value={workouts.filter((w) => w.byClient && w.date >= addDays(today, -30)).length} sub="Klientens egen träning" />
         <StatTile label="Genomförda pass" value={completed} />
         <StatTile label="Följsamhet, 4 v" value={adh === null ? "–" : `${adh} %`} />
       </div>
@@ -186,13 +184,20 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <ExerciseNames clientId={client.id} workouts={workouts} />
         </TabsContent>
 
-        <TabsContent value="kost" className="pt-2">
-          <Card>
+        <TabsContent value="kost" className="grid gap-6 pt-2 lg:grid-cols-2">
+          {/* Exakt samma "Dagens kost" som klienten ser – avbockade måltider och extra mat i realtid. */}
+          <section className="space-y-2" aria-labelledby="daily-title">
+            <h2 id="daily-title" className="text-sm font-medium text-muted-foreground">
+              Dagens kost
+            </h2>
+            <DailyNutrition clientId={client.id} viewer="trainer" />
+          </section>
+          <Card className="h-fit">
             <CardHeader>
               <CardTitle>{plan ? plan.name : "Inget kostschema"}</CardTitle>
               <CardDescription>
                 {!nutritionAccess
-                  ? "Klienten har inte köpt kostcoaching. Kostschemat låses upp när klienten köper en tjänst med kost."
+                  ? "Klienten har inte köpt kostcoaching av dig. Kostschemat låses upp när klienten köper en tjänst med kost."
                   : plan
                     ? `${plan.targets.kcal} kcal · P ${plan.targets.protein} g · K ${plan.targets.carbs} g · F ${plan.targets.fat} g`
                     : "Skapa ett kostschema i kostbyggaren."}
@@ -205,9 +210,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
                     <span className="mr-2 text-muted-foreground tabular">{m.time}</span>
                     {m.name}
                   </span>
-                  <span className="text-muted-foreground tabular">
-                    {m.items.reduce((s, i) => s + i.kcal, 0)} kcal
-                  </span>
+                  <span className="text-muted-foreground tabular">{m.items.reduce((s, i) => s + i.kcal, 0)} kcal</span>
                 </div>
               ))}
               <Button asChild variant="outline" size="sm">
@@ -244,6 +247,11 @@ function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; 
   const upcoming = sorted.filter((w) => w.date >= today && w.status !== "completed").reverse()
   const past = sorted.filter((w) => !(w.date >= today && w.status !== "completed")).slice(0, 15)
   const nameOf = (id: string) => exerciseName(data, id, clientId)
+  const { me } = useAppData()
+  const clientTrainer = data.clients.find((c) => c.id === clientId)?.trainerId
+  // Bara PT:ns egna pass kan klarmarkeras (inte klientens egna eller en annan PT:s).
+  const mine = (w: ScheduledWorkout) => !w.byClient && (w.trainerId ?? clientTrainer) === me.id
+  const canVerify = (w: ScheduledWorkout) => mine(w) && !w.verifiedAt && (w.status === "completed" || w.status === "in_progress" || w.date <= today)
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -258,8 +266,22 @@ function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; 
                   <CardTitle className="text-base">{w.name}</CardTitle>
                   <CardDescription>{formatDay(w.date)}</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <WorkoutStatusBadge workout={w} />
+                <div className="flex flex-wrap items-center gap-2">
+                  {w.byClient && <Badge variant="outline">Eget pass</Badge>}
+                  {w.verifiedAt ? (
+                    <Badge variant="secondary" className="gap-1 text-success">
+                      <ShieldCheck /> Klarmarkerat
+                    </Badge>
+                  ) : (
+                    <WorkoutStatusBadge workout={w} />
+                  )}
+                  {canVerify(w) && (
+                    <Button asChild size="sm">
+                      <Link href={`/pt/klienter/${clientId}/pass/${w.id}`}>
+                        <ClipboardCheck /> Klarmarkera
+                      </Link>
+                    </Button>
+                  )}
                   {w.status === "completed" && <FeedbackDialog workout={w} />}
                 </div>
               </div>
@@ -285,6 +307,9 @@ function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; 
                 {w.clientComment && (
                   <blockquote className="rounded-md bg-muted px-3 py-2 text-sm">&quot;{w.clientComment}&quot;</blockquote>
                 )}
+                {w.trainerComment && (
+                  <p className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm">Din kontroll: &quot;{w.trainerComment}&quot;</p>
+                )}
               </CardContent>
             )}
           </Card>
@@ -294,10 +319,17 @@ function WorkoutHistory({ workouts, clientId }: { workouts: ScheduledWorkout[]; 
         <h2 className="text-sm font-medium text-muted-foreground">Kommande</h2>
         {upcoming.length === 0 && <p className="text-sm text-muted-foreground">Inget schemalagt.</p>}
         {upcoming.map((w) => (
-          <div key={w.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-            <span className="font-medium">{w.name}</span>
-            <span className="text-muted-foreground">{formatShort(w.date)}</span>
-          </div>
+          <Link
+            key={w.id}
+            href={`/pt/klienter/${clientId}/pass/${w.id}`}
+            className={cn("flex items-center justify-between gap-2 rounded-lg border p-3 text-sm hover:bg-muted/60", !mine(w) && "pointer-events-none")}
+          >
+            <span className="min-w-0 truncate font-medium">
+              {w.name}
+              {w.byClient && <span className="ml-1.5 text-xs font-normal text-muted-foreground">· eget pass</span>}
+            </span>
+            <span className="shrink-0 text-muted-foreground">{formatShort(w.date)}</span>
+          </Link>
         ))}
       </div>
     </div>

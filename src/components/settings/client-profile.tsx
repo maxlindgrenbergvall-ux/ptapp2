@@ -5,6 +5,7 @@ import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { AvatarPicker } from "@/components/avatar-picker"
 import { LeaveTrainerButton, OfferingBadges } from "@/components/client/trainer-profile"
 import { PersonAvatar } from "@/components/common"
 import { InterestPicker } from "@/components/progress/metrics"
@@ -27,7 +28,8 @@ export function ClientProfileSettings() {
   const [name, setName] = React.useState(client.name)
   const [interests, setInterests] = React.useState<string[]>(client.interests ?? [])
   const [focus, setFocus] = React.useState(client.focus ?? "")
-  const dirty = name !== client.name || focus !== (client.focus ?? "") || interests.join() !== (client.interests ?? []).join()
+  const [avatarUrl, setAvatarUrl] = React.useState(client.avatarUrl ?? "")
+  const dirty = avatarUrl !== (client.avatarUrl ?? "") || name !== client.name || focus !== (client.focus ?? "") || interests.join() !== (client.interests ?? []).join()
   const trainers = myTrainers(data, me.id)
   const metrics = metricsFor(interests)
 
@@ -38,7 +40,7 @@ export function ClientProfileSettings() {
         onSubmit={(e) => {
           e.preventDefault()
           if (!name.trim()) return toast.error("Ange ditt namn")
-          actions.updateProfile({ name, interests, focus })
+          actions.updateProfile({ name, interests, focus, avatarUrl: avatarUrl || undefined })
           toast.success("Profilen är sparad", { description: "Framsteg visar nu mätpunkter för dina intressen." })
         }}
       >
@@ -46,7 +48,9 @@ export function ClientProfileSettings() {
           <CardHeader>
             <CardTitle className="text-base">Personuppgifter</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
+            {/* Profilbilden syns för klientens PT:er: i översikten, klientlistan, chatten och vid köp. */}
+            <AvatarPicker name={name || client.name} value={avatarUrl} userId={me.id} onChange={setAvatarUrl} />
             <div className="space-y-1.5">
               <Label htmlFor="profile-name">Namn</Label>
               <Input id="profile-name" autoComplete="name" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />

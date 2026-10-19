@@ -45,7 +45,7 @@ export default function PtMessagesPage() {
                   activeId === client.id && "bg-muted"
                 )}
               >
-                <PersonAvatar name={client.name} className="size-9" />
+                <PersonAvatar name={client.name} src={client.avatarUrl} className="size-9" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className={cn("truncate text-sm", unread ? "font-semibold" : "font-medium")}>{client.name}</span>
@@ -70,7 +70,7 @@ export default function PtMessagesPage() {
               <Button variant="ghost" size="icon-sm" className="md:hidden" aria-label="Tillbaka" onClick={() => setActiveId(null)}>
                 <ArrowLeft />
               </Button>
-              <PersonAvatar name={active.name} className="size-8" />
+              <PersonAvatar name={active.name} src={active.avatarUrl} className="size-8" />
               <Link href={`/pt/klienter/${active.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
                 {active.name}
               </Link>

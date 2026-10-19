@@ -80,6 +80,9 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
     .filter((w) => Math.abs(parseISODate(w.date).getTime() - parseISODate(date).getTime()) <= 7 * 86_400_000)
     .sort((a, b) => a.date.localeCompare(b.date))
 
+  const templates = data.templates.filter((t) => t.trainerId === me.id)
+  const fromTemplate = workoutId.startsWith("tpl:") ? templates.find((t) => `tpl:${t.id}` === workoutId) : undefined
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     const day = parseISODate(date)
@@ -96,15 +99,20 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
       location: kind === "block" ? undefined : location.trim() || undefined,
       notes: notes.trim() || undefined,
     }
+    const existingWorkout = kind === "client" && !fromTemplate ? workoutId || undefined : undefined
     const error = editing
-      ? actions.updateEvent(event!.id, { ...base, workoutId: kind === "client" ? workoutId || undefined : undefined })
-      : actions.createEvent({
-          ...base,
-          kind: kind === "block" ? "block" : "session",
-          status: kind === "client" && tentative ? "pending" : "confirmed",
-          clientId: kind === "client" ? clientId : undefined,
-          workoutId: kind === "client" ? workoutId || undefined : undefined,
-        })
+      ? actions.updateEvent(event!.id, { ...base, workoutId: existingWorkout })
+      : actions.createEvent(
+          {
+            ...base,
+            kind: kind === "block" ? "block" : "session",
+            status: kind === "client" && tentative ? "pending" : "confirmed",
+            clientId: kind === "client" ? clientId : undefined,
+            workoutId: existingWorkout,
+          },
+          { template: kind === "client" ? fromTemplate : undefined }
+        )
+    if (!error && editing && fromTemplate) actions.attachProgram(event!.id, fromTemplate)
     if (error) return toast.error("Kunde inte spara", { description: error })
     const moved = editing && event!.status === "pending" && (start.toISOString() !== event!.start || end.toISOString() !== event!.end)
     toast.success(
@@ -260,20 +268,27 @@ function EventForm({ event, initialStart, onDone }: { event?: CalendarEvent; ini
               />
             </div>
           </div>
-          {kind === "client" && workouts.length > 0 && (
+          {kind === "client" && (workouts.length > 0 || (!event?.workoutId && templates.length > 0)) && (
             <div className="space-y-1.5">
-              <Label>Koppla till träningspass (valfritt)</Label>
+              <Label>Träningsprogram (valfritt)</Label>
               <Select value={workoutId || "none"} onValueChange={(v) => setWorkoutId(v === "none" ? "" : v)}>
                 <SelectTrigger className="w-full" aria-label="Kopplat träningspass">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Inget kopplat pass</SelectItem>
+                  <SelectItem value="none">Inget program</SelectItem>
                   {workouts.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
                       {w.name} · {formatShort(w.date)}
                     </SelectItem>
                   ))}
+                  {/* Nytt program från en mall: skapas för just det här passet. */}
+                  {!event?.workoutId &&
+                    templates.map((t) => (
+                      <SelectItem key={`tpl:${t.id}`} value={`tpl:${t.id}`}>
+                        Nytt från mall: {t.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -46,7 +46,7 @@ export function RequestsPanel({ onShow, compact }: { onShow?: (e: CalendarEvent)
           return (
             <li key={e.id} className="rounded-xl border border-l-4 border-l-warning bg-card p-3">
               <button type="button" className="flex w-full items-start gap-3 text-left" onClick={() => onShow?.(e)}>
-                <PersonAvatar name={client?.name ?? "?"} className="size-9" />
+                <PersonAvatar name={client?.name ?? "?"} src={client?.avatarUrl} className="size-9" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{client?.name ?? "Ny klient"}</span>

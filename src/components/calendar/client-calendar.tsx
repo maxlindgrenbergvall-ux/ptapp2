@@ -39,6 +39,7 @@ import {
   startOfWeek,
   WEEKDAY_SHORT,
 } from "@/lib/calendar/time"
+import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { parseISODate } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -465,10 +466,15 @@ function EventCard({ event, onPropose }: { event: CalendarEvent; onPropose: (e: 
           {SESSION_MODE_LABEL[event.mode]}
           {event.location && <span>· {event.location}</span>}
         </div>
-        {workout && (
-          <Link href={`/klient/pass/${workout.id}`} className="flex items-center gap-2 text-primary underline-offset-4 hover:underline">
-            <Dumbbell className="size-4" /> {workout.name}
-          </Link>
+        {workout ? (
+          <ProgramPreview workoutId={workout.id} upcoming={upcoming && active} />
+        ) : (
+          active &&
+          upcoming && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Dumbbell className="size-3.5" /> {first} har inte lagt in något program för passet än.
+            </p>
+          )
         )}
         {event.notes && <p className="rounded-lg bg-muted px-3 py-2 text-xs">&quot;{event.notes}&quot;</p>}
         {event.status === "cancelled" && event.cancelledBy && (
@@ -529,5 +535,41 @@ function PlannedCard({ workout }: { workout: ScheduledWorkout }) {
         </Button>
       )}
     </li>
+  )
+}
+
+/**
+ * Förhandsvisning av programmet för ett bokat pass: övningarna syns direkt i
+ * kalendern och hela passet kan öppnas (i förhandsvisningsläge) före passdagen.
+ */
+function ProgramPreview({ workoutId, upcoming }: { workoutId: string; upcoming: boolean }) {
+  const { data, me } = useAppData()
+  const workout = data.workouts.find((w) => w.id === workoutId)
+  if (!workout) return null
+  const done = workout.status === "completed"
+  return (
+    <div className="space-y-2 rounded-xl border bg-muted/40 p-3" data-testid="program-preview">
+      <p className="flex items-center gap-2 font-medium">
+        <Dumbbell className="size-4 text-primary" /> {workout.name}
+        <span className="ml-auto text-xs font-normal text-muted-foreground">{workout.exercises.length} övningar</span>
+      </p>
+      <ol className="space-y-0.5 text-xs text-muted-foreground">
+        {workout.exercises.slice(0, 6).map((e, i) => (
+          <li key={e.id} className="flex justify-between gap-2">
+            <span className="truncate">
+              {i + 1}. {exerciseName(data, e.exerciseId, me.id)}
+            </span>
+            <span className="shrink-0 tabular">
+              {e.sets} × {e.reps}
+              {e.targetKg ? ` · ${e.targetKg} kg` : ""}
+            </span>
+          </li>
+        ))}
+        {workout.exercises.length > 6 && <li>+ {workout.exercises.length - 6} till</li>}
+      </ol>
+      <Button asChild size="sm" variant={upcoming ? "outline" : "secondary"} className="w-full">
+        <Link href={`/klient/pass/${workout.id}`}>{done ? "Visa passet" : upcoming ? "Förhandsgranska passet" : "Öppna passet"}</Link>
+      </Button>
+    </div>
   )
 }

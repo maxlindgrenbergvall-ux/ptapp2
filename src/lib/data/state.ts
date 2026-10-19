@@ -82,9 +82,13 @@ export type PersistableAction =
   /** Klient: namn, intressen och fokus. */
   | { type: "updateClientProfile"; clientId: ID; patch: ClientProfilePatch }
   | { type: "addProgressEntry"; entry: ProgressEntry }
+  /** PT: klarmarkera ett pass efter att ha kontrollerat vad som gjordes. */
+  | { type: "verifyWorkout"; workoutId: ID; verifiedAt: string; verifiedBy: ID; comment?: string }
+  /** Klient: ta bort ett eget pass. */
+  | { type: "deleteWorkout"; workoutId: ID }
   | { type: "deleteProgressEntry"; id: ID }
 
-export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus">>
+export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus" | "avatarUrl">>
 
 /** Fält PT:n kan ändra på en händelse (klient, PT och typ är låsta). */
 export type EventPatch = Partial<Pick<CalendarEvent, "title" | "start" | "end" | "mode" | "location" | "notes" | "workoutId">>
@@ -217,6 +221,27 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "updateClientProfile":
       return { ...data, clients: data.clients.map((c) => (c.id === action.clientId ? { ...c, ...action.patch } : c)) }
+
+    case "verifyWorkout": {
+      const w = data.workouts.find((x) => x.id === action.workoutId)
+      return {
+        ...mapWorkout(data, action.workoutId, (x) => ({
+          ...x,
+          status: "completed",
+          completedAt: x.completedAt ?? action.verifiedAt,
+          verifiedAt: action.verifiedAt,
+          verifiedBy: action.verifiedBy,
+          trainerComment: action.comment,
+        })),
+        // Kopplade kalenderpass markeras också som genomförda.
+        events: data.events.map((e) =>
+          w && (e.workoutId === w.id || e.id === w.eventId) && (e.status === "confirmed" || e.status === "pending") ? { ...e, status: "completed" as const, awaiting: undefined } : e
+        ),
+      }
+    }
+
+    case "deleteWorkout":
+      return { ...data, workouts: data.workouts.filter((w) => w.id !== action.workoutId) }
 
     case "addProgressEntry":
       return { ...data, progressEntries: upsertBy(data.progressEntries, action.entry, (e) => e.id === action.entry.id) }

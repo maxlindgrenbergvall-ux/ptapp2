@@ -49,13 +49,8 @@ export default function ProgressPage() {
       </section>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatTile
-          label="Knäböj 1RM"
-          icon={Trophy}
-          value={squat.length ? `${squat.at(-1)!.e1rm} kg` : "–"}
-          sub={squat.length > 1 ? `+${(squat.at(-1)!.e1rm - squat[0].e1rm).toFixed(1)} kg sedan start` : "Uppskattat"}
-        />
-        <StatTile label="Veckor i rad" icon={Flame} value={streak} sub={`${completed.length} pass totalt`} />
+        <StatTile label="Genomförda pass" icon={Trophy} value={completed.length} sub={`${completed.filter((w) => w.byClient).length} egna pass`} />
+        <StatTile label="Veckor i rad" icon={Flame} value={streak} sub="med minst ett pass" />
       </div>
 
       {showStrength && (

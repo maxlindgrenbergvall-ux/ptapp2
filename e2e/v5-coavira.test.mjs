@@ -264,7 +264,7 @@ await p.click('[role=dialog] button[type=submit]')
 await p.waitForSelector("text=Rabatten ska vara 1–99 %")
 ok("gratispass (gratis i texten eller 100 % rabatt) kan inte skapas")
 await p.keyboard.press("Escape")
-check(!(await p.evaluate(() => JSON.stringify(JSON.parse(localStorage["coavira:demo:v3"]).data.offers))).match(/gratis/i), "inga gratiserbjudanden i datan")
+check(!(await p.evaluate(() => JSON.stringify(JSON.parse(localStorage["coavira:demo:v4"]).data.offers))).match(/gratis/i), "inga gratiserbjudanden i datan")
 
 // ------------------------------- 7c. startsidan: inloggning/registrering (v6) ---
 const fresh = watch(await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage())

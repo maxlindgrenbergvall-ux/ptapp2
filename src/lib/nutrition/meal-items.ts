@@ -4,8 +4,10 @@
  * med kvoten ny/gammal vikt – vid 0 g blev de 0 för alltid, och värdena
  * "försvann" när PT:n ändrade gramvärdet.)
  *
- * Enheter: gram eller styck. Styck räknas om till gram med en uppskattad
- * styckvikt (t.ex. 1 ägg ≈ 60 g). Drycker anges också i gram (≈ ml).
+ * Enheter: gram, styck och köksmått (dl, msk, tsk). Styck räknas om till gram
+ * med en uppskattad styckvikt (1 ägg ≈ 60 g) och köksmått med livsmedlets
+ * densitet (1 dl havregryn ≈ 35 g, 1 msk olja ≈ 14 g). Ingen ml-enhet: drycker
+ * anges i dl eller gram.
  */
 import { FOOD_LIBRARY } from "@/lib/food-library"
 import type { Food } from "@/lib/foods"
@@ -38,6 +40,38 @@ const PIECES: [RegExp, number][] = [
   [/kycklingfilé/i, 125],
   [/proteinbar|bar\b/i, 55],
 ]
+
+/** Milliliter per köksmått. */
+export const VOLUME_ML = { dl: 100, msk: 15, tsk: 5 } as const
+export type VolumeUnit = keyof typeof VOLUME_ML
+export const isVolume = (u: MealUnit | undefined): u is VolumeUnit => u === "dl" || u === "msk" || u === "tsk"
+
+/**
+ * Densitet i gram per milliliter för vanliga livsmedel (Livsmedelsverkets
+ * mått-och-vikt-tabeller, avrundat). Okända livsmedel räknas som 0,8 g/ml.
+ */
+const DENSITY: [RegExp, number][] = [
+  // Ordningen spelar roll: "mjölk" före "mjöl", "jordnötssmör" före "smör".
+  [/mjölk|dryck|juice|vatten|kaffe|läsk|filmjölk|(^|\s)(fil|te)(\s|$)|yoghurt|kvarg|grädde|kokosmjölk|buljong|soppa|sås/i, 1.03],
+  [/havregryn|havrefras|müsli|musli|granola|cornflakes|flingor/i, 0.35],
+  [/mjöl|vetemjöl|dinkel/i, 0.6],
+  [/(^|\s)ris\b|basmati|jasmin|bulgur|couscous|quinoa|matvete/i, 0.85],
+  [/pasta|makaroner|spagetti/i, 0.45],
+  [/socker|strösocker/i, 0.85],
+  [/honung|sirap/i, 1.4],
+  [/olja|olivolja|rapsolja/i, 0.92],
+  [/jordnötssmör|mandelsmör|nötsmör/i, 1.05],
+  [/smör|margarin/i, 0.95],
+  [/keso|kesella|cottage/i, 0.95],
+  [/nötter|mandlar|cashew|hasselnöt|valnöt|frön|chiafrö|linfrö|solros|pumpa/i, 0.6],
+  [/kakao|proteinpulver|pulver/i, 0.45],
+  [/bönor|linser|kikärt/i, 0.8],
+  [/bär|blåbär|hallon|jordgubb/i, 0.6],
+]
+
+export function densityOf(name: string): number {
+  return DENSITY.find(([re]) => re.test(name))?.[1] ?? 0.8
+}
 
 /** Uppskattad vikt för 1 st, eller undefined om livsmedlet inte räknas i styck. */
 export function pieceWeight(name: string, servingG?: number): number | undefined {
@@ -82,6 +116,14 @@ export function itemFromFood(food: Food): MealItem {
 export function setAmount(item: MealItem, amount: number, unit: MealUnit = item.unit ?? "g"): MealItem {
   const per100 = per100Of(item)
   const a = Math.max(0, Number.isFinite(amount) ? amount : 0)
+  if (isVolume(unit)) {
+    const gPerMl = item.gPerMl ?? densityOf(item.name)
+    const qty = Math.round(a * 4) / 4 // kvarts mått räcker (¼ dl, ½ tsk)
+    const grams = Math.round(qty * VOLUME_ML[unit] * gPerMl)
+    const { pieceG: _p, ...rest } = item
+    void _p
+    return { ...rest, unit, qty, gPerMl, grams, ...(per100 ? { per100, ...macrosFor(per100, grams) } : {}) }
+  }
   if (unit === "st") {
     const pieceG = item.pieceG ?? pieceWeight(item.name) ?? (item.unit !== "st" && item.grams > 0 ? item.grams : 100)
     const qty = Math.round(a * 2) / 2 // halva styck räcker (½ avokado)
@@ -97,6 +139,12 @@ export function setAmount(item: MealItem, amount: number, unit: MealUnit = item.
 /** Byt enhet och behåll ungefär samma mängd. */
 export function switchUnit(item: MealItem, unit: MealUnit): MealItem {
   if ((item.unit ?? "g") === unit) return item
+  if (isVolume(unit)) {
+    const gPerMl = item.gPerMl ?? densityOf(item.name)
+    const perUnit = VOLUME_ML[unit] * gPerMl
+    const qty = item.grams > 0 ? Math.max(0.25, Math.round((item.grams / perUnit) * 4) / 4) : 1
+    return setAmount({ ...item, gPerMl }, qty, unit)
+  }
   if (unit === "st") {
     const pieceG = item.pieceG ?? pieceWeight(item.name) ?? (item.grams > 0 ? item.grams : 100)
     return setAmount({ ...item, pieceG }, Math.max(1, Math.round(item.grams / pieceG)), "st")
@@ -104,5 +152,5 @@ export function switchUnit(item: MealItem, unit: MealUnit): MealItem {
   return setAmount(item, item.grams, "g")
 }
 
-/** Mängden som den visas: "2" (st) eller "120" (g). */
-export const amountOf = (item: MealItem) => ((item.unit ?? "g") === "st" ? (item.qty ?? 1) : item.grams)
+/** Mängden som den visas: "2" (st/dl/msk/tsk) eller "120" (g). */
+export const amountOf = (item: MealItem) => ((item.unit ?? "g") === "g" ? item.grams : (item.qty ?? 1))

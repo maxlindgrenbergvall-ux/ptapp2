@@ -1,46 +1,33 @@
 "use client"
 
-import { CalendarCheck, Check, ChevronRight, Dumbbell, Lock, Play, Search, Utensils } from "lucide-react"
+import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Utensils } from "lucide-react"
 import Link from "next/link"
-import { toast } from "sonner"
 
-import { ExtraFood, SleepTracker, WaterTracker } from "@/components/client/trackers"
-import { ServiceMenu } from "@/components/services/service-menu"
+import { SleepTracker, WaterTracker } from "@/components/client/trackers"
+import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
+import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { PersonAvatar } from "@/components/common"
-import { KcalMeter, MACROS, MacroTargetRow, sumMacros } from "@/components/nutrition/macros"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { exerciseName, myTrainers, nutritionPlansFor, workoutsFor } from "@/lib/data/selectors"
+import { exerciseName, myTrainers, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
 import { setsDone, setsTotal } from "@/lib/training"
 import { cn } from "@/lib/utils"
 import { firstName } from "@/lib/names"
-import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
-import type { NutritionPlan, Trainer } from "@/types/domain"
+import { sessionBalance } from "@/lib/services/balance"
 
 const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
 export default function TodayPage() {
-  const { data, actions, me } = useAppData()
+  const { data, me } = useAppData()
   const today = todayISO()
   const client = data.clients.find((c) => c.id === me.id)!
   const trainers = myTrainers(data, client.id)
   const workouts = workoutsFor(data, client.id)
   const todays = workouts.filter((w) => w.date === today)
-  // Kostråd kräver köpt kostcoaching hos någon av klientens PT:er (databasen döljer annars planerna).
-  // Med flera PT:er gäller högst ETT kostschema åt gången – klienten väljer vilket.
-  const nutritionTrainers = trainers.filter((t) => hasNutritionAccess(data, t.id, client.id))
-  const nutritionUnlocked = nutritionTrainers.length > 0
-  const { current, all: allPlans } = nutritionPlansFor(data, client.id)
-  const plans = allPlans.filter((p) => nutritionTrainers.some((t) => t.id === p.trainerId))
-  const plan = nutritionUnlocked && current && plans.includes(current) ? current : undefined
-  const checked = new Set(
-    data.mealChecks.filter((m) => m.clientId === client.id && m.date === today).map((m) => m.mealId)
-  )
   const now = new Date().toISOString()
   // Nästa kommande pass i kalendern (bekräftat eller väntande).
 
@@ -52,10 +39,6 @@ export default function TodayPage() {
     return { date, hasWorkout: w.length > 0, done: w.length > 0 && w.every((x) => x.status === "completed") }
   })
 
-  // Ätet idag = avbockade måltider + extra mat utanför schemat.
-  const extras = data.foodEntries.filter((e) => e.clientId === client.id && e.date === today)
-  const eaten = sumMacros([...(plan?.meals ?? []).filter((m) => checked.has(m.id)).flatMap((m) => m.items), ...extras])
-  const targets = plan?.targets
 
   return (
     <div className="space-y-6">
@@ -159,6 +142,7 @@ export default function TodayPage() {
             </Card>
           )
         })}
+        <OwnWorkoutDialog />
       </section>
 
       {/* Dagens kost */}
@@ -166,64 +150,7 @@ export default function TodayPage() {
         <h2 className="flex items-center gap-2 font-semibold">
           <Utensils className="size-4" /> Dagens kost
         </h2>
-        <Card className="gap-4 py-5">
-          <CardContent className="space-y-5 px-5">
-            {(plans.length > 1 || (plans.length === 1 && !plan)) && <PlanChooser plans={plans} current={plan?.id ?? null} />}
-            {!nutritionUnlocked ? (
-              <NutritionLock trainers={trainers} />
-            ) : targets ? (
-              <>
-                <KcalMeter value={eaten.kcal} target={targets.kcal} />
-                <div className="space-y-3">
-                  {MACROS.map((m) => (
-                    <MacroTargetRow key={m.key} macro={m.key} value={eaten[m.key]} target={targets[m.key]} />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {plans.length ? "Välj vilket kostschema som ska gälla ovan." : "Din PT har inte lagt upp något kostschema än."} Du kan ändå logga det du äter nedan
-                {eaten.kcal > 0 && ` (${Math.round(eaten.kcal)} kcal idag)`}.
-              </p>
-            )}
-            {plan && (
-              <ul className="divide-y">
-                {plan.meals.map((m) => {
-                  const isChecked = checked.has(m.id)
-                  const kcal = m.items.reduce((s, i) => s + i.kcal, 0)
-                  return (
-                    <li key={m.id}>
-                      <button
-                        onClick={() => actions.toggleMeal(client.id, today, m.id)}
-                        aria-pressed={isChecked}
-                        className="flex w-full items-center gap-3 py-3 text-left"
-                      >
-                        <span
-                          className={cn(
-                            "flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            isChecked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
-                          )}
-                        >
-                          {isChecked && <Check className="size-4" strokeWidth={3} />}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className={cn("block font-medium", isChecked && "text-muted-foreground line-through")}>{m.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{m.items.map((i) => i.name).join(", ")}</span>
-                        </span>
-                        <span className="shrink-0 text-right text-xs text-muted-foreground tabular">
-                          {m.time}
-                          <br />
-                          {kcal} kcal
-                        </span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            <ExtraFood date={today} />
-          </CardContent>
-        </Card>
+        <DailyNutrition clientId={client.id} />
       </section>
 
       {/* Vanor */}
@@ -274,70 +201,3 @@ export default function TodayPage() {
   )
 }
 
-/** Kostråden är låsta tills klienten köpt kostcoaching (egen kostloggning fungerar ändå). */
-function NutritionLock({ trainers }: { trainers: Trainer[] }) {
-  // Bara PT:er som faktiskt erbjuder kost kan sälja kostcoaching.
-  const sellers = trainers.filter((t) => t.offersNutrition)
-  return (
-    <div className="space-y-3 rounded-xl border border-dashed p-4" data-testid="nutrition-lock">
-      <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
-          <Lock className="size-4" />
-        </span>
-        <div className="min-w-0">
-          <p className="font-medium">Kostråd ingår inte i ditt paket</p>
-          <p className="text-sm text-muted-foreground">
-            {sellers.length
-              ? `Lägg till kostcoaching hos ${sellers.map((t) => firstName(t.name)).join(" eller ")} för att få ett personligt kostschema, recept och uppföljning.`
-              : trainers.length
-                ? "Dina PT:er erbjuder inte kostrådgivning. Hitta en PT eller dietist som gör det."
-                : "Välj en PT som erbjuder kostcoaching för att få ett personligt kostschema."}
-          </p>
-        </div>
-      </div>
-      {sellers.map((t) => (
-        <ServiceMenu key={t.id} trainer={t} only={(s) => s.includesNutrition} className="sm:grid-cols-1" />
-      ))}
-      {!sellers.length && (
-        <Button asChild variant="outline" className="w-full">
-          <Link href="/klient/hitta?inriktning=kost">
-            <Search /> Hitta kostcoaching
-          </Link>
-        </Button>
-      )}
-      <p className="text-xs text-muted-foreground">Du kan alltid logga det du äter själv nedan.</p>
-    </div>
-  )
-}
-
-/** Har klienten scheman från flera PT:er väljer hon/han vilket som gäller – bara ett åt gången. */
-function PlanChooser({ plans, current }: { plans: NutritionPlan[]; current: string | null }) {
-  const { data, actions } = useAppData()
-  const name = (p: NutritionPlan) => data.trainers.find((t) => t.id === p.trainerId)?.name ?? "PT"
-  return (
-    <div className="space-y-1.5 rounded-xl bg-muted/60 p-3" data-testid="plan-chooser">
-      <label htmlFor="active-plan" className="text-xs text-muted-foreground">
-        Kostschema som gäller (bara ett åt gången)
-      </label>
-      <Select
-        value={current ?? ""}
-        onValueChange={(id) => {
-          actions.chooseNutritionPlan(id)
-          const p = plans.find((x) => x.id === id)
-          if (p) toast.success(`${p.name} gäller nu`, { description: `Från ${name(p)}. Dina andra scheman är pausade.` })
-        }}
-      >
-        <SelectTrigger id="active-plan" className="w-full bg-background">
-          <SelectValue placeholder="Välj kostschema" />
-        </SelectTrigger>
-        <SelectContent>
-          {plans.map((p) => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.name} · {name(p)} · {p.targets.kcal} kcal
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}

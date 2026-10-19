@@ -29,7 +29,8 @@ npm run dev                  # http://localhost:3000
    10. `supabase/migrations/20261023000000_v10_calendar_feeds.sql`. Den lägger till kalenderlänkar (iCal) för synk med Google, Outlook och Apple.
    11. `supabase/migrations/20261024000000_v11_services_purchases_nutrition.sql`. Den lägger till tjänster, köp och betalning, passgräns, kostlås, recept och låsta certifikat. Befintliga klienter får ett köp för det som redan är schemalagt.
    12. `supabase/migrations/20261025000000_v12_multi_pt_interests.sql`. Den lägger till flera PT:er per klient, Lämna PT, ett aktivt kostschema, PT-utbud (träning/kost), intressen och mätpunkter.
-   13. `supabase/seed.sql`
+   13. `supabase/migrations/20261026000000_v13_own_workouts_verify_avatar.sql`. Den lägger till klientens egna pass, PT:ns klarmarkering, program kopplade till bokade pass, profilbild för klienter och "Dagens kost" i realtid.
+   14. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: produktionsadressen, t.ex. `https://app.coavira.com`. Inte localhost och inte en Vercel-förhandsadress.
    - *Redirect URLs*: `https://app.coavira.com/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
@@ -280,6 +281,32 @@ npm run dev                  # http://localhost:3000
   - Samtalsläget har ny design: gradient, frostad kontrollrad med etiketter och en ny ring/lägg-på-ikon.
 - **Logomenyn:** Coavira-loggan öppnar en meny med Inställningar, Profilinställningar, Min data och sekretess och Anslutningar. Sekretess och anslutningar har flyttats från Framsteg till egna sidor.
 
+## Nytt i v13: klarmarkering, förhandsvisning, egna pass, profilbild och köksmått
+
+- **Klarmarkera pass (PT):**
+  - PT:n öppnar passet i samma passvy som klienten loggar i (`/pt/klienter/{klient}/pass/{pass}`).
+  - Där rättar PT:n vikter och reps och bockar av genomförda set. Sedan visas ett kontrollfönster med sammanfattning och kommentar.
+  - Klarmarkeringen sparar `verified_at`, `verified_by` och `trainer_comment` (bara passets PT kan sätta dem), och kopplade kalenderpass blir genomförda.
+- **Förhandsvisning:**
+  - Bokade pass i klientens kalender visar övningarna i programmet.
+  - "Förhandsgranska passet" öppnar passvyn i läsläge fram till passdagen, med knappen "Starta ändå nu".
+- **Program i kalendern:**
+  - PT:n kopplar ett program från en mall till ett bokat pass, antingen i passets detaljer eller i formuläret ("Nytt från mall").
+  - Programmet (`scheduled_workouts.event_id`) tar kalenderpassets plats i passgränsen och kostar inget extra pass.
+- **Egna pass:**
+  - Klienten skapar och loggar egna pass ("Logga eget pass"). De sparas med `trainer_id = null`.
+  - Klientens PT:er ser dem som underlag, men de räknas aldrig som betalda pass och kan bara ändras av klienten.
+- **Profilbild för klienter:**
+  - Bilden sparas i `profiles.avatar_url` och visas för PT:n i översikten, klientlistan, chatten, kalendern, samtalet och under "Senaste köp".
+  - Den fasta rutan "Knäböj 1RM" är borttagen; 1RM styrs nu av intressena.
+- **Videosamtal:** den egna kamerarutan kan dras fritt eller flyttas med piltangenterna.
+- **Dagens kost:**
+  - `DailyNutrition` är samma komponent för klient och PT. PT:n ser exakt samma måltider, avbockningar (`meal_checks` i realtid) och extra mat, och kan bläddra mellan dagar.
+  - Utan köpt kost rekommenderas i första hand klientens PT, annars en annan kost-PT (`src/lib/services/recommend.ts`). Länken "Se andra PT:s som erbjuder kostschema" leder till en filtrerad lista.
+- **Köksmått:**
+  - Kostbyggaren har enheterna g, st, dl, msk (15 ml) och tsk (5 ml).
+  - Köksmått räknas om till gram med livsmedlets densitet (`densityOf`, t.ex. 1 dl havregryn ≈ 35 g). Raden sparar `qty` och `gPerMl`.
+
 ## Arkitektur
 
 ```
@@ -386,11 +413,12 @@ node e2e/v5-coavira.test.mjs    # branding, systemtema, aviseringar, erbjudanden
 node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, UPC/EAN, egen produkt
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
+node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarkering, program i kalendern, profilbild, kamera, kost, dl/msk
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v12`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v13`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -410,6 +438,7 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v12`) och ett migreringstest för v4 kont
 - Övningsnamn kan bara sättas av klientens aktiva PT.
 - v11: PT kan inte ändra certifikat. Köp kan inte skapas eller markeras betalda av klienten. Priset hämtas från tjänsten, och fel belopp avvisas.
 - v11: en betalning aktiverar relationen. Pass 6 av 5 stoppas både som träningspass och i kalendern, och en avbokning ger tillbaka passet.
+- v13: klienten skapar, ändrar och tar bort sina egna pass, men kan inte skapa pass i PT:ns namn eller klarmarkera. Egna pass tar inga betalda pass, och PT:n ser dem men kan inte ändra dem. Program kopplat till ett bokat pass tar inget extra pass. Bara passets PT klarmarkerar, och profilbilden måste vara en https-adress eller en bild.
 - v12: tre PT:er samtidigt, PT:er ser inte varandras chattar eller samtal och ändrar inte varandras pass eller scheman, bara ett aktivt kostschema, och klienten väljer det. Lämna PT stänger åtkomsten och PT:n kan inte återaktivera relationen. Kost-PT säljer inga pass, och intressen och mätpunkter är privata.
 - v11: kostplan kräver köpt kost (och låses vid återbetalning). Klienten kan inte köpa hos en annan PT än sin aktiva, och recept är privata.
 

@@ -13,7 +13,7 @@ export function CallOverlay() {
   const { state, accept, decline, hangup, toggleMute, toggleCamera } = useCall()
   const { mode, data } = useAppData()
   if (state.status === "idle" || !state.peer) return null
-  const peerAvatar = data.trainers.find((t) => t.id === state.peer?.id)?.avatarUrl
+  const peerAvatar = data.trainers.find((t) => t.id === state.peer?.id)?.avatarUrl ?? data.clients.find((c) => c.id === state.peer?.id)?.avatarUrl
   const kindLabel = state.kind === "video" ? "Videosamtal" : "Röstsamtal"
 
   if (state.status === "incoming") {
@@ -87,15 +87,8 @@ export function CallOverlay() {
           </div>
         )}
 
-        {/* Egen kamera */}
-        {state.kind === "video" && state.localStream && !state.cameraOff && (
-          <MediaView
-            stream={state.localStream}
-            muted
-            mirror
-            className="absolute right-4 bottom-4 aspect-[3/4] w-28 rounded-xl border border-white/20 object-cover shadow-lg sm:w-40"
-          />
-        )}
+        {/* Egen kamera – kan dras fritt så att den inte skymmer något viktigt */}
+        {state.kind === "video" && state.localStream && !state.cameraOff && <DraggablePip stream={state.localStream} />}
       </div>
 
       {/* Kontroller: frostad list med etiketter under ikonerna */}
@@ -170,6 +163,66 @@ function RoundButton({
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * Den egna kamerarutan. Dras med finger/mus (pekarhändelser) eller flyttas med
+ * piltangenterna. Positionen hålls inom samtalsytan.
+ */
+function DraggablePip({ stream }: { stream: MediaStream }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const drag = React.useRef<{ dx: number; dy: number; id: number } | null>(null)
+  // null = standardläget nere till höger (tills användaren flyttat rutan).
+  const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null)
+
+  const clamp = (x: number, y: number) => {
+    const el = ref.current
+    const parent = el?.parentElement
+    if (!el || !parent) return { x, y }
+    const maxX = parent.clientWidth - el.offsetWidth - 8
+    const maxY = parent.clientHeight - el.offsetHeight - 8
+    return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(8, y), maxY) }
+  }
+  const current = () => {
+    const el = ref.current
+    return pos ?? (el ? { x: el.offsetLeft, y: el.offsetTop } : { x: 0, y: 0 })
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="button"
+      tabIndex={0}
+      aria-label="Din kamera – dra eller använd piltangenterna för att flytta"
+      data-testid="self-view"
+      onPointerDown={(e) => {
+        const c = current()
+        drag.current = { dx: e.clientX - c.x, dy: e.clientY - c.y, id: e.pointerId }
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current || drag.current.id !== e.pointerId) return
+        setPos(clamp(e.clientX - drag.current.dx, e.clientY - drag.current.dy))
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 64 : 24
+        const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key]
+        if (!d) return
+        e.preventDefault()
+        const c = current()
+        setPos(clamp(c.x + d[0], c.y + d[1]))
+      }}
+      style={pos ? { left: pos.x, top: pos.y } : undefined}
+      className={cn(
+        "absolute z-10 aspect-[3/4] w-28 cursor-grab touch-none overflow-hidden rounded-2xl border border-white/20 shadow-2xl outline-none select-none focus-visible:ring-2 focus-visible:ring-white/70 active:cursor-grabbing sm:w-40",
+        !pos && "right-4 bottom-4"
+      )}
+    >
+      <MediaView stream={stream} muted mirror className="pointer-events-none h-full w-full object-cover" />
+    </div>
   )
 }
 

@@ -29,7 +29,7 @@ import { kcalFromMacros } from "@/lib/foods"
 import { amountOf, itemFromFood, setAmount, switchUnit } from "@/lib/nutrition/meal-items"
 import { hasNutritionAccess } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
-import type { MacroTargets, Meal, MealItem, MealUnit, NutritionPlan, Recipe } from "@/types/domain"
+import { MEAL_UNIT_LABEL, type MacroTargets, type Meal, type MealItem, type MealUnit, type NutritionPlan, type Recipe } from "@/types/domain"
 
 const PRESETS: { name: string; targets: MacroTargets }[] = [
   { name: "Viktnedgång", targets: { kcal: 1800, protein: 140, carbs: 170, fat: 60 } },
@@ -384,9 +384,9 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
             </span>
             <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
               <NumberInput
-                decimal={unit === "st"}
+                decimal={unit !== "g"}
                 min={0}
-                max={unit === "st" ? 50 : 5000}
+                max={unit === "g" ? 5000 : 50}
                 value={amountOf(item)}
                 onValueChange={(v) => update(idx, (it) => setAmount(it, v ?? 0))}
                 className="h-8 w-16 bg-muted px-1.5 text-right text-sm tabular"
@@ -394,7 +394,7 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
               />
               <UnitToggle value={unit} name={item.name} onChange={(u) => update(idx, (it) => switchUnit(it, u))} />
               <span className="w-12 text-xs text-muted-foreground tabular" aria-label="Uppskattad vikt">
-                {unit === "st" ? `≈${item.grams} g` : ""}
+                {unit !== "g" ? `≈${item.grams} g` : ""}
               </span>
               <span className="w-16 text-right text-muted-foreground tabular">{item.kcal} kcal</span>
               <button
@@ -412,23 +412,24 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
   )
 }
 
-/** Gram eller styck (ml finns inte i kostbyggaren – drycker anges i gram). */
+/**
+ * Enhet för en rad: gram, styck eller köksmått (dl, msk, tsk). Köksmått räknas
+ * om till gram med livsmedlets densitet. (ml finns inte – drycker anges i dl.)
+ */
 function UnitToggle({ value, name, onChange }: { value: MealUnit; name: string; onChange: (u: MealUnit) => void }) {
   return (
-    <div role="radiogroup" aria-label={`Enhet för ${name}`} className="flex rounded-md bg-muted p-0.5 text-xs">
-      {(["g", "st"] as const).map((u) => (
-        <button
-          key={u}
-          type="button"
-          role="radio"
-          aria-checked={value === u}
-          onClick={() => onChange(u)}
-          className={cn("rounded px-2 py-1", value === u ? "bg-background font-medium shadow-sm" : "text-muted-foreground")}
-        >
-          {u}
-        </button>
-      ))}
-    </div>
+    <Select value={value} onValueChange={(v) => onChange(v as MealUnit)}>
+      <SelectTrigger size="sm" className="h-8 w-[4.25rem] px-2 text-xs" aria-label={`Enhet för ${name}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(["g", "st", "dl", "msk", "tsk"] as const).map((u) => (
+          <SelectItem key={u} value={u} className="text-sm">
+            {MEAL_UNIT_LABEL[u]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 

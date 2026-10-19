@@ -1,13 +1,15 @@
 "use client"
 
-import { ArrowRight, Check, CheckCheck, Clock, Dumbbell, Hourglass, MapPin, MessageSquare, Move, Pencil, Trash2, Video, X } from "lucide-react"
+import { ArrowRight, Check, CheckCheck, ClipboardCheck, Clock, Dumbbell, Hourglass, MapPin, MessageSquare, Move, Pencil, ShieldCheck, Trash2, Video, X } from "lucide-react"
 import Link from "next/link"
+import * as React from "react"
 import { toast } from "sonner"
 
 import { TONE_DOT, TONE_LABEL, type CalItem } from "@/components/calendar/items"
 import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatDayLong, formatDayShort, formatTimeRange } from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
@@ -55,7 +57,7 @@ export function EventDetailsDialog({
         <div className="space-y-3 text-sm">
           {client && (
             <Link href={`/pt/klienter/${client.id}`} className="flex items-center gap-3 rounded-xl border p-3 hover:bg-muted/60">
-              <PersonAvatar name={client.name} className="size-9" />
+              <PersonAvatar name={client.name} src={client.avatarUrl} className="size-9" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium">{client.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{client.goal || "Klient"}</div>
@@ -70,11 +72,29 @@ export function EventDetailsDialog({
             </p>
           )}
           {workout && (
-            <p className="flex items-center gap-2">
-              <Dumbbell className="size-4 text-muted-foreground" /> {workout.name}
-              {item.tone === "planned" && <span className="text-muted-foreground">(schemalagt i passbyggaren)</span>}
-            </p>
+            <div className="space-y-1.5 rounded-xl border p-3">
+              <p className="flex items-center gap-2 font-medium">
+                <Dumbbell className="size-4 text-muted-foreground" /> {workout.name}
+                {workout.verifiedAt && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs text-success">
+                    <ShieldCheck className="size-3.5" /> Klarmarkerat
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {workout.exercises.length} övningar
+                {item.tone === "planned" && " · schemalagt i passbyggaren"}
+              </p>
+              {client && !workout.byClient && (
+                <Button asChild size="sm" variant={workout.verifiedAt ? "outline" : "default"} className="w-full">
+                  <Link href={`/pt/klienter/${client.id}/pass/${workout.id}`}>
+                    <ClipboardCheck /> {workout.verifiedAt ? "Visa passet" : past || workout.status !== "planned" ? "Kontrollera och klarmarkera" : "Öppna programmet"}
+                  </Link>
+                </Button>
+              )}
+            </div>
           )}
+          {ev && ev.kind === "session" && ev.clientId && !workout && ev.status !== "cancelled" && <AttachProgram eventId={ev.id} />}
           {ev?.status === "pending" && (
             <div className="space-y-1 rounded-lg border border-dashed border-warning/70 bg-warning/10 px-3 py-2">
               <p className="flex items-center gap-1.5 font-medium">
@@ -172,7 +192,7 @@ export function EventDetailsDialog({
                 <Button variant="outline" onClick={() => onEdit(ev)}>
                   <Pencil /> Ändra
                 </Button>
-                {past && (
+                {past && !workout && (
                   <Button
                     onClick={() => {
                       actions.setEventStatus(ev.id, "completed")
@@ -214,5 +234,53 @@ export function EventDetailsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * PT: koppla ett träningsprogram till ett bokat pass, så att både PT och
+ * klient ser övningarna (klienten kan förhandsgranska innan passet).
+ */
+function AttachProgram({ eventId }: { eventId: string }) {
+  const { data, me, actions } = useAppData()
+  const templates = data.templates.filter((t) => t.trainerId === me.id)
+  const [templateId, setTemplateId] = React.useState("")
+  if (!templates.length) {
+    return (
+      <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+        Inget program kopplat. Skapa en mall i <Link href="/pt/pass" className="underline">Passbyggaren</Link> för att koppla ett program.
+      </p>
+    )
+  }
+  return (
+    <div className="space-y-1.5 rounded-xl border border-dashed p-3" data-testid="attach-program">
+      <p className="text-xs text-muted-foreground">Koppla ett träningsprogram som ni båda ser under passet.</p>
+      <div className="flex gap-2">
+        <Select value={templateId} onValueChange={setTemplateId}>
+          <SelectTrigger className="min-w-0 flex-1" aria-label="Träningsprogram">
+            <SelectValue placeholder="Välj program" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          disabled={!templateId}
+          onClick={() => {
+            const tpl = templates.find((t) => t.id === templateId)
+            if (!tpl) return
+            const error = actions.attachProgram(eventId, tpl)
+            if (error) return toast.error(error)
+            toast.success(`${tpl.name} är kopplat till passet`, { description: "Klienten kan förhandsgranska övningarna i sin kalender." })
+          }}
+        >
+          Koppla
+        </Button>
+      </div>
+    </div>
   )
 }

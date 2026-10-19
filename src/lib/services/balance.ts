@@ -22,7 +22,8 @@ export function sessionBalance(data: AppData, trainerId: ID, clientId: ID): Sess
     .filter((p) => p.trainerId === trainerId && p.clientId === clientId && p.status === "paid")
     .reduce((sum, p) => sum + p.sessions, 0)
   const clientTrainer = data.clients.find((c) => c.id === clientId)?.trainerId
-  const workouts = data.workouts.filter((w) => w.clientId === clientId && (w.trainerId ?? clientTrainer) === trainerId).length
+  // Klientens egna pass räknas aldrig som betalda pass.
+  const workouts = data.workouts.filter((w) => w.clientId === clientId && !w.byClient && (w.trainerId ?? clientTrainer) === trainerId).length
   const events = data.events.filter(
     (e) =>
       e.trainerId === trainerId &&

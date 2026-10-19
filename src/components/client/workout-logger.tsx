@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, Info, Minus, PlayCircle, Plus, Timer, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Eye, Info, Minus, PlayCircle, Plus, ShieldCheck, Timer, Trash2, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
-import { formatDay } from "@/lib/date"
+import { formatDay, todayISO } from "@/lib/date"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { cn } from "@/lib/utils"
 import type { ScheduledWorkout, WorkoutExercise } from "@/types/domain"
@@ -37,16 +37,30 @@ import type { ScheduledWorkout, WorkoutExercise } from "@/types/domain"
  * - Allt sparas direkt – appen kan stängas mitt i ett pass.
  */
 
-export function WorkoutLogger({ workoutId }: { workoutId: string }) {
+/**
+ * Samma passvy används i tre lägen:
+ * - klienten loggar (eller förhandsgranskar ett kommande pass innan det startar),
+ * - klientens egna pass (egen tracking),
+ * - PT:n kontrollerar/rättar vikter, reps och set och klarmarkerar passet.
+ */
+export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workoutId: string; mode?: "client" | "trainer"; backHref?: string }) {
   const { data, actions, me } = useAppData()
   const router = useRouter()
-  const workout = data.workouts.find((w) => w.id === workoutId && w.clientId === me.id)
-  const history = React.useMemo(
-    () => workoutsFor(data, me.id).filter((w) => w.id !== workoutId),
-    [data, me.id, workoutId]
+  const trainerMode = mode === "trainer"
+  const workout = data.workouts.find(
+    (w) =>
+      w.id === workoutId &&
+      (trainerMode
+        ? !w.byClient && (w.trainerId ?? data.clients.find((c) => c.id === w.clientId)?.trainerId) === me.id
+        : w.clientId === me.id)
   )
+  const clientId = workout?.clientId ?? me.id
+  const history = workoutsFor(data, clientId).filter((w) => w.id !== workoutId)
   const [rest, setRest] = React.useState<{ endsAt: number; total: number } | null>(null)
   const [finishOpen, setFinishOpen] = React.useState(false)
+  // Kommande pass visas som förhandsvisning tills dagen (eller tills klienten startar ändå).
+  const [startEarly, setStartEarly] = React.useState(false)
+  const home = backHref ?? (trainerMode ? "/pt" : "/klient")
 
   const firstOpen = workout?.exercises.find((e) => !isExerciseDone(workout, e))?.id ?? null
   const [openId, setOpenId] = React.useState<string | null>(firstOpen)
@@ -56,18 +70,26 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
       <div className="p-4">
         <EmptyState icon={X} title="Passet hittades inte" />
         <Button asChild variant="link" className="mt-2 w-full">
-          <Link href="/klient">Till dagsvyn</Link>
+          <Link href={home}>{trainerMode ? "Tillbaka" : "Till dagsvyn"}</Link>
         </Button>
       </div>
     )
   }
 
-  const readOnly = workout.status === "completed"
+  const today = todayISO()
+  const preview = !trainerMode && workout.status === "planned" && workout.date > today && !startEarly
+  // Klarmarkerat av PT:n = låst för båda. Klientens genomförda pass kan PT:n fortfarande rätta och klarmarkera.
+  const readOnly = Boolean(workout.verifiedAt) || preview || (!trainerMode && workout.status === "completed")
+  // Äldre pass saknar trainerId – då är det klientens PT. Egna pass har ingen PT.
+  const trainerId = workout.byClient ? undefined : (workout.trainerId ?? data.clients.find((c) => c.id === workout.clientId)?.trainerId ?? undefined)
+  const trainer = trainerId ? data.trainers.find((t) => t.id === trainerId) : undefined
+  const clientName = data.clients.find((c) => c.id === workout.clientId)?.name
   const done = setsDone(workout)
   const total = setsTotal(workout)
 
   const onSetDone = (exercise: WorkoutExercise) => {
-    if (exercise.restSec > 0) setRest({ endsAt: nowMs() + exercise.restSec * 1000, total: exercise.restSec })
+    // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
+    if (exercise.restSec > 0 && !trainerMode) setRest({ endsAt: nowMs() + exercise.restSec * 1000, total: exercise.restSec })
     // Sista setet i övningen → öppna nästa ofärdiga övning.
     const doneSoFar = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length + 1
     if (doneSoFar >= exercise.sets) {
@@ -84,15 +106,38 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
             variant="ghost"
             size="icon"
             aria-label="Tillbaka"
-            onClick={() => (window.history.length > 1 ? router.back() : router.push("/klient"))}
+            onClick={() => (window.history.length > 1 ? router.back() : router.push(home))}
           >
             <ArrowLeft />
           </Button>
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-semibold">{workout.name}</h1>
-            <p className="text-xs text-muted-foreground">{formatDay(workout.date)}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {formatDay(workout.date)}
+              {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
+            </p>
           </div>
-          {!readOnly && (
+          {workout.byClient && !trainerMode && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Ta bort passet"
+              onClick={() => {
+                if (!window.confirm(`Ta bort "${workout.name}"?`)) return
+                actions.deleteOwnWorkout(workout.id)
+                toast("Passet är borttaget")
+                router.push(home)
+              }}
+            >
+              <Trash2 />
+            </Button>
+          )}
+          {trainerMode && !workout.verifiedAt && (
+            <Button size="sm" onClick={() => setFinishOpen(true)}>
+              <ClipboardCheck /> Klarmarkera
+            </Button>
+          )}
+          {!trainerMode && !readOnly && workout.status !== "completed" && (
             <Button size="sm" onClick={() => setFinishOpen(true)} disabled={done === 0}>
               Avsluta
             </Button>
@@ -103,10 +148,38 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
       </header>
 
       <div className="flex-1 space-y-3 p-4 pb-32">
-        {readOnly && (
+        {preview && (
+          <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="workout-preview">
+            <p className="flex items-center gap-2 font-medium">
+              <Eye className="size-4 text-primary" /> Förhandsvisning
+            </p>
+            <p className="text-muted-foreground">
+              Så här ser passet {formatDay(workout.date).toLowerCase()} ut{trainer ? ` – upplagt av ${trainer.name}` : ""}. Loggningen öppnas på passdagen.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setStartEarly(true)}>
+              <PlayCircle /> Starta ändå nu
+            </Button>
+          </div>
+        )}
+        {trainerMode && !workout.verifiedAt && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-sm">
+            Kontrollera vad som faktiskt gjordes: rätta vikter och reps, bocka av genomförda set och tryck sedan <b>Klarmarkera</b>.
+            {workout.status === "completed" && workout.clientComment && <> Klientens kommentar: &quot;{workout.clientComment}&quot;</>}
+          </p>
+        )}
+        {workout.status === "completed" && !trainerMode && !workout.verifiedAt && (
           <p className="rounded-lg bg-muted px-3 py-2 text-sm">
             Passet är genomfört. {workout.clientComment && <>Din kommentar: &quot;{workout.clientComment}&quot;</>}
           </p>
+        )}
+        {workout.verifiedAt && (
+          <div className="space-y-1 rounded-xl border border-success/40 bg-success/10 px-3 py-2 text-sm" data-testid="workout-verified">
+            <p className="flex items-center gap-1.5 font-medium">
+              <ShieldCheck className="size-4 text-success" /> Klarmarkerat av {trainerMode ? "dig" : (trainer?.name ?? "din PT")}
+            </p>
+            {workout.trainerComment && <p>&quot;{workout.trainerComment}&quot;</p>}
+            {workout.clientComment && <p className="text-xs text-muted-foreground">Klientens kommentar: &quot;{workout.clientComment}&quot;</p>}
+          </div>
         )}
         {workout.exercises.map((exercise, idx) => (
           <ExerciseCard
@@ -122,7 +195,7 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
             onSetDone={() => onSetDone(exercise)}
           />
         ))}
-        {!readOnly && done === total && (
+        {!readOnly && !trainerMode && workout.status !== "completed" && done === total && (
           <Button size="lg" className="h-14 w-full bg-brand text-base text-brand-foreground hover:bg-brand/90" onClick={() => setFinishOpen(true)}>
             <Check /> Alla set klara – avsluta passet
           </Button>
@@ -131,17 +204,32 @@ export function WorkoutLogger({ workoutId }: { workoutId: string }) {
 
       {rest && !readOnly && <RestTimer rest={rest} onChange={setRest} />}
 
-      <FinishDialog
-        open={finishOpen}
-        onOpenChange={setFinishOpen}
-        workout={workout}
-        onFinish={(comment) => {
-          actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
-          if (comment) actions.sendMessage(me.id, comment, workout.id)
-          toast.success("Snyggt jobbat! Passet är sparat.", { description: comment ? "Din kommentar skickades till din PT." : undefined })
-          router.push("/klient")
-        }}
-      />
+      {trainerMode ? (
+        <VerifyDialog
+          open={finishOpen}
+          onOpenChange={setFinishOpen}
+          workout={workout}
+          onVerify={(comment) => {
+            actions.verifyWorkout(workout.id, comment)
+            toast.success("Passet är klarmarkerat", { description: `${clientName ?? "Klienten"} ser din kontroll och kommentar.` })
+            router.push(home)
+          }}
+        />
+      ) : (
+        <FinishDialog
+          open={finishOpen}
+          onOpenChange={setFinishOpen}
+          workout={workout}
+          onFinish={(comment) => {
+            actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
+            // Kommentaren går till passets PT (egna pass har ingen PT).
+            const pt = workout.trainerId ?? (workout.byClient ? undefined : data.clients.find((c) => c.id === me.id)?.trainerId ?? undefined)
+            if (comment && pt) actions.sendMessage(me.id, comment, workout.id, { trainerId: pt })
+            toast.success("Snyggt jobbat! Passet är sparat.", { description: comment && pt ? "Din kommentar skickades till din PT." : undefined })
+            router.push(home)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -464,6 +552,70 @@ function FinishDialog({
         <DialogFooter>
           <Button size="lg" className="w-full bg-brand text-brand-foreground hover:bg-brand/90 sm:w-auto" onClick={() => onFinish(comment.trim())}>
             <Check /> Spara pass
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** PT:ns kontrollfönster: sammanfattning av vad som gjordes + kommentar, sedan klarmarkering. */
+function VerifyDialog({
+  open,
+  onOpenChange,
+  workout,
+  onVerify,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  workout: ScheduledWorkout
+  onVerify: (comment: string) => void
+}) {
+  const { data } = useAppData()
+  const [comment, setComment] = React.useState("")
+  const done = setsDone(workout)
+  const total = setsTotal(workout)
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Klarmarkera passet</DialogTitle>
+          <DialogDescription>
+            {done} av {total} set genomförda. Kontrollera sammanfattningen – klienten ser den tillsammans med din kommentar.
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="divide-y rounded-xl border text-sm" aria-label="Genomfört">
+          {workout.exercises.map((e) => {
+            const sets = workout.logs.filter((l) => l.workoutExerciseId === e.id && l.done).sort((a, b) => a.setIndex - b.setIndex)
+            return (
+              <li key={e.id} className="flex items-start justify-between gap-3 px-3 py-2">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{exerciseName(data, e.exerciseId, workout.clientId)}</span>
+                  <span className="block text-xs text-muted-foreground tabular">
+                    {sets.length ? sets.map((l) => (l.kg ? `${l.kg}×${l.reps}` : `${l.reps}`)).join(", ") : "Inga set"}
+                  </span>
+                </span>
+                <span className={cn("shrink-0 text-xs tabular", sets.length >= e.sets ? "text-success" : "text-muted-foreground")}>
+                  {sets.length}/{e.sets}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        <Textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Kommentar om passet (teknik, känsla, nästa steg)…"
+          rows={3}
+          maxLength={1000}
+          aria-label="Kommentar om passet"
+        />
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Fortsätt rätta
+          </Button>
+          <Button onClick={() => onVerify(comment.trim())}>
+            <ClipboardCheck /> Bekräfta genomfört
           </Button>
         </DialogFooter>
       </DialogContent>

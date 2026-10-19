@@ -765,6 +765,39 @@ export function createSeedData(today = todayISO()): AppData {
       { id: "pe-4", clientId: "c1", metric: "hyrox_ski", value: 251, date: addDays(today, -4) },
     ],
   }
+  // Saras bokade pass om två dagar har ett kopplat program som hon kan förhandsgranska.
+  const next = data.events.find((e) => e.id === "ev-c1-next")
+  const lower = templates.find((t) => t.id === "tpl-lower")!
+  if (next) {
+    data.workouts.push({
+      id: "w-c1-next",
+      clientId: "c1",
+      trainerId: "t1",
+      eventId: next.id,
+      templateId: lower.id,
+      name: "Teknik knäböj",
+      date: addDays(today, 2),
+      exercises: snapshot(lower, "w-c1-next"),
+      status: "planned",
+      logs: [],
+    })
+    next.workoutId = "w-c1-next"
+  }
+  // Ett eget pass som Sara loggat själv (syns för hennes PT:er som underlag).
+  const own = [we("w-c1-own-1", "e-plank", 3, "45 s", 30), we("w-c1-own-2", "e-pushup", 3, "12", 60)]
+  data.workouts.push({
+    id: "w-c1-own",
+    clientId: "c1",
+    byClient: true,
+    templateId: null,
+    name: "Eget pass – bål och armhävningar",
+    date: addDays(today, -1),
+    exercises: own,
+    status: "completed",
+    completedAt: `${addDays(today, -1)}T18:30:00.000Z`,
+    logs: own.flatMap((e) => Array.from({ length: e.sets }, (_, i) => ({ workoutExerciseId: e.id, setIndex: i, kg: 0, reps: e.exerciseId === "e-pushup" ? 12 : 1, done: true }))),
+  })
+
   // Relationer: varje klient med sin PT, och Sara även med Ahmed (Hyrox).
   data.relationships = [
     ...data.clients.map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),

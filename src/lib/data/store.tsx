@@ -69,8 +69,8 @@ export interface SyncState {
   pending: number
 }
 
-// Ny nyckel när demodatan ändrar form (v3: flera PT:er, intressen och mätpunkter) – demon börjar om med färsk data.
-const DEMO_KEY = "coavira:demo:v3"
+// Ny nyckel när demodatan ändrar form (v4: egna pass, kopplade program och klarmarkering) – demon börjar om med färsk data.
+const DEMO_KEY = "coavira:demo:v4"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
 const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
 
@@ -100,6 +100,35 @@ function createActions(ctx: {
   const { me, getData, commit } = ctx
   const newId = () => crypto.randomUUID()
   const now = () => new Date().toISOString()
+
+  /**
+   * PT: koppla ett träningsprogram (från en mall) till ett bokat kalenderpass.
+   * Passet tar kalenderpassets plats i passgränsen, inte ett nytt betalt pass.
+   */
+  const attachProgram = (eventId: ID, template: WorkoutTemplate): string | null => {
+    const ev = getData().events.find((e) => e.id === eventId)
+    if (!ev?.clientId || ev.kind !== "session") return "Passet har ingen klient."
+    const id = newId()
+    const start = new Date(ev.start)
+    const date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`
+    commit({
+      type: "addWorkout",
+      workout: {
+        id,
+        clientId: ev.clientId,
+        trainerId: me.id,
+        eventId,
+        templateId: template.id,
+        name: template.name,
+        date,
+        exercises: template.exercises.map((e) => ({ ...e, id: newId() })),
+        status: "planned",
+        logs: [],
+      },
+    })
+    commit({ type: "updateEvent", eventId, patch: { workoutId: id } })
+    return null
+  }
 
   return {
     newId,
@@ -137,6 +166,40 @@ function createActions(ctx: {
       })
       return null
     },
+    attachProgram,
+    /**
+     * PT: klarmarkera ett pass. Vikter, reps och set har PT:n redan kontrollerat
+     * och rättat i passvyn; här bekräftas passet med en kommentar.
+     */
+    verifyWorkout: (workoutId: ID, comment?: string) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (!w) return
+      const linked = getData().events.filter(
+        (e) => (e.workoutId === workoutId || e.id === w.eventId) && (e.status === "confirmed" || e.status === "pending")
+      )
+      commit({ type: "verifyWorkout", workoutId, verifiedAt: now(), verifiedBy: me.id, comment: comment?.trim().slice(0, 1000) || undefined })
+      for (const e of linked) commit({ type: "setEventStatus", eventId: e.id, status: "completed" })
+    },
+    /** Klient: skapa ett eget pass (egen tracking, oberoende av PT). Returnerar passets id. */
+    createOwnWorkout: (name: string, date: ISODate, exercises: WorkoutTemplate["exercises"]): ID => {
+      const id = newId()
+      commit({
+        type: "addWorkout",
+        workout: {
+          id,
+          clientId: me.id,
+          byClient: true,
+          templateId: null,
+          name: name.trim().slice(0, 80) || "Eget pass",
+          date,
+          exercises: exercises.map((e) => ({ ...e, id: newId() })),
+          status: "planned",
+          logs: [],
+        },
+      })
+      return id
+    },
+    deleteOwnWorkout: (workoutId: ID) => commit({ type: "deleteWorkout", workoutId }),
     saveTemplate: (template: WorkoutTemplate) => commit({ type: "upsertTemplate", template }),
     deleteTemplate: (templateId: ID) => commit({ type: "deleteTemplate", templateId }),
     /** PT: spara kostplanen. Kräver att klienten köpt kostcoaching. */
@@ -157,6 +220,7 @@ function createActions(ctx: {
         ...(patch.name !== undefined ? { name: patch.name.trim().slice(0, 120) } : {}),
         ...(patch.interests ? { interests: [...new Set(patch.interests)].slice(0, 12) } : {}),
         ...(patch.focus !== undefined ? { focus: patch.focus.trim().slice(0, 300) } : {}),
+        ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl } : {}),
       }
       commit({ type: "updateClientProfile", clientId: me.id, patch: clean })
     },
@@ -311,7 +375,7 @@ function createActions(ctx: {
     setEventStatus: (eventId: ID, status: EventStatus) =>
       commit({ type: "setEventStatus", eventId, status, cancelledBy: status === "cancelled" ? me.id : undefined }),
     /** PT: nytt pass, inbokad klient eller blockering. Returnerar felmeddelande vid krock. */
-    createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">): string | null => {
+    createEvent: (input: Omit<CalendarEvent, "id" | "trainerId" | "createdBy">, opts?: { template?: WorkoutTemplate }): string | null => {
       const conflict = findConflict(getData().events, me.id, new Date(input.start), new Date(input.end))
       if (conflict) return `Krockar med "${conflict.title || "en annan händelse"}".`
       // Ett pass med klient (utan kopplat träningspass) tar ett betalt pass.
@@ -321,7 +385,10 @@ function createActions(ctx: {
       }
       // Ett preliminärt pass med klient väntar på att klienten bekräftar.
       const awaiting = input.status === "pending" ? ("client" as const) : undefined
-      commit({ type: "addEvent", event: { ...input, awaiting, id: newId(), trainerId: me.id, createdBy: me.id } })
+      const id = newId()
+      commit({ type: "addEvent", event: { ...input, awaiting, id, trainerId: me.id, createdBy: me.id } })
+      // Valt träningsprogram kopplas direkt till det nya passet.
+      if (opts?.template && input.clientId && input.kind === "session") attachProgram(id, opts.template)
       return null
     },
     /** PT: ändra en händelse (tid, titel, plats …). Returnerar felmeddelande vid krock. */

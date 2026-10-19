@@ -1,12 +1,13 @@
 "use client"
 
-import { Activity, AlertCircle, CalendarClock, CalendarDays, ChevronRight, MessageSquare, Users } from "lucide-react"
+import { Activity, AlertCircle, CalendarClock, CalendarDays, ChevronRight, MessageSquare, Users, ShoppingBag } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { RequestsPanel } from "@/components/calendar/requests-panel"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { ClientStatusBadge, PageHeader, PersonAvatar, StatTile } from "@/components/common"
+import { formatSek } from "@/lib/money"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -140,7 +141,7 @@ export default function PtOverviewPage() {
                         href={`/pt/klienter/${client.id}`}
                         className="flex items-center gap-3 after:absolute after:inset-0 focus-visible:outline-none"
                       >
-                        <PersonAvatar name={client.name} className="size-8" />
+                        <PersonAvatar name={client.name} src={client.avatarUrl} className="size-8" />
                         <div className="min-w-0">
                           <div className="font-medium">{client.name}</div>
                           <div className="max-w-56 truncate text-xs text-muted-foreground">{client.goal}</div>
@@ -205,6 +206,8 @@ export default function PtOverviewPage() {
             </CardContent>
           </Card>
 
+          <RecentPurchases />
+
           <Card>
             <CardContent className="space-y-3">
               <RequestsPanel compact />
@@ -218,6 +221,40 @@ export default function PtOverviewPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Senaste köpen hos PT:n, med klientens profilbild. */
+function RecentPurchases() {
+  const { data, me } = useAppData()
+  const recent = data.purchases
+    .filter((p) => p.trainerId === me.id && p.status === "paid" && p.kind !== "legacy")
+    .sort((a, b) => (b.paidAt ?? b.createdAt).localeCompare(a.paidAt ?? a.createdAt))
+    .slice(0, 5)
+  if (!recent.length) return null
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShoppingBag className="size-4" /> Senaste köp
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2" data-testid="recent-purchases">
+        {recent.map((p) => {
+          const client = data.clients.find((c) => c.id === p.clientId)
+          return (
+            <Link key={p.id} href={`/pt/klienter/${p.clientId}`} className="flex items-center gap-3 rounded-lg border p-2.5 text-sm hover:bg-muted/60">
+              <PersonAvatar name={client?.name ?? "Klient"} src={client?.avatarUrl} className="size-8" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{client?.name ?? "Klient"}</span>
+                <span className="block truncate text-xs text-muted-foreground">{p.title}</span>
+              </span>
+              <span className="shrink-0 text-xs font-medium tabular">{formatSek(p.priceSek)}</span>
+            </Link>
+          )
+        })}
+      </CardContent>
+    </Card>
   )
 }
 

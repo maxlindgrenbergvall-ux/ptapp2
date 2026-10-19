@@ -114,6 +114,8 @@ export interface Client {
   interests?: string[]
   /** Vad klienten vill utveckla, med egna ord. */
   focus?: string
+  /** Profilbild (https-adress eller data-URL i demoläget). Syns för klientens PT:er. */
+  avatarUrl?: string
 }
 
 /** En loggad mätpunkt, t.ex. "Bästa tid på milen". Tider lagras i sekunder. */
@@ -186,6 +188,14 @@ export interface ScheduledWorkout {
   clientId: ID
   /** PT:n som schemalade passet (saknas i äldre sparad data = klientens PT). */
   trainerId?: ID
+  /** Klientens eget pass (skapat och loggat utan PT). Räknas aldrig som betalt pass. */
+  byClient?: boolean
+  /** Bokat kalenderpass som programmet hör till. */
+  eventId?: ID
+  /** PT:ns klarmarkering: vad som faktiskt gjordes är verifierat av PT:n. */
+  verifiedAt?: ISODateTime
+  verifiedBy?: ID
+  trainerComment?: string
   templateId: ID | null
   name: string
   date: ISODate
@@ -196,8 +206,14 @@ export interface ScheduledWorkout {
   clientComment?: string
 }
 
-/** Enhet i kostbyggaren: gram eller styck (t.ex. "2 ägg"). */
-export type MealUnit = "g" | "st"
+/**
+ * Enhet i kostbyggaren: gram, styck (t.ex. "2 ägg") eller köksmått –
+ * deciliter, matsked (15 ml) och tesked (5 ml). Styck och köksmått räknas om
+ * till gram (MealItem.grams) med styckvikt respektive densitet.
+ */
+export type MealUnit = "g" | "st" | "dl" | "msk" | "tsk"
+
+export const MEAL_UNIT_LABEL: Record<MealUnit, string> = { g: "g", st: "st", dl: "dl", msk: "msk", tsk: "tsk" }
 
 export interface MealItem {
   name: string
@@ -210,10 +226,12 @@ export interface MealItem {
   /** Näringsvärden per 100 g – makrona räknas alltid fram ur dessa. */
   per100?: Per100
   unit?: MealUnit
-  /** Antal styck när unit = "st". */
+  /** Antal i vald enhet när unit ≠ "g" (styck, dl, msk eller tsk). */
   qty?: number
   /** Uppskattad vikt per styck i gram. */
   pieceG?: number
+  /** Densitet (gram per milliliter) för köksmått, t.ex. havregryn ≈ 0,35. */
+  gPerMl?: number
 }
 
 /** PT:ns sparade recept i kostbyggaren. Läggs in i klienternas måltider. */

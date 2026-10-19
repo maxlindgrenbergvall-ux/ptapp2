@@ -25,12 +25,12 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, pe
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 p.on("console", (m) => m.type() === "error" && errors.push(`${p.url()} console: ${m.text()}`))
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v3"]).data)
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).data)
 const patchDemo = (fn) =>
   p.evaluate((src) => {
-    const s = JSON.parse(localStorage["coavira:demo:v3"])
+    const s = JSON.parse(localStorage["coavira:demo:v4"])
     s.data = new Function("d", `return (${src})(d)`)(s.data)
-    localStorage["coavira:demo:v3"] = JSON.stringify(s)
+    localStorage["coavira:demo:v4"] = JSON.stringify(s)
   }, fn.toString())
 const overlayGone = () => p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
 
