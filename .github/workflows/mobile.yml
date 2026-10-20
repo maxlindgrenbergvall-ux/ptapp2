@@ -81,7 +81,8 @@ jobs:
 
   ios:
     name: iOS (simulator)
-    runs-on: macos-latest
+    # Intel-Mac: GitHubs arm64-Macar har ofta lång kö ("not acquired by Runner").
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
