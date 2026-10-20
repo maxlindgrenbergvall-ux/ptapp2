@@ -34,7 +34,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x">
       {!focusMode && (
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
+        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center pt-[var(--safe-top)] justify-between border-b bg-background/80 px-4 backdrop-blur">
           <AppMenu />
           <div className="flex items-center gap-1">
             <NotificationBell />
@@ -50,7 +50,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       {!focusMode && (
         <nav
           aria-label="Huvudmeny"
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:border-x"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t bg-background/95 pb-[var(--safe-bottom)] backdrop-blur md:border-x"
         >
           {NAV.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)

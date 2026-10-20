@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Capacitor: reservsidor genereras av scripts/mobile-www.mjs
 /mobile/www/
+
+# Firebase-konfiguration för push (läggs in av GitHub Actions från en hemlighet)
+/android/app/google-services.json

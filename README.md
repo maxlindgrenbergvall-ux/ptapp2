@@ -31,7 +31,8 @@ npm run dev                  # http://localhost:3000
    12. `supabase/migrations/20261025000000_v12_multi_pt_interests.sql`. Den lägger till flera PT:er per klient, Lämna PT, ett aktivt kostschema, PT-utbud (träning/kost), intressen och mätpunkter.
    13. `supabase/migrations/20261026000000_v13_own_workouts_verify_avatar.sql`. Den lägger till klientens egna pass, PT:ns klarmarkering, program kopplade till bokade pass, profilbild för klienter och "Dagens kost" i realtid.
    14. `supabase/migrations/20261027000000_v14_fixes_rules.sql`. Den rättar RLS-felet vid profilbildsuppladdning, kost-PT-flaggan, spärrar genomförda pass i förtid, kräver vikter vid klarmarkering och låser samtal utan köp eller bokat pass.
-   15. `supabase/seed.sql`
+   15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
+   16. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: produktionsadressen, t.ex. `https://ptapp2.vercel.app`. Inte localhost och inte en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
@@ -345,7 +346,23 @@ Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Ac
 - **Behörigheter:** kamera (streckkoder, profilbild, videosamtal), mikrofon (samtal) och bilder (iOS), med svenska förklaringar. Android säkerhetskopierar inte appdata (`allowBackup=false`), eftersom inloggning och hälsodata ligger i WebView.
 - **Reservsidor:** `scripts/mobile-www.mjs` skapar `mobile/www/index.html` och `offline.html` (visas utan nätverk). De genereras och checkas inte in.
 - **Lokalt (valfritt):** `CAPACITOR_SERVER_URL=http://<datorns-ip>:3000 npm run cap:ios` (macOS och Xcode) eller `npm run cap:android` (Android Studio). Bara mot http tillåts klartext och WebView-felsökning.
-- **Igenkänning:** appen lägger till `CoaviraApp` i user agent, så att webben kan känna igen native-appen (för push och inloggning i senare steg).
+- **Igenkänning:** appen lägger till `CoaviraApp` i user agent (och `CoaviraPush` när bygget har push), så att webben kan känna igen native-appen.
+
+### Mobilanpassning och native-funktioner (steg 3)
+
+- **Apple/Google i appen:** Google tillåter inte inloggning i en WebView. I appen öppnas leverantören därför i systemets webbläsare (`@capacitor/browser`) och skickar tillbaka till `com.coavira.app://auth/callback?code=…`. `NativeBridge` stänger fönstret och växlar koden på `/auth/callback` i appens WebView, där PKCE-nyckeln finns. På webben är flödet oförändrat.
+  - **Krävs i Supabase:** lägg till `com.coavira.app://**` under Authentication → URL Configuration → Redirect URLs.
+- **E-post och lösenord** fungerar direkt i appen. E-postlänkar (bekräftelse, nytt lösenord) öppnas i telefonens webbläsare tills App Links/Universal Links är aktiverade (kräver signeringscertifikat och Apple Team ID).
+- **Djuplänkar:** `com.coavira.app://klient/kalender` och appens egna https-länkar öppnar rätt sida, även vid kall start. Andra domäner och `//`-sökvägar ignoreras (ingen öppen omdirigering).
+- **Push-notiser (grundstöd):** frågar först när användaren slår på "Push-notiser" i Inställningar (syns bara i appen). Enhetens token sparas i `push_tokens` och tas bort vid utloggning eller när push stängs av. Tryck på en notis öppnar `data.url` (bara interna sökvägar).
+  - **Android:** lägg Firebase-filen `google-services.json` som repo-hemligheten `GOOGLE_SERVICES_JSON`; då byggs appen med push. Utan den visas "kommer i en kommande version".
+  - **iOS:** kräver APNs-nyckel och Push-capability i Apple-kontot (certifikatfasen). `AppDelegate` vidarebefordrar redan enhetens token.
+  - **Utskick** (Firebase Cloud Messaging från servern, t.ex. när en avisering skapas) görs i ett senare steg.
+- **App Links / Universal Links (förberett):** `/.well-known/assetlinks.json` (miljövariabeln `ANDROID_APP_SHA256`) och `/.well-known/apple-app-site-association` (`APPLE_TEAM_ID`) svarar 404 tills värdena finns.
+- **Helskärm och safe area:** `viewport-fit=cover`; sidhuvuden, bottenmeny, samtalsvy och inloggningssidor lägger till `--safe-top`/`--safe-bottom` (från `env(safe-area-inset-*)` och Capacitors `--safe-area-inset-*` på Android). Android kör kant till kant (`EdgeToEdge`). På webben är marginalerna 0.
+- **Betalning:** Stripe Checkout öppnas i appen (`allowNavigation`), så att man kommer tillbaka till appen efter köpet. Andra externa länkar (bilagor, Google Kalender) öppnas i systemets webbläsare.
+- **Kamera, mikrofon och filer:** streckkodsscanner, videosamtal och bilduppladdning använder WebView:ns kamera/filväljare med behörigheterna från steg 2.
+- **Kända begränsningar:** anslutning av Strava/Garmin och `.ics`-nedladdning går via webbläsaren och fungerar bäst på webben tills de får egna appflöden.
 
 ## Arkitektur
 
@@ -454,12 +471,14 @@ node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, 
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
 node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarkering, program i kalendern, profilbild, kamera, kost, dl/msk
+node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, kall start, push, safe area, webben opåverkad
+node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
-RLS-testerna (`rls`, `rls_v2` … `rls_v14`) och ett migreringstest för v4 kontrollerar bland annat följande:
+RLS-testerna (`rls`, `rls_v2` … `rls_v15`) och ett migreringstest för v4 kontrollerar bland annat följande:
 - Andra klienter och andra PT:er ser ingen hälsodata.
 - En PT med obesvarad förfrågan ser ingen hälsodata.
 - Klienten kan inte ändra sitt program.
@@ -480,6 +499,7 @@ RLS-testerna (`rls`, `rls_v2` … `rls_v14`) och ett migreringstest för v4 kont
 - v11: PT kan inte ändra certifikat. Köp kan inte skapas eller markeras betalda av klienten. Priset hämtas från tjänsten, och fel belopp avvisas.
 - v11: en betalning aktiverar relationen. Pass 6 av 5 stoppas både som träningspass och i kalendern, och en avbokning ger tillbaka passet.
 - v13: klienten skapar, ändrar och tar bort sina egna pass, men kan inte skapa pass i PT:ns namn eller klarmarkera. Egna pass tar inga betalda pass, och PT:n ser dem men kan inte ändra dem. Program kopplat till ett bokat pass tar inget extra pass. Bara passets PT klarmarkerar, och profilbilden måste vara en https-adress eller en bild.
+- v15: push-tokens kan bara skrivas via `register_push_token`, är privata, flyttas till den som loggar in på telefonen och tas bort vid utloggning. Utloggade kan inte registrera tokens.
 - v14: profilbilden kan laddas upp och ersättas (upsert) i den egna mappen men inte i någon annans. Kost-PT-flaggan följer aktiva kosttjänster. Varken PT eller klient kan markera ett pass som genomfört innan det ägt rum, klarmarkering kräver vikter i viktövningar, och samtal kräver köp eller bokat pass.
 - v12: tre PT:er samtidigt, PT:er ser inte varandras chattar eller samtal och ändrar inte varandras pass eller scheman, bara ett aktivt kostschema, och klienten väljer det. Lämna PT stänger åtkomsten och PT:n kan inte återaktivera relationen. Kost-PT säljer inga pass, och intressen och mätpunkter är privata.
 - v11: kostplan kräver köpt kost (och låses vid återbetalning). Klienten kan inte köpa hos en annan PT än sin aktiva, och recept är privata.

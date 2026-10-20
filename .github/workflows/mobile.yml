@@ -9,6 +9,10 @@
 # Webbadressen appen laddar: repo-variabeln CAPACITOR_SERVER_URL
 # (Settings → Secrets and variables → Actions → Variables), eller värdet man
 # anger när arbetsflödet körs manuellt.
+#
+# Push på Android: lägg Firebase-filen google-services.json (hela innehållet)
+# som repo-hemligheten GOOGLE_SERVICES_JSON. Då byggs appen med push påslaget;
+# utan den byggs den utan push (inställningen visas som "kommer snart").
 name: Mobilappar
 
 on:
@@ -62,6 +66,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Firebase för push (om hemligheten finns)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "COAVIRA_PUSH=1" >> "$GITHUB_ENV"
+            echo "Push påslaget (google-services.json finns)"
+          else
+            echo "Ingen GOOGLE_SERVICES_JSON – bygger utan push"
+          fi
       - name: Synka Capacitor (Android)
         run: npm run cap:sync -- android
       - uses: actions/setup-java@v4

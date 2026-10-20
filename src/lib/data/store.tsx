@@ -35,6 +35,7 @@ import { hasNutritionAccess, noCreditMessage, sessionBalance } from "@/lib/servi
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { completeBlocker, verifyBlocker } from "@/lib/workout-rules"
+import { forgetPushToken } from "@/lib/native/push"
 import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import type {
   AppData,
@@ -798,6 +799,8 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
       return
     }
     engine.forget()
+    // Appen: enheten ska inte få fler push-notiser för kontot.
+    await forgetPushToken().catch(() => {})
     await getSupabase().auth.signOut()
     window.location.replace("/logga-in")
   }, [engine])

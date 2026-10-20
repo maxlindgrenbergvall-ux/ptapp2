@@ -18,6 +18,10 @@ const DEFAULT_SERVER_URL = "https://ptapp2.vercel.app"
 
 const serverUrl = (process.env.CAPACITOR_SERVER_URL?.trim() || DEFAULT_SERVER_URL).replace(/\/+$/, "")
 const isLocal = serverUrl.startsWith("http://")
+// Push kräver Firebase (google-services.json) på Android och APNs på iOS.
+// Bygget sätter COAVIRA_PUSH=1 bara när de finns; webbappen läser flaggan ur
+// user agent ("CoaviraPush") och försöker annars aldrig registrera push.
+const pushEnabled = process.env.COAVIRA_PUSH === "1"
 
 if (!/^https?:\/\/[^/\s]+/.test(serverUrl)) {
   throw new Error(`CAPACITOR_SERVER_URL är ogiltig: "${serverUrl}"`)
@@ -28,14 +32,23 @@ const config: CapacitorConfig = {
   appName: "Coavira",
   // Lokala filer i appen: bara reserv-/offlinesidan. Själva appen laddas från serverUrl.
   webDir: "mobile/www",
-  // Låter webbappen känna igen att den körs i native-appen (t.ex. för push och inloggning senare).
-  appendUserAgent: "CoaviraApp",
+  // Låter webbappen känna igen att den körs i native-appen (inloggning, push).
+  appendUserAgent: pushEnabled ? "CoaviraApp CoaviraPush" : "CoaviraApp",
   backgroundColor: "#ffffff",
   server: {
     url: serverUrl,
     // Klartext (http) bara mot en lokal utvecklingsserver, aldrig i produktion.
     cleartext: isLocal,
     errorPath: "offline.html",
+    // Stripe Checkout öppnas i appen (inte i Safari/Chrome), så att man kommer
+    // tillbaka till appen efter betalningen. Allt annat externt öppnas i
+    // systemets webbläsare.
+    allowNavigation: ["checkout.stripe.com", "*.stripe.com"],
+  },
+  plugins: {
+    // Kant till kant: webbappen får rätt safe-area-värden (viewport-fit=cover).
+    SystemBars: { insetsHandling: "css", initialViewportFitValueHint: "cover" },
+    PushNotifications: { presentationOptions: ["badge", "sound", "alert"] },
   },
   ios: {
     contentInset: "never",

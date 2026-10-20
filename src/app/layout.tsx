@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
+import { NativeBridge } from "@/components/native/native-bridge"
 import { Toaster } from "@/components/ui/sonner"
 import { BRAND } from "@/lib/brand"
 
@@ -24,6 +25,9 @@ export const viewport: Viewport = {
   ],
   // Temat följer enhetens inställning (iOS, Android, webbläsare); ingen manuell växling.
   colorScheme: "light dark",
+  // Hela skärmen i Coavira-appen (iOS/Android); sidhuvuden lägger själva till
+  // avstånd för statusfältet/notchen via --safe-top (globals.css).
+  viewportFit: "cover",
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,7 +35,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="sv" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full font-sans">
         {children}
-        <Toaster position="top-center" />
+        <Toaster position="top-center" mobileOffset={{ top: "calc(var(--safe-top) + 16px)" }} />
+        <NativeBridge />
       </body>
     </html>
   )

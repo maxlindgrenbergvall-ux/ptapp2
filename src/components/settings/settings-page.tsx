@@ -4,6 +4,7 @@ import { BellRing, ChevronRight, LogOut, Palette, RotateCcw } from "lucide-react
 import Link from "next/link"
 
 import { appMenuLinks } from "@/components/app-menu"
+import { PushSettingsCard } from "@/components/native/push-settings"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -63,6 +64,8 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <PushSettingsCard />
 
       <Card className="gap-3">
         <CardHeader>

@@ -21,7 +21,7 @@ export function CallOverlay() {
       <div
         role="alertdialog"
         aria-label={`Inkommande ${kindLabel.toLowerCase()} från ${state.peer.name}`}
-        className="fixed inset-x-0 top-0 z-50 mx-auto max-w-md p-3 motion-safe:animate-in motion-safe:slide-in-from-top-4"
+        className="fixed inset-x-0 top-0 z-50 mx-auto max-w-md p-3 pt-[calc(var(--safe-top)+0.75rem)] motion-safe:animate-in motion-safe:slide-in-from-top-4"
       >
         <div className="flex items-center gap-3 rounded-3xl bg-[oklch(0.18_0.015_160)]/95 p-3 pr-4 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
           <span className="relative">
@@ -54,7 +54,7 @@ export function CallOverlay() {
       role="dialog"
       aria-modal="true"
       aria-label={`${kindLabel} med ${state.peer.name}`}
-      className="fixed inset-0 z-50 flex flex-col bg-[radial-gradient(120%_80%_at_50%_0%,oklch(0.3_0.06_160),oklch(0.12_0.012_160))] text-white"
+      className="fixed inset-0 z-50 flex flex-col pt-[var(--safe-top)] bg-[radial-gradient(120%_80%_at_50%_0%,oklch(0.3_0.06_160),oklch(0.12_0.012_160))] text-white"
     >
       {/* Motparten */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
@@ -92,7 +92,7 @@ export function CallOverlay() {
       </div>
 
       {/* Kontroller: frostad list med etiketter under ikonerna */}
-      <div className="flex justify-center px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex justify-center px-4 pt-4 pb-[max(1.5rem,var(--safe-bottom))]">
         <div className="flex items-end gap-5 rounded-[2rem] bg-white/10 px-6 py-3 ring-1 ring-white/10 backdrop-blur-xl">
           <LabeledControl caption={state.muted ? "Ljud av" : "Mikrofon"}>
             <RoundButton label={state.muted ? "Slå på mikrofonen" : "Stäng av mikrofonen"} active={state.muted} onClick={toggleMute}>

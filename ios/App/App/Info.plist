@@ -8,6 +8,18 @@
 	<string>sv</string>
 	<key>CFBundleDisplayName</key>
         <string>Coavira</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.coavira.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- Djuplänkar och inloggning med Apple/Google: com.coavira.app://auth/callback -->
+				<string>com.coavira.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

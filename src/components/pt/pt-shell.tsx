@@ -28,11 +28,11 @@ export function PtShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   return (
     <div className="flex min-h-svh">
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r bg-sidebar lg:block">
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r bg-sidebar pt-[var(--safe-top)] lg:block">
         <SidebarContent />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center pt-[var(--safe-top)] gap-2 border-b bg-background/80 px-4 backdrop-blur lg:hidden">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Öppna meny">
@@ -51,7 +51,7 @@ export function PtShell({ children }: { children: React.ReactNode }) {
             <NotificationBell />
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-[calc(var(--safe-bottom)+1.5rem)] sm:px-6 lg:px-8">
           <SyncIndicator className="mb-4" />
           {children}
         </main>

@@ -16,7 +16,7 @@ export function AuthCard({
   footer?: React.ReactNode
 }) {
   return (
-    <main className="mx-auto flex min-h-svh max-w-sm flex-col px-4 py-6">
+    <main className="mx-auto flex min-h-svh max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+1.5rem)] pb-[calc(var(--safe-bottom)+1.5rem)]">
       <header className="flex items-center justify-between">
         <BrandLogo />
       </header>

@@ -19,7 +19,7 @@ const POINTS = [
  */
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-4 py-8">
+    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+2rem)] pb-[calc(var(--safe-bottom)+2rem)]">
       <section className="flex flex-1 flex-col justify-center gap-8">
         <div className="space-y-4 text-center">
           <BrandMark size="lg" className="mx-auto" />

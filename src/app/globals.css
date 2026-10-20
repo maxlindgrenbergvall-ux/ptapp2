@@ -65,6 +65,14 @@
  * Neutrala ytor har en lätt grön ton i stället för ren svart/vit.
  */
 :root {
+  /*
+   * Säkra marginaler för statusfält, notch och hemindikator i Coavira-appen
+   * (viewport-fit=cover). Android-appen (Capacitor SystemBars) sätter även
+   * --safe-area-inset-* eftersom äldre Android-WebViews ger env() = 0.
+   * På webben är de normalt 0.
+   */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
   /* Inbyggda kontroller (scrollbars, datum/tid-väljare) följer också systemtemat. */
   color-scheme: light dark;
   --background: oklch(0.985 0.004 135);

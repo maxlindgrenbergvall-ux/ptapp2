@@ -106,7 +106,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b bg-background/95 pt-[var(--safe-top)] backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-2">
           <Button
             variant="ghost"
@@ -513,7 +513,7 @@ function RestTimer({
   const ss = String(left % 60).padStart(2, "0")
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg p-3 pb-[max(0.75rem,var(--safe-bottom))]">
       <div
         className={cn(
           "flex items-center gap-3 rounded-2xl border p-3 shadow-lg backdrop-blur",

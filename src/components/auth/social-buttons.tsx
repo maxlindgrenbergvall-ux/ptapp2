@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { authErrorMessage } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { authCallbackUrl } from "@/lib/auth-redirect"
+import { isNativeApp, nativeAuthCallbackUrl } from "@/lib/native/app"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
@@ -21,6 +22,11 @@ export type SocialProvider = "apple" | "google"
  * en session. Därefter: nya konton → välkomststeget (välj kontotyp), befintliga
  * → sin startsida (proxy.ts styr det). Samma knapp fungerar för både inloggning
  * och registrering.
+ *
+ * I Coavira-appen öppnas leverantören i systemets webbläsare (Google tillåter
+ * inte inloggning i en WebView) och kommer tillbaka via com.coavira.app://
+ * (se NativeBridge). PKCE-nyckeln ligger kvar i appens WebView, så koden byts
+ * mot en session där.
  */
 export function SocialButtons({ next, onError }: { next?: string; onError?: (message: string) => void }) {
   const router = useRouter()
@@ -34,14 +40,26 @@ export function SocialButtons({ next, onError }: { next?: string; onError?: (mes
     }
     setPending(provider)
     const target = next && next.startsWith("/") && !next.startsWith("//") ? next : ONBOARDING_PATH
-    const { error } = await getSupabase().auth.signInWithOAuth({
+    const native = isNativeApp()
+    const { data, error } = await getSupabase().auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: authCallbackUrl(target),
+        redirectTo: native ? nativeAuthCallbackUrl(target) : authCallbackUrl(target),
+        skipBrowserRedirect: native,
         // Google: visa kontoväljaren även om man bara har ett konto inloggat.
         ...(provider === "google" ? { queryParams: { prompt: "select_account" } } : {}),
       },
     })
+    if (native && !error && data.url) {
+      const { Browser } = await import("@capacitor/browser")
+      await Browser.open({ url: data.url, presentationStyle: "popover" })
+      // Om användaren stänger fönstret utan att logga in.
+      const sub = await Browser.addListener("browserFinished", () => {
+        setPending(null)
+        void sub.remove()
+      })
+      return
+    }
     // Vid lyckat anrop har webbläsaren redan börjat navigera till leverantören.
     if (error) {
       setPending(null)
