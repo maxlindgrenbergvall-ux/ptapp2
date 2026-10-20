@@ -1,0 +1,4 @@
+# Native-appar (Capacitor) byggs i GitHub Actions, inte på Vercel.
+/android
+/ios
+/mobile

@@ -33,8 +33,8 @@ npm run dev                  # http://localhost:3000
    14. `supabase/migrations/20261027000000_v14_fixes_rules.sql`. Den rättar RLS-felet vid profilbildsuppladdning, kost-PT-flaggan, spärrar genomförda pass i förtid, kräver vikter vid klarmarkering och låser samtal utan köp eller bokat pass.
    15. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
-   - *Site URL*: produktionsadressen, t.ex. `https://app.coavira.com`. Inte localhost och inte en Vercel-förhandsadress.
-   - *Redirect URLs*: `https://app.coavira.com/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
+   - *Site URL*: produktionsadressen, t.ex. `https://ptapp2.vercel.app`. Inte localhost och inte en Vercel-förhandsadress.
+   - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
    - **Authentication → Emails → Templates**: byt länken i *Confirm signup* till
      `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
      och i *Reset password* till
@@ -332,14 +332,19 @@ npm run dev                  # http://localhost:3000
 
 ## Mobilapp (iOS och Android) med Capacitor
 
-Steg 1 är klart: Capacitor 8 är installerat och konfigurerat. Native-mapparna (`ios/`, `android/`) skapas i steg 2.
+Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Actions. Ingen Mac eller Android Studio behövs.
 
-- **Så fungerar det:** appen använder SSR, API-routes, auth-callbacks och `proxy.ts` och kan därför inte exporteras statiskt. Native-appen laddar i stället den driftsatta webbtjänsten i en WebView (`server.url` i `capacitor.config.ts`). Webben byggs och driftsätts på Vercel exakt som förut.
-- **App-id och namn:** `com.coavira.app`, "Coavira".
-- **Serveradress:** `CAPACITOR_SERVER_URL` när man kör `npm run cap:sync`. Standard är `https://app.coavira.com`; sätt den till er riktiga produktionsdomän.
-- **Lokalt (telefon eller emulator mot `npm run dev`):** `CAPACITOR_SERVER_URL=http://<datorns-ip>:3000 npm run cap:sync`. Bara då tillåts http (klartext) och WebView-felsökning.
-- **Reservsidor:** `scripts/mobile-www.mjs` skapar `mobile/www/index.html` och `offline.html` (visas utan nätverk). Mappen genereras och checkas inte in.
-- **Kommandon:** `npm run cap:sync`, `npm run cap:ios` (kräver macOS och Xcode) och `npm run cap:android` (kräver Android Studio).
+- **Så fungerar det:** appen använder SSR, API-routes, auth-callbacks och `proxy.ts` och kan därför inte exporteras statiskt. Native-appen laddar i stället den driftsatta webbtjänsten i en WebView (`server.url` i `capacitor.config.ts`). Webben byggs och driftsätts på Vercel exakt som förut; `.vercelignore` håller native-mapparna utanför Vercel.
+- **App-id och namn:** `com.coavira.app`, "Coavira". Version 1.0 (Android `versionCode` 1).
+- **Serveradress:** `CAPACITOR_SERVER_URL`. Standard är produktionen `https://ptapp2.vercel.app`. I GitHub kan den ändras med repo-variabeln `CAPACITOR_SERVER_URL` eller när arbetsflödet körs manuellt.
+- **Byggen (`.github/workflows/mobile.yml`, "Mobilappar"):** körs vid ändringar i appfilerna på `main`, i pull requests och manuellt (Actions → Mobilappar → Run workflow). Under *Artifacts* på körningen finns:
+  - `coavira-android-debug`: `app-debug.apk` som kan installeras direkt på en Android-telefon (tillåt installation från okänd källa).
+  - `coavira-ios-simulator`: osignerad `App.app` för iOS-simulatorn. En riktig iPhone kräver signering via Apple-utvecklarkontot (TestFlight, senare steg).
+- **Ikoner och startskärm:** källbilder i `mobile/assets` (ritas av `npm run mobile:icons` ur Coaviras märke). `npm run mobile:assets` skapar alla storlekar för båda plattformarna. Startskärmen är limegrön, i mörkt läge mörk.
+- **Porträttläge:** låst på både iOS och Android (iPad: helskärm i porträtt).
+- **Behörigheter:** kamera (streckkoder, profilbild, videosamtal), mikrofon (samtal) och bilder (iOS), med svenska förklaringar. Android säkerhetskopierar inte appdata (`allowBackup=false`), eftersom inloggning och hälsodata ligger i WebView.
+- **Reservsidor:** `scripts/mobile-www.mjs` skapar `mobile/www/index.html` och `offline.html` (visas utan nätverk). De genereras och checkas inte in.
+- **Lokalt (valfritt):** `CAPACITOR_SERVER_URL=http://<datorns-ip>:3000 npm run cap:ios` (macOS och Xcode) eller `npm run cap:android` (Android Studio). Bara mot http tillåts klartext och WebView-felsökning.
 - **Igenkänning:** appen lägger till `CoaviraApp` i user agent, så att webben kan känna igen native-appen (för push och inloggning i senare steg).
 
 ## Arkitektur
