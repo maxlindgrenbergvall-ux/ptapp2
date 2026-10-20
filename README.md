@@ -330,6 +330,18 @@ npm run dev                  # http://localhost:3000
   - Kostbyggaren har enheterna g, st, dl, msk (15 ml) och tsk (5 ml).
   - Köksmått räknas om till gram med livsmedlets densitet (`densityOf`, t.ex. 1 dl havregryn ≈ 35 g). Raden sparar `qty` och `gPerMl`.
 
+## Mobilapp (iOS och Android) med Capacitor
+
+Steg 1 är klart: Capacitor 8 är installerat och konfigurerat. Native-mapparna (`ios/`, `android/`) skapas i steg 2.
+
+- **Så fungerar det:** appen använder SSR, API-routes, auth-callbacks och `proxy.ts` och kan därför inte exporteras statiskt. Native-appen laddar i stället den driftsatta webbtjänsten i en WebView (`server.url` i `capacitor.config.ts`). Webben byggs och driftsätts på Vercel exakt som förut.
+- **App-id och namn:** `com.coavira.app`, "Coavira".
+- **Serveradress:** `CAPACITOR_SERVER_URL` när man kör `npm run cap:sync`. Standard är `https://app.coavira.com`; sätt den till er riktiga produktionsdomän.
+- **Lokalt (telefon eller emulator mot `npm run dev`):** `CAPACITOR_SERVER_URL=http://<datorns-ip>:3000 npm run cap:sync`. Bara då tillåts http (klartext) och WebView-felsökning.
+- **Reservsidor:** `scripts/mobile-www.mjs` skapar `mobile/www/index.html` och `offline.html` (visas utan nätverk). Mappen genereras och checkas inte in.
+- **Kommandon:** `npm run cap:sync`, `npm run cap:ios` (kräver macOS och Xcode) och `npm run cap:android` (kräver Android Studio).
+- **Igenkänning:** appen lägger till `CoaviraApp` i user agent, så att webben kan känna igen native-appen (för push och inloggning i senare steg).
+
 ## Arkitektur
 
 ```

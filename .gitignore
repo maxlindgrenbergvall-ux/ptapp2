@@ -43,3 +43,6 @@ next-env.d.ts
 
 # e2e
 /e2e/screenshots
+
+# Capacitor: reservsidor genereras av scripts/mobile-www.mjs
+/mobile/www/
