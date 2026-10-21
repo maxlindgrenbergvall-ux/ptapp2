@@ -172,11 +172,14 @@ ok("PT som går till /klient skickas till /pt")
 await p.goto(`${base}/logga-in`); await p.waitForURL(`${base}/pt`)
 ok("inloggad som besöker /logga-in skickas hem")
 
-// 11. v6: startsidan är inloggning/registrering (inget PT/klient-val), Apple/Google, registrering och välkomststeget
+// 11. v6: "Kom igång" är inloggning/registrering (inget PT/klient-val), Apple/Google, registrering och välkomststeget.
+// Landningssidan (/) leder dit.
 const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const q = await c2.newPage()
 q.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await q.goto(`${base}/`)
+check(await q.locator(`main a[href="/kom-igang"]`).first().isVisible(), "landningssidan leder till Kom igång för utloggade")
+await q.goto(`${base}/kom-igang`)
 for (const label of ["Fortsätt med Apple", "Fortsätt med Google", "Registrera dig", "Logga in"]) {
   check(await q.locator(`text=${label}`).first().isVisible(), `startsidan har "${label}"`)
 }
@@ -190,7 +193,7 @@ await q.route(`${mock}/auth/v1/authorize**`, (route) => {
   return route.fulfill({ status: 200, contentType: "text/html", body: "<p>leverantör</p>" })
 })
 for (const provider of ["google", "apple"]) {
-  await q.goto(`${base}/`)
+  await q.goto(`${base}/kom-igang`)
   await q.click(`text=Fortsätt med ${provider === "google" ? "Google" : "Apple"}`)
   await q.waitForURL(/\/auth\/v1\/authorize/)
   const u = oauth.at(-1)

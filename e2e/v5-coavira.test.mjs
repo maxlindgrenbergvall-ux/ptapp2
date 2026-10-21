@@ -45,7 +45,8 @@ const lightness = (color) => {
 
 // ------------------------------------------------- 1. branding och tema ---
 const light = watch(await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: "light" })).newPage())
-await light.goto(base + "/")
+// Inloggningssidan följer systemtemat (landningssidan "/" är alltid mörk, se e2e/landing.test.mjs).
+await light.goto(base + "/kom-igang")
 check((await light.title()).includes("Coavira"), `sidtiteln är Coavira (${await light.title()})`)
 check(await light.locator("h1:has-text('Coavira')").isVisible(), "startsidan visar Coavira")
 check(!(await light.content()).includes("Forma"), "inget kvar av gamla namnet på startsidan")
@@ -268,7 +269,7 @@ check(!(await p.evaluate(() => JSON.stringify(JSON.parse(localStorage["coavira:d
 
 // ------------------------------- 7c. startsidan: inloggning/registrering (v6) ---
 const fresh = watch(await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage())
-await fresh.goto(base + "/")
+await fresh.goto(base + "/kom-igang")
 check(await fresh.locator("text=Fortsätt med Apple").isVisible() && await fresh.locator("text=Fortsätt med Google").isVisible(), "startsidan har Apple och Google")
 check((await fresh.locator("text=Jag är PT").count()) === 0, "startsidan har inget PT/klient-val")
 await fresh.click("text=Registrera dig")
@@ -280,7 +281,7 @@ await fresh.click("#consent")
 await fresh.click('button[type=submit]')
 await fresh.waitForURL(base + "/klient")
 ok("demo: registrering → välkomststeget → klientkonto")
-await fresh.goto(base + "/")
+await fresh.goto(base + "/kom-igang")
 await fresh.click("text=PT-inloggning")
 await fresh.waitForURL(base + "/logga-in/pt")
 await fresh.waitForSelector("h1:has-text('PT-inloggning')")

@@ -26,7 +26,9 @@ p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 const leftApp = []
 p.on("request", (r) => r.isNavigationRequest() && r.frame() === p.mainFrame() && !r.url().startsWith(base) && leftApp.push(r.url()))
 
+// Appen börjar på landningssidans adress men skickas till inloggningen (proxy.ts).
 await p.goto(base + "/")
+await p.waitForURL(base + "/kom-igang")
 await p.waitForSelector("text=Fortsätt med Google")
 await p.waitForFunction(() => window.__native.count("App", "addListener") > 0)
 await p.click("text=Fortsätt med Google")
@@ -55,7 +57,7 @@ await ctx.close()
 const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const w = await ctx2.newPage()
 await w.route("http://localhost:54321/auth/v1/authorize**", (route) => route.fulfill({ status: 200, body: "leverantör" }))
-await w.goto(base + "/")
+await w.goto(base + "/kom-igang")
 await w.click("text=Fortsätt med Google")
 await w.waitForURL(/\/auth\/v1\/authorize/)
 const webUrl = new URL(w.url())

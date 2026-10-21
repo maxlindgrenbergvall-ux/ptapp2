@@ -34,8 +34,8 @@ npm run dev                  # http://localhost:3000
    15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
    16. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
-   - *Site URL*: produktionsadressen, t.ex. `https://ptapp2.vercel.app`. Inte localhost och inte en Vercel-förhandsadress.
-   - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner) och `http://localhost:3000/**`.
+   - *Site URL*: produktionsadressen, dvs. den egna domänen (se "Egen domän" nedan) eller `https://ptapp2.vercel.app`. Inte localhost och inte en Vercel-förhandsadress.
+   - *Redirect URLs*: `https://<domän>/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
    - **Authentication → Emails → Templates**: byt länken i *Confirm signup* till
      `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
      och i *Reset password* till
@@ -330,6 +330,33 @@ npm run dev                  # http://localhost:3000
 - **Köksmått:**
   - Kostbyggaren har enheterna g, st, dl, msk (15 ml) och tsk (5 ml).
   - Köksmått räknas om till gram med livsmedlets densitet (`densityOf`, t.ex. 1 dl havregryn ≈ 35 g). Raden sparar `qty` och `gPerMl`.
+
+## Egen domän (t.ex. coavira.se)
+
+Allt styrs av en variabel: `NEXT_PUBLIC_SITE_URL`. Exemplen nedan använder `coavira.se`; byt mot er domän.
+
+1. **Vercel → Project → Settings → Domains:** lägg till `coavira.se` och `www.coavira.se`. Välj `coavira.se` som primär och låt `www` omdirigera dit (308).
+2. **DNS hos domänleverantören** (Vercel visar exakta värden när domänen läggs till):
+
+   | Typ | Namn | Värde |
+   |---|---|---|
+   | A | `@` (coavira.se) | `76.76.21.21` |
+   | CNAME | `www` | `cname.vercel-dns.com` (eller det projektspecifika värde Vercel visar) |
+
+   - Ta bort gamla A/AAAA-poster för `@` och `www` som pekar någon annanstans. **Behåll MX- och TXT-poster** för e-post.
+   - Har domänen CAA-poster: lägg till `0 issue "letsencrypt.org"` så att Vercel kan utfärda certifikatet.
+   - Alternativ: byt namnservrar till `ns1.vercel-dns.com` och `ns2.vercel-dns.com` (då sköter Vercel all DNS, även e-postposter som ni lägger in där).
+3. **Vercel → Settings → Environment Variables (Production):** `NEXT_PUBLIC_SITE_URL=https://coavira.se`, och bygg om (Redeploy).
+   - Kanonisk adress, Open Graph, `sitemap.xml` och `robots.txt` pekar då på domänen.
+   - `ptapp2.vercel.app` i produktion skickas vidare till domänen (308, `src/lib/site.ts`). Undantag som fortsätter fungera på den gamla adressen: `/api/*` (Stripe-webhook, kalenderprenumerationer), `/auth/*` (e-postlänkar skickade före bytet), `/.well-known/*` och appen.
+4. **Supabase → Authentication → URL Configuration:**
+   - *Site URL*: `https://coavira.se` (e-postmallarna använder `{{ .SiteURL }}`, så bekräftelse- och lösenordslänkar går till domänen).
+   - *Redirect URLs*: `https://coavira.se/**`, `https://www.coavira.se/**`, `com.coavira.app://**`, `http://localhost:3000/**` och förhandsversionerna. Behåll `https://ptapp2.vercel.app/**` under en övergångsperiod.
+   - Inloggningslänkar byggs från adressen användaren är på (`window.location.origin`), så PKCE-nyckeln och sessionen hör alltid till samma domän.
+5. **Stripe:** `success_url` och `cancel_url` byggs från domänen användaren köper på (`request.nextUrl.origin` i `/api/checkout`), alltså `https://coavira.se/klient/kop…` efter bytet. Ändra webhook-adressen till `https://coavira.se/api/stripe/webhook` (Developers → Webhooks) och uppdatera `STRIPE_WEBHOOK_SECRET` om ni skapar en ny endpoint. Den gamla adressen fortsätter fungera under bytet.
+6. **Google/Apple-inloggning:** Supabase-callbacken (`https://<projekt>.supabase.co/auth/v1/callback`) ändras inte. Lägg gärna till `coavira.se` som *Authorized domain* i Googles OAuth-samtyckesskärm.
+7. **Wearables:** uppdatera callback-domänen hos Strava/Garmin/Fitbit till `https://coavira.se/api/wearables/<leverantör>/callback`.
+8. **Mobilappen:** sätt repo-variabeln `SITE_URL=https://coavira.se` (GitHub → Settings → Secrets and variables → Actions → Variables). Nästa bygge laddar domänen.
 
 ## Mobilapp (iOS och Android) med Capacitor
 
