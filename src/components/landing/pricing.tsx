@@ -172,21 +172,24 @@ function useSpin(active: boolean, seconds: number) {
 // ------------------------------------------------------------ byggstenar ---
 
 /**
- * Kronor som räknar upp när de syns och glider till nya värden. `pulse` ger
- * en liten studs vid varje ändring. Direkt värde med "minska rörelse".
+ * Kronor som räknar upp när de syns och glider till nya värden. Startar på
+ * det riktiga priset (SSR och första render visar aldrig "0 kr"); första
+ * uppräkningen går från 60 % av priset. `pulse` ger en liten studs vid varje
+ * ändring. Direkt värde med "minska rörelse".
  */
 function Kr({ value, start, pulse, className }: { value: number; start: boolean; pulse?: boolean; className?: string }) {
   const reduce = useReducedMotion()
-  const amount = useMotionValue(0)
+  const amount = useMotionValue(value)
   const scale = useMotionValue(1)
+  const counted = React.useRef(false)
   const text = useTransform(amount, (v) => formatSek(v))
   React.useEffect(() => {
-    if (reduce) {
+    if (reduce || !start) {
       amount.set(value)
       return
     }
-    if (!start) return
-    const count = animate(amount, value, { duration: 0.8, ease: EASE })
+    const count = animate(amount, counted.current ? value : [Math.round(value * 0.6), value], { duration: 0.8, ease: EASE })
+    counted.current = true
     const pop = pulse ? animate(scale, [1, 1.08, 1], { duration: 0.45, ease: "easeOut" }) : undefined
     return () => {
       count.stop()
@@ -1047,7 +1050,7 @@ export function Pricing() {
           Tydliga priser. <GradientText>Inga dolda avgifter.</GradientText>
         </>
       }
-      intro="Att skapa konto kostar 0 kr. Du betalar bara för det du köper av din PT – med kort via Stripe, och priset du ser är priset du betalar."
+      intro="Som klient skapar du konto för 0 kr. Du betalar bara för det du köper av din PT – med kort via Stripe, och priset du ser är priset du betalar."
     >
       <Backdrop />
       <Reveal className="mb-10 flex justify-center sm:mb-12">

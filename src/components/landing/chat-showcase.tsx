@@ -7,7 +7,7 @@
  * kamerarutan kan dras (eller flyttas med piltangenterna) och snäpper mot
  * närmaste hörn. Ingen kamera eller mikrofon används.
  */
-import { AnimatePresence, animate, motion, useInView, useMotionValue, useReducedMotion, useScroll, useTransform } from "framer-motion"
+import { AnimatePresence, animate, motion, useInView, useIsPresent, useMotionValue, useReducedMotion, useScroll, useTransform } from "framer-motion"
 import {
   BadgeCheck,
   CheckCheck,
@@ -128,6 +128,8 @@ export function ChatShowcase() {
   const [frame, setFrame] = React.useState(-1)
   const [spot, setSpot] = React.useState<Spot | null>(null)
   const [callOpen, setCallOpen] = React.useState(false)
+  // Varje samtal får en egen nyckel så att en ny samtalsvy alltid monteras (även mitt i förra vyns utgång).
+  const [callId, setCallId] = React.useState(0)
   const [extra, setExtra] = React.useState<ChatItem[]>([])
   const [replyTyping, setReplyTyping] = React.useState(false)
   const [status, setStatus] = React.useState("")
@@ -160,6 +162,7 @@ export function ChatShowcase() {
     openerRef.current = opener
     setFrame(LAST_FRAME)
     setStatus("")
+    setCallId((n) => n + 1)
     setCallOpen(true)
   }
 
@@ -199,7 +202,7 @@ export function ChatShowcase() {
         <DemoStage phoneRef={phoneRef} callOpen={callOpen}>
           <div className="relative h-[520px] sm:h-[560px]">
             <ChatScreen items={items} typing={typing} spot={spot} pulse={!hasCalled} inert={callOpen} onCall={openCall} />
-            <AnimatePresence>{callOpen && <CallScreen key="call" onEnd={endCall} />}</AnimatePresence>
+            <AnimatePresence>{callOpen && <CallScreen key={`call-${callId}`} onEnd={endCall} />}</AnimatePresence>
           </div>
         </DemoStage>
       </div>
@@ -654,6 +657,8 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
   const [cameraOff, setCameraOff] = React.useState(false)
   const [moved, setMoved] = React.useState(false)
   const [announce, setAnnounce] = React.useState("")
+  // Under utgångsanimationen ska vyn inte gå att klicka eller tabba in i.
+  const present = useIsPresent()
 
   React.useEffect(() => {
     rootRef.current?.focus({ preventScroll: true })
@@ -687,6 +692,7 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
       role="region"
       aria-label={`Demo: videosamtal med ${PT_NAME}`}
       tabIndex={-1}
+      inert={!present}
       onKeyDown={(e) => {
         if (e.key !== "Escape") return
         e.preventDefault()

@@ -3,7 +3,7 @@
 /**
  * Landningssidans meny: fast överst, genomskinlig högst upp och en glasbar
  * (suddig bakgrund, fin kant, lite lägre) när man scrollat. Markeringen
- * ("pillret") följer pekaren/fokus och annars sektionen som syns i bild.
+ * ("pillret") följer muspekaren/fokus och annars sektionen som syns i bild.
  * Mobil: menyknapp som fäller ut en glaspanel (stängs med Esc och vid klick).
  */
 import { AnimatePresence, LayoutGroup, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, type Variants } from "framer-motion"
@@ -41,10 +41,13 @@ const itemVariants: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } },
 }
 
-/** Intoning för menyns tre delar (logga, länkar, knappar) vid sidladdning. */
+/**
+ * Inglidning för menyns tre delar (logga, länkar, knappar) vid sidladdning. Bara rörelse,
+ * ingen opacitet – annars vore länkar och knappar osynliga (men fokuserbara) fram till hydrering.
+ */
 const enter = (delay: number) => ({
-  initial: { opacity: 0, y: -10 },
-  animate: { opacity: 1, y: 0 },
+  initial: { y: -10 },
+  animate: { y: 0 },
   transition: { duration: 0.6, ease: EASE, delay },
 })
 
@@ -170,6 +173,8 @@ export function LandingNav() {
   const [hovered, setHovered] = React.useState<string | null>(null)
   const active = useActiveSection()
   const toggleRef = React.useRef<HTMLButtonElement>(null)
+  const headerRef = React.useRef<HTMLElement>(null)
+  const skipRef = React.useRef<HTMLAnchorElement>(null)
 
   useMotionValueEvent(scrollY, "change", (v) => setScrolled(v > SCROLL_THRESHOLD))
 
@@ -193,17 +198,42 @@ export function LandingNav() {
     }
   }, [open])
 
+  // Tangentbordsfokus får inte gömmas under den fasta menyn (WCAG 2.4.11): scrolla fram elementet en bit.
+  // Hoppar över programmatiska mål (tabindex -1, t.ex. sektionsrubriker) så att ankarscroll inte störs.
+  React.useEffect(() => {
+    let raf = 0
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target
+      const header = headerRef.current
+      if (!(el instanceof HTMLElement) || !header || header.contains(el) || el === skipRef.current || el.tabIndex < 0) return
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        if (document.activeElement !== el || !el.matches(":focus-visible")) return
+        const top = header.getBoundingClientRect().bottom + 8
+        const r = el.getBoundingClientRect()
+        if (r.top < top && r.bottom > 0 && r.height < window.innerHeight - top) window.scrollBy({ top: r.top - top, behavior: "auto" })
+      })
+    }
+    document.addEventListener("focusin", onFocusIn)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener("focusin", onFocusIn)
+    }
+  }, [])
+
   const solid = scrolled || open
   const lit = hovered ?? active
   const close = () => setOpen(false)
   const onAnchor = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     scrollToAnchor(e, href, Boolean(reduce))
+    setHovered(null)
     setOpen(false)
   }
 
   return (
     <>
       <a
+        ref={skipRef}
         href="#innehall"
         className="fixed top-[calc(var(--safe-top)+0.75rem)] left-4 z-[60] -translate-y-[calc(100%+var(--safe-top)+2rem)] rounded-full bg-brand px-4 py-3 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/40 transition-transform duration-200 focus:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
       >
@@ -211,6 +241,7 @@ export function LandingNav() {
       </a>
 
       <header
+        ref={headerRef}
         className="fixed inset-x-0 top-0 z-50 pt-[var(--safe-top)]"
         onBlur={(e) => {
           // Tabbar man vidare ut ur menyn till sidan stängs mobilpanelen.
@@ -263,7 +294,10 @@ export function LandingNav() {
               <LayoutGroup id="landing-nav">
                 <ul
                   className="flex items-center rounded-full border border-white/10 bg-white/[0.03] px-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                  onMouseLeave={() => setHovered(null)}
+                  onPointerLeave={(e) => {
+                    // Bara riktig mus: på pekskärm (t.ex. iPad) skulle markeringen annars fastna på tryckt länk.
+                    if (e.pointerType === "mouse") setHovered(null)
+                  }}
                 >
                   {NAV.map((item) => {
                     const isActive = active === item.href
@@ -274,7 +308,9 @@ export function LandingNav() {
                           href={item.href}
                           aria-current={isActive ? "location" : undefined}
                           onClick={(e) => onAnchor(e, item.href)}
-                          onMouseEnter={() => setHovered(item.href)}
+                          onPointerEnter={(e) => {
+                            if (e.pointerType === "mouse") setHovered(item.href)
+                          }}
                           onFocus={() => setHovered(item.href)}
                           onBlur={() => setHovered(null)}
                           className={cn(
@@ -374,7 +410,7 @@ export function LandingNav() {
                                 isActive && "bg-white/[0.06]"
                               )}
                             >
-                              <span className={cn("w-6 font-mono text-xs tabular-nums", isActive ? "text-brand" : "text-muted-foreground")}>{String(i + 1).padStart(2, "0")}</span>
+                              <span aria-hidden className={cn("w-6 font-mono text-xs tabular-nums", isActive ? "text-brand" : "text-muted-foreground")}>{String(i + 1).padStart(2, "0")}</span>
                               <span className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{item.label}</span>
                               {isActive && <span aria-hidden className="size-1.5 rounded-full bg-brand shadow-[0_0_10px_2px] shadow-brand/60" />}
                               <ArrowUpRight

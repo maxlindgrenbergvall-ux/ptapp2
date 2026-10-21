@@ -18,7 +18,6 @@ import {
   useSpring,
   useTransform,
   type MotionValue,
-  type Variants,
 } from "framer-motion"
 import {
   ArrowDown,
@@ -57,7 +56,7 @@ import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
 import { LINKS } from "@/components/landing/links"
-import { EASE, Eyebrow, FloatingBadge, GlowOrb, GradientText, GridBackdrop, PhoneFrame, fadeUp, stagger, useConfetti } from "@/components/landing/primitives"
+import { EASE, Eyebrow, FloatingBadge, GlowOrb, GradientText, GridBackdrop, PhoneFrame, useConfetti } from "@/components/landing/primitives"
 import { MACROS, type MacroKey } from "@/components/nutrition/macros"
 import { cn } from "@/lib/utils"
 
@@ -103,7 +102,7 @@ const TRUST: { label: string; icon: LucideIcon }[] = [
   { label: "Kopplas till Apple Health, Garmin & Strava", icon: Watch },
   { label: "Hälsodata bara med ditt samtycke", icon: Lock },
   { label: "Flera PT:er samtidigt", icon: Users },
-  { label: "Chatt, röst- & videosamtal", icon: Video },
+  { label: "Chatt och samtal med din PT", icon: Video },
   { label: "Exportera eller radera din data när du vill", icon: Download },
   { label: "iOS- och Android-app på väg", icon: Smartphone },
 ]
@@ -212,25 +211,22 @@ function Backdrop({ y }: { y: MotionValue<number> }) {
 /* Text och knappar                                                    */
 /* ------------------------------------------------------------------ */
 
-const WORD: Variants = {
-  hidden: { opacity: 0, y: "105%", skewY: 7 },
-  show: { opacity: 1, y: "0%", skewY: 0, transition: { duration: 0.85, ease: EASE } },
-}
-
-const SWOOSH: Variants = {
-  hidden: { pathLength: 0, opacity: 0 },
-  show: { pathLength: 1, opacity: 1, transition: { duration: 1.1, ease: EASE, delay: 0.5 } },
-}
+/**
+ * In-animation i ren CSS (tw-animate-css): startar vid första målningen, före
+ * hydrering, så att h1 och knappar syns direkt i serverns HTML – även utan JS.
+ */
+const ENTER = "animate-in fade-in-0 fill-mode-both ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none"
+const enterDelay = (s: number): React.CSSProperties => ({ animationDelay: `${s}s` })
 
 const LINE_TWO = ["Allt", "i", "en", "och", "samma", "plattform."]
 
-/** Ett ord som glider upp ur en osynlig mask (opacitet + y + lätt skevning). */
-function Word({ children, className }: { children: React.ReactNode; className?: string }) {
+/** Ett ord som glider upp ur en osynlig mask (opacitet + y + lätt vridning). */
+function Word({ children, index, className }: { children: React.ReactNode; index: number; className?: string }) {
   return (
     <span className="-my-[0.12em] inline-block overflow-hidden py-[0.12em] align-top">
-      <motion.span variants={WORD} className="inline-block origin-bottom-left">
+      <span className={cn(ENTER, "inline-block origin-bottom-left duration-[850ms] slide-in-from-bottom-[105%] spin-in-4")} style={enterDelay(0.1 + index * 0.06)}>
         {className ? <span className={className}>{children}</span> : children}
-      </motion.span>
+      </span>
     </span>
   )
 }
@@ -238,19 +234,28 @@ function Word({ children, className }: { children: React.ReactNode; className?: 
 /** Sidans enda h1, ord för ord. */
 function Headline() {
   return (
-    <motion.h1
+    <h1
       id="hero-title"
-      variants={stagger(0.065)}
-      className="text-[2.75rem] leading-[1.02] font-extrabold tracking-[-0.035em] sm:text-6xl md:text-7xl lg:text-[4.25rem] xl:text-[5rem]"
+      className="text-[2.375rem] leading-[1.02] font-extrabold tracking-[-0.035em] min-[420px]:text-[2.75rem] sm:text-6xl md:text-7xl lg:text-[3.25rem] xl:text-[4.25rem]"
     >
       <span className="block">
-        <Word>Framtidens</Word>{" "}
+        <Word index={0}>Framtidens</Word>{" "}
         <span className="relative inline-block whitespace-nowrap">
-          <Word>
+          <Word index={1}>
             <GradientText>träning &amp; kost</GradientText>.
           </Word>
           <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.06em] left-0 h-[0.2em] w-[92%] text-brand/80">
-            <motion.path variants={SWOOSH} d="M3 15 C 70 5, 160 2, 297 9" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <motion.path
+              initial={{ pathLength: 0, opacity: 0 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 1.1, ease: EASE, delay: 0.75 }}
+              d="M3 15 C 70 5, 160 2, 297 9"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
           </svg>
         </span>{" "}
       </span>
@@ -258,11 +263,13 @@ function Headline() {
         {LINE_TWO.map((w, i) => (
           <React.Fragment key={w}>
             {i > 0 && " "}
-            <Word className="bg-gradient-to-b from-foreground via-foreground/80 to-foreground/50 bg-clip-text text-transparent">{w}</Word>
+            <Word index={i + 2} className="bg-gradient-to-b from-foreground via-foreground/80 to-foreground/50 bg-clip-text text-transparent">
+              {w}
+            </Word>
           </React.Fragment>
         ))}
       </span>
-    </motion.h1>
+    </h1>
   )
 }
 
@@ -270,19 +277,22 @@ function Headline() {
 function HeroCopy({ active }: { active: boolean }) {
   const glow = useLoop(GLOW_KEYS, 3.4, active)
   return (
-    <motion.div initial="hidden" animate="show" variants={stagger(0.12, 0.05)} className="relative z-10 flex flex-col items-center gap-7 text-center lg:items-start lg:text-left">
-      <motion.div variants={fadeUp}>
+    <div className="relative z-10 flex flex-col items-center gap-7 text-center lg:items-start lg:text-left">
+      <div className={cn(ENTER, "duration-700 slide-in-from-bottom-6")}>
         <Eyebrow>Ny plattform för PT:er och klienter</Eyebrow>
-      </motion.div>
+      </div>
 
       <Headline />
 
-      <motion.p variants={fadeUp} className="max-w-xl text-lg text-pretty text-muted-foreground sm:text-xl">
+      <p className={cn(ENTER, "max-w-xl text-lg text-pretty text-muted-foreground duration-700 slide-in-from-bottom-6 sm:text-xl")} style={enterDelay(0.3)}>
         Sömlös coachning för <span className="font-medium text-foreground">PT:er</span>. Maximal effekt för{" "}
         <span className="font-medium text-foreground">klienter</span>. Inget betalningskrångel.
-      </motion.p>
+      </p>
 
-      <motion.div variants={fadeUp} className="flex w-full max-w-sm flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
+      <div
+        className={cn(ENTER, "flex w-full max-w-sm flex-col gap-3 duration-700 slide-in-from-bottom-6 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start")}
+        style={enterDelay(0.4)}
+      >
         <div className="group relative">
           <motion.span aria-hidden style={{ opacity: glow }} className="pointer-events-none absolute -inset-1.5 rounded-full bg-brand/50 blur-xl" />
           <Link
@@ -305,9 +315,9 @@ function HeroCopy({ active }: { active: boolean }) {
           Är du PT? Ansök
           <span className="sr-only"> (via e-post)</span>
         </a>
-      </motion.div>
+      </div>
 
-      <motion.div variants={fadeUp} className="-mt-2 flex flex-col items-center gap-2 lg:items-start">
+      <div className={cn(ENTER, "-mt-2 flex flex-col items-center gap-2 duration-700 slide-in-from-bottom-6 lg:items-start")} style={enterDelay(0.5)}>
         <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground lg:justify-start">
           <span className="inline-flex items-center gap-1.5">
             <Lock aria-hidden className="size-4 text-brand" />
@@ -331,8 +341,8 @@ function HeroCopy({ active }: { active: boolean }) {
           <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand">Se funktionerna</span>
           <ArrowDown aria-hidden className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
         </a>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   )
 }
 
@@ -389,12 +399,9 @@ function AppShowcase({
   }, [bookings, pulse, reduce])
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 40, scale: 0.96 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 1.1, ease: EASE, delay: 0.3 }}
-      className="relative mx-auto flex h-[680px] w-full max-w-[560px] items-center justify-center sm:h-[700px]"
+    <div
+      className={cn(ENTER, "relative mx-auto flex h-[680px] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]")}
+      style={enterDelay(0.3)}
     >
       <Halo spin={spin} orbit={orbit} />
 
@@ -464,7 +471,7 @@ function AppShowcase({
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -600,7 +607,7 @@ function ClientHomeScreen({
 
   return (
     <div role="group" aria-label="Exempel: Coavira-appens startsida för klienter" className="relative text-left">
-      <PhoneFrame time="12:08">
+      <PhoneFrame time="12:08" className="w-[300px]">
         <motion.div
           aria-hidden
           style={{ x: glareX }}
@@ -945,7 +952,7 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
           <motion.div style={{ x }} className="flex w-max motion-reduce:w-full">
             <ul
               ref={trackRef}
-              aria-label="Det här ingår i Coavira"
+              aria-label="Fakta om Coavira"
               className="flex shrink-0 items-center gap-10 py-5 pr-10 motion-reduce:w-full motion-reduce:shrink motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-x-8 motion-reduce:gap-y-3 motion-reduce:pr-0"
             >
               {TRUST.map((t) => (

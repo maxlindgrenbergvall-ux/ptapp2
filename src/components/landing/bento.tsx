@@ -298,8 +298,8 @@ function PtPanel({ step }: { step: SyncStep }) {
       </LayoutGroup>
       <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-medium">
         <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-1 text-muted-foreground">
-          <Check aria-hidden className="size-3 text-brand" />
-          Vikter ifyllda
+          {step === 2 ? <Check aria-hidden className="size-3 text-brand" /> : <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground/60" />}
+          {step === 2 ? "Vikter ifyllda efter passet" : "Vikter fylls i efter passet"}
         </span>
         <span
           className={cn(
@@ -319,7 +319,7 @@ function PtPanel({ step }: { step: SyncStep }) {
 function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
   return (
     <div aria-hidden className="flex justify-center">
-      <PhoneFrame className="w-[248px] sm:w-[256px]" time="06:58">
+      <PhoneFrame className="w-[248px] sm:w-[256px]" time={step === 2 ? "08:04" : "06:58"}>
         <div className="flex h-[372px] flex-col gap-2.5 px-3.5 pt-2 pb-4">
           <div className="flex items-center justify-between">
             <div>
@@ -347,7 +347,7 @@ function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold">Ben & core</p>
-                <p className="text-[10px] text-muted-foreground tabular">07:00 · med Elin</p>
+                <p className="truncate text-[10px] text-muted-foreground tabular">{step === 2 ? "Genomfört 07:00–07:55" : "07:00 · med Elin"}</p>
               </div>
               <AnimatePresence>
                 {step === 2 && (
@@ -599,7 +599,7 @@ function FoodRow({ item, onChange }: { item: MealItem; onChange: (next: MealItem
           {item.grams} g · <span className="font-semibold text-foreground">{item.kcal}</span> kcal
         </p>
       </div>
-      <div className="mt-2.5 flex items-center justify-between gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
         {units.length > 1 ? (
           <div role="group" aria-label={`Enhet för ${item.name}`} className="inline-flex rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
             {units.map((u) => {
@@ -625,7 +625,7 @@ function FoodRow({ item, onChange }: { item: MealItem; onChange: (next: MealItem
         ) : (
           <span className="inline-flex h-8 min-w-11 items-center justify-center rounded-full bg-white/[0.06] px-3 text-xs font-semibold ring-1 ring-white/10">{unit}</span>
         )}
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
           <StepButton label={`Minska ${item.name}`} disabled={amount <= step} onClick={() => onChange(setAmount(item, Math.max(step, amount - step), unit))}>
             <Minus aria-hidden className="size-3.5" />
           </StepButton>
@@ -698,7 +698,8 @@ function NutritionDemo() {
     const list = items.map((it, i) => (i === index ? next : it))
     const t = sumMacros(list)
     setItems(list)
-    setMessage(`${next.name}: ${sv(amountOf(next))} ${next.unit ?? "g"}, ${next.grams} g, ${next.kcal} kcal. Totalt ${Math.round(t.kcal)} kcal.`)
+    const unit = next.unit ?? "g"
+    setMessage(`${next.name}: ${sv(amountOf(next))} ${unit}${unit === "g" ? "" : ` (${next.grams} g)`}, ${next.kcal} kcal. Totalt ${Math.round(t.kcal)} kcal.`)
   }
 
   return (
@@ -733,18 +734,18 @@ function NutritionDemo() {
             ))}
           </ul>
         </LayoutGroup>
-        <div className="mt-3 flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-brand/[0.08] to-transparent p-3.5">
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-brand/[0.08] to-transparent p-3.5">
           <KcalRing value={total.kcal} start={seen} />
-          <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="min-w-[10rem] flex-1 space-y-2.5">
             {MACROS.map((m) => {
               const v = total[m.key]
               const target = TARGETS[m.key]
               return (
                 <div key={m.key}>
                   <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <span className="flex min-w-0 items-center gap-1.5">
                       <MacroDot macro={m.key} />
-                      {m.label}
+                      <span className="truncate">{m.label}</span>
                     </span>
                     <span className="shrink-0">
                       <AnimatedNumber value={v} start={seen} className="font-semibold" />
@@ -1251,6 +1252,9 @@ const SOURCES: { label: string; icon: LucideIcon; x: number; y: number }[] = [
   { label: "Strava", icon: Activity, x: 50, y: 88 },
 ]
 
+/** Id för källans egen gradient (i användarkoordinater, så att även en lodrät linje målas). */
+const connId = (label: string) => `bento-conn-${label.replace(/\s/g, "")}`
+
 /** Demo: datakällor kopplade till Coavira med ljuspunkter som rör sig mot mitten. */
 function ConnectionsDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
@@ -1260,13 +1264,25 @@ function ConnectionsDemo() {
       <div className="relative mx-auto aspect-[4/3] w-full max-w-[320px]">
         <svg aria-hidden viewBox="0 0 400 300" className="absolute inset-0 size-full">
           <defs>
-            <linearGradient id="bento-conn" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="var(--brand)" stopOpacity="0.7" />
-            </linearGradient>
+            {SOURCES.map((s) => (
+              <linearGradient key={s.label} id={connId(s.label)} gradientUnits="userSpaceOnUse" x1={s.x * 4} y1={s.y * 3} x2={200} y2={150}>
+                <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="var(--brand)" stopOpacity="0.7" />
+              </linearGradient>
+            ))}
           </defs>
           {SOURCES.map((s) => (
-            <line key={s.label} x1={s.x * 4} y1={s.y * 3} x2={200} y2={150} stroke="url(#bento-conn)" strokeWidth={1.5} strokeDasharray="3 6" strokeLinecap="round" />
+            <line
+              key={s.label}
+              x1={s.x * 4}
+              y1={s.y * 3}
+              x2={200}
+              y2={150}
+              stroke={`url(#${connId(s.label)})`}
+              strokeWidth={1.5}
+              strokeDasharray="3 6"
+              strokeLinecap="round"
+            />
           ))}
           {live &&
             SOURCES.map((s, i) => (

@@ -279,7 +279,7 @@ export function GoalShowcase() {
     if (selected.length >= MAX_GOALS) {
       setDenied((d) => d + 1)
       // Växlande hårt mellanslag: skärmläsare läser annars inte upp samma text två gånger.
-      setNotice(`Du kan välja högst ${MAX_GOALS} mål. Avmarkera ett för att byta.${denied % 2 ? "\u00a0" : ""}`)
+      setNotice(`I demon väljer du högst ${MAX_GOALS} mål – i appen kan du välja fler. Avmarkera ett för att byta.${denied % 2 ? "\u00a0" : ""}`)
       return
     }
     const next = [...selected, interest.key]
@@ -375,6 +375,12 @@ function Configurator({
 }) {
   const n = selected.length
   const full = n >= MAX_GOALS
+  const groupRef = React.useRef<HTMLDivElement>(null)
+  // "Rensa" försvinner när inget är valt – flytta fokus till första målet så att tangentbordet inte tappar platsen.
+  const clear = () => {
+    groupRef.current?.querySelector<HTMLButtonElement>("button")?.focus()
+    onClear()
+  }
   return (
     <GlassCard className="rounded-[2rem] p-5 sm:p-7">
       <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
@@ -409,7 +415,7 @@ function Configurator({
           : "Du väljer intressen när du skapar kontot och kan ändra dem när som helst i profilen. Framsteg visar mätpunkterna som hör till."}
       </p>
 
-      <div role="group" aria-labelledby="mal-val-titel" className="mt-5 flex flex-wrap gap-2.5">
+      <div ref={groupRef} role="group" aria-labelledby="mal-val-titel" className="mt-5 flex flex-wrap gap-2.5">
         {INTERESTS.map((interest) => {
           const order = selected.indexOf(interest.key) + 1
           return <GoalChip key={interest.key} interest={interest} order={order} locked={full && order === 0} onToggle={onToggle} />
@@ -435,7 +441,7 @@ function Configurator({
         {n > 0 && (
           <button
             type="button"
-            onClick={onClear}
+            onClick={clear}
             className={cn("inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground", FOCUS_RING)}
           >
             <RotateCcw aria-hidden className="size-4" />
@@ -868,7 +874,7 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
 /** Glöd, en roterande ljusring och de valda målens emojis i omloppsbana runt telefonen. */
 function Halo({ spin, chosen, reduce }: { spin: MotionValue<number>; chosen: InterestDef[]; reduce: boolean }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 hidden size-[30rem] -translate-x-1/2 -translate-y-1/2 sm:block">
+    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 hidden aspect-square w-[min(30rem,calc(100%_-_3.5rem))] -translate-x-1/2 -translate-y-1/2 sm:block">
       <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.17),transparent_76%)]" />
       <motion.div
         style={{ rotate: spin }}
