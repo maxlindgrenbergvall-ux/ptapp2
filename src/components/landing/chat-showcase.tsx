@@ -263,7 +263,7 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
           disabled={callOpen}
           onClick={(e) => onTry(e.currentTarget)}
           className={cn(
-            "group inline-flex h-12 items-center gap-2.5 rounded-full bg-brand pr-6 pl-2 text-sm font-semibold text-brand-foreground shadow-[0_10px_40px_-10px] shadow-brand/60 transition-[translate,box-shadow,opacity] duration-300 hover:-translate-y-0.5 hover:shadow-brand/80 active:translate-y-0 disabled:opacity-70 motion-reduce:hover:translate-y-0",
+            "group inline-flex h-12 shrink-0 items-center gap-2.5 rounded-full bg-brand pr-6 pl-2 text-sm font-semibold whitespace-nowrap text-brand-foreground shadow-[0_10px_40px_-10px] shadow-brand/60 transition-[translate,box-shadow,opacity] duration-300 hover:-translate-y-0.5 hover:shadow-brand/80 active:translate-y-0 disabled:opacity-70 motion-reduce:hover:translate-y-0",
             FOCUS
           )}
         >
@@ -325,7 +325,7 @@ function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject
         </motion.div>
 
         <div aria-hidden className={cn("pointer-events-none absolute inset-0 transition-opacity duration-500", callOpen && "opacity-0")}>
-          <FloatingBadge delay={0.4} className="top-32 -left-36 hidden xl:block">
+          <FloatingBadge delay={0.4} className="top-28 right-[calc(100%-18px)] hidden w-max xl:block">
             <span className="flex size-8 items-center justify-center rounded-xl bg-brand/15 text-brand">
               <Dumbbell className="size-4" />
             </span>
@@ -334,7 +334,7 @@ function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject
               <span className="block text-[11px] text-muted-foreground">Kopplad till benpasset</span>
             </span>
           </FloatingBadge>
-          <FloatingBadge delay={1.1} className="-right-36 bottom-48 hidden xl:block">
+          <FloatingBadge delay={1.1} className="bottom-52 left-[calc(100%-18px)] hidden w-max xl:block">
             <span className="flex size-8 items-center justify-center rounded-xl bg-brand/15 text-brand">
               <Lock className="size-4" />
             </span>
@@ -528,47 +528,56 @@ function ChatItemView({ item, lit, pulse, onCall }: { item: ChatItem; lit: boole
     )
   }
 
-  const missed = item.kind === "missed"
+  if (item.kind === "call") {
+    return (
+      <div className={cn("flex w-full items-center gap-2.5 rounded-2xl border border-white/10 bg-card px-2.5 py-2 transition-shadow duration-300", litRing)}>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Video className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-[12.5px] font-semibold">Videosamtal · {item.minutes} min</p>
+          <p className="truncate text-[11px] text-muted-foreground tabular-nums">
+            {item.time} · med {PT_NAME}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Missat samtal: sticker ut (rött) och kan ringas upp direkt.
   return (
-    <div
-      className={cn(
-        "flex w-full items-center gap-2.5 rounded-2xl border px-2.5 py-2 transition-shadow duration-300",
-        missed ? "border-destructive/35 bg-destructive/[0.09]" : "border-white/10 bg-card",
-        litRing
-      )}
-    >
-      <span
-        className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", missed ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary")}
-      >
-        {missed ? <VideoOff className="size-4" aria-hidden /> : <Video className="size-4" aria-hidden />}
-      </span>
-      <div className="min-w-0 flex-1 leading-tight">
-        <p className="truncate text-[12.5px] font-semibold">{missed ? "Missat videosamtal" : `Videosamtal · ${item.minutes} min`}</p>
-        <p className="truncate text-[11px] text-muted-foreground tabular-nums">
-          {item.time} · {missed ? `från ${PT_FIRST}` : `med ${PT_FIRST}`}
-        </p>
+    <div className={cn("w-full rounded-2xl border border-destructive/35 bg-destructive/[0.09] p-2.5 transition-shadow duration-300", litRing)}>
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+          <VideoOff className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-[12.5px] font-semibold">Missat videosamtal</p>
+          <p className="truncate text-[11px] text-muted-foreground tabular-nums">
+            {item.time} · från {PT_NAME}
+          </p>
+        </div>
       </div>
       <button
         type="button"
         aria-label={`Ring upp ${PT_NAME} (demo)`}
         onClick={(e) => onCall(e.currentTarget)}
         className={cn(
-          "relative inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold transition-colors",
-          missed ? "bg-brand text-brand-foreground hover:bg-brand/90" : "bg-white/10 text-foreground hover:bg-white/15",
+          "relative mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-brand text-[12.5px] font-semibold text-brand-foreground transition-colors hover:bg-brand/90",
           HIT,
           FOCUS
         )}
       >
-        {missed && pulse && (
+        {pulse && (
           <motion.span
             aria-hidden
             className="absolute inset-0 rounded-full bg-brand"
-            initial={{ scale: 1, opacity: 0.5 }}
-            animate={{ scale: 1.35, opacity: 0 }}
+            initial={{ scaleX: 1, scaleY: 1, opacity: 0.45 }}
+            animate={{ scaleX: 1.05, scaleY: 1.4, opacity: 0 }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
           />
         )}
-        <Video className="relative size-3.5" aria-hidden />
+        <Video className="relative size-4" aria-hidden />
         <span className="relative">Ring upp</span>
       </button>
     </div>
@@ -711,7 +720,7 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {!moved && (
+          {phase === "connected" && !moved && (
             <motion.div
               key="hint"
               aria-hidden
@@ -785,9 +794,12 @@ function RemoteFeed({ phase }: { phase: Phase }) {
             transition={{ duration: 0.7, ease: EASE }}
             className="absolute inset-0 overflow-hidden bg-[linear-gradient(165deg,#22382d_0%,#111c17_55%,#0a100d_100%)]"
           >
-            {/* Rummet: fönsterljus, en tavla och en hylla */}
+            {/* Rummet: fönsterljus, viktskivor på väggen och en hylla */}
             <div className="absolute -top-16 -right-12 size-56 rounded-full bg-emerald-200/15 blur-3xl" />
-            <div className="absolute top-16 left-5 h-20 w-14 rounded-lg border border-white/[0.07] bg-white/[0.03]" />
+            <div className="absolute top-16 left-5 flex flex-col items-center gap-1.5">
+              <span className="size-10 rounded-full border-[6px] border-white/[0.07]" />
+              <span className="size-7 rounded-full border-[5px] border-white/[0.06]" />
+            </div>
             <div className="absolute top-28 right-6 h-1 w-16 rounded-full bg-white/[0.07]" />
             {/* Personen (stiliserad, i motljus) */}
             <motion.div
@@ -797,9 +809,13 @@ function RemoteFeed({ phase }: { phase: Phase }) {
               className="absolute inset-x-0 bottom-0 flex flex-col items-center"
             >
               <div className="absolute bottom-28 size-52 rounded-full bg-brand/10 blur-2xl" />
-              <div className="relative size-[88px] rounded-full bg-[radial-gradient(circle_at_35%_30%,#4d6e5d,#1c2b24_72%)] ring-1 ring-emerald-100/15" />
-              <div className="relative -mt-1 flex h-[150px] w-[210px] justify-center rounded-t-[105px] bg-[linear-gradient(180deg,#2c4538,#121c17)] pt-10 ring-1 ring-emerald-100/10">
-                <BrandGlyph className="size-7 text-brand/50" />
+              <div className="relative size-[84px] rounded-full bg-[radial-gradient(circle_at_38%_30%,#557a66,#1d2c25_72%)] ring-1 ring-emerald-100/15" />
+              <div className="relative -mt-1 h-4 w-9 bg-[#1f2f27]" />
+              <div className="relative -mt-1 h-[150px] w-[220px] rounded-t-[110px] bg-[linear-gradient(180deg,#2e4a3c,#121c17)] ring-1 ring-emerald-100/10">
+                {/* Coavira-märket på tröjan */}
+                <span className="absolute top-12 left-16 flex size-5 items-center justify-center rounded-md bg-brand/85 text-brand-foreground">
+                  <BrandGlyph className="size-3.5" />
+                </span>
               </div>
             </motion.div>
           </motion.div>
@@ -808,7 +824,7 @@ function RemoteFeed({ phase }: { phase: Phase }) {
             key="ringing"
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.4, ease: EASE }}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-4 pb-10"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-4 pb-24"
           >
             <span aria-hidden className="relative">
               {[0, 1].map((i) => (
