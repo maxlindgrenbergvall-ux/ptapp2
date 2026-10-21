@@ -15,6 +15,7 @@ import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
+import { START_PATH } from "@/lib/site"
 
 /**
  * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta namn
@@ -124,13 +125,13 @@ export function OnboardingForm() {
             className="underline underline-offset-4"
             onClick={async () => {
               await getSupabase().auth.signOut()
-              window.location.replace("/")
+              window.location.replace(START_PATH)
             }}
           >
             Fel konto? Logga ut
           </button>
         ) : (
-          <Link href="/" className="underline underline-offset-4">
+          <Link href={START_PATH} className="underline underline-offset-4">
             Tillbaka
           </Link>
         )

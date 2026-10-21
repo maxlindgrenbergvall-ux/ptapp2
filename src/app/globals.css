@@ -169,6 +169,42 @@
   }
 }
 
+/*
+ * Landningssidan (/): alltid mörk – djup onyx (#0A0D12) med elektriskt gröna
+ * accenter – oavsett systemtema. Samma variabelnamn som appen, så att appens
+ * egna komponenter (Button, Badge, BrandMark …) ser rätt ut även här.
+ */
+.landing {
+  color-scheme: dark;
+  --background: #0a0d12;
+  --foreground: oklch(0.97 0.006 130);
+  --card: #11161d;
+  --card-foreground: oklch(0.97 0.006 130);
+  --popover: #141a22;
+  --popover-foreground: oklch(0.97 0.006 130);
+  --primary: oklch(0.88 0.2 130);
+  --primary-foreground: oklch(0.2 0.05 140);
+  --secondary: oklch(1 0 0 / 8%);
+  --secondary-foreground: oklch(0.97 0.006 130);
+  --muted: oklch(1 0 0 / 6%);
+  --muted-foreground: oklch(0.76 0.012 150);
+  --accent: oklch(1 0 0 / 8%);
+  --accent-foreground: oklch(0.94 0.1 130);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.78 0.16 133);
+  --brand: oklch(0.88 0.2 130);
+  --brand-foreground: oklch(0.18 0.04 140);
+  --success: oklch(0.78 0.17 140);
+  --warning: oklch(0.8 0.15 80);
+  --macro-protein: #3987e5;
+  --macro-carbs: #c98500;
+  --macro-fat: #d55181;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

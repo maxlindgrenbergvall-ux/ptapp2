@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { NativeBridge } from "@/components/native/native-bridge"
 import { Toaster } from "@/components/ui/sonner"
 import { BRAND } from "@/lib/brand"
+import { SITE_URL } from "@/lib/site"
 
 import "./globals.css"
 
@@ -11,6 +12,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
 
 export const metadata: Metadata = {
+  // Absoluta adresser (Open Graph, kanonisk adress) pekar på den egna domänen.
+  metadataBase: new URL(SITE_URL),
   title: { default: `${BRAND.name} – ${BRAND.tagline}`, template: `%s · ${BRAND.name}` },
   description: BRAND.description,
   applicationName: BRAND.name,

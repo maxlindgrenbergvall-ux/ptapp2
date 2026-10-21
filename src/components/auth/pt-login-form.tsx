@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, roleFromClaims } from "@/lib/supabase/config"
+import { START_PATH } from "@/lib/site"
 
 /**
  * Inloggning för PT:er. PT-konton skapas i förväg av Coavira med bara
@@ -60,7 +61,7 @@ export function PtLoginForm() {
       footer={
         <>
           Tränar du?{" "}
-          <Link href="/" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={START_PATH} className="font-medium text-foreground underline underline-offset-4">
             Till klientinloggningen
           </Link>
         </>

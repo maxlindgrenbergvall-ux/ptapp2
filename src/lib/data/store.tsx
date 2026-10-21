@@ -64,6 +64,7 @@ import type {
   WorkoutStatus,
   WorkoutTemplate,
 } from "@/types/domain"
+import { START_PATH } from "@/lib/site"
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "error"
 export interface SyncState {
@@ -586,7 +587,7 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
             actions,
             sync: { status: "synced", pending: 0 },
             signOut: async () => {
-              window.location.replace("/")
+              window.location.replace(START_PATH)
             },
             deleteAccount: async () => {
               toast.info("Kontoradering finns bara när Supabase är kopplat.")

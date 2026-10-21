@@ -41,10 +41,25 @@ if (supabaseUrl && supabaseKey) {
   );
 }
 
+/**
+ * Den egna domänen (t.ex. https://coavira.se). SITE_URL eller
+ * NEXT_PUBLIC_SITE_URL i Vercel; annars Vercels produktionsadress för projektet.
+ */
+const explicitSiteUrl = pick("NEXT_PUBLIC_SITE_URL", "SITE_URL");
+const siteUrl =
+  explicitSiteUrl ||
+  (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
+if (siteUrl && !/^https?:\/\/[^/\s]+$/.test(siteUrl.replace(/\/+$/, ""))) {
+  throw new Error(`SITE_URL/NEXT_PUBLIC_SITE_URL ska vara en adress utan sökväg, t.ex. https://coavira.se (fick "${siteUrl}")`);
+}
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabaseKey,
+    NEXT_PUBLIC_SITE_URL: siteUrl.replace(/\/+$/, ""),
+    // Omdirigera *.vercel.app → den egna domänen bara när domänen satts uttryckligen.
+    NEXT_PUBLIC_CANONICAL_REDIRECT: explicitSiteUrl ? "1" : "",
   },
   cacheComponents: true,
   partialPrefetching: true,
