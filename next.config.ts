@@ -42,23 +42,39 @@ if (supabaseUrl && supabaseKey) {
 }
 
 /**
- * Den officiella domänen: https://coavira.fit (metadata, Open Graph, kanonisk
- * adress, sitemap). SITE_URL/NEXT_PUBLIC_SITE_URL i Vercel kan skriva över den;
- * när den är satt uttryckligen skickas även *.vercel.app vidare till domänen.
+ * Två adresser i samma projekt (se src/lib/site.ts och proxy.ts):
+ *  - SITE_URL: landningssidan, https://coavira.fit (metadata, Open Graph, sitemap).
+ *  - APP_URL: appen/webbportalen, https://ptapp2.vercel.app (även mobilapparna).
+ * Båda kan skrivas över i Vercel (NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL).
  */
-const explicitSiteUrl = pick("NEXT_PUBLIC_SITE_URL", "SITE_URL");
-const siteUrl = explicitSiteUrl || "https://coavira.fit";
-if (!/^https?:\/\/[^/\s]+$/.test(siteUrl.replace(/\/+$/, ""))) {
-  throw new Error(`SITE_URL/NEXT_PUBLIC_SITE_URL ska vara en adress utan sökväg, t.ex. https://coavira.fit (fick "${siteUrl}")`);
-}
+const origin = (name: string, value: string) => {
+  const url = value.replace(/\/+$/, "");
+  if (!/^https?:\/\/[^/\s]+$/.test(url)) {
+    throw new Error(`${name} ska vara en adress utan sökväg, t.ex. https://coavira.fit (fick "${value}")`);
+  }
+  return url;
+};
+const siteUrl = origin("SITE_URL/NEXT_PUBLIC_SITE_URL", pick("NEXT_PUBLIC_SITE_URL", "SITE_URL") || "https://coavira.fit");
+const appUrl = origin("APP_URL/NEXT_PUBLIC_APP_URL", pick("NEXT_PUBLIC_APP_URL", "APP_URL") || "https://ptapp2.vercel.app");
 
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabaseKey,
-    NEXT_PUBLIC_SITE_URL: siteUrl.replace(/\/+$/, ""),
-    // Omdirigera *.vercel.app → den egna domänen bara när domänen satts uttryckligen.
-    NEXT_PUBLIC_CANONICAL_REDIRECT: explicitSiteUrl ? "1" : "",
+    NEXT_PUBLIC_SITE_URL: siteUrl,
+    NEXT_PUBLIC_APP_URL: appUrl,
+  },
+  // Appens domän ska inte synas i sökmotorer – den publika sidan är coavira.fit.
+  async headers() {
+    if (new URL(appUrl).host === new URL(siteUrl).host) return [];
+    return [
+      {
+        source: "/:path*",
+        // value tolkas som reguljärt uttryck: punkterna escapas.
+        has: [{ type: "host", value: new URL(appUrl).hostname.replace(/\./g, "\\.") }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+    ];
   },
   cacheComponents: true,
   partialPrefetching: true,

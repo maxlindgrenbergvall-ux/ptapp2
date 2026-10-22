@@ -34,8 +34,8 @@ npm run dev                  # http://localhost:3000
    15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
    16. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
-   - *Site URL*: produktionsadressen, dvs. den egna domänen (se "Egen domän" nedan) eller `https://ptapp2.vercel.app`. Inte localhost och inte en Vercel-förhandsadress.
-   - *Redirect URLs*: `https://<domän>/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
+   - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
+   - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
    - **Authentication → Emails → Templates**: byt länken i *Confirm signup* till
      `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
      och i *Reset password* till
@@ -333,7 +333,7 @@ npm run dev                  # http://localhost:3000
 
 ## Landningssidan (/)
 
-Coavira är en **mobilapp** (App Store och Google Play), ingen webbportal. Landningssidan på `coavira.fit` leder därför bara till nedladdning, och har inga inloggnings-, registrerings- eller portallänkar. Appen själv laddar sina sidor från samma domän och börjar på `/kom-igang`, och i webbläsaren visas landningssidan för alla, även inloggade.
+Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
 
 | Fil | Innehåll |
 |---|---|
@@ -361,11 +361,21 @@ Coavira är en **mobilapp** (App Store och Google Play), ingen webbportal. Landn
   - Mät med `BASE_URL=http://localhost:3000 node e2e/landing-perf.mjs` (390×844, CPU strypt 4×): sektionshöjder, huvudtråden i vila och bildrutetider vid scroll.
 - **Fakta:** inga påhittade siffror, betyg eller avgifter. "0 kr" gäller appen och kontot, och inga gratispass utlovas (kontrolleras i `e2e/landing.test.mjs`).
 
-## Domän: coavira.fit
+## Domäner: coavira.fit (landningssidan) och ptapp2.vercel.app (appen)
 
-Den officiella domänen är `coavira.fit`. Den är standard för metadata, Open Graph, kanonisk adress, sitemap/robots och mobilapparna. `NEXT_PUBLIC_SITE_URL` kan skriva över den.
+Samma Vercel-projekt och samma bygge svarar på båda adresserna. `src/proxy.ts` delar upp trafiken efter värdnamn (`hostRoute` i `src/lib/site.ts`):
 
-1. **Vercel → Project → Settings → Domains:** lägg till `coavira.fit` och `www.coavira.fit`. Välj `coavira.fit` som primär och låt `www` omdirigera dit (308).
+| Värd | Visar | Omdirigeringar |
+|---|---|---|
+| `coavira.fit`, `www.coavira.fit` (`SITE_URL`) | Bara landningssidan: `/`, `/support`, `/integritet`, `/villkor` | Alla app-sidor (`/kom-igang`, `/logga-in`, `/klient/…`, `/pt/…`, `/auth/…`) och e-postlänkar med `?code`/`?token_hash` → samma sökväg på appens domän (307) |
+| `ptapp2.vercel.app` (`APP_URL`) | Appen/webbportalen. `X-Robots-Tag: noindex` (syns inte i Google) | `/` → `/kom-igang`; inloggade skickas vidare till sin startsida |
+| Övriga (localhost, förhandsversioner) | Båda delarna | Inga |
+
+- **Fungerar på båda domänerna utan omdirigering:** `/api/*` (Stripe-webhook, kalenderprenumerationer, wearables), `/.well-known/*`, `robots.txt`, `sitemap.xml`, ikoner och delningsbilder. POST omdirigeras aldrig.
+- **Mobilappen** laddar `APP_URL`. Äldre byggen som laddar `coavira.fit` (user agent `CoaviraApp`) fungerar som förut.
+- **Byta appdomän** (t.ex. `app.coavira.fit`): lägg till domänen i Vercel, sätt `NEXT_PUBLIC_APP_URL` och repo-variabeln `APP_URL`, och bygg om webben och apparna.
+
+1. **Vercel → Project → Settings → Domains:** lägg till `coavira.fit` och `www.coavira.fit` (välj en som primär och låt den andra omdirigera dit). `ptapp2.vercel.app` finns kvar som produktionsadress.
 2. **DNS hos domänleverantören** (Vercel visar exakta värden när domänen läggs till):
 
    | Typ | Namn | Värde |
@@ -375,18 +385,15 @@ Den officiella domänen är `coavira.fit`. Den är standard för metadata, Open 
 
    - Ta bort gamla A/AAAA-poster för `@` och `www` som pekar någon annanstans. **Behåll MX- och TXT-poster** för e-post.
    - Har domänen CAA-poster: lägg till `0 issue "letsencrypt.org"` så att Vercel kan utfärda certifikatet.
-   - Alternativ: byt namnservrar till `ns1.vercel-dns.com` och `ns2.vercel-dns.com` (då sköter Vercel all DNS, även e-postposter som ni lägger in där).
-3. **Vercel → Settings → Environment Variables (Production):** `NEXT_PUBLIC_SITE_URL=https://coavira.fit`, och bygg om (Redeploy).
-   - Kanonisk adress, Open Graph, `sitemap.xml` och `robots.txt` pekar då på domänen.
-   - `ptapp2.vercel.app` i produktion skickas vidare till domänen (308, `src/lib/site.ts`). Undantag som fortsätter fungera på den gamla adressen: `/api/*` (Stripe-webhook, kalenderprenumerationer), `/auth/*` (e-postlänkar skickade före bytet), `/.well-known/*` och appen.
+3. **Vercel → Settings → Environment Variables:** inget krävs (standardvärdena är `https://coavira.fit` och `https://ptapp2.vercel.app`). Vill ni sätta dem uttryckligen: `NEXT_PUBLIC_SITE_URL=https://coavira.fit` och `NEXT_PUBLIC_APP_URL=https://ptapp2.vercel.app`, och bygg om. `NEXT_PUBLIC_CANONICAL_REDIRECT` används inte längre och kan tas bort.
 4. **Supabase → Authentication → URL Configuration:**
-   - *Site URL*: `https://coavira.fit` (e-postmallarna använder `{{ .SiteURL }}`, så bekräftelse- och lösenordslänkar går till domänen).
-   - *Redirect URLs*: `https://coavira.fit/**`, `https://www.coavira.fit/**`, `com.coavira.app://**`, `http://localhost:3000/**` och förhandsversionerna. Behåll `https://ptapp2.vercel.app/**` under en övergångsperiod.
+   - *Site URL*: `https://ptapp2.vercel.app` (appens adress – e-postmallarna använder `{{ .SiteURL }}`).
+   - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `com.coavira.app://**`, `http://localhost:3000/**` och förhandsversionerna. Behåll `https://coavira.fit/**` – länkar som redan skickats dit vidarebefordras till appen.
    - Inloggningslänkar byggs från adressen användaren är på (`window.location.origin`), så PKCE-nyckeln och sessionen hör alltid till samma domän.
-5. **Stripe:** `success_url` och `cancel_url` byggs från domänen användaren köper på (`request.nextUrl.origin` i `/api/checkout`), alltså `https://coavira.fit/klient/kop…` efter bytet. Ändra webhook-adressen till `https://coavira.fit/api/stripe/webhook` (Developers → Webhooks) och uppdatera `STRIPE_WEBHOOK_SECRET` om ni skapar en ny endpoint. Den gamla adressen fortsätter fungera under bytet.
-6. **Google/Apple-inloggning:** Supabase-callbacken (`https://<projekt>.supabase.co/auth/v1/callback`) ändras inte. Lägg gärna till `coavira.fit` som *Authorized domain* i Googles OAuth-samtyckesskärm.
-7. **Wearables:** uppdatera callback-domänen hos Strava/Garmin/Fitbit till `https://coavira.fit/api/wearables/<leverantör>/callback`.
-8. **Mobilappen:** sätt repo-variabeln `SITE_URL=https://coavira.fit` (GitHub → Settings → Secrets and variables → Actions → Variables). Nästa bygge laddar domänen.
+5. **Stripe:** `success_url` och `cancel_url` byggs från domänen användaren köper på (`request.nextUrl.origin` i `/api/checkout`), alltså appens domän. Webhooken fungerar på båda domänerna; rekommenderad adress är `https://ptapp2.vercel.app/api/stripe/webhook`.
+6. **Google/Apple-inloggning:** Supabase-callbacken (`https://<projekt>.supabase.co/auth/v1/callback`) ändras inte.
+7. **Wearables:** callback-adressen byggs från appens domän: `https://ptapp2.vercel.app/api/wearables/<leverantör>/callback`.
+8. **Mobilappen:** laddar `https://ptapp2.vercel.app` som standard (`capacitor.config.ts`, `.github/workflows/mobile.yml`). Repo-variabeln `APP_URL` eller `CAPACITOR_SERVER_URL` skriver över den.
 
 ## Mobilapp (iOS och Android) med Capacitor
 
@@ -394,7 +401,7 @@ Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Ac
 
 - **Så fungerar det:** appen använder SSR, API-routes, auth-callbacks och `proxy.ts` och kan därför inte exporteras statiskt. Native-appen laddar i stället den driftsatta webbtjänsten i en WebView (`server.url` i `capacitor.config.ts`). Webben byggs och driftsätts på Vercel exakt som förut; `.vercelignore` håller native-mapparna utanför Vercel.
 - **App-id och namn:** `com.coavira.app`, "Coavira". Version 1.0 (Android `versionCode` 1).
-- **Serveradress:** `CAPACITOR_SERVER_URL`. Standard är `https://coavira.fit`. I GitHub kan den ändras med repo-variabeln `CAPACITOR_SERVER_URL` eller när arbetsflödet körs manuellt.
+- **Serveradress:** `CAPACITOR_SERVER_URL`. Standard är appens domän `https://ptapp2.vercel.app` (inte landningssidan). I GitHub kan den ändras med repo-variablerna `APP_URL`/`CAPACITOR_SERVER_URL` eller när arbetsflödet körs manuellt.
 - **Byggen (`.github/workflows/mobile.yml`, "Mobilappar"):** körs vid ändringar i appfilerna på `main`, i pull requests och manuellt (Actions → Mobilappar → Run workflow). Under *Artifacts* på körningen finns:
   - `coavira-android-debug`: `app-debug.apk` som kan installeras direkt på en Android-telefon (tillåt installation från okänd källa).
   - `coavira-ios-simulator`: osignerad `App.app` för iOS-simulatorn. En riktig iPhone kräver signering via Apple-utvecklarkontot (TestFlight, senare steg).
@@ -531,7 +538,8 @@ node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarker
 node e2e/landing.test.mjs       # landningssidan: struktur, fakta, länkar, demos, 360–1440 px, minska rörelse, SEO, appen → /kom-igang
 node e2e/landing-shots.mjs <mapp> # skärmdumpar av landningssidan i fyra bredder
 node e2e/landing-perf.mjs         # prestanda på mobil: sidhöjd, huvudtråd i vila, bildrutor vid scroll
-NEXT_PUBLIC_SITE_URL=https://coavira.fit NEXT_PUBLIC_CANONICAL_REDIRECT=1 npx tsx --tsconfig tsconfig.json e2e/site-url.unit.ts  # domänomdirigeringen
+npx tsx --tsconfig tsconfig.json e2e/site-url.unit.ts  # domänuppdelningen (enhetstest)
+node e2e/host-split.test.mjs     # domänuppdelningen mot servern (Host-huvuden; i Supabase-läge även inloggning)
 node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, kall start, push, safe area, webben opåverkad
 node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås

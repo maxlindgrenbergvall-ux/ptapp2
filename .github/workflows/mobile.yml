@@ -6,7 +6,7 @@
 #  - coavira-ios-simulator: App.app för iOS-simulatorn (osignerad). Riktiga
 #    iPhones kräver signering via Apple-utvecklarkontot (senare steg, TestFlight).
 #
-# Webbadressen appen laddar: repo-variabeln CAPACITOR_SERVER_URL eller SITE_URL
+# Webbadressen appen laddar: repo-variabeln CAPACITOR_SERVER_URL eller APP_URL
 # (Settings → Secrets and variables → Actions → Variables), eller värdet man
 # anger när arbetsflödet körs manuellt.
 #
@@ -52,8 +52,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Den egna domänen: repo-variabeln SITE_URL (t.ex. https://coavira.fit) räcker för både webb och app.
-  CAPACITOR_SERVER_URL: ${{ inputs.server_url || vars.CAPACITOR_SERVER_URL || vars.SITE_URL || 'https://coavira.fit' }}
+  # Appens domän (inte landningssidan coavira.fit): repo-variabeln APP_URL, annars ptapp2.vercel.app.
+  CAPACITOR_SERVER_URL: ${{ inputs.server_url || vars.CAPACITOR_SERVER_URL || vars.APP_URL || 'https://ptapp2.vercel.app' }}
 
 jobs:
   android:

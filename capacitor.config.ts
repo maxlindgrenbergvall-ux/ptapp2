@@ -8,13 +8,15 @@ import type { CapacitorConfig } from "@capacitor/cli"
  * driftsatta webbtjänsten (Vercel) i en native WebView. Webben byggs och
  * driftsätts exakt som förut; Capacitor påverkar inte Next.js-bygget.
  *
- * Adressen styrs av CAPACITOR_SERVER_URL när man kör `npx cap sync`:
- *  - produktion:  CAPACITOR_SERVER_URL=https://<er-produktionsdomän>
+ * Appen laddar appdomänen (APP_URL, https://ptapp2.vercel.app) – inte
+ * coavira.fit, som bara är landningssidan. Adressen styrs av
+ * CAPACITOR_SERVER_URL när man kör `npx cap sync`:
+ *  - produktion:  CAPACITOR_SERVER_URL=https://<appens-domän>
  *  - lokalt:      CAPACITOR_SERVER_URL=http://<datorns-ip>:3000  (telefon/emulator mot `npm run dev`)
  *
  * Utan nätverk visas reservsidan mobile/www/offline.html.
  */
-const DEFAULT_SERVER_URL = "https://coavira.fit"
+const DEFAULT_SERVER_URL = "https://ptapp2.vercel.app"
 
 const serverUrl = (process.env.CAPACITOR_SERVER_URL?.trim() || DEFAULT_SERVER_URL).replace(/\/+$/, "")
 const isLocal = serverUrl.startsWith("http://")

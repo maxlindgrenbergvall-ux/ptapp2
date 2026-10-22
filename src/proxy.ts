@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { DASHBOARD_PATH } from "@/lib/auth-redirect"
-import { canonicalRedirect, isAppUserAgent, START_PATH } from "@/lib/site"
+import { hostRoute, START_PATH } from "@/lib/site"
 import {
   homeFor,
   isSupabaseEnabled,
@@ -16,9 +16,8 @@ import {
 const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH, DASHBOARD_PATH]
 /**
  * Sidor för utloggade. Inloggade skickas till sin startsida. START_PATH
- * (/kom-igang) är appens inloggning/registrering. Landningssidan "/" visas för
- * alla i webbläsaren (Coavira är en mobilapp, ingen webbportal); appen skickas
- * vidare från "/" ovan.
+ * (/kom-igang) är appens inloggning/registrering; på appens domän och i
+ * mobilappen leder "/" dit (hostRoute).
  */
 const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
@@ -31,19 +30,17 @@ const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-loseno
  * databasen, så en manipulerad roll i användarens metadata ger ingen data.
  */
 export async function proxy(request: NextRequest) {
-  // Den egna domänen: *.vercel.app i produktion skickas dit (se canonicalRedirect).
-  const canonical = canonicalRedirect({
+  // coavira.fit = landningssidan, APP_URL (ptapp2.vercel.app) = appen. Se hostRoute.
+  const route = hostRoute({
     host: request.headers.get("host") ?? request.nextUrl.host,
     pathname: request.nextUrl.pathname,
     search: request.nextUrl.search,
     method: request.method,
     userAgent: request.headers.get("user-agent"),
-    vercelEnv: process.env.VERCEL_ENV,
   })
-  if (canonical) return NextResponse.redirect(canonical, 308)
-
-  // Appen (iOS/Android) börjar på inloggningen, inte på landningssidan.
-  if (request.nextUrl.pathname === "/" && isAppUserAgent(request.headers.get("user-agent"))) {
+  if (route && "redirect" in route) return NextResponse.redirect(route.redirect)
+  // Appens domän och mobilappen börjar på inloggningen, inte på landningssidan.
+  if (route) {
     const url = request.nextUrl.clone()
     url.pathname = START_PATH
     return NextResponse.redirect(url)
