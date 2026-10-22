@@ -26,7 +26,7 @@ export default function LandingPage() {
   return (
     <LandingShell>
       <LandingNav />
-      <main id="innehall">
+      <main id="innehall" tabIndex={-1} className="outline-none">
         <Hero />
         <FeatureBento />
         <GoalShowcase />
