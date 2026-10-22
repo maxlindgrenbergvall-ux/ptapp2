@@ -34,7 +34,8 @@ npm run dev                  # http://localhost:3000
    15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
    16. `supabase/migrations/20261029000000_v16_cart_boost.sql`. Den lägger till varukorgen (`cart_items`, `abandoned_carts`, `mark_cart_reminded`) och PT Boost (`trainer_boosts`, `trainers.boosted_until`, `create_boost_checkout`, `mark_boost_paid`, `mark_boost_refunded`).
    17. `supabase/migrations/20261030000000_v17_quantity_service_fee.sql`. Den lägger till antal enstaka pass (varukorg och köp), serviceavgiften 7 % (`checkout_fees`, `service_fee_sek`) och härdar RLS-hjälpfunktionerna inför öppen registrering.
-   18. `supabase/seed.sql`
+   18. `supabase/migrations/20261031000000_v18_plus_referrals.sql`. Den lägger till Coavira Plus (`profiles.is_coavira_plus`, `coavira_plus_until`, `plus_plans`, `plus_purchases`), inbjudningskoder (`profiles.referral_code`) och inbjudningar (`referrals`, `redeem_referral`). Den döljer också andras kod och Plus-status med kolumnrättigheter på `profiles`.
+   19. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -372,6 +373,44 @@ npm run dev                  # http://localhost:3000
 - Alla tabeller har RLS, och `rls_v17.test.sql` testar att en nyregistrerad användare bara ser sin egen data. Den testar också att PT- och adminfunktioner är låsta, och att anonyma besökare varken ser data eller kan anropa RLS-hjälpfunktionerna.
 - `node scripts/check-secrets.mjs` (efter `npm run build` med hemligheterna satta) kontrollerar att inga hemliga nycklar finns i webbläsarkoden och att ingen `NEXT_PUBLIC_`-variabel har ett hemligt namn.
 
+## Nytt i v18: Coavira Plus och inbjudningar
+
+**Coavira Plus.** Grunden är alltid gratis: dagens kostschema, bokning, att utföra pass och chatten. Plus låser upp fyra saker:
+1. sömntracking,
+2. historik äldre än 30 dagar (pass under Framsteg och per övning),
+3. djupgående grafer (1RM-utveckling),
+4. export av träning och kost till CSV.
+
+Exporten av *all* egen data under Min data och sekretess (JSON) är alltid gratis. Den är en rättighet enligt GDPR (art. 15 och 20), så den låses inte. Därför är det en ny CSV-export som är Plus-funktionen.
+
+- `<RequirePlus feature="sleep">…</RequirePlus>` (`src/components/plus/require-plus.tsx`) visar innehållet för Plus-användare. Andra ser en suddig förhandsvisning med ett lås. Ett tryck öppnar uppgraderingsrutan på frostat glas (`backdrop-blur-md`) med två knappar: *Bjud in en vän & få 1 månad gratis* och *Skaffa Coavira Plus*. PT:er påverkas aldrig.
+- Effektiv Plus = `is_coavira_plus` (utan slutdatum, sätts av Coavira) eller `coavira_plus_until > now()`. Användaren kan inte ändra fälten själv (trigger och kolumnrättigheter).
+- **Köp:** `/api/stripe/plus-checkout` → `create_plus_checkout()` → Stripe Checkout (`metadata.kind = "plus"`) → webhook/verify → `mark_plus_paid`. Plus förnyas inte automatiskt. **Inget pris finns i koden:** tills Coavira lagt in en plan svarar köpknappen att Plus inte går att köpa än och föreslår en inbjudan:
+  ```sql
+  insert into plus_plans (days, price_sek) values (30, 49);   -- 49 kr för 30 dagar (exempel)
+  update plus_plans set active = false where price_sek = 49;   -- avsluta en plan
+  ```
+
+**Inbjudningar ("Bjud in & tjäna", i logomenyn):**
+- Alla konton får en unik kod med 8 tecken, utan tecken som är lätta att förväxla (`profiles.referral_code`).
+- **Klient → klient: ge 1 månad, få 1 månad.**
+  - Länken `coavira.fit/ref/KOD` leder till registreringen, och koden förifylls i välkomststeget.
+  - När kontot skapats löser `redeem_referral(kod)` in koden. Den nya klienten får 30 dagar Plus och inbjudaren +30 dagar.
+  - Nya konton kan också lösa in en kod i efterhand, under Bjud in & tjäna.
+- **PT → PT: en veckas Boost.**
+  - PT:n ser sin kod i portalen.
+  - Den nya PT:n anger koden i ansökan till certifiering@coavira.com. Coavira kopplar den när kontot skapas:
+    ```sql
+    select admin_link_trainer_referral('ny-pt@example.com', 'PTKOD234');
+    select admin_set_certifications('ny-pt@example.com', array['Licensierad PT']);  -- verifierad → +7 dagar Boost till den som bjöd in
+    ```
+  - Belöningen delas ut automatiskt (trigger) när den nya PT:n får sitt första certifikat.
+- **Skydd mot fusk:**
+  - Koden kan bara lösas in inom 14 dagar från att kontot skapades, med bekräftad e-post, en gång per konto, och aldrig den egna koden.
+  - Klientkoder gäller bara klienter och PT-koder bara PT:er.
+  - En inbjudare får högst 12 belöningar per år. Fler inbjudningar räknas, men ger ingen ny belöning.
+- **RLS:** användare läser bara sina egna inbjudningar (som inbjudare eller inbjuden) och sin egen kod och Plus-status (`my_account()`). Ingen kan skriva i `referrals`. PT:er ser inte klienternas kod eller Plus.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -600,6 +639,8 @@ node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidss
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 node e2e/v16-varukorg-boost.test.mjs # varukorg (flera PT:er, mersälj, kassa per PT, sparas), PT Boost, Utvald i Hitta PT och klockan
 node e2e/v16-supabase.test.mjs  # Supabase-läge: cart_items (+ antal), kassa med antal och serviceavgift, Boost via Stripe, webhook
+node e2e/v18-plus-referral.test.mjs # Plus-lås, uppgraderingsrutan, inbjudningsvyn (klient/PT), inlösen, /ref/KOD
+node e2e/v18-supabase.test.mjs  # Supabase-läge: my_account, referrals, inlösen i välkomststeget, Plus via Stripe, webhook
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

@@ -85,8 +85,25 @@ const purchaseRows = [
 const cartRows = [{ client_id: C1, service_id: S_SINGLE, trainer_id: T1, added_at: `${TODAY}T07:00:00Z` }]
 const BOOST = "cccccccc-0000-4000-8000-000000000001"
 const boostRows = [{ id: BOOST, trainer_id: T1, price_sek: 199, duration_days: 7, status: "pending", stripe_session_id: "cs_boost_1", created_at: `${TODAY}T09:00:00Z` }]
+// v18: Coavira Plus och inbjudningar. Sara har Plus via en inbjudan hon skickat; Nova är ny (kan lösa in).
+const PLUS = "dddddddd-0000-4000-8000-000000000001"
+const accounts = {
+  [C1]: { referral_code: "SARA7KQ2", coavira_plus_until: null, is_coavira_plus: false, created_at: "2026-01-01T00:00:00Z", referred: false, can_redeem: false },
+  [T1]: { referral_code: "ELNA2PT7", coavira_plus_until: null, is_coavira_plus: false, created_at: "2026-01-01T00:00:00Z", referred: false, can_redeem: false },
+  [N1]: { referral_code: "NYKUND23", coavira_plus_until: null, is_coavira_plus: false, created_at: new Date().toISOString(), referred: false, can_redeem: true },
+}
+const account = (uid) => {
+  const a = accounts[uid] ?? { referral_code: "XXXXXXXX", coavira_plus_until: null, is_coavira_plus: false, created_at: null, referred: false, can_redeem: false }
+  return { ...a, is_plus: a.is_coavira_plus || (a.coavira_plus_until !== null && Date.parse(a.coavira_plus_until) > Date.now()) }
+}
+const referralRows = [
+  { id: "eeeeeeee-0000-4000-8000-000000000001", referrer_id: C1, referred_id: "22222222-0000-4000-8000-000000000009", type: "CLIENT_PLUS", status: "COMPLETED", code: "SARA7KQ2", referrer_rewarded: true, created_at: `${TODAY}T06:00:00Z`, completed_at: `${TODAY}T06:00:00Z` },
+]
+const plusRows = [{ id: PLUS, user_id: C1, price_sek: 49, days: 30, status: "pending", stripe_session_id: "cs_plus_1", created_at: `${TODAY}T09:00:00Z` }]
+const plus30 = (from) => new Date(Math.max(Date.now(), from ? Date.parse(from) : 0) + 30 * 86_400_000).toISOString()
 const rpc = {
   attach_boost_session: null,
+  attach_plus_session: null,
   calendar_feed_token: FEED_TOKEN,
   available_slots: slots,
   next_available_slots: [{ trainer_id: T1, start_time: slots[0].start_time }],
@@ -120,6 +137,8 @@ function fixtures(uid, table) {
     case "recipes": return []
     case "cart_items": return client ? cartRows : []
     case "trainer_boosts": return client ? [] : boostRows
+    case "referrals": return referralRows.filter((r) => r.referrer_id === uid || r.referred_id === uid)
+    case "plus_purchases": return plusRows.filter((r) => r.user_id === uid)
     default: return []
   }
 }
@@ -145,6 +164,18 @@ http.createServer(async (req, res) => {
 
   if (url.pathname === "/__log") return send(200, log)
   if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
+  // v18: Plus och inbjudningar som från start, och Nova blir ny igen (ingen roll,
+  // kan lösa in en kod) – så att v18-testet kan köras efter supabase-mode och om igen.
+  if (url.pathname === "/__reset_v18") {
+    Object.assign(accounts[C1], { coavira_plus_until: null })
+    plusRows[0].status = "pending"
+    const nova = users["ny@test.se"]
+    nova.user_metadata = { name: "Nova Ny" }
+    nova.app_metadata = {}
+    Object.assign(accounts[N1], { coavira_plus_until: null, referred: false, can_redeem: true })
+    referralRows.splice(1)
+    return send(200, {})
+  }
 
   // ---- auth
   if (url.pathname === "/auth/v1/token") {
@@ -187,6 +218,17 @@ http.createServer(async (req, res) => {
     trainerRow.boosted_until = new Date(Date.now() + 7 * 86_400_000).toISOString()
     boostRows[0].status = "paid"
     return send(200, trainerRow.boosted_until)
+  }
+  // v18: servern (service role) markerar Coavira Plus som betalt / återbetalt.
+  if (url.pathname === "/rest/v1/rpc/mark_plus_paid" || url.pathname === "/rest/v1/rpc/mark_plus_refunded") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(401, { code: "42501", message: "permission denied" })
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "RPC", table: url.pathname.split("/").pop(), body: p })
+    if (url.pathname.endsWith("refunded")) return send(200, 1)
+    if (p.p_amount_sek !== null && p.p_amount_sek !== 49) return send(400, { code: "22023", message: "Beloppet stämmer inte" })
+    if (plusRows[0].status !== "paid") accounts[C1].coavira_plus_until = plus30(accounts[C1].coavira_plus_until)
+    plusRows[0].status = "paid"
+    return send(200, accounts[C1].coavira_plus_until)
   }
   // "Glömt lösenordet?" / PT väljer lösenord.
   if (url.pathname === "/auth/v1/recover") {
@@ -244,6 +286,30 @@ http.createServer(async (req, res) => {
       log.push({ method: "RPC", table, body: null })
       if (uid !== T1) return send(403, { code: "42501", message: "Bara PT:er kan boosta sin profil" })
       return send(200, { boost_id: BOOST, trainer_id: T1, price_sek: 199, duration_days: 7, boosted_until: trainerRow.boosted_until ?? null })
+    }
+    if (m[1] && table === "my_account") { log.push({ method: "RPC", table, body: null }); return send(200, account(uid)) }
+    if (m[1] && table === "redeem_referral") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      const mine = accounts[uid]
+      const referrer = Object.keys(accounts).find((id) => accounts[id].referral_code === p.p_code)
+      if (!referrer) return send(400, { code: "P0002", message: "Inbjudningskoden finns inte" })
+      if (referrer === uid) return send(400, { code: "22023", message: "Du kan inte använda din egen kod" })
+      if (!mine?.can_redeem) return send(400, { code: "22023", message: "Du har redan använt en inbjudningskod" })
+      const role = byId[uid].app_metadata.role
+      if (role !== byId[referrer].app_metadata.role) return send(400, { code: "22023", message: "Koden gäller inte för din kontotyp" })
+      mine.can_redeem = false
+      mine.referred = true
+      mine.coavira_plus_until = plus30(mine.coavira_plus_until)
+      accounts[referrer].coavira_plus_until = plus30(accounts[referrer].coavira_plus_until)
+      const row = { id: "eeeeeeee-0000-4000-8000-000000000002", referrer_id: referrer, referred_id: uid, type: "CLIENT_PLUS", status: "COMPLETED", code: p.p_code, referrer_rewarded: true, created_at: new Date().toISOString(), completed_at: new Date().toISOString() }
+      referralRows.push(row)
+      return send(200, { id: row.id, type: row.type, status: row.status, coavira_plus_until: mine.coavira_plus_until })
+    }
+    if (m[1] && table === "create_plus_checkout") {
+      log.push({ method: "RPC", table, body: null })
+      if (byId[uid].app_metadata.role !== "client") return send(403, { code: "42501", message: "Coavira Plus är för klientkonton" })
+      return send(200, { purchase_id: PLUS, user_id: uid, price_sek: 49, days: 30 })
     }
     if (m[1] && table in rpc) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
     if (req.method === "GET") {

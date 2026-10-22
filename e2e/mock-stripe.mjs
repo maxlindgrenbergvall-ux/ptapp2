@@ -4,6 +4,7 @@ import http from "node:http"
 
 const CO_NEW = "aaaaaaaa-0000-4000-8000-000000000002"
 const BOOST = "cccccccc-0000-4000-8000-000000000001"
+const PLUS = "dddddddd-0000-4000-8000-000000000001"
 const log = []
 const read = (req) => new Promise((r) => { let d = ""; req.on("data", (c) => (d += c)); req.on("end", () => r(d)) })
 
@@ -20,7 +21,7 @@ http.createServer(async (req, res) => {
   if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
     const form = Object.fromEntries(new URLSearchParams(body))
     log.push({ method: "POST", path: url.pathname, form, idempotencyKey: req.headers["idempotency-key"] })
-    const id = form["metadata[kind]"] === "boost" ? "cs_boost_1" : "cs_test_1"
+    const id = form["metadata[kind]"] === "boost" ? "cs_boost_1" : form["metadata[kind]"] === "plus" ? "cs_plus_1" : "cs_test_1"
     return send(200, { id, url: `http://localhost:54500/pay/${id}`, status: "open", payment_status: "unpaid", amount_total: null })
   }
   if (req.method === "GET" && url.pathname === "/v1/checkout/sessions/cs_test_1") {
@@ -32,6 +33,11 @@ http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/v1/checkout/sessions/cs_boost_1") {
     log.push({ method: "GET", path: url.pathname })
     return send(200, { id: "cs_boost_1", status: "complete", payment_status: "paid", amount_total: 19900, currency: "sek", client_reference_id: BOOST, payment_intent: "pi_boost_1", metadata: { kind: "boost", boost_id: BOOST, trainer_id: "11111111-0000-4000-8000-000000000001", boost_duration_days: "7" } })
+  }
+  // v18: Coavira Plus, 49 kr (testplan) för 30 dagar.
+  if (req.method === "GET" && url.pathname === "/v1/checkout/sessions/cs_plus_1") {
+    log.push({ method: "GET", path: url.pathname })
+    return send(200, { id: "cs_plus_1", status: "complete", payment_status: "paid", amount_total: 4900, currency: "sek", client_reference_id: PLUS, payment_intent: "pi_plus_1", metadata: { kind: "plus", plus_purchase_id: PLUS, user_id: "22222222-0000-4000-8000-000000000001", plus_days: "30" } })
   }
   send(404, { error: { message: `mock: ${req.method} ${url.pathname}` } })
 }).listen(54500, () => console.log("mock stripe on :54500"))
