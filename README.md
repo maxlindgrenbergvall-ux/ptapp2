@@ -361,6 +361,18 @@ Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Goog
   - Mät med `BASE_URL=http://localhost:3000 node e2e/landing-perf.mjs` (390×844, CPU strypt 4×): sektionshöjder, huvudtråden i vila och bildrutetider vid scroll.
 - **Fakta:** inga påhittade siffror, betyg eller avgifter. "0 kr" gäller appen och kontot, och inga gratispass utlovas (kontrolleras i `e2e/landing.test.mjs`).
 
+## SEO och Google Analytics (coavira.fit)
+
+- **Metadata** (`src/lib/seo.ts`, `src/app/page.tsx`): titel, beskrivning, nyckelord, kanonisk adress `https://coavira.fit`, `robots: index, follow`, Open Graph och Twitter-kort (`summary_large_image`).
+- **Delningsbild:** `public/og-image.png` (1200×630) visar appens riktiga hemskärm. Skapa om den när hero ändras: starta sidan och kör `BASE_URL=http://localhost:3000 node scripts/og-image.mjs`.
+- **Strukturerad data (JSON-LD):** `Organization`, `WebSite` och `MobileApplication` (iOS och Android, gratis, `HealthApplication`). När `NEXT_PUBLIC_APP_STORE_URL`/`NEXT_PUBLIC_PLAY_STORE_URL` sätts läggs butikslänkarna till och tillgängligheten blir `InStock`. Inga betyg eller recensioner förrän det finns riktiga. Testa med [Rich Results Test](https://search.google.com/test/rich-results).
+- **robots.txt/sitemap.xml:** `src/app/robots.ts` (Allow: /, stänger appen, API och inloggningen) och `src/app/sitemap.ts` (de fyra publika sidorna med `lastmod` = `LAST_UPDATED` i `src/lib/seo.ts`). Skicka in `https://coavira.fit/sitemap.xml` i Google Search Console.
+- **Google Analytics 4** (`G-23NXJ2VS0B`, kan ändras med `NEXT_PUBLIC_GA_ID`), `src/components/analytics/analytics.tsx`:
+  - Bara på `coavira.fit`/`www.coavira.fit`: aldrig i appen/webbportalen (`ptapp2.vercel.app`), i mobilappen, på localhost eller i förhandsversioner.
+  - Laddas först när besökaren godkänt statistik i samtyckesrutan (krav enligt LEK/GDPR). "Bara nödvändiga" är lika enkelt. Valet ändras via "Cookie-inställningar" i sidfoten eller på `/integritet#cookies`.
+  - `next/script` med `afterInteractive` (påverkar inte första renderingen). Inga annonsfunktioner: `ad_*` nekas och Google signals är avstängt. Vid återkallat samtycke tas `_ga`-cookies bort.
+  - Testas i `e2e/seo.test.mjs` (även att ingen GA-kod laddas före samtycke).
+
 ## Domäner: coavira.fit (landningssidan) och ptapp2.vercel.app (appen)
 
 Samma Vercel-projekt och samma bygge svarar på båda adresserna. `src/proxy.ts` delar upp trafiken efter värdnamn (`hostRoute` i `src/lib/site.ts`):
@@ -540,6 +552,7 @@ node e2e/landing-shots.mjs <mapp> # skärmdumpar av landningssidan i fyra bredde
 node e2e/landing-perf.mjs         # prestanda på mobil: sidhöjd, huvudtråd i vila, bildrutor vid scroll
 npx tsx --tsconfig tsconfig.json e2e/site-url.unit.ts  # domänuppdelningen (enhetstest)
 node e2e/host-split.test.mjs     # domänuppdelningen mot servern (Host-huvuden; i Supabase-läge även inloggning)
+node e2e/seo.test.mjs            # metadata, Open Graph, JSON-LD, robots/sitemap och GA4 med samtycke
 node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, kall start, push, safe area, webben opåverkad
 node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås

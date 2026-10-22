@@ -17,6 +17,7 @@ import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, Dumbbell, Life
 import Link from "next/link"
 import * as React from "react"
 
+import { CookieSettingsButton } from "@/components/analytics/analytics"
 import { BrandMark } from "@/components/brand"
 import { LINKS, NAV, STORE_URLS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
@@ -791,6 +792,7 @@ export function LandingFooter() {
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-x-6 border-t border-white/10 pt-3 text-xs text-muted-foreground sm:text-sm md:mt-0 md:pt-6">
           <p>© 2026 {BRAND.name}</p>
+          <CookieSettingsButton className="min-h-11 underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring" />
           <p className="order-last w-full sm:order-none sm:w-auto">
             Byggt i Sverige <span aria-hidden>🇸🇪</span> · Data lagras inom EU
           </p>
