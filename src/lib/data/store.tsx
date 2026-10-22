@@ -18,6 +18,7 @@ import { BrandMark } from "@/components/brand"
 import { extendBoost } from "@/lib/boost"
 import { BRAND } from "@/lib/brand"
 import { MAX_CART_ITEMS } from "@/lib/cart"
+import { extendPlus, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS } from "@/lib/plus"
 import { canChooseQuantity, clampQuantity } from "@/lib/payments/fees"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
@@ -140,6 +141,16 @@ function createActions(ctx: {
     })
     commit({ type: "updateEvent", eventId, patch: { workoutId: id } })
     return null
+  }
+
+  /** Hämta egen kod, Coavira Plus och inbjudningar på nytt (efter inlösen eller köp). */
+  const refreshAccount = async () => {
+    if (ctx.mode === "demo") return
+    const { toAccount, toReferral } = await import("@/lib/data/supabase-source")
+    const sb = getSupabase()
+    const [account, referrals] = await Promise.all([sb.rpc("my_account"), sb.from("referrals").select("*").order("created_at", { ascending: false })])
+    if (account.data) ctx.dispatch({ type: "setAccount", userId: me.id, account: toAccount(account.data) })
+    if (referrals.data) ctx.dispatch({ type: "setReferrals", referrals: referrals.data.map(toReferral) })
   }
 
   return {
@@ -348,6 +359,82 @@ function createActions(ctx: {
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."
+      }
+    },
+    refreshAccount,
+    /**
+     * Lös in en inbjudningskod. Klient: 1 månad Coavira Plus till båda.
+     * PT: den värvande PT:n får 7 dagars Boost när du verifierats av Coavira.
+     */
+    redeemReferral: async (raw: string): Promise<{ error: string | null; message?: string }> => {
+      const code = normalizeReferralCode(raw)
+      if (!REFERRAL_CODE.test(code)) return { error: "Koden består av 8 tecken, t.ex. SARA7KQ2." }
+      const data = getData()
+      const mine = data.accounts[me.id]
+      if (ctx.mode === "demo") {
+        if (mine?.referralCode === code) return { error: "Du kan inte använda din egen kod." }
+        if (data.referrals.some((r) => r.referredId === me.id)) return { error: "Du har redan använt en inbjudningskod." }
+        const referrer = Object.entries(data.accounts).find(([, a]) => a.referralCode === code)?.[0] ?? "demo-inbjudare"
+        const at = now()
+        const type = me.role === "trainer" ? "PT_BOOST" : "CLIENT_PLUS"
+        ctx.dispatch({
+          type: "setReferrals",
+          referrals: [
+            { id: newId(), referrerId: referrer, referredId: me.id, type, status: type === "CLIENT_PLUS" ? "COMPLETED" : "PENDING", referrerRewarded: true, createdAt: at, completedAt: type === "CLIENT_PLUS" ? at : undefined },
+            ...data.referrals,
+          ],
+        })
+        if (type === "CLIENT_PLUS") {
+          ctx.dispatch({
+            type: "setAccount",
+            userId: me.id,
+            account: { ...(mine ?? { referralCode: "DEMO2KOD", plusLifetime: false }), canRedeem: false, plusUntil: extendPlus(mine?.plusUntil, REFERRAL_PLUS_DAYS) },
+          })
+          return { error: null, message: "Du har fått 1 månad Coavira Plus – och din vän också!" }
+        }
+        return { error: null, message: "Koden är sparad. PT:n som värvade dig får en veckas Boost när du verifierats." }
+      }
+      const { error } = await getSupabase().rpc("redeem_referral", { p_code: code })
+      if (error) return { error: error.message }
+      await refreshAccount()
+      return {
+        error: null,
+        message:
+          me.role === "trainer"
+            ? "Koden är sparad. PT:n som värvade dig får en veckas Boost när du verifierats."
+            : "Du har fått 1 månad Coavira Plus – och din vän också!",
+      }
+    },
+    /** Klient: köp Coavira Plus (pris från databasen). Demoläget aktiverar 30 dagar direkt. */
+    buyPlus: async (): Promise<string | null> => {
+      if (ctx.mode === "demo") {
+        const mine = getData().accounts[me.id]
+        ctx.dispatch({
+          type: "setAccount",
+          userId: me.id,
+          account: { ...(mine ?? { referralCode: "DEMO2KOD", plusLifetime: false, canRedeem: false }), plusUntil: extendPlus(mine?.plusUntil, 30) },
+        })
+        return null
+      }
+      try {
+        const res = await fetch("/api/stripe/plus-checkout", { method: "POST" })
+        const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+        if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
+        window.location.assign(body.url)
+        return null
+      } catch {
+        return "Ingen uppkoppling – försök igen."
+      }
+    },
+    /** Klient, efter Stripe: är Plus betalt? */
+    confirmPlus: async (sessionId: string): Promise<"paid" | "pending" | "expired" | "unknown"> => {
+      try {
+        const res = await fetch(`/api/stripe/plus-checkout/verify?session_id=${encodeURIComponent(sessionId)}`)
+        const body = (await res.json().catch(() => ({}))) as { status?: "paid" | "pending" | "expired" | "unknown" }
+        if (body.status === "paid") await refreshAccount()
+        return body.status ?? "unknown"
+      } catch {
+        return "pending"
       }
     },
     /** PT, efter Stripe: är boosten betald? Uppdaterar profilen när den är det. */

@@ -759,6 +759,23 @@ export function createSeedData(today = todayISO()): AppData {
     offers: makeOffers(today),
     relationships: [],
     cart: [],
+    // Coavira Plus och inbjudningar: Sara har Plus i några veckor till (hon bjöd in en vän).
+    accounts: {
+      c1: { referralCode: "SARA7KQ2", plusUntil: `${addDays(today, 18)}T21:00:00.000Z`, plusLifetime: false, canRedeem: false },
+      t1: { referralCode: "PT7EKN4S", plusLifetime: false, canRedeem: false },
+    },
+    referrals: [
+      {
+        id: "ref-1",
+        referrerId: "c1",
+        referredId: "c3",
+        type: "CLIENT_PLUS",
+        status: "COMPLETED",
+        referrerRewarded: true,
+        createdAt: `${addDays(today, -12)}T10:00:00.000Z`,
+        completedAt: `${addDays(today, -12)}T10:00:00.000Z`,
+      },
+    ],
     progressEntries: [
       { id: "pe-1", clientId: "c1", metric: "hyrox_total", value: 5880, date: addDays(today, -56) },
       { id: "pe-2", clientId: "c1", metric: "hyrox_total", value: 5610, date: addDays(today, -21) },

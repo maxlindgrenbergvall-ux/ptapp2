@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Home, LogOut, Plug, RotateCcw, Settings, ShieldCheck, UserRound } from "lucide-react"
+import { ChevronDown, Gift, Home, LogOut, Plug, RotateCcw, Settings, ShieldCheck, Sparkles, UserRound } from "lucide-react"
 import Link from "next/link"
 
 import { BrandMark } from "@/components/brand"
@@ -35,6 +35,13 @@ export function appMenuLinks(role: "client" | "trainer") {
       hint: role === "trainer" ? "Kalendersynk" : "Wearables och kalender",
       icon: Plug,
     },
+    {
+      href: `${base}/inbjudningar`,
+      label: "Bjud in & tjäna",
+      hint: role === "trainer" ? "En veckas Boost per verifierad PT" : "Ge 1 månad Plus, få 1 månad",
+      icon: Gift,
+    },
+    ...(role === "client" ? [{ href: "/klient/plus", label: "Coavira Plus", hint: "Historik, sömn, grafer och export", icon: Sparkles }] : []),
   ]
 }
 

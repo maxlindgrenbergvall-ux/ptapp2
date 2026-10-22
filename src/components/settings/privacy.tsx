@@ -17,8 +17,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RequirePlus } from "@/components/plus/require-plus"
+import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
+import { toCsv } from "@/lib/plus"
 
 /** Min data och sekretess: ladda ner all data (GDPR art. 20) eller radera kontot (art. 17). */
 export function PrivacySettings() {
@@ -44,6 +47,40 @@ export function PrivacySettings() {
     const a = document.createElement("a")
     a.href = url
     a.download = `coavira-min-data-${todayISO()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Coavira Plus: träning och kost som CSV (bekvämlighetsexport). Exporten ovan
+  // av ALL egen data (JSON) är en rättighet enligt GDPR och alltid gratis.
+  const trainingRows = () =>
+    toCsv(
+      ["Datum", "Pass", "Övning", "Set", "Kg", "Reps"],
+      data.workouts
+        .filter((w) => w.clientId === me.id && w.status === "completed")
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .flatMap((w) =>
+          w.logs
+            .filter((l) => l.done)
+            .map((l) => {
+              const ex = w.exercises.find((e) => e.id === l.workoutExerciseId)
+              return [w.date, w.name, ex ? exerciseName(data, ex.exerciseId, me.id) : "", l.setIndex + 1, l.kg, l.reps]
+            })
+        )
+    )
+  const foodRows = () =>
+    toCsv(
+      ["Datum", "Livsmedel", "Mängd", "Enhet", "Kcal", "Protein (g)", "Kolhydrater (g)", "Fett (g)"],
+      data.foodEntries
+        .filter((f) => f.clientId === me.id)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((f) => [f.date, f.name, f.grams ?? "", f.unit === "ml" ? "ml" : "g", f.kcal, f.protein, f.carbs, f.fat])
+    )
+  const downloadCsv = (name: string, csv: string) => {
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `coavira-${name}-${todayISO()}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -78,6 +115,24 @@ export function PrivacySettings() {
           </Button>
         </CardContent>
       </Card>
+      {me.role === "client" && (
+        <RequirePlus feature="export" title="Exportera träning och kost (CSV)">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Exportera träning och kost</CardTitle>
+              <CardDescription>Alla loggade set och all loggad mat som CSV – öppnas direkt i Excel eller Numbers.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => downloadCsv("traning", trainingRows())}>
+                <Download /> Träning (CSV)
+              </Button>
+              <Button variant="outline" onClick={() => downloadCsv("kost", foodRows())}>
+                <Download /> Kost (CSV)
+              </Button>
+            </CardContent>
+          </Card>
+        </RequirePlus>
+      )}
       <Card className="border-destructive/30">
         <CardHeader>
           <CardTitle className="text-base">Radera kontot</CardTitle>

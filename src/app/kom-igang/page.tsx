@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
+import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
 import { isSupabaseEnabled, PT_LOGIN_PATH, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
@@ -43,6 +44,7 @@ export default function GetStarted() {
         </div>
 
         <div className="space-y-4">
+          <ReferralBanner />
           <SocialButtons />
           <OrDivider />
           <Button asChild size="lg" className="h-12 w-full text-base">

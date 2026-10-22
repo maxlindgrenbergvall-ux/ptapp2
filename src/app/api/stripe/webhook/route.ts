@@ -14,6 +14,7 @@ const intentId = (v: string | { id: string } | null) => (typeof v === "string" ?
  * Bara här (med service role) kan ett köp markeras som betalt. Databasen
  * aktiverar då klienten hos PT:n och ger klienten de köpta passen.
  *
+ * Coavira Plus (metadata.kind = "plus"): mark_plus_paid() förlänger Plus.
  * PT Boost (metadata.kind = "boost"): mark_boost_paid() flyttar fram
  * trainers.boosted_until med boost_duration_days (7) – räknat från nu, eller
  * från slutet av en pågående boost.
@@ -41,6 +42,21 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ received: true })
     }
+    if (session.metadata?.kind === "plus") {
+      const purchaseId = session.metadata.plus_purchase_id ?? session.client_reference_id
+      if (session.payment_status !== "paid" || !purchaseId) return NextResponse.json({ received: true })
+      const { error } = await admin.rpc("mark_plus_paid", {
+        p_purchase: purchaseId,
+        p_session: session.id,
+        p_payment_intent: intentId(session.payment_intent),
+        p_amount_sek: session.amount_total === null ? null : Math.round(session.amount_total / 100),
+      })
+      if (error) {
+        console.error("mark_plus_paid", error)
+        return NextResponse.json({ error: error.message }, { status: 500 })
+      }
+      return NextResponse.json({ received: true })
+    }
     const checkoutId = session.metadata?.checkout_id ?? session.client_reference_id
     if (session.payment_status !== "paid" || !checkoutId) return NextResponse.json({ received: true })
     const { error } = await admin.rpc("mark_checkout_paid", {
@@ -58,12 +74,13 @@ export async function POST(request: NextRequest) {
     const charge = event.data.object as Stripe.Charge
     const pi = intentId(charge.payment_intent)
     if (charge.refunded && pi) {
-      // Klientköp eller boost – betalningen hör till högst ett av dem.
-      const [checkout, boost] = await Promise.all([
+      // Klientköp, boost eller Plus – betalningen hör till högst ett av dem.
+      const [checkout, boost, plus] = await Promise.all([
         admin.rpc("mark_checkout_refunded", { p_payment_intent: pi }),
         admin.rpc("mark_boost_refunded", { p_payment_intent: pi }),
+        admin.rpc("mark_plus_refunded", { p_payment_intent: pi }),
       ])
-      const error = checkout.error ?? boost.error
+      const error = checkout.error ?? boost.error ?? plus.error
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
   }

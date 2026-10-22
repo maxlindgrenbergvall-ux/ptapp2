@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -102,6 +103,7 @@ export function SignupForm() {
         </>
       }
     >
+      <ReferralBanner />
       <SocialButtons onError={setError} />
       <OrDivider />
       <form onSubmit={submit} className="space-y-4" noValidate>

@@ -8,6 +8,7 @@ import type { PersistResult } from "@/lib/data/outbox"
 import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
+  Account,
   AppData,
   AppNotification,
   Attachment,
@@ -25,6 +26,7 @@ import type {
   Message,
   NutritionPlan,
   ProgressEntry,
+  Referral,
   Purchase,
   Recipe,
   Review,
@@ -334,6 +336,41 @@ const toCart = (r: CartRow): CartItem => ({
   quantity: r.quantity ?? 1,
 })
 
+interface AccountRow {
+  referral_code: string
+  coavira_plus_until: string | null
+  is_coavira_plus: boolean
+  created_at?: string
+  can_redeem?: boolean
+}
+interface ReferralRow {
+  id: string
+  referrer_id: string
+  referred_id: string
+  type: Referral["type"]
+  status: Referral["status"]
+  referrer_rewarded: boolean
+  created_at: string
+  completed_at: string | null
+}
+export const toAccount = (r: AccountRow): Account => ({
+  referralCode: r.referral_code,
+  plusUntil: r.coavira_plus_until ?? undefined,
+  plusLifetime: r.is_coavira_plus,
+  createdAt: r.created_at,
+  canRedeem: r.can_redeem ?? false,
+})
+export const toReferral = (r: ReferralRow): Referral => ({
+  id: r.id,
+  referrerId: r.referrer_id,
+  referredId: r.referred_id,
+  type: r.type,
+  status: r.status,
+  referrerRewarded: r.referrer_rewarded,
+  createdAt: r.created_at,
+  completedAt: r.completed_at ?? undefined,
+})
+
 const toReview = (r: ReviewRow): Review => ({
   id: r.id,
   author: r.author_name,
@@ -616,7 +653,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases, progress] = await Promise.all([
+  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases, progress, account, referrals] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
@@ -642,6 +679,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("purchases").select("*").neq("status", "cancelled").order("created_at"),
     // Mätpunkter (Framsteg): klientens egna, eller PT:ns klienters (RLS).
     sb.from("progress_entries").select("*").order("date").limit(2000),
+    // Egen kod och Coavira Plus (kolumnerna kan bara läsas via my_account) och inbjudningar (RLS: bara mina).
+    sb.rpc("my_account"),
+    sb.from("referrals").select("*").order("created_at", { ascending: false }).limit(200),
   ])
 
   const base = {
@@ -662,6 +702,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     services: must<ServiceRow[]>(services, "tjänster").map(toService),
     purchases: must<PurchaseRow[]>(purchases, "köp").map(toPurchase),
     progressEntries: must<ProgressRow[]>(progress, "mätpunkter").map(toProgress),
+    // Äldre databaser (före v18) saknar my_account/referrals – då utan Plus och inbjudningar.
+    accounts: account.error || !account.data ? {} : { [uid]: toAccount(account.data as AccountRow) },
+    referrals: referrals.error ? [] : ((referrals.data ?? []) as ReferralRow[]).map(toReferral),
   }
 
   if (me.role === "trainer") {

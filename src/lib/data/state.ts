@@ -8,8 +8,10 @@
  *  3. spelas upp igen ovanpå nyladdad data efter en omstart.
  */
 import type {
+  Account,
   AppData,
   CartItem,
+  Referral,
   AppNotification,
   AvailabilityRule,
   CalendarEvent,
@@ -133,6 +135,10 @@ export type LocalAction =
   | { type: "setTrainerBoost"; trainerId: ID; boostedUntil: string | null }
   /** Varukorgen ändrad på servern (t.ex. betald på en annan enhet). */
   | { type: "setCart"; cart: CartItem[] }
+  /** Kod och Coavira Plus (från my_account() eller demoläget). */
+  | { type: "setAccount"; userId: ID; account: Account }
+  /** Inbjudningar (efter inlösen eller omladdning). */
+  | { type: "setReferrals"; referrals: Referral[] }
 
 export type Action = PersistableAction | LocalAction
 
@@ -543,6 +549,10 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         ...data,
         cart: data.cart.map((c) => (c.clientId === action.clientId && c.serviceId === action.serviceId ? { ...c, quantity: action.quantity } : c)),
       }
+    case "setAccount":
+      return { ...data, accounts: { ...data.accounts, [action.userId]: action.account } }
+    case "setReferrals":
+      return { ...data, referrals: action.referrals }
     case "setTrainerBoost":
       return {
         ...data,
@@ -626,6 +636,8 @@ export function normalizeAppData(raw: unknown): AppData | null {
           .map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
     progressEntries: list(d.progressEntries),
     cart: list(d.cart),
+    accounts: d.accounts && typeof d.accounts === "object" && !Array.isArray(d.accounts) ? (d.accounts as Record<ID, Account>) : {},
+    referrals: list(d.referrals),
   }
 }
 

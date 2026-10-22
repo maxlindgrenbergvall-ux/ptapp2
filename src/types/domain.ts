@@ -519,6 +519,37 @@ export interface AppData {
   progressEntries: ProgressEntry[]
   /** Klientens varukorg (tjänster från en eller flera PT:er). Tom för PT:er. */
   cart: CartItem[]
+  /** Kod och Coavira Plus per användare (Supabase: bara den inloggades eget konto). */
+  accounts: Record<ID, Account>
+  /** Inbjudningar där jag bjudit in eller blivit inbjuden. */
+  referrals: Referral[]
+}
+
+/** Inloggad användares kod och Coavira Plus (my_account() i databasen). */
+export interface Account {
+  referralCode: string
+  /** Plus till och med (ISO). */
+  plusUntil?: string
+  /** Plus utan slutdatum (t.ex. personal eller partner). */
+  plusLifetime: boolean
+  createdAt?: string
+  /** Kan fortfarande lösa in en inbjudningskod (nytt konto, ingen kod använd). */
+  canRedeem: boolean
+}
+
+export type ReferralType = "CLIENT_PLUS" | "PT_BOOST"
+export type ReferralStatus = "PENDING" | "COMPLETED"
+
+export interface Referral {
+  id: ID
+  referrerId: ID
+  referredId: ID
+  type: ReferralType
+  status: ReferralStatus
+  /** false = inbjudaren hade redan fått max antal belöningar det året. */
+  referrerRewarded: boolean
+  createdAt: string
+  completedAt?: string
 }
 
 /** En tjänst i klientens varukorg. Sparas i databasen (cart_items) för påminnelser. */

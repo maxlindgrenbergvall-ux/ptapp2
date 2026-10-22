@@ -147,6 +147,46 @@ export function boostSessionParams(input: {
   }
 }
 
+/**
+ * Checkout Session för Coavira Plus. Pris och längd kommer från databasen
+ * (plus_plans via create_plus_checkout) – inget pris finns i koden.
+ */
+export function plusSessionParams(input: {
+  purchaseId: string
+  userId: string
+  priceSek: number
+  days: number
+  email?: string
+  origin: string
+}): Stripe.Checkout.SessionCreateParams {
+  const unitAmount = Math.round(Number(input.priceSek) * 100)
+  if (!Number.isSafeInteger(unitAmount) || unitAmount < 300) throw new Error(`Ogiltigt pris för Coavira Plus: ${input.priceSek} kr`)
+  const metadata = { kind: "plus", plus_purchase_id: input.purchaseId, user_id: input.userId, plus_days: String(input.days) }
+  return {
+    mode: "payment",
+    locale: "sv",
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "sek",
+          unit_amount: unitAmount,
+          product_data: {
+            name: `Coavira Plus – ${input.days} dagar`,
+            description: "Full historik, sömntracking, djupgående grafer och export. Förnyas inte automatiskt.",
+          },
+        },
+      },
+    ],
+    ...(input.email ? { customer_email: input.email } : {}),
+    client_reference_id: input.purchaseId,
+    metadata,
+    payment_intent_data: { metadata },
+    success_url: `${input.origin}/klient/plus?plus=klar&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${input.origin}/klient/plus?plus=avbrutet`,
+  }
+}
+
 /** Stripes felmeddelande i läsbar form (för loggen och klienten). */
 export function describeStripeError(e: unknown): { message: string; log: Record<string, unknown> } {
   if (e instanceof Stripe.errors.StripeError) {

@@ -6,6 +6,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
+import { RequirePlus, usePlus } from "@/components/plus/require-plus"
 import { MetricsGrid } from "@/components/progress/metrics"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
+import { historyCutoff } from "@/lib/plus"
 import { exerciseHistory, oneRepMaxSeries, setsDone, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
@@ -29,6 +31,11 @@ export default function ProgressPage() {
   const strengthInterests = ["styrkelyft", "bodybuilding", "kalisthenics"]
   const showStrength = client.interests?.length ? client.interests.some((k) => strengthInterests.includes(k)) : squat.length > 0
   const streak = weekStreak(completed.map((w) => w.date))
+  // Gratis: senaste 30 dagarna. Äldre historik kräver Coavira Plus.
+  const { isPlus } = usePlus()
+  const cutoff = historyCutoff(todayISO())
+  const recent = completed.filter((w) => w.date >= cutoff)
+  const older = completed.filter((w) => w.date < cutoff)
 
   return (
     <div className="space-y-6">
@@ -53,16 +60,19 @@ export default function ProgressPage() {
         <StatTile label="Veckor i rad" icon={Flame} value={streak} sub="med minst ett pass" />
       </div>
 
+      {/* Coavira Plus: djupgående grafer (1RM-utveckling). Vikt och träningsfrekvens är gratis. */}
       {showStrength && (
-      <Card>
-        <CardHeader>
-          <CardTitle>Styrka</CardTitle>
-          <CardDescription>Uppskattat 1RM per pass</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <StrengthChart workouts={workouts} />
-        </CardContent>
-      </Card>
+        <RequirePlus feature="charts" title="1RM-utveckling">
+          <Card>
+            <CardHeader>
+              <CardTitle>Styrka</CardTitle>
+              <CardDescription>Uppskattat 1RM per pass</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StrengthChart workouts={workouts} />
+            </CardContent>
+          </Card>
+        </RequirePlus>
       )}
 
       <Card>
@@ -108,26 +118,13 @@ export default function ProgressPage() {
 
       <section className="space-y-2">
         <h2 className="font-semibold">Senaste passen</h2>
-        <ul className="divide-y rounded-xl border bg-card">
-          {completed.slice(0, 10).map((w) => (
-            <li key={w.id}>
-              <Link href={`/klient/pass/${w.id}`} className="flex items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/60">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{w.name}</div>
-                  <div className="text-xs text-muted-foreground">{formatDay(w.date)}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <div className="text-right text-xs text-muted-foreground tabular">
-                    {setsDone(w)} set
-                    <br />
-                    {Math.round(workoutVolume(w)).toLocaleString("sv-SE")} kg
-                  </div>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <WorkoutList workouts={(isPlus ? completed : recent).slice(0, 10)} />
+        {/* Coavira Plus: historik äldre än 30 dagar. */}
+        {!isPlus && older.length > 0 && (
+          <RequirePlus feature="history" title={`${older.length} äldre pass`}>
+            <WorkoutList workouts={older.slice(0, 3)} />
+          </RequirePlus>
+        )}
       </section>
 
       <Link
@@ -139,6 +136,32 @@ export default function ProgressPage() {
         <ChevronRight className="size-4 text-muted-foreground" />
       </Link>
     </div>
+  )
+}
+
+/** Genomförda pass med set och volym. */
+function WorkoutList({ workouts }: { workouts: ScheduledWorkout[] }) {
+  return (
+    <ul className="divide-y rounded-xl border bg-card">
+      {workouts.map((w) => (
+        <li key={w.id}>
+          <Link href={`/klient/pass/${w.id}`} className="flex items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/60">
+            <div className="min-w-0">
+              <div className="truncate font-medium">{w.name}</div>
+              <div className="text-xs text-muted-foreground">{formatDay(w.date)}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="text-right text-xs text-muted-foreground tabular">
+                {setsDone(w)} set
+                <br />
+                {Math.round(workoutVolume(w)).toLocaleString("sv-SE")} kg
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
   )
 }
 

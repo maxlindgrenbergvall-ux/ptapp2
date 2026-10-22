@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
+import { forgetReferral, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS, storedReferral } from "@/lib/plus"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 import { START_PATH } from "@/lib/site"
@@ -35,6 +36,8 @@ export function OnboardingForm() {
   // Intressen och mål styr mätpunkterna under Framsteg och syns för klientens PT:er.
   const [interests, setInterests] = React.useState<string[]>([])
   const [focus, setFocus] = React.useState("")
+  // Inbjudningskod (valfri): förifylls från inbjudningslänken (/ref/KOD).
+  const [referral, setReferral] = React.useState("")
   const [loading, setLoading] = React.useState(isSupabaseEnabled)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -59,6 +62,7 @@ export function OnboardingForm() {
           window.location.replace(HOME_FOR_ROLE[existing])
           return
         }
+        setReferral(storedReferral() ?? "")
         setName((meta.full_name ?? meta.name ?? "").slice(0, 120))
         setPhone(meta.phone ?? user.phone ?? "")
         setLoading(false)
@@ -72,6 +76,8 @@ export function OnboardingForm() {
     e.preventDefault()
     setError(null)
     if (!consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
+    const code = normalizeReferralCode(referral)
+    if (code && !REFERRAL_CODE.test(code)) return setError("Inbjudningskoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
 
     if (!isSupabaseEnabled) {
       // Demoläge: gå till klientdemon. Namn/telefon finns redan i demodatan.
@@ -101,6 +107,17 @@ export function OnboardingForm() {
     }
     // Ny JWT med rollen i user_metadata, sedan hel sidladdning (proxy.ts läser cookien).
     await sb.auth.refreshSession()
+    if (code) {
+      // Belöningarna (1 månad Plus till båda) delas ut av databasen.
+      const { error: refError } = await sb.rpc("redeem_referral", { p_code: code })
+      if (refError) {
+        setPending(false)
+        setReferral("")
+        forgetReferral()
+        return setError(`${refError.message} Kontot är skapat – tryck på Kom igång för att fortsätta utan kod.`)
+      }
+      forgetReferral()
+    }
     window.location.href = HOME_FOR_ROLE.client
   }
 
@@ -182,6 +199,22 @@ export function OnboardingForm() {
             placeholder="T.ex. springa milen under 50 minuter"
           />
         </div>
+
+        {isSupabaseEnabled && (
+          <div className="space-y-2">
+            <Label htmlFor="referral">Inbjudningskod (valfritt)</Label>
+            <Input
+              id="referral"
+              value={referral}
+              onChange={(e) => setReferral(normalizeReferralCode(e.target.value).slice(0, 8))}
+              placeholder="T.ex. SARA7KQ2"
+              autoComplete="off"
+              autoCapitalize="characters"
+              className="h-11 font-mono tracking-widest uppercase"
+            />
+            <p className="text-xs text-muted-foreground">Fått en kod av en vän? Ni får båda {REFERRAL_PLUS_DAYS} dagar Coavira Plus.</p>
+          </div>
+        )}
 
         <div className="flex items-start gap-3 rounded-lg border p-3">
             <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />

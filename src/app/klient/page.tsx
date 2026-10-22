@@ -7,6 +7,7 @@ import { SleepTracker, WaterTracker } from "@/components/client/trackers"
 import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { PersonAvatar } from "@/components/common"
+import { RequirePlus } from "@/components/plus/require-plus"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -156,7 +157,10 @@ export default function TodayPage() {
       {/* Vanor */}
       <div className="grid gap-4">
         <WaterTracker date={today} />
-        <SleepTracker date={today} />
+        {/* Coavira Plus: sömntracking (vatten och dagens kost är gratis). */}
+        <RequirePlus feature="sleep">
+          <SleepTracker date={today} />
+        </RequirePlus>
       </div>
 
       {/* PT:er – en klient kan ha flera samtidigt */}
