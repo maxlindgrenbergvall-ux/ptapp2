@@ -5,7 +5,7 @@
  * scroll-animationer (framer-motion), telefonmockup, flytande brickor och
  * konfetti. Allt respekterar "minska rörelse" (MotionConfig i LandingShell).
  */
-import { motion, useInView, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform, type HTMLMotionProps, type Variants } from "framer-motion"
+import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform, type HTMLMotionProps, type Variants } from "framer-motion"
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -109,17 +109,18 @@ export function Section({
 }) {
   const titleId = id ? `${id}-title` : undefined
   return (
-    <section id={id} aria-labelledby={title ? titleId : undefined} className={cn("relative scroll-mt-24 px-4 py-24 sm:px-6 sm:py-32", className)}>
+    // Mobil: halverad luft (py-12) så att sidan blir kortare att scrolla; desktop som förut.
+    <section id={id} aria-labelledby={title ? titleId : undefined} className={cn("relative scroll-mt-24 px-4 py-12 sm:px-6 sm:py-20 lg:py-28", className)}>
       <div className="mx-auto max-w-6xl">
         {(eyebrow || title || intro) && (
-          <Reveal className={cn("mb-12 max-w-3xl space-y-4 sm:mb-16", align === "center" && "mx-auto text-center")}>
+          <Reveal className={cn("mb-8 max-w-3xl space-y-3 sm:mb-12 sm:space-y-4 lg:mb-16", align === "center" && "mx-auto text-center")}>
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
             {title && (
-              <h2 id={titleId} className="text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-5xl xl:text-[3.5rem]">
+              <h2 id={titleId} className="text-[2rem] leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-5xl xl:text-[3.5rem]">
                 {title}
               </h2>
             )}
-            {intro && <p className="text-lg text-pretty text-muted-foreground sm:text-xl">{intro}</p>}
+            {intro && <p className="text-base text-pretty text-muted-foreground sm:text-lg md:text-xl">{intro}</p>}
           </Reveal>
         )}
         {children}
@@ -128,13 +129,13 @@ export function Section({
   )
 }
 
-/** Glaskort: halvgenomskinligt, suddig bakgrund, fin kant. */
+/** Glaskort: halvgenomskinligt med fin kant. Suddig bakgrund bara från md – backdrop-filter är dyrt att scrolla på telefoner. */
 export const GlassCard = React.forwardRef<HTMLDivElement, { children?: React.ReactNode; className?: string } & Omit<HTMLMotionProps<"div">, "children">>(
   function GlassCard({ children, className, ...rest }, ref) {
     return (
       <motion.div
         ref={ref}
-        className={cn("relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] backdrop-blur-md", className)}
+        className={cn("relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.05] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] md:bg-white/[0.04] md:backdrop-blur-md", className)}
         {...rest}
       >
         {children}
@@ -180,7 +181,17 @@ export function TiltCard({ children, className, max = 8 }: { children: React.Rea
 
 /** Mjukt glödande färgfält i bakgrunden. */
 export function GlowOrb({ className }: { className?: string }) {
-  return <div aria-hidden className={cn("pointer-events-none absolute rounded-full bg-brand/20 blur-[120px]", className)} />
+  // Radiell gradient i stället för filter: blur(120px) – samma mjuka sken, men
+  // ingen filterpass som måste räknas om vid varje scroll (stor vinst på mobil).
+  return (
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_22%,transparent),transparent)]",
+        className
+      )}
+    />
+  )
 }
 
 /** Diskret rutnät som tonar ut mot kanterna. */
@@ -233,25 +244,22 @@ export function PhoneFrame({ children, className, time = "09:41" }: { children: 
  * Hover-förstoringen är CSS-egenskapen `scale`, som inte krockar med `transform`.
  */
 export function FloatingBadge({ children, className, delay = 0, distance = 10 }: { children: React.ReactNode; className?: string; delay?: number; distance?: number }) {
-  const reduce = useReducedMotion()
-  const ref = React.useRef<HTMLDivElement>(null)
-  const live = useInView(ref, { margin: "150px" }) && !reduce
   return (
     <motion.div
-      ref={ref}
       initial={{ opacity: 0, scale: 0.85, y: 12 }}
       whileInView={{ opacity: 1, scale: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.6, ease: EASE, delay }}
-      className={cn("absolute z-10", className)}
+      className={cn("absolute z-10 transform-gpu", className)}
     >
-      <motion.div
-        animate={live ? { transform: ["translateY(0px)", `translateY(${-distance}px)`, "translateY(0px)"] } : { transform: "translateY(0px)" }}
-        transition={live ? { duration: 5 + delay, repeat: Infinity, ease: "easeInOut", delay } : { duration: 0.6, ease: EASE }}
-        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#11161d]/95 px-3 py-2 text-sm font-medium shadow-xl shadow-black/40 transition-[scale] duration-200 hover:scale-105 motion-reduce:transition-none"
+      {/* Svävandet är en CSS-animation på transform (.landing-float i globals.css): körs på
+          grafikkortet utan JavaScript per bildruta, och står still med "minska rörelse". */}
+      <div
+        style={{ "--float-y": `${-distance}px`, "--float-dur": `${5 + delay}s`, "--float-delay": `${delay}s` } as React.CSSProperties}
+        className="landing-float flex items-center gap-2 rounded-2xl border border-white/10 bg-[#11161d]/95 px-3 py-2 text-sm font-medium shadow-xl shadow-black/40 transition-[scale] duration-200 hover:scale-105 motion-reduce:transition-none"
       >
         {children}
-      </motion.div>
+      </div>
     </motion.div>
   )
 }

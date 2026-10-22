@@ -205,6 +205,33 @@
   color: var(--foreground);
 }
 
+/* Landningssidan: svävande brickor som ren CSS-animation (transform på GPU:n). */
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, var(--float-y, -10px), 0);
+  }
+}
+.landing-float {
+  animation: landing-float var(--float-dur, 5s) ease-in-out var(--float-delay, 0s) infinite;
+  will-change: transform;
+}
+/* Telefoner: ingen backdrop-filter (dyrt vid scroll); korten har tät nog bakgrund ändå. */
+@media (max-width: 767px) {
+  .landing [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-float {
+    animation: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
