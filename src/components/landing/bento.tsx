@@ -1442,29 +1442,44 @@ function ConnectionsDemo() {
 
 // ------------------------------------------------------- sektionen ---
 
-/** Mjuka gröna sken bakom rutnätet som glider i otakt med scrollen (parallax). */
-function Backdrop() {
+/** Smaragdgrönt sken (radiell gradient – ersätter GlowOrbs limegröna, ingen hård kant). */
+const EMERALD_ORB = "bg-[radial-gradient(closest-side,rgb(16_185_129/0.15),transparent)]"
+
+/** Mjuka gröna sken bakom rutnätet som glider i otakt med scrollen (parallax). Bara från md. */
+function ParallaxBackdrop() {
   const ref = React.useRef<HTMLDivElement>(null)
-  const reduce = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
   const y1 = useTransform(scrollYProgress, [0, 1], [-80, 80])
   const y2 = useTransform(scrollYProgress, [0, 1], [100, -100])
   return (
     <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0">
-      <motion.div style={reduce ? undefined : { y: y1 }} className="absolute inset-x-0 top-[6%] h-80">
+      <motion.div style={{ y: y1 }} className="absolute inset-x-0 top-[6%] h-80">
         <GlowOrb className="top-0 left-[8%] h-72 w-72 opacity-70" />
       </motion.div>
-      <motion.div style={reduce ? undefined : { y: y2 }} className="absolute inset-x-0 bottom-[8%] h-80">
-        <GlowOrb className="right-[6%] bottom-0 h-80 w-80 bg-emerald-500/15" />
+      <motion.div style={{ y: y2 }} className="absolute inset-x-0 bottom-[8%] h-80">
+        <GlowOrb className={cn("right-[6%] bottom-0 h-80 w-80", EMERALD_ORB)} />
       </motion.div>
     </div>
   )
 }
 
-/** Kort i den svepbara raden på mobil: 85 % bred så att nästa kort syns. Vanlig rutnätscell från md. */
-const SWIPE_CARD = "w-[85%] shrink-0 snap-start md:w-auto"
+/**
+ * Bakgrundsskenet. Telefoner och "minska rörelse": stillastående sken utan
+ * scroll-lyssnare. Från md: parallax (useScroll monteras bara då).
+ */
+function Backdrop() {
+  const isMd = useIsMd()
+  const reduce = useReducedMotion()
+  if (isMd && !reduce) return <ParallaxBackdrop />
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <GlowOrb className="top-[6%] left-[8%] h-72 w-72 opacity-70" />
+      <GlowOrb className={cn("right-[6%] bottom-[8%] h-80 w-80", EMERALD_ORB)} />
+    </div>
+  )
+}
 
-/** Sektionen "Funktioner": bento-rutnätet med sex levande kort och en uppmaning under. */
+/** Sektionen "Funktioner": bento-rutnätet med levande kort och en uppmaning under. */
 export function FeatureBento() {
   return (
     <Section
@@ -1472,32 +1487,41 @@ export function FeatureBento() {
       eyebrow="Funktioner"
       title={
         <>
-          Allt du behöver. <GradientText>Inget du inte behöver.</GradientText>
+          Byggd för <GradientText>resultat.</GradientText>
         </>
       }
-      intro="Pass, kost, kalender och betalning i ett och samma flöde – för PT:n som coachar och klienten som kör. Testa själv – byt, boka och klarmarkera direkt i korten."
+      intro="Pass, kost och bokning – testa direkt här."
     >
+      {/* Nyckelrutorna för CSS-looparna – hissas till <head> och läggs bara in en gång. */}
+      <style href="coavira-bento-keyframes" precedence="default">
+        {KEYFRAMES}
+      </style>
       <div className="relative">
         <Backdrop />
-        <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+        {/*
+          Mobil (en kolumn): PT & klient, Kost, Kalender och Trygghet staplade – betal- och
+          anslutningskorten syns först från md. På md flyttas Trygghet och Anslutningar sist (order),
+          så att det höga kostkortet paras med det korta betalkortet i stället för att sträckas ut.
+        */}
+        <div className="relative grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3 lg:gap-5">
           <BentoCard
             className="md:col-span-2"
             icon={Dumbbell}
             kicker="PT + klient"
-            title="PT & klient i synk"
+            title="Din PT. Din plan."
             tilt={3}
-            text="PT:n bygger passet – uppvärmning, huvudpass, nedvarvning – och det dyker upp hos klienten direkt. Klarmarkering först när passet är genomfört och vikterna ifyllda. PT:n styr passen, klienten har full koll på sin resa."
+            text="PT:n bygger passet, du ser det direkt i appen. Klarmarkeras när vikterna är ifyllda."
           >
             <SyncDemo />
           </BentoCard>
           <BentoCard
             className="md:row-span-2"
             icon={Utensils}
-            kicker="Kost"
-            title="Exklusivt kostschema"
+            kicker="Exklusiva kostscheman"
+            title="Svensk matdatabas i fickan"
             tilt={3}
             delay={0.08}
-            text="Sök bland livsmedel från Open Food Facts eller skanna streckkoden. Varje livsmedel får logiska enheter – och makrona räknas om direkt."
+            text="Sök eller skanna streckkoden – svenska varor först. Ett aktivt kostschema åt gången."
           >
             <NutritionDemo />
           </BentoCard>
@@ -1505,54 +1529,40 @@ export function FeatureBento() {
             className="lg:col-span-2"
             icon={CalendarDays}
             kicker="Kalender"
-            title="Kalendersynk & passgräns"
+            title="Boka med din coach"
             tilt={3}
-            text="Boka och flytta pass i månads-, vecko- eller dagsvy och synka till Google Kalender, Outlook och Apple Kalender. Passgränsen gör att det aldrig bokas fler pass än det som är betalt."
+            text="Synkas med Google, Outlook och Apple Kalender. Du bokar aldrig fler pass än du köpt."
           >
             <CalendarDemo />
           </BentoCard>
-          {/*
-            Mobil: de tre sista korten ligger i en svepbar rad där nästa kort sticker fram,
-            i stället för tre skärmar till med staplade kort. Från md är raden "display: contents"
-            och korten ligger i rutnätet igen. På md flyttas Trygghet och Anslutningar sist (order),
-            så att det höga kostkortet paras med det korta betalkortet i stället för att sträckas ut.
-          */}
-          <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto overflow-y-hidden px-4 py-1 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 md:contents [&::-webkit-scrollbar]:hidden">
-            <BentoCard
-              className={cn(SWIPE_CARD, "md:order-1 lg:order-none")}
-              icon={ShieldCheck}
-              kicker="Trygghet"
-              title="Verifierade PT:er. Skyddad data."
-              text="Varje PT-konto skapas av Coavira – först när certifikaten granskats manuellt. Hälsodata hanteras bara med ditt uttryckliga samtycke och lagras inom EU."
-            >
-              <SecurityDemo />
-            </BentoCard>
-            <BentoCard
-              className={SWIPE_CARD}
-              icon={CreditCard}
-              kicker="Betalning"
-              title="Säker kortbetalning"
-              delay={0.08}
-              text="Köp PT:ns pass, program, kostcoaching eller helhetspaket med kort via Stripe. PT:n sätter priset – och priset du ser är priset du betalar."
-            >
-              <PaymentDemo />
-            </BentoCard>
-            <BentoCard
-              className={cn(SWIPE_CARD, "md:order-2 lg:order-none")}
-              icon={Plug}
-              kicker="Anslutningar"
-              title="Koppla dina appar"
-              delay={0.16}
-              text="Anslut Apple Health, Garmin och Strava till ditt Coavira-konto."
-            >
-              <ConnectionsDemo />
-            </BentoCard>
-          </div>
+          <BentoCard
+            className="md:order-1 lg:order-none"
+            icon={ShieldCheck}
+            kicker="Trygghet"
+            title="Bara verifierade PT:er"
+            text="Coavira granskar certifikaten manuellt och skapar varje PT-konto."
+          >
+            <SecurityDemo />
+          </BentoCard>
+          <BentoCard className="hidden md:block" icon={CreditCard} kicker="Betalning" title="Köp direkt i appen" delay={0.08} text="Pass, program, kostcoaching eller helhetspaket – betala med kort via Stripe.">
+            <PaymentDemo />
+          </BentoCard>
+          <BentoCard
+            className="hidden md:order-2 md:block lg:order-none"
+            icon={Plug}
+            kicker="Anslutningar"
+            title="Koppla dina appar"
+            delay={0.16}
+            text="Anslut Apple Health, Garmin och Strava till ditt konto."
+          >
+            <ConnectionsDemo />
+          </BentoCard>
         </div>
 
-        <Reveal className="relative mt-8 flex flex-col items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur-md sm:mt-10 sm:flex-row sm:p-6 sm:text-left">
-          <p className="text-pretty text-muted-foreground">
-            <span className="font-semibold text-foreground">Redo att köra?</span> Ladda ned Coavira gratis till iPhone eller Android.
+        <Reveal className="relative mt-6 flex flex-col items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-center sm:mt-10 sm:flex-row sm:gap-4 sm:p-6 sm:text-left md:backdrop-blur-md">
+          <p className="text-sm text-pretty text-muted-foreground sm:text-base">
+            <span className="font-semibold text-foreground">Redo att köra?</span> Ladda ned Coavira gratis
+            <span className="hidden sm:inline"> till iPhone eller Android</span>.
           </p>
           <StoreBadges align="center" className="shrink-0" />
         </Reveal>
