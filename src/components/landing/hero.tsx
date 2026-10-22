@@ -663,7 +663,7 @@ function ClientHomeScreen({
       <PhoneFrame time="12:08" className="w-[300px]">
         <motion.div
           aria-hidden
-          style={{ x: glareX }}
+          style={glareX ? { x: glareX } : undefined}
           className="pointer-events-none absolute -inset-y-10 -left-1/2 z-30 w-[200%] bg-[linear-gradient(105deg,transparent_40%,rgba(255,255,255,0.06)_49%,transparent_58%)]"
         />
         <AnimatePresence>{toast !== null && <BookedToast key={toast} />}</AnimatePresence>
@@ -834,9 +834,13 @@ function ClientHomeScreen({
                       : "bg-brand text-brand-foreground shadow-[0_8px_24px_-8px] shadow-brand/70 hover:bg-brand/90"
                   )}
                 >
-                  {/* Ringen visar var man trycker; den pulserar bara medan hjälten syns. */}
+                  {/* Ringen visar var man trycker. Den pulserar (CSS, opacitet) bara medan hjälten syns och
+                      bara åtta gånger – sedan står den still, så att inget rör sig i onödan i vila. */}
                   {!booked && !tried && (
-                    <span aria-hidden className={cn("absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50", active && "motion-safe:animate-pulse")} />
+                    <span
+                      aria-hidden
+                      className={cn("absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50", active && "motion-safe:animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_8]")}
+                    />
                   )}
                   <span className="relative inline-flex items-center justify-center gap-1.5">
                     {booked ? (
@@ -1021,17 +1025,18 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
           onPointerLeave={() => setHovered(false)}
           className="relative min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] motion-reduce:[mask-image:none]"
         >
-          <div ref={railRef} className="flex w-max motion-reduce:w-full">
+          {/* Rälsen animeras hela tiden (när den syns) – eget GPU-lager. Mobil: tunnare band. */}
+          <div ref={railRef} className="flex w-max transform-gpu will-change-transform motion-reduce:w-full motion-reduce:transform-none motion-reduce:will-change-auto">
             <ul
               ref={trackRef}
               aria-label="Fakta om Coavira"
-              className="flex shrink-0 items-center gap-10 py-5 pr-10 motion-reduce:w-full motion-reduce:shrink motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-x-8 motion-reduce:gap-y-3 motion-reduce:pr-0"
+              className="flex shrink-0 items-center gap-8 py-3 pr-8 motion-reduce:w-full motion-reduce:shrink motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-x-8 motion-reduce:gap-y-3 motion-reduce:pr-0 sm:gap-10 sm:py-5 sm:pr-10"
             >
               {TRUST.map((t) => (
                 <TrustItem key={t.label} {...t} />
               ))}
             </ul>
-            <ul aria-hidden className="flex shrink-0 items-center gap-10 py-5 pr-10 motion-reduce:hidden">
+            <ul aria-hidden className="flex shrink-0 items-center gap-8 py-3 pr-8 motion-reduce:hidden sm:gap-10 sm:py-5 sm:pr-10">
               {TRUST.map((t) => (
                 <TrustItem key={t.label} {...t} />
               ))}
@@ -1054,8 +1059,8 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
 
 function TrustItem({ label, icon: Icon }: { label: string; icon: LucideIcon }) {
   return (
-    <li className="flex shrink-0 items-center gap-2.5 text-sm font-medium whitespace-nowrap text-foreground/85">
-      <span className="grid size-7 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-brand">
+    <li className="flex shrink-0 items-center gap-2 text-[13px] font-medium whitespace-nowrap text-foreground/85 sm:gap-2.5 sm:text-sm">
+      <span className="grid size-6 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-brand sm:size-7">
         <Icon aria-hidden className="size-3.5" />
       </span>
       {label}

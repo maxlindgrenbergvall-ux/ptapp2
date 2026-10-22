@@ -1399,24 +1399,23 @@ function ConnectionsDemo() {
               strokeLinecap="round"
             />
           ))}
-          {live &&
-            SOURCES.map((s, i) => (
-              <motion.circle
-                key={s.label}
-                r={4}
-                fill="var(--brand)"
-                initial={{ cx: s.x * 4, cy: s.y * 4, opacity: 0 }}
-                animate={{ cx: [s.x * 4, HUB], cy: [s.y * 4, HUB], opacity: [0, 1, 0] }}
-                transition={{ duration: 2, repeat: Infinity, repeatDelay: 0.8, delay: i * 0.6, ease: "easeInOut" }}
-              />
-            ))}
         </svg>
+        {live &&
+          SOURCES.map((s, i) => (
+            <div
+              key={s.label}
+              aria-hidden
+              style={cssVars({ "--bento-from-x": `${s.x - 50}%`, "--bento-from-y": `${s.y - 50}%`, animationDelay: `${i * 0.6}s` })}
+              className="pointer-events-none absolute inset-0 animate-[bento-travel_2.8s_ease-in-out_infinite_both] will-change-transform"
+            >
+              <span className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand shadow-[0_0_10px_2px] shadow-brand/60" />
+            </div>
+          ))}
         <div aria-hidden className="absolute top-1/2 left-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center">
           {live && (
-            <motion.span
-              className="absolute inset-0 rounded-2xl bg-brand/40"
-              animate={{ scale: [1, 1.5], opacity: [0.5, 0] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
+            <span
+              style={cssVars({ "--bento-ring-from": "0.5" })}
+              className="absolute inset-0 animate-[bento-ring_2.4s_ease-out_infinite] rounded-2xl bg-brand/40 will-change-transform"
             />
           )}
           <span className="relative grid size-16 place-items-center rounded-2xl bg-brand text-brand-foreground shadow-[0_0_40px_-6px] shadow-brand/80">
