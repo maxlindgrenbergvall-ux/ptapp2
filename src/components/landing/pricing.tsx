@@ -1,11 +1,17 @@
 "use client"
 
 /**
- * Prissektionen (#priser): växla mellan klienter och PT:er. Klientkontot
- * kostar 0 kr, PT:er ansöker och verifieras manuellt. Bredvid en levande
+ * Prissektionen (#priser): växla mellan klienter och PT:er. Appen kostar 0 kr
+ * att ladda ned, PT:er ansöker via e-post och verifieras manuellt. Bredvid en
  * exempelmeny med PT-tjänster: välj tjänst, testa mersäljet av kostcoaching
  * (samma flöde som i appen) och – som PT – sätt egna priser. Alla priser är
  * exempel, och "0 kr" gäller bara appen och kontot (inga gratispass).
+ *
+ * Prestanda: inga JS-loopar per bildruta. Kantstrålen är en CSS-rotation (bara
+ * från md, pausas utanför bild), ljussvepet en engångsövergång, glöden radiella
+ * gradienter i stället för blur-filter och backdrop-blur bara från md.
+ * Mobil: kompakta kort (fyra rader per lista, tvåkolumnsmeny, tät varukorg),
+ * och löftesraden visas först från md.
  */
 import {
   animate,
@@ -16,7 +22,6 @@ import {
   useMotionTemplate,
   useMotionValue,
   useReducedMotion,
-  useScroll,
   useTransform,
   type HTMLMotionProps,
   type Variants,
@@ -29,7 +34,6 @@ import {
   Dumbbell,
   FileBadge,
   Layers,
-  Lock,
   Mail,
   Minus,
   Plus,
@@ -59,6 +63,8 @@ const GHOST_BTN =
 /** Appens panelbakgrund (kort i mörkt läge) för mockups inne i glaskorten. */
 const PANEL = "rounded-2xl border border-white/10 bg-[#0d1218]/90 shadow-2xl shadow-black/40"
 const DIVIDER = "h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
+/** Mjuk grön glöd som radiell gradient – samma känsla som blur, men utan filterpass vid scroll. */
+const GLOW = "bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)]"
 
 // ------------------------------------------------------------------ data ---
 
@@ -102,25 +108,29 @@ const radioId = (id: ServiceId) => `priser-tjanst-${id}`
 const PANEL_ID = "priser-panel"
 const UPSELL_ID = "priser-mersalj"
 
+/** Antal listrader som visas på telefon (under md). Resten visas från md. */
+const PHONE_ROWS = 4
+
+/** De fyra första syns på telefon – viktigast först. */
 const CLIENT_FEATURES = [
   "Boka och flytta pass med din PT",
   "Träningslogg med set, kg, reps och vilotimer",
   "Dagens kost – kcal och makron mot dina mål",
-  "Framsteg efter det du tränar för",
   "Chatt med din PT, med bilagor",
+  "Framsteg efter det du tränar för",
   "Kalendersynk med Google, Outlook och Apple Kalender",
-  "Flera PT:er samtidigt – ett aktivt kostschema i taget",
+  "Flera PT:er i samma app",
 ] as const
 
+/** De fyra första syns på telefon – viktigast först. */
 const PT_FEATURES = [
   "Sätt dina egna priser",
-  "Sälj enstaka pass, träningsprogram, kostcoaching och helhetspaket",
+  "Sälj pass, träningsprogram, kostcoaching och helhetspaket",
   "Mersälj kostcoaching direkt i köpet",
-  "Få betalt med kort via Stripe",
-  "Passgränsen skyddar dig mot obetalda pass",
+  "Verifierad profil efter granskning av dina certifikat",
   "Kalender med tillgänglighet och dra-och-släpp",
   "Bygg pass och kostscheman med recept",
-  "Verifierad profil efter granskning av dina certifikat",
+  "Passgränsen – aldrig fler bokade pass än betalda",
 ] as const
 
 const APPLY_STEPS: readonly { icon: LucideIcon; label: string }[] = [
@@ -129,9 +139,10 @@ const APPLY_STEPS: readonly { icon: LucideIcon; label: string }[] = [
   { icon: BadgeCheck, label: "Coavira skapar ditt konto" },
 ]
 
+/** Löftesraden (bara från md): värdet i appen, inte betalningen. */
 const PROMISES: readonly { icon: LucideIcon; title: string; text: string }[] = [
-  { icon: ShieldCheck, title: "Inga gratispass – PT:er får alltid betalt", text: "Passgränsen gör att det aldrig bokas fler pass än det som är betalt." },
-  { icon: CreditCard, title: "Betala med kort via Stripe", text: "Priset du ser är priset du betalar." },
+  { icon: BadgeCheck, title: "Verifierade PT:er", text: "Varje PT:s certifikat granskas manuellt innan kontot skapas." },
+  { icon: Salad, title: "Ett kostschema åt gången", text: "Har du flera PT:er är ett kostschema aktivt i taget – inga krockande råd." },
   { icon: RotateCcw, title: "Avbokat pass = passet tillbaka", text: "Ett avbokat pass räknas inte av – boka en ny tid när det passar." },
 ]
 
@@ -154,25 +165,13 @@ const SWAP = {
   exit: { opacity: 0, y: -16, scale: 0.98, transition: { duration: 0.2, ease: EASE } },
 } satisfies Pick<HTMLMotionProps<"article">, "initial" | "animate" | "exit">
 
-/** Ett rörelsevärde som snurrar varv på varv medan `active` (syns + ingen "minska rörelse"). */
-function useSpin(active: boolean, seconds: number) {
-  const value = useMotionValue(0)
-  React.useEffect(() => {
-    if (!active) return
-    const from = value.get()
-    const controls = animate(value, [from, from + 360], { duration: seconds, ease: "linear", repeat: Infinity })
-    return () => controls.stop()
-  }, [active, seconds, value])
-  return value
-}
-
 // ------------------------------------------------------------ byggstenar ---
 
 /**
  * Kronor som räknar upp när de syns och glider till nya värden. Startar på
  * det riktiga priset (SSR och första render visar aldrig "0 kr"); första
  * uppräkningen går från 60 % av priset. `pulse` ger en liten studs vid varje
- * ändring. Direkt värde med "minska rörelse".
+ * ändring. Direkt värde med "minska rörelse". Allt är engångsanimationer.
  */
 function Kr({ value, start, pulse, className }: { value: number; start: boolean; pulse?: boolean; className?: string }) {
   const reduce = useReducedMotion()
@@ -211,23 +210,34 @@ const RING_MASK: React.CSSProperties = {
   maskComposite: "exclude",
 }
 
-/** Gradientkant med en ljusstråle som roterar runt kortet (står still med "minska rörelse"). */
-function BeamBorder({ active }: { active: boolean }) {
-  const spin = useSpin(active, 7)
+/**
+ * Gradientkant med en ljusstråle som roterar runt det framhävda kortet.
+ * Strålen är en ren CSS-animation (rotate på kompositorn – ingen JS per
+ * bildruta), finns bara från md, pausas när kortet är utanför bild och står
+ * still med "minska rörelse". Under md syns bara den stillastående kanten.
+ * Lagret är en kvadrat med kortets diagonal som sida (hypot via containerenheter)
+ * – precis stort nog att täcka kanten i alla vinklar, så GPU-ytan hålls nere.
+ */
+function BeamBorder() {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { margin: "-10% 0px" })
   return (
-    <div aria-hidden style={RING_MASK} className="pointer-events-none absolute -inset-px overflow-hidden rounded-[inherit] p-px">
+    <div ref={ref} aria-hidden style={RING_MASK} className="pointer-events-none absolute -inset-px overflow-hidden rounded-[inherit] p-px [container-type:size]">
       <div className="absolute inset-0 bg-gradient-to-b from-brand/45 via-white/10 to-emerald-500/35" />
-      <motion.div
-        style={{ rotate: spin, x: "-50%", y: "-50%" }}
-        className="absolute top-1/2 left-1/2 h-[300%] w-[300%] [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_40deg,#6ee7b7_80deg,transparent_140deg,transparent_190deg,#10b981_240deg,transparent_300deg)]"
+      <div
+        className={cn(
+          "absolute top-1/2 left-1/2 hidden size-[hypot(100cqw,100cqh)] -translate-x-1/2 -translate-y-1/2 animate-[spin_8s_linear_infinite] [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_40deg,#6ee7b7_80deg,transparent_140deg,transparent_190deg,#10b981_240deg,transparent_300deg)] motion-reduce:animate-none md:block",
+          !inView && "[animation-play-state:paused]"
+        )}
       />
     </div>
   )
 }
 
 /**
- * Glaskort som lyfter vid hover och lyser grönt där muspekaren är.
- * `highlight` ger den roterande gradientkanten och en grön ton uppifrån.
+ * Glaskort som lyfter vid hover och lyser grönt där muspekaren är (bara mus).
+ * `highlight` ger gradientkanten med strålen och en grön ton uppifrån.
+ * Suddig bakgrund bara från md – på telefon en något tätare bakgrund i stället.
  */
 function PriceCard({
   children,
@@ -236,15 +246,11 @@ function PriceCard({
   lift = -6,
   ...rest
 }: { children: React.ReactNode; className?: string; highlight?: boolean; lift?: number } & Omit<HTMLMotionProps<"article">, "children">) {
-  const ref = React.useRef<HTMLElement>(null)
-  const reduce = useReducedMotion()
-  const inView = useInView(ref, { margin: "-10% 0px" })
   const mx = useMotionValue(-999)
   const my = useMotionValue(-999)
   const spot = useMotionTemplate`radial-gradient(440px circle at ${mx}px ${my}px, rgba(172, 237, 55, 0.09), transparent 65%)`
   return (
     <motion.article
-      ref={ref}
       whileHover={{ y: lift }}
       transition={LIFT}
       onPointerMove={(e) => {
@@ -254,18 +260,18 @@ function PriceCard({
         my.set(e.clientY - r.top)
       }}
       className={cn(
-        "group/card relative rounded-3xl border bg-white/[0.04] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_40px_90px_-50px_rgba(0,0,0,0.9)] backdrop-blur-md",
+        "group/card relative rounded-3xl border bg-white/[0.05] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_40px_90px_-50px_rgba(0,0,0,0.9)] md:bg-white/[0.04] md:backdrop-blur-md",
         highlight ? "border-transparent" : "border-white/10",
         className
       )}
       {...rest}
     >
-      {highlight && <BeamBorder active={inView && !reduce} />}
+      {highlight && <BeamBorder />}
       {highlight && <div aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-b from-brand/[0.08] via-transparent to-transparent" />}
       <motion.div
         aria-hidden
         style={{ background: spot }}
-        className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/card:opacity-100"
+        className="pointer-events-none absolute inset-0 hidden rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/card:opacity-100 md:block"
       />
       <div className="relative">{children}</div>
     </motion.article>
@@ -282,7 +288,7 @@ function Tag({ icon: Icon, children }: { icon: LucideIcon; children: React.React
   )
 }
 
-/** Bocklista där raderna glider in en i taget och bockarna ritas fram. */
+/** Bocklista där raderna glider in en i taget och bockarna ritas fram. Under md visas bara de `PHONE_ROWS` första. */
 function CheckList({ items, label }: { items: readonly string[]; label: string }) {
   return (
     <motion.ul
@@ -291,10 +297,10 @@ function CheckList({ items, label }: { items: readonly string[]; label: string }
       initial="hidden"
       whileInView="show"
       viewport={{ once: true, margin: "-60px" }}
-      className="space-y-3"
+      className="flex flex-col gap-2.5 sm:gap-3"
     >
-      {items.map((item) => (
-        <motion.li key={item} variants={listItem} className="flex items-start gap-3 text-sm leading-snug">
+      {items.map((item, i) => (
+        <motion.li key={item} variants={listItem} className={cn("flex items-start gap-2.5 text-sm leading-snug sm:gap-3", i >= PHONE_ROWS && "max-md:hidden")}>
           <span aria-hidden className="mt-px grid size-5 shrink-0 place-items-center rounded-full bg-brand/15 ring-1 ring-brand/30">
             <svg viewBox="0 0 24 24" fill="none" className="size-3 text-brand">
               <motion.path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" variants={drawCheck} />
@@ -329,7 +335,7 @@ function AudienceToggle({ value, onChange }: { value: Audience; onChange: (a: Au
       <div
         role="tablist"
         aria-label="Visa priser för"
-        className="relative flex w-full max-w-sm rounded-full border border-white/10 bg-white/[0.04] p-1 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] backdrop-blur-md"
+        className="relative flex w-full max-w-sm rounded-full border border-white/10 bg-white/[0.05] p-1 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] md:bg-white/[0.04] md:backdrop-blur-md"
       >
         {AUDIENCES.map(({ id, label, icon: Icon }) => {
           const active = id === value
@@ -365,55 +371,51 @@ function AudienceToggle({ value, onChange }: { value: Audience; onChange: (a: Au
 
 // ----------------------------------------------------------- huvudkorten ---
 
-/** "0 kr" som studsar in – gäller att ladda ned appen och skapa klientkontot. */
+/** "0 kr att ladda ned" – gäller appen och klientkontot, inget annat. */
 function ZeroPrice() {
   return (
-    <div className="relative mt-1 flex items-end gap-3">
-      <span aria-hidden className="pointer-events-none absolute -top-4 -left-6 size-32 rounded-full bg-brand/20 blur-2xl" />
-      <p className="relative flex items-baseline gap-2">
+    <div className="relative mt-1">
+      <span aria-hidden className={cn("pointer-events-none absolute -top-10 -left-12 size-44", GLOW)} />
+      <p className="relative flex flex-wrap items-baseline gap-x-2">
         <motion.span
           initial={{ opacity: 0, scale: 0.5, y: 16 }}
           whileInView={{ opacity: 1, scale: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ type: "spring", stiffness: 240, damping: 15, delay: 0.15 }}
-          className="inline-block origin-bottom-left text-7xl leading-[0.9] font-extrabold tracking-tighter sm:text-8xl"
+          className="inline-block origin-bottom-left text-6xl leading-[0.9] font-extrabold tracking-tighter sm:text-8xl"
         >
           <GradientText>0</GradientText>
         </motion.span>
-        <span className="text-3xl font-bold tracking-tight">kr</span>
+        <span className="text-2xl font-bold tracking-tight sm:text-3xl">kr</span>
+        <span className="text-sm text-muted-foreground">att ladda ned</span>
       </p>
-      <span className="relative pb-2 text-sm leading-tight text-muted-foreground">
-        att ladda
-        <br />
-        ned appen
-      </span>
     </div>
   )
 }
 
-/** Klientkortet: gratis app, allt i appen, och butiksbrickorna. */
+/** Klientkortet: appen för 0 kr, det viktigaste i appen och butiksbrickorna (sektionens CTA). */
 function ClientCard({ onShowPt }: { onShowPt: () => void }) {
   return (
-    <PriceCard highlight aria-labelledby="priser-klient-titel" className="p-6 sm:p-8" {...SWAP}>
+    <PriceCard highlight aria-labelledby="priser-klient-titel" className="p-5 sm:p-8" {...SWAP}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tag icon={UserRound}>För klienter</Tag>
         <span className="text-xs text-muted-foreground">iPhone och Android</span>
       </div>
-      <h3 id="priser-klient-titel" className="mt-6 text-lg font-semibold">
+      <h3 id="priser-klient-titel" className="mt-4 font-semibold sm:mt-6 sm:text-lg">
         Coavira-appen
       </h3>
       <ZeroPrice />
-      <p className="mt-5 text-pretty text-muted-foreground">
-        Du betalar bara för de tjänster du köper av din PT – <span className="font-medium text-foreground">priset du ser är priset du betalar</span>. Kort
-        via Stripe.
+      <p className="mt-3 text-sm text-pretty text-muted-foreground sm:mt-5 sm:text-base">
+        Kontot kostar ingenting. Pass, program och kostcoaching köper du av din PT.
       </p>
-      <div aria-hidden className={cn(DIVIDER, "my-6")} />
+      <div aria-hidden className={cn(DIVIDER, "my-4 sm:my-6")} />
       <CheckList items={CLIENT_FEATURES} label="Det här finns i appen" />
-      <div className="mt-8">
-        <StoreBadges align="center" className="[&>*]:grow [&>*]:justify-center" />
-        <p className="mt-3 text-center text-sm text-muted-foreground">Konto med Apple, Google eller e-post direkt i appen.</p>
+      <div className="mt-5 sm:mt-8">
+        {/* Telefon: lite smalare brickor så att båda ryms på en rad */}
+        <StoreBadges align="center" className="[&>*]:grow [&>*]:justify-center max-sm:gap-2 max-sm:[&>*]:gap-2 max-sm:[&>*]:px-3" />
+        <p className="mt-2 text-center text-xs text-muted-foreground sm:mt-3 sm:text-sm">Konto med Apple, Google eller e-post direkt i appen.</p>
       </div>
-      <p className="mt-6 flex flex-wrap items-center gap-x-1 border-t border-white/5 pt-4 text-sm text-muted-foreground">
+      <p className="mt-4 flex flex-wrap items-center gap-x-1 border-t border-white/5 pt-2 text-sm text-muted-foreground sm:mt-6 sm:pt-4">
         Är du PT?
         <button
           type="button"
@@ -430,7 +432,7 @@ function ClientCard({ onShowPt }: { onShowPt: () => void }) {
 /** Ansökan i tre steg med en linje som ritas fram mellan stegen. */
 function ApplySteps() {
   return (
-    <div className="mt-6">
+    <div className="mt-5 sm:mt-6">
       <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Så blir du PT på Coavira</p>
       <div className="relative mt-3">
         <span aria-hidden className="absolute top-5 right-[16.66%] left-[16.66%] h-px bg-white/10" />
@@ -467,35 +469,34 @@ function ApplySteps() {
   )
 }
 
-/** PT-kortet: egna priser, ansökan via e-post (manuell granskning) och inloggning. */
+/** PT-kortet: egna priser, vad du kan sälja, manuell verifiering och ansökan via e-post. */
 function PtCard() {
   return (
-    <PriceCard highlight aria-labelledby="priser-pt-titel" className="p-6 sm:p-8" {...SWAP}>
+    <PriceCard highlight aria-labelledby="priser-pt-titel" className="p-5 sm:p-8" {...SWAP}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tag icon={BadgeCheck}>För PT:er</Tag>
         <span className="text-xs text-muted-foreground">Verifieras manuellt</span>
       </div>
-      <h3 id="priser-pt-titel" className="mt-6 text-lg font-semibold">
+      <h3 id="priser-pt-titel" className="mt-4 font-semibold sm:mt-6 sm:text-lg">
         PT-konto
       </h3>
-      <p className="mt-1 text-5xl leading-[0.95] font-extrabold tracking-tight sm:text-6xl">
+      <p className="mt-1 text-4xl leading-[0.95] font-extrabold tracking-tight sm:text-6xl">
         <GradientText>Egna priser.</GradientText>
       </p>
-      <p className="mt-5 text-pretty text-muted-foreground">
-        Sälj pass, program och kostcoaching och få betalt med kort via Stripe. <span className="font-medium text-foreground">Passgränsen</span> skyddar dig mot
-        obetalda pass.
+      <p className="mt-3 text-sm text-pretty text-muted-foreground sm:mt-5 sm:text-base">
+        Sälj pass, träningsprogram och kostcoaching där dina klienter redan tränar.
       </p>
       <ApplySteps />
-      <div aria-hidden className={cn(DIVIDER, "my-6")} />
+      <div aria-hidden className={cn(DIVIDER, "my-4 sm:my-6")} />
       <CheckList items={PT_FEATURES} label="Det här får du som PT" />
-      <div className="mt-8">
+      <div className="mt-5 sm:mt-8">
         <a href={LINKS.ptApply} className={cn(PRIMARY_BTN, "w-full", FOCUS)}>
           <Mail aria-hidden className="size-4" />
           Ansök som PT
           <span className="sr-only"> (öppnar e-post)</span>
           <ArrowRight aria-hidden className="size-4 transition-transform group-hover/btn:translate-x-1 motion-reduce:transition-none" />
         </a>
-        <p className="mt-3 text-center text-xs text-pretty text-muted-foreground">Vi granskar dina certifikat manuellt och återkommer med villkor.</p>
+        <p className="mt-3 text-center text-xs text-pretty text-muted-foreground">Vi granskar dina certifikat manuellt och hör av oss.</p>
       </div>
     </PriceCard>
   )
@@ -513,31 +514,39 @@ interface ServicesProps {
   onAddOn: (on: boolean) => void
 }
 
-/** Exempel-PT:ns namn och verifieringsbricka (mockup). */
+/** Exempel-PT:ns namn och verifieringsbricka (mockup). Mindre på telefon. */
 function PtIdentity() {
   return (
-    <div className="flex shrink-0 items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] py-1 pr-3.5 pl-1">
-      <span aria-hidden className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-brand to-emerald-400 text-xs font-bold text-brand-foreground">
+    <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-0.5 pr-3 pl-0.5 sm:gap-2.5 sm:py-1 sm:pr-3.5 sm:pl-1">
+      <span
+        aria-hidden
+        className="grid size-7 place-items-center rounded-full bg-gradient-to-br from-brand to-emerald-400 text-[10px] font-bold text-brand-foreground sm:size-9 sm:text-xs"
+      >
         ES
       </span>
-      <span className="text-sm leading-tight">
+      <span className="text-xs leading-tight sm:text-sm">
         <span className="block font-semibold">{PT_NAME}</span>
-        <span className="flex items-center gap-1 text-xs font-medium text-brand">
-          <BadgeCheck aria-hidden className="size-3.5" /> Verifierad PT
+        <span className="flex items-center gap-1 text-[11px] font-medium text-brand sm:text-xs">
+          <BadgeCheck aria-hidden className="size-3 sm:size-3.5" /> Verifierad PT
         </span>
       </span>
     </div>
   )
 }
 
-/** Ljusglimt som sveper över mersäljsknappen (bara när den syns och rörelse är tillåten). */
-function Shimmer() {
+/**
+ * Ljusglimt som sveper över mersäljsknappen en gång när den kommer in i bild.
+ * Ren CSS-övergång på `translate` (kompositorn) – ingen JS-loop per bildruta.
+ * Döljs med "minska rörelse".
+ */
+function Shimmer({ go }: { go: boolean }) {
   return (
-    <motion.span
+    <span
       aria-hidden
-      animate={{ x: ["-120%", "380%"] }}
-      transition={{ duration: 1.6, ease: "easeInOut", repeat: Infinity, repeatDelay: 2.6 }}
-      className="pointer-events-none absolute inset-y-0 left-0 w-1/4 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+      className={cn(
+        "pointer-events-none absolute inset-y-0 left-0 w-1/4 -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent transition-[translate] delay-300 duration-[1600ms] ease-in-out motion-reduce:hidden",
+        go ? "translate-x-[420%]" : "-translate-x-[120%]"
+      )}
     />
   )
 }
@@ -545,7 +554,7 @@ function Shimmer() {
 /**
  * Exempelmenyn: välj tjänst (radioknappar, piltangenter), mersälj av
  * kostcoaching med konfetti, varukorg med animerad summa och – som PT –
- * knappar för att sätta egna priser.
+ * knappar för att sätta egna priser. Tvåkolumnsrutnät även på telefon.
  */
 function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, onAddOn }: ServicesProps) {
   const ref = React.useRef<HTMLDivElement>(null)
@@ -553,11 +562,11 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   const undoRef = React.useRef<HTMLButtonElement>(null)
   const upsellRef = React.useRef<HTMLDivElement>(null)
   const seen = useInView(ref, { once: true, margin: "-15% 0px" })
-  const inView = useInView(ref, { margin: "-10% 0px" })
+  // Ljussvepet startar en gång när mersälj-raden (inte kortets topp) syns.
+  const shine = useInView(upsellRef, { once: true, margin: "0px 0px -20% 0px" })
   const reduce = !!useReducedMotion()
   const fire = useConfetti()
   const [open, setOpen] = React.useState(false)
-  const [paid, setPaid] = React.useState(false)
   const [say, setSay] = React.useState("")
 
   const pt = audience === "pt"
@@ -568,7 +577,6 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
 
   const choose = (id: ServiceId) => {
     onSelect(id)
-    setPaid(false)
     if (byId(id).includesNutrition) setOpen(false)
   }
 
@@ -588,7 +596,6 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   const add = () => {
     onAddOn(true)
     setOpen(false)
-    setPaid(false)
     setSay(`Tillagt! Kostcoaching hos ${PT_FIRST}. Totalt ${formatSek(prices[selected] + prices.nutrition)}.`)
     void fire(upsellRef.current, { particles: 80, spread: 75 })
     requestAnimationFrame(() => undoRef.current?.focus())
@@ -596,7 +603,6 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
 
   const remove = () => {
     onAddOn(false)
-    setPaid(false)
     setSay(`Kostcoaching borttagen. Totalt ${formatSek(prices[selected])}.`)
     requestAnimationFrame(() => triggerRef.current?.focus())
   }
@@ -609,21 +615,15 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   const bump = (id: ServiceId, delta: number) => {
     const next = Math.min(PRICE_MAX, Math.max(PRICE_MIN, prices[id] + delta))
     onPrice(id, next)
-    setPaid(false)
     setSay(`${byId(id).title}: ${formatSek(next)}`)
   }
 
-  const pay = () => {
-    setPaid(true)
-    setSay(pt ? "Demo: klienten skickas vidare till Stripe för kortbetalning." : "Demo: i appen skickas du nu vidare till Stripe för kortbetalning.")
-  }
-
   return (
-    <PriceCard lift={-4} aria-labelledby="priser-tjanster-titel" className="p-5 sm:p-7">
+    <PriceCard lift={-4} aria-labelledby="priser-tjanster-titel" className="p-4 sm:p-7">
       <div ref={ref}>
         {/* Rubrik + exempel-PT */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <AnimatePresence mode="wait">
+        <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={audience}
               initial={{ opacity: 0, y: 8 }}
@@ -632,18 +632,17 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
               transition={{ duration: 0.25, ease: EASE }}
               className="max-w-md min-w-0"
             >
-              <h3 id="priser-tjanster-titel" className="text-2xl font-bold tracking-tight">
+              <h3 id="priser-tjanster-titel" className="text-lg font-bold tracking-tight sm:text-2xl">
                 {pt ? "Exempel på din tjänstemeny" : "Exempel på PT-tjänster"}
               </h3>
-              <p className="mt-1 text-sm text-pretty text-muted-foreground">
+              <p className="mt-1 text-xs text-pretty text-muted-foreground sm:text-sm">
                 {pt ? (
                   <>
-                    <span className="font-medium text-emerald-300">Exempel – du sätter dina egna priser.</span> Ändra ett pris och se exakt vad klienten betalar.
+                    <span className="font-medium text-emerald-300">Exempel – du sätter dina egna priser.</span> Ändra ett pris och se köpet ur klientens vy.
                   </>
                 ) : (
                   <>
-                    <span className="font-medium text-emerald-300">Exempel – PT:n sätter sina egna priser.</span> Välj en tjänst och testa mersäljet, precis som i
-                    appen.
+                    <span className="font-medium text-emerald-300">Exempelpriser – PT:n sätter sina egna.</span> Välj en tjänst och testa mersäljet.
                   </>
                 )}
               </p>
@@ -654,7 +653,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
 
         {/* Tjänster (radioknappar) – med prisknappar för PT */}
         <LayoutGroup id="priser-tjanster">
-          <div role="radiogroup" aria-label={`Tjänster hos ${PT_NAME} (exempel)`} className="mt-6 grid gap-2.5 sm:grid-cols-2">
+          <div role="radiogroup" aria-label={`Tjänster hos ${PT_NAME} (exempel)`} className="mt-4 grid grid-cols-2 gap-2 sm:mt-6 sm:gap-2.5">
             {SERVICES.map((s, i) => {
               const active = s.id === selected
               const Icon = s.icon
@@ -678,36 +677,38 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                     onClick={() => choose(s.id)}
                     onKeyDown={(e) => onRadioKey(e, i)}
                     whileTap={{ scale: 0.98 }}
-                    className={cn("relative flex flex-1 items-start gap-3 rounded-2xl p-3.5 text-left", FOCUS)}
+                    className={cn("relative flex flex-1 items-start gap-3 rounded-2xl p-3 text-left sm:p-3.5", FOCUS)}
                   >
+                    {/* Ikonen bara från sm – på telefon får texten hela bredden */}
                     <span
                       aria-hidden
                       className={cn(
-                        "grid size-9 shrink-0 place-items-center rounded-xl transition-colors duration-300",
+                        "hidden size-9 shrink-0 place-items-center rounded-xl transition-colors duration-300 sm:grid",
                         active ? "bg-brand text-brand-foreground" : "bg-white/[0.06] text-foreground"
                       )}
                     >
                       <Icon className="size-4" />
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 flex-1 flex-col self-stretch">
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-semibold">{s.title}</span>
+                        <span className="text-[13px] leading-tight font-semibold hyphens-auto sm:text-base">{s.title}</span>
                         {s.tag && (
-                          <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-300 uppercase ring-1 ring-emerald-400/20">
+                          <span className="hidden rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-300 uppercase ring-1 ring-emerald-400/20 sm:inline-block">
                             {s.tag}
                           </span>
                         )}
                       </span>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">{s.summary}</span>
-                      <span className="mt-2 flex items-baseline gap-1.5">
-                        <span className="text-[11px] text-muted-foreground">{pt ? "Ditt pris" : "t.ex."}</span>
-                        <Kr value={prices[s.id]} start={start} className="text-lg font-bold tracking-tight" />
+                      <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground sm:text-xs">{s.summary}</span>
+                      <span className="mt-auto flex items-baseline gap-1.5 pt-1.5 pr-6 sm:pt-2 sm:pr-0">
+                        <span className={cn("text-[11px] text-muted-foreground", pt && "max-sm:sr-only")}>{pt ? "Ditt pris" : "t.ex."}</span>
+                        <Kr value={prices[s.id]} start={start} className="text-base font-bold tracking-tight sm:text-lg" />
                       </span>
                     </span>
+                    {/* Radioprick: nere till höger på telefon, uppe till höger från sm */}
                     <span
                       aria-hidden
                       className={cn(
-                        "mt-1 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300",
+                        "absolute right-3 bottom-3.5 grid size-5 shrink-0 place-items-center rounded-full border transition-colors duration-300 sm:static sm:mt-1",
                         active ? "border-brand bg-brand" : "border-white/25"
                       )}
                     >
@@ -719,10 +720,10 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                       initial={{ opacity: 0, y: -4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, ease: EASE }}
-                      className="relative flex items-center justify-between gap-2 border-t border-white/[0.06] py-1 pr-1.5 pl-3.5"
+                      className="relative flex items-center justify-between gap-2 border-t border-white/[0.06] px-1 sm:py-1 sm:pr-1.5 sm:pl-3.5"
                     >
-                      <span className="text-xs text-muted-foreground">Sätt ditt pris</span>
-                      <span className="flex items-center">
+                      <span className="hidden text-xs text-muted-foreground sm:inline">Sätt ditt pris</span>
+                      <span className="flex w-full items-center justify-between sm:w-auto">
                         <button
                           type="button"
                           aria-label={`Sänk priset för ${s.title} med ${PRICE_STEP} kr`}
@@ -757,15 +758,16 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
         </LayoutGroup>
 
         {/* Varukorgen – ser ut som appens "Bekräfta köp" */}
-        <div className={cn(PANEL, "mt-5 p-4 sm:p-5")}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className={cn(PANEL, "mt-4 p-3.5 sm:mt-5 sm:p-5")}>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <p className="text-sm font-semibold">{pt ? "Så ser klienten köpet" : "Din varukorg"}</p>
+            {/* Sektionens enda betalningsrad: kort och faktisk. */}
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Lock aria-hidden className="size-3.5" /> Kort via Stripe
+              <CreditCard aria-hidden className="size-3.5" /> Betalas med kort i appen
             </span>
           </div>
 
-          <ul aria-label="Varukorg" className="relative mt-2">
+          <ul aria-label="Varukorg" className="relative mt-1 sm:mt-2">
             <AnimatePresence mode="popLayout">
               <motion.li
                 key={service.id}
@@ -774,7 +776,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: 24 }}
                 transition={{ duration: 0.35, ease: EASE }}
-                className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-3"
+                className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 sm:py-3"
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-medium">{service.title}</span>
@@ -790,7 +792,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, x: 24 }}
                   transition={{ duration: 0.4, ease: EASE }}
-                  className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-3"
+                  className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 sm:py-3"
                 >
                   <span className="flex min-w-0 items-start gap-2">
                     <Salad aria-hidden className="mt-0.5 size-4 shrink-0 text-brand" />
@@ -806,7 +808,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
           </ul>
 
           {/* Mersälj */}
-          <div ref={upsellRef} className="relative py-3">
+          <div ref={upsellRef} className="relative py-2 sm:py-3">
             <AnimatePresence mode="popLayout">
               {service.includesNutrition ? (
                 <motion.p
@@ -829,7 +831,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                   >
                     <Check aria-hidden className="size-4" /> Tillagt!
                   </motion.span>
-                  <span className="text-sm text-muted-foreground">Kostcoaching hos {PT_FIRST}</span>
+                  <span className="text-sm text-muted-foreground max-sm:hidden">Kostcoaching hos {PT_FIRST}</span>
                   <button
                     ref={undoRef}
                     type="button"
@@ -856,7 +858,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                       FOCUS
                     )}
                   >
-                    {inView && !reduce && !open && <Shimmer />}
+                    <Shimmer go={shine && !open} />
                     <Plus aria-hidden className={cn("size-4 transition-transform duration-300", open && "rotate-45")} />
                     Lägg till kostcoaching
                     <span className="ml-auto shrink-0 pl-2 text-xs font-medium whitespace-nowrap text-muted-foreground tabular-nums">+ {formatSek(prices.nutrition)}</span>
@@ -876,11 +878,11 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                           e.stopPropagation()
                           decline()
                         }}
-                        className="relative mt-2 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#141a22] p-4 shadow-2xl shadow-black/50"
+                        className="relative mt-2 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#141a22] p-3 shadow-2xl shadow-black/50 sm:p-4"
                       >
-                        <div aria-hidden className="pointer-events-none absolute -top-10 -right-10 size-32 rounded-full bg-brand/15 blur-2xl" />
+                        <div aria-hidden className={cn("pointer-events-none absolute -top-14 -right-14 size-44", GLOW)} />
                         <div className="relative flex items-start gap-3">
-                          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand/15 text-brand ring-1 ring-brand/25">
+                          <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-brand/15 text-brand ring-1 ring-brand/25 sm:size-10">
                             <Salad className="size-5" />
                           </span>
                           <div className="min-w-0">
@@ -888,7 +890,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                             <p className="mt-1 text-xs text-muted-foreground">Personligt kostschema, recept och uppföljning.</p>
                           </div>
                         </div>
-                        <div className="relative mt-4 flex flex-col gap-2 sm:flex-row">
+                        <div className="relative mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row">
                           <button type="button" onClick={add} className={cn(PRIMARY_BTN, "min-h-11 px-5 sm:flex-1", FOCUS)}>
                             <Sparkles aria-hidden className="size-4" /> Ja, lägg till · {formatSek(prices.nutrition)}
                           </button>
@@ -904,51 +906,11 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
             </AnimatePresence>
           </div>
 
-          {/* Summa + betala */}
-          <div className="flex items-end justify-between gap-3 border-t border-white/10 pt-3">
+          {/* Summa */}
+          <div className="flex items-end justify-between gap-3 border-t border-white/10 pt-2.5 sm:pt-3">
             <span className="pb-1 text-sm text-muted-foreground">Totalt</span>
-            <Kr value={total} start={start} pulse className="text-3xl font-bold tracking-tight" />
+            <Kr value={total} start={start} pulse className="text-2xl font-bold tracking-tight sm:text-3xl" />
           </div>
-          {/* Demoknapp – sekundär stil så att butiksbrickorna förblir sektionens primära CTA */}
-          <button
-            type="button"
-            onClick={pay}
-            className={cn(GHOST_BTN, "mt-4 w-full border-brand/40 bg-brand/[0.08] text-brand hover:border-brand/60 hover:bg-brand/[0.14]", FOCUS)}
-          >
-            <CreditCard aria-hidden className="size-4" /> Testa betalningen <span aria-hidden>·</span> <Kr value={total} start={start} />
-          </button>
-          <AnimatePresence>
-            {paid && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3, ease: EASE }}
-                className="mt-3"
-              >
-                <p className="flex items-start gap-2 text-xs text-pretty text-brand">
-                  <Lock aria-hidden className="mt-px size-3.5 shrink-0" />
-                  {pt
-                    ? "Demo – klienten skickas vidare till Stripe, och passen låses upp när betalningen är klar."
-                    : "Demo – i appen skickas du nu vidare till Stripe för säker kortbetalning."}
-                </p>
-                {/* Vidare till appen (eller PT-ansökan) i stället för en återvändsgränd */}
-                {pt ? (
-                  <a
-                    href={LINKS.ptApply}
-                    className={cn("mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}
-                  >
-                    Ansök som PT
-                    <span className="sr-only"> (öppnar e-post)</span>
-                    <ArrowRight aria-hidden className="size-3.5" />
-                  </a>
-                ) : (
-                  <StoreBadges className="mt-2" />
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          {pt && <p className="mt-3 text-xs text-muted-foreground">Klienten betalar exakt det pris du sätter.</p>}
         </div>
         <p className="sr-only" aria-live="polite">
           {say}
@@ -958,19 +920,15 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   )
 }
 
-/** Högra kolumnen: exempelmenyn med en svävande bricka (bara på stora skärmar) som rör sig lite med scrollen. */
+/** Högra kolumnen: exempelmenyn och en svävande bricka (bara på stora skärmar, ren CSS-svävning). */
 function ServicesColumn({ className, ...props }: ServicesProps & { className?: string }) {
-  const ref = React.useRef<HTMLDivElement>(null)
-  const reduce = useReducedMotion()
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
-  const down = useTransform(scrollYProgress, [0, 1], [-12, 12])
   return (
-    <div ref={ref} className={cn("relative", className)}>
-      <motion.div aria-hidden style={reduce ? undefined : { y: down }} className="absolute right-10 -bottom-8 z-10 hidden lg:block">
+    <div className={cn("relative", className)}>
+      <div aria-hidden className="absolute right-10 -bottom-8 z-10 hidden lg:block">
         <FloatingBadge className="relative" delay={0.9} distance={8}>
-          <ShieldCheck className="size-4 text-brand" /> Passgräns: inga obetalda pass
+          <Salad className="size-4 text-brand" /> Träning och kost hos samma PT
         </FloatingBadge>
-      </motion.div>
+      </div>
       <ServicesCard {...props} />
     </div>
   )
@@ -978,7 +936,7 @@ function ServicesColumn({ className, ...props }: ServicesProps & { className?: s
 
 // --------------------------------------------------------------- löften ---
 
-/** Tre korta löften under korten. */
+/** Tre korta löften under korten – bara från md (på telefon blir sektionen kortare utan dem). */
 function Promises() {
   return (
     <motion.ul
@@ -987,14 +945,14 @@ function Promises() {
       initial="hidden"
       whileInView="show"
       viewport={{ once: true, margin: "-60px" }}
-      className="mt-12 grid gap-3 md:grid-cols-3"
+      className="mt-12 hidden gap-3 md:grid md:grid-cols-3"
     >
       {PROMISES.map(({ icon: Icon, title, text }) => (
         <motion.li
           key={title}
           variants={fadeUp}
           whileHover={{ y: -3 }}
-          className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md transition-colors hover:border-white/20"
+          className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/20 md:backdrop-blur-md"
         >
           <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20">
             <Icon className="size-5" />
@@ -1009,13 +967,13 @@ function Promises() {
   )
 }
 
-/** Rutnät och gröna glödfält bakom sektionen. */
+/** Rutnät och gröna glödfält (radiella gradienter, inga blur-filter) bakom sektionen. */
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
       <GridBackdrop className="opacity-50" />
       <GlowOrb className="top-1/3 left-[6%] size-[26rem] max-w-[80vw]" />
-      <GlowOrb className="right-[6%] bottom-[12%] size-[22rem] max-w-[70vw] bg-emerald-500/15" />
+      <GlowOrb className="right-[6%] bottom-[12%] size-[22rem] max-w-[70vw] bg-[radial-gradient(closest-side,rgba(16,185,129,0.16),transparent)]" />
     </div>
   )
 }
@@ -1041,19 +999,22 @@ export function Pricing() {
       eyebrow="Priser"
       title={
         <>
-          Tydliga priser. <GradientText>Inga dolda avgifter.</GradientText>
+          Gratis app. <GradientText>Betala bara för din coach.</GradientText>
         </>
       }
-      intro="Appen är gratis att ladda ned. Som klient betalar du bara för det du köper av din PT – med kort via Stripe, och priset du ser är priset du betalar."
+      intro="Köp pass, program och kostcoaching direkt av din PT – till PT:ns egna priser."
     >
       <Backdrop />
-      <Reveal className="mb-10 flex justify-center sm:mb-12">
+      <Reveal className="mb-6 flex justify-center sm:mb-10">
         <AudienceToggle value={audience} onChange={setAudience} />
       </Reveal>
-      <Reveal delay={0.1} role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(audience)} className="grid items-start gap-6 lg:grid-cols-12 lg:gap-8">
+      <Reveal delay={0.1} role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(audience)} className="grid items-start gap-4 sm:gap-6 lg:grid-cols-12 lg:gap-8">
         <div className="relative lg:col-span-5">
-          <div aria-hidden className="pointer-events-none absolute inset-x-8 inset-y-16 -z-10 rounded-full bg-brand/15 blur-3xl" />
-          <AnimatePresence mode="wait">{audience === "client" ? <ClientCard key="client" onShowPt={showPt} /> : <PtCard key="pt" />}</AnimatePresence>
+          <div aria-hidden className={cn("pointer-events-none absolute -inset-x-6 inset-y-6 -z-10", GLOW)} />
+          {/* Inget intro-svep vid första visningen – Reveal tonar redan in panelen. */}
+          <AnimatePresence mode="wait" initial={false}>
+            {audience === "client" ? <ClientCard key="client" onShowPt={showPt} /> : <PtCard key="pt" />}
+          </AnimatePresence>
         </div>
         <ServicesColumn
           className="lg:col-span-7"

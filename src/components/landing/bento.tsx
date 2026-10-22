@@ -4,8 +4,15 @@
  * Funktionssektionen (#funktioner): ett bento-rutnät med levande mini-demos –
  * PT & klient i synk, kostschema med appens riktiga enhetslogik, kalender med
  * passgräns, verifierade PT:er, kortbetalning och anslutningar. Allt styrs med
- * tangentbord, loopar körs bara när kortet syns och står still med
- * "minska rörelse".
+ * tangentbord.
+ *
+ * Prestanda: alla eviga loopar är ren CSS som bara animerar transform/opacity
+ * (kompositorn, ingen JavaScript per bildruta). De monteras bara när kortet syns
+ * och står still med "minska rörelse". Inga filter-glöd (blur) och ingen
+ * scroll-parallax under md.
+ *
+ * Mobil (under md): kompakt – betal- och anslutningskorten döljs, demona är
+ * kortare och dekorpaneler göms. Desktop ser ut som förut.
  */
 import { animate, AnimatePresence, LayoutGroup, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion"
 import {
@@ -14,7 +21,6 @@ import {
   CalendarCheck,
   CalendarDays,
   Check,
-  ChevronDown,
   CreditCard,
   Dumbbell,
   FileCheck,
@@ -66,11 +72,48 @@ const GHOST_BTN =
 /** Svensk decimalform: 2.75 → "2,75" (utan fast antal decimaler om inget anges). */
 const sv = (n: number, decimals?: number) => (decimals === undefined ? String(Math.round(n * 100) / 100) : Math.max(0, n).toFixed(decimals)).replace(".", ",")
 
+/**
+ * Sektionens egna nyckelrutor (bara transform och opacity → körs på kompositorn).
+ * - bento-travel: ljuspunkt från --bento-from-x/y till --bento-to-x/y, tonar in och ut, vilar sista 20 %.
+ * - bento-ring: pulsring som växer till --bento-ring-scale och tonar ut från --bento-ring-from.
+ * Läggs i <head> en gång via React 19:s <style href precedence>.
+ */
+const KEYFRAMES = `
+@keyframes bento-travel {
+  0% { transform: translate3d(var(--bento-from-x, 0), var(--bento-from-y, 0), 0); opacity: 0 }
+  12%, 68% { opacity: 1 }
+  80%, 100% { transform: translate3d(var(--bento-to-x, 0), var(--bento-to-y, 0), 0); opacity: 0 }
+}
+@keyframes bento-ring {
+  0% { transform: scale(1); opacity: var(--bento-ring-from, 0.6) }
+  100% { transform: scale(var(--bento-ring-scale, 1.5)); opacity: 0 }
+}
+`
+
+/** Inline-stil med CSS-variabler (t.ex. för nyckelrutorna ovan). */
+const cssVars = (vars: Record<string, string>) => vars as React.CSSProperties
+
 /** Levande loopar körs bara när elementet syns och rörelse är tillåten. */
 function useLive(ref: React.RefObject<Element | null>) {
   const reduce = useReducedMotion()
   const inView = useInView(ref, { margin: "-10% 0px" })
   return inView && !reduce
+}
+
+const MD_QUERY = "(min-width: 768px)"
+const subscribeMd = (onChange: () => void) => {
+  const mq = window.matchMedia(MD_QUERY)
+  mq.addEventListener("change", onChange)
+  return () => mq.removeEventListener("change", onChange)
+}
+
+/** Sant från md (768 px). Servern och första renderingen räknar med mobil, så hydreringen blir lika. */
+function useIsMd() {
+  return React.useSyncExternalStore(
+    subscribeMd,
+    () => window.matchMedia(MD_QUERY).matches,
+    () => false
+  )
 }
 
 /** Tal som räknar upp med fjäder när `start` blir sant – hoppar direkt med "minska rörelse". */
