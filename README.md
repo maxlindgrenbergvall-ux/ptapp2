@@ -340,7 +340,7 @@ Coavira är en **mobilapp** (App Store och Google Play), ingen webbportal. Landn
 | `store-badges.tsx` | App Store-/Google Play-brickor ("Hämta i App Store", "Ladda ned på Google Play"), sidans primära CTA. Med `NEXT_PUBLIC_APP_STORE_URL` / `NEXT_PUBLIC_PLAY_STORE_URL` länkar de till butiken, annars öppnas en "Släpps snart"-ruta (med konfetti, PT-ansökan och kontakt). |
 | `nav.tsx` | Fast meny som blir glas vid scroll, ankarlänkar, "Ladda ned" (scrollar till brickorna) och mobilmeny med brickorna |
 | `hero.tsx` | Rubrik med ord-för-ord-animation, butiksbrickor, 3D-telefon med "Dagens kost" och "Schemalagda pass", flytande brickor, faktaremsa |
-| `bento.tsx` | Funktioner (#funktioner): PT ↔ klient, kostschema med appens riktiga enhetslogik, kalendersynk och passgräns, verifierade PT:er, betalning, anslutningar |
+| `bento.tsx` | Funktioner (#funktioner): PT ↔ klient, kostschema med appens riktiga enhetslogik, kalendersynk och passgräns, verifierade PT:er, betalning och anslutningar (de två sista bara från md) |
 | `goals.tsx` | "Vad vill du uppnå?" (#mal): välj mål ur `INTERESTS` och se Framsteg-vyn byggas om |
 | `chat-showcase.tsx` | Chatt och samtal (#kommunikation): missat samtal, demo-videosamtal med flyttbar kameraruta |
 | `pricing.tsx` | Priser (#priser): appen 0 kr, exempel på PT-tjänster med mersälj av kostcoaching, PT-ansökan |
@@ -352,6 +352,13 @@ Coavira är en **mobilapp** (App Store och Google Play), ingen webbportal. Landn
 - **Sidor som butikerna kräver:** `/support` (Support URL), `/integritet` (Privacy Policy) och `/villkor` (Terms). Integritet och villkor är utkast som ska granskas juridiskt.
 - **E-post:** `support@coavira.fit`, `kontakt@coavira.fit` och `certifiering@coavira.fit` (`src/lib/brand.ts`). Brevlådorna måste finnas.
 - **Tema och animationer:** alltid mörkt (`.landing` i `globals.css`), framer-motion 13.5.1 och canvas-confetti 1.9.4. `MotionConfig reducedMotion="user"`.
+- **Prestanda (regler för nya animationer):**
+  - Ändlösa loopar görs i CSS (`landing-float`, `bento-*`, `cta-*` i `globals.css`, Tailwinds `animate-spin`/`animate-ping`), aldrig med framer-motion `repeat: Infinity`. De animerar bara `transform`/`opacity`, pausas när de inte syns och stängs av med "minska rörelse".
+  - Inga `filter: blur()`-sken: använd radiella gradienter (`GlowOrb`). `backdrop-blur` bara från `md:` (stängs dessutom av för allt under `.landing` på telefoner).
+  - `whileInView` alltid med `viewport={{ once: true }}`. Scroll-parallax (`useScroll`) monteras bara från md, så att telefoner inte har några scroll-lyssnare som mäter layout.
+  - `transform-gpu`/`will-change-transform` bara på element som rör sig hela tiden. Engångsanimationer i CSS använder `fill-mode-backwards`, så att inga lager blir kvar.
+  - Mobil: sekundära block döljs under md (`hidden md:block`), sektioner har `py-12` på mobil.
+  - Mät med `BASE_URL=http://localhost:3000 node e2e/landing-perf.mjs` (390×844, CPU strypt 4×): sektionshöjder, huvudtråden i vila och bildrutetider vid scroll.
 - **Fakta:** inga påhittade siffror, betyg eller avgifter. "0 kr" gäller appen och kontot, och inga gratispass utlovas (kontrolleras i `e2e/landing.test.mjs`).
 
 ## Domän: coavira.fit
@@ -523,6 +530,7 @@ node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (
 node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarkering, program i kalendern, profilbild, kamera, kost, dl/msk
 node e2e/landing.test.mjs       # landningssidan: struktur, fakta, länkar, demos, 360–1440 px, minska rörelse, SEO, appen → /kom-igang
 node e2e/landing-shots.mjs <mapp> # skärmdumpar av landningssidan i fyra bredder
+node e2e/landing-perf.mjs         # prestanda på mobil: sidhöjd, huvudtråd i vila, bildrutor vid scroll
 NEXT_PUBLIC_SITE_URL=https://coavira.fit NEXT_PUBLIC_CANONICAL_REDIRECT=1 npx tsx --tsconfig tsconfig.json e2e/site-url.unit.ts  # domänomdirigeringen
 node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, kall start, push, safe area, webben opåverkad
 node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://

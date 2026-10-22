@@ -365,8 +365,8 @@ function Backdrop() {
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <GridBackdrop className="opacity-70 [mask-image:radial-gradient(ellipse_55%_45%_at_70%_55%,black_10%,transparent_75%)]" />
-      <GlowOrb className="top-[30%] right-[-12%] size-[36rem] bg-brand/[0.12]" />
-      <GlowOrb className="top-[55%] left-[-14%] size-[30rem] bg-emerald-500/10" />
+      <GlowOrb className="top-[30%] right-[-12%] size-[36rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_12%,transparent),transparent)]" />
+      <GlowOrb className="top-[55%] left-[-14%] size-[30rem] bg-[radial-gradient(closest-side,rgb(16_185_129/0.1),transparent)]" />
     </div>
   )
 }
