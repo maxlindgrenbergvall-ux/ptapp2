@@ -331,6 +331,29 @@ npm run dev                  # http://localhost:3000
   - Kostbyggaren har enheterna g, st, dl, msk (15 ml) och tsk (5 ml).
   - Köksmått räknas om till gram med livsmedlets densitet (`densityOf`, t.ex. 1 dl havregryn ≈ 35 g). Raden sparar `qty` och `gPerMl`.
 
+## Landningssidan (/)
+
+Publik startsida i `src/app/page.tsx`, byggd av sektioner i `src/components/landing/`:
+
+| Fil | Innehåll |
+|---|---|
+| `nav.tsx` | Fast meny som blir glas vid scroll, ankarlänkar med aktiv markering, mobilmeny, hoppa-länk |
+| `hero.tsx` | Rubrik med ord-för-ord-animation, 3D-telefon med "Dagens kost" och "Schemalagda pass" (Boka → konfetti), flytande brickor, faktaremsa |
+| `bento.tsx` | Funktioner (#funktioner): PT ↔ klient, kostschema med appens riktiga enhetslogik, kalendersynk och passgräns, verifierade PT:er, betalning, anslutningar |
+| `goals.tsx` | "Vad vill du uppnå?" (#mal): välj mål ur `INTERESTS` och se Framsteg-vyn byggas om |
+| `chat-showcase.tsx` | Chatt och samtal (#kommunikation): missat samtal, demo-videosamtal med flyttbar kameraruta |
+| `pricing.tsx` | Priser (#priser): klientkonto 0 kr, exempel på PT-tjänster med mersälj av kostcoaching, PT-ansökan |
+| `final-cta.tsx` | Avslutande CTA (#kom-igang-cta) med Apple/Google/e-post och sidfot |
+| `primitives.tsx` | Gemensamt: Reveal/Stagger, GlassCard, TiltCard, PhoneFrame, FloatingBadge, useConfetti |
+
+- **Tema:** alltid mörkt (`.landing` i `globals.css`: `#0A0D12`, Coaviras lime + smaragd). Appens komponenter (Button, Badge, BrandMark) används direkt.
+- **Animationer:** framer-motion 13.5.1 och canvas-confetti 1.9.4. `MotionConfig reducedMotion="user"`: med "minska rörelse" står allt still och syns direkt.
+- **Fakta:** inga påhittade siffror, betyg eller avgifter. "0 kr" gäller bara klientkontot, och inga gratispass utlovas (kontrolleras i `e2e/landing.test.mjs`).
+- **Routing:** inloggade skickas till sin startsida. Inloggning och registrering (Apple, Google, e-post) ligger på `/kom-igang` (den tidigare startsidan). Appen (iOS/Android) går direkt till `/kom-igang`.
+- **Nya sidor:** `/villkor` (villkor i korthet, utkast). Dessutom `robots.txt`, `sitemap.xml` och en Open Graph-bild (`opengraph-image.tsx`).
+- **Kontakt:** `kontakt@coavira.com` (`BRAND.contactEmail` i `src/lib/brand.ts`). Brevlådan måste finnas.
+- **Prestanda:** Supabase-klienten laddas inte på landningssidan (den laddas först vid klick på Apple/Google, och push bara i appen).
+
 ## Egen domän (t.ex. coavira.se)
 
 Allt styrs av en variabel: `NEXT_PUBLIC_SITE_URL`. Exemplen nedan använder `coavira.se`; byt mot er domän.
@@ -498,6 +521,9 @@ node e2e/v9-livsmedel.test.mjs  # Barebells/Nocco/Coca-Cola mot OFF-mocken, ml, 
 node e2e/v10-ux.test.mjs        # förnamn, veckoslider (svep), .ics-export, animationer i bild, minska rörelse
 node e2e/v11-tjanster.test.mjs  # mersälj, kostlås, passgräns, kostbyggaren (st, gram-buggen, recept), "01", mobil
 node e2e/v13-pass-profil-kost.test.mjs # förhandsvisning, egna pass, klarmarkering, program i kalendern, profilbild, kamera, kost, dl/msk
+node e2e/landing.test.mjs       # landningssidan: struktur, fakta, länkar, demos, 360–1440 px, minska rörelse, SEO, appen → /kom-igang
+node e2e/landing-shots.mjs <mapp> # skärmdumpar av landningssidan i fyra bredder
+NEXT_PUBLIC_SITE_URL=https://coavira.se NEXT_PUBLIC_CANONICAL_REDIRECT=1 npx tsx --tsconfig tsconfig.json e2e/site-url.unit.ts  # domänomdirigeringen
 node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, kall start, push, safe area, webben opåverkad
 node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås

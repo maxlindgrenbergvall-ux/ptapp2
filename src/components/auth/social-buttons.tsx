@@ -9,7 +9,6 @@ import { authErrorMessage } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { authCallbackUrl } from "@/lib/auth-redirect"
 import { isNativeApp, nativeAuthCallbackUrl } from "@/lib/native/app"
-import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 
@@ -41,6 +40,9 @@ export function SocialButtons({ next, onError }: { next?: string; onError?: (mes
     setPending(provider)
     const target = next && next.startsWith("/") && !next.startsWith("//") ? next : ONBOARDING_PATH
     const native = isNativeApp()
+    // Supabase-klienten laddas först vid klick, så att sidor med knapparna (t.ex.
+    // landningssidan) inte behöver ladda hela klienten i förväg.
+    const { getSupabase } = await import("@/lib/supabase/client")
     const { data, error } = await getSupabase().auth.signInWithOAuth({
       provider,
       options: {
