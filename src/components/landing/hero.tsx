@@ -1,10 +1,15 @@
 "use client"
 
 /**
- * Hjälten överst på landningssidan: sidans enda h1, knappar och en interaktiv
- * telefon i 3D med Coavira-appens startsida (exempeldata). Telefonen följer
- * pekaren, svävar och har parallax vid scroll. Längst ner ett rullande band med
- * fakta som pausas vid hovring och står still med "minska rörelse".
+ * Hjälten överst på landningssidan: sidans enda h1, butiksknappar och en
+ * interaktiv telefon med Coavira-appens startsida (exempeldata). Längst ner ett
+ * rullande band med fakta som pausas vid hovring och står still med "minska rörelse".
+ *
+ * Prestanda: alla oändliga loopar (svävning, rotation, sken) är CSS-animationer på
+ * transform/opacitet. De körs i kompositorn utan JavaScript per bildruta, står
+ * still i dolda element (display:none) och pausas när hjälten inte syns.
+ * Pekarlutning och scroll-parallax finns bara från md – på telefoner lutar
+ * telefonen statiskt via CSS och ingen scroll-lyssnare kopplas in alls.
  */
 import {
   AnimatePresence,
@@ -28,22 +33,19 @@ import {
   CalendarSync,
   ChartLine,
   Check,
-  CreditCard,
-  Download,
   Dumbbell,
   GripVertical,
   House,
-  Lock,
   MessageCircle,
   MousePointer2,
   Pause,
   PhoneMissed,
   Play,
   Salad,
+  ScanBarcode,
   Search,
   ShieldCheck,
   Smartphone,
-  Users,
   Utensils,
   Video,
   Watch,

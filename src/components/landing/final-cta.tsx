@@ -2,19 +2,23 @@
 
 /**
  * Avslutningen på landningssidan: en stor uppmaning (#ladda-ned) med
- * pulserande App Store-/Google Play-brickor som skjuter konfetti, PT-ansökan och
- * support, flytande app-brickor – och sidfoten med support, sekretesspolicy,
- * användarvillkor och kontakt (det App Store och Google Play kräver).
- * Bakgrunden (norrsken, rutnät, horisont) och brickorna rör sig bara när
- * sektionen syns och "minska rörelse" är av. Inga inloggningslänkar – Coavira är en mobilapp.
+ * pulserande App Store-/Google Play-brickor, PT-ansökan och support,
+ * flytande app-brickor (bara breda skärmar) – och sidfoten med support,
+ * sekretesspolicy, användarvillkor och kontakt (det App Store och Google Play kräver).
+ *
+ * Prestanda: alla oändliga animationer är CSS på transform/opacitet (körs på
+ * kompositorn utan JavaScript per bildruta) och startar bara när sektionen syns
+ * och "minska rörelse" är av. Scrollkopplad parallax finns bara från md – telefoner
+ * får en stilla, enklare bakgrund utan scrollyssnare, blur-filter eller stora skuggor.
+ * Inga inloggningslänkar – Coavira är en mobilapp.
  */
-import { animate, AnimatePresence, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue, type Variants } from "framer-motion"
-import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, ChevronDown, CreditCard, Dumbbell, FileText, LifeBuoy, Mail, ShieldCheck, Smartphone, Timer, type LucideIcon } from "lucide-react"
+import { animate, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue, type Variants } from "framer-motion"
+import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, Dumbbell, LifeBuoy, ShieldCheck, Smartphone, Timer } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
-import { LINKS, NAV } from "@/components/landing/links"
+import { LINKS, NAV, STORE_URLS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, Eyebrow, fadeUp, GradientText, stagger } from "@/components/landing/primitives"
 import { BRAND } from "@/lib/brand"
@@ -22,17 +26,20 @@ import { cn } from "@/lib/utils"
 
 const SECTION_ID = "ladda-ned"
 const TITLE_ID = `${SECTION_ID}-title`
-const NOTE_ID = `${SECTION_ID}-note`
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 const SPOT_SPRING = { stiffness: 140, damping: 22, mass: 0.6 }
 const MAGNET_SPRING = { stiffness: 260, damping: 18, mass: 0.4 }
 
-/* Nyckelbilder för loopar (stabila referenser, se useLoop). */
-const SPIN = [0, 360]
-const SPIN_BACK = [360, 0]
-const BREATHE = [0.45, 0.95, 0.45]
-const GRID_DRIFT = [0, 56]
-const REST = [90, 0]
+/** Ingen butiksadress än = apparna är inte publicerade (brickorna visar "Släpps snart"). */
+const COMING_SOON = !STORE_URLS.ios && !STORE_URLS.android
+
+/**
+ * Egna nyckelbilder för sektionen – bara transform och opacitet. React 19 lyfter
+ * <style> med href/precedence till <head> och skriver den bara en gång.
+ */
+const KEYFRAMES =
+  "@keyframes cta-ring{from{opacity:.7;transform:scale(1)}to{opacity:0;transform:scale(1.08,1.35)}}" +
+  "@keyframes cta-drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,56px,0)}}"
 
 const WORD: Variants = {
   hidden: { opacity: 0, y: "105%" },
@@ -47,20 +54,6 @@ const SWOOSH: Variants = {
 const LETTER: Variants = {
   hidden: { opacity: 0, y: "60%" },
   show: { opacity: 1, y: "0%", transition: { duration: 1, ease: EASE } },
-}
-
-/**
- * Oändlig loop på ett rörelsevärde (rotation, sken, drift). Körs bara när
- * `active` – alltså när sektionen syns och "minska rörelse" är av.
- */
-function useLoop(keyframes: number[], duration: number, active: boolean, ease: "linear" | "easeInOut" = "easeInOut") {
-  const value = useMotionValue(keyframes[0])
-  React.useEffect(() => {
-    if (!active) return
-    const controls = animate(value, keyframes, { duration, ease, repeat: Infinity })
-    return () => controls.stop()
-  }, [value, keyframes, duration, active, ease])
-  return value
 }
 
 /** Matchar mediefrågan? Falskt på servern och vid första renderingen (ingen hydreringsglapp). */
@@ -78,6 +71,16 @@ function useMediaQuery(query: string) {
     () => window.matchMedia(query).matches,
     () => false
   )
+}
+
+/**
+ * Kopplar sektionens scrollförlopp till `progress`. Monteras bara från md (och utan
+ * "minska rörelse"), så telefoner slipper scrollyssnaren helt.
+ */
+function ScrollLink({ target, progress }: { target: React.RefObject<HTMLElement | null>; progress: MotionValue<number> }) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] })
+  useMotionValueEvent(scrollYProgress, "change", (v) => progress.set(v))
+  return null
 }
 
 /**
@@ -100,7 +103,7 @@ function jumpTo(e: React.MouseEvent<HTMLAnchorElement>, href: string, reduce: bo
 /* Bakgrund: norrsken, rutnät, stjärnor och en glödande horisont       */
 /* ------------------------------------------------------------------ */
 
-/** Små gnistor på fasta platser (deterministiskt – ingen slump i render). */
+/** Små gnistor på fasta platser (deterministiskt – ingen slump i render). Bara från md. */
 const STARS = [
   { top: "12%", left: "8%", size: 3, delay: "0s" },
   { top: "22%", left: "88%", size: 2, delay: "0.8s" },
@@ -114,54 +117,63 @@ const STARS = [
   { top: "64%", left: "84%", size: 2, delay: "2.9s" },
 ] as const
 
-function CtaBackdrop({ active, progress, reduce }: { active: boolean; progress: MotionValue<number>; reduce: boolean }) {
-  const spin = useLoop(SPIN, 70, active, "linear")
-  const spinBack = useLoop(SPIN_BACK, 48, active, "linear")
-  const drift = useLoop(GRID_DRIFT, 9, active, "linear")
-  // Horisonten stiger in när sektionen scrollas fram.
+const GRID_BG =
+  "[background-image:linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:56px_56px]"
+
+function CtaBackdrop({ active, progress, parallax }: { active: boolean; progress: MotionValue<number>; parallax: boolean }) {
+  // Horisonten stiger in och norrskenet glider när sektionen scrollas fram (bara från md).
   const rise = useTransform(progress, [0, 0.55], ["22%", "0%"])
   const auroraY = useTransform(progress, [0, 1], [80, -80])
 
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       {/* Mjuk övergång från sektionen ovanför. */}
-      <div className="absolute inset-x-0 top-0 z-10 h-40 bg-gradient-to-b from-background to-transparent" />
+      <div className="absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-background to-transparent sm:h-40" />
 
-      {/* Rutnät som glider nedåt (bara transform); masken ligger still på ramen runt det. */}
+      {/* Rutnät: stilla på telefoner; från md glider det nedåt med CSS (bara transform). Masken ligger still. */}
       <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_75%_60%_at_50%_42%,black_10%,transparent_72%)]">
-        <motion.div
-          style={{ y: drift }}
-          className="absolute inset-x-0 -top-14 bottom-0 [background-image:linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:56px_56px] will-change-transform"
-        />
+        <div className={cn("absolute inset-x-0 -top-14 bottom-0", GRID_BG, active && "md:transform-gpu md:animate-[cta-drift_9s_linear_infinite]")} />
       </div>
 
-      {/* Norrsken: mjuka radiella fält som roterar åt varsitt håll (ingen blur-filter). */}
-      <motion.div style={reduce ? undefined : { y: auroraY }} className="absolute top-[40%] left-1/2 size-[58rem] -translate-x-1/2 -translate-y-1/2 sm:size-[72rem]">
-        <motion.div
-          style={{ rotate: spin }}
-          className="absolute inset-0 rounded-full bg-[radial-gradient(ellipse_38%_30%_at_32%_34%,rgba(172,237,55,0.22),transparent_70%),radial-gradient(ellipse_34%_28%_at_70%_62%,rgba(16,185,129,0.2),transparent_70%)] will-change-transform"
+      {/* Telefoner: ett stilla färgfält i stället för roterande lager. */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_35%_32%,rgba(172,237,55,0.12),transparent_70%),radial-gradient(ellipse_60%_36%_at_72%_52%,rgba(16,185,129,0.1),transparent_70%)] md:hidden" />
+
+      {/* Norrsken från md: radiella fält (ingen blur) som roterar åt varsitt håll med CSS. */}
+      <motion.div style={parallax ? { y: auroraY } : undefined} className="absolute top-[40%] left-1/2 hidden size-[72rem] -translate-x-1/2 -translate-y-1/2 md:block">
+        <div
+          className={cn(
+            "absolute inset-0 rounded-full bg-[radial-gradient(ellipse_38%_30%_at_32%_34%,rgba(172,237,55,0.22),transparent_70%),radial-gradient(ellipse_34%_28%_at_70%_62%,rgba(16,185,129,0.2),transparent_70%)]",
+            active && "transform-gpu animate-[spin_70s_linear_infinite]"
+          )}
         />
-        <motion.div
-          style={{ rotate: spinBack }}
-          className="absolute inset-[12%] rounded-full bg-[radial-gradient(ellipse_40%_26%_at_62%_28%,rgba(110,231,183,0.16),transparent_70%),radial-gradient(ellipse_30%_34%_at_30%_72%,rgba(172,237,55,0.12),transparent_70%)] will-change-transform"
+        <div
+          className={cn(
+            "absolute inset-[12%] rounded-full bg-[radial-gradient(ellipse_40%_26%_at_62%_28%,rgba(110,231,183,0.16),transparent_70%),radial-gradient(ellipse_30%_34%_at_30%_72%,rgba(172,237,55,0.12),transparent_70%)]",
+            active && "transform-gpu animate-[spin_48s_linear_infinite_reverse]"
+          )}
         />
       </motion.div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_55%_42%_at_50%_42%,rgba(172,237,55,0.1),transparent_70%)]" />
 
-      {/* Gnistorna pulserar bara när sektionen syns (active utesluter redan "minska rörelse"). */}
-      {STARS.map((s) => (
-        <span
-          key={`${s.top}-${s.left}`}
-          style={{ top: s.top, left: s.left, width: s.size, height: s.size, animationDelay: s.delay }}
-          className={cn("absolute rounded-full bg-brand/80 shadow-[0_0_8px_2px] shadow-brand/40", active && "animate-pulse")}
-        />
-      ))}
+      {/* Gnistor från md: bara opaciteten pulserar (ingen skugga att måla om). */}
+      <div className="absolute inset-0 hidden md:block">
+        {STARS.map((s) => (
+          <span
+            key={`${s.top}-${s.left}`}
+            style={{ top: s.top, left: s.left, width: s.size, height: s.size, animationDelay: s.delay }}
+            className={cn("absolute rounded-full bg-brand/80", active && "animate-pulse")}
+          />
+        ))}
+      </div>
 
       {/* Horisont: en jättecirkel i bakgrundsfärg med glödande överkant. */}
       <motion.div
-        style={reduce ? undefined : { y: rise }}
-        className="absolute top-[74%] left-1/2 aspect-square w-[max(150%,60rem)] -translate-x-1/2 rounded-full border-t border-brand/45 bg-[radial-gradient(ellipse_45%_12%_at_50%_0%,rgba(172,237,55,0.2),transparent),linear-gradient(#0a0d12,#0a0d12)] shadow-[0_-30px_140px_-30px_rgba(172,237,55,0.5)] will-change-transform sm:top-[70%]"
-      />
+        style={parallax ? { y: rise } : undefined}
+        className="absolute top-[64%] left-1/2 aspect-square w-[max(150%,60rem)] -translate-x-1/2 rounded-full border-t border-brand/45 bg-[radial-gradient(ellipse_45%_12%_at_50%_0%,rgba(172,237,55,0.2),transparent),linear-gradient(#0a0d12,#0a0d12)] sm:top-[70%]"
+      >
+        {/* Skenet över kanten: radiell gradient i stället för en stor box-shadow. */}
+        <div className="absolute -top-28 left-1/2 h-56 w-[min(70rem,60%)] -translate-x-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)]" />
+      </motion.div>
     </div>
   )
 }
@@ -170,7 +182,7 @@ function CtaBackdrop({ active, progress, reduce }: { active: boolean; progress: 
 /* Flytande app-brickor (exempeldata, bara på breda skärmar)           */
 /* ------------------------------------------------------------------ */
 
-/** En bricka med parallax (djup), intoning i bild och en lugn svävning. */
+/** En bricka med parallax (djup), intoning i bild och en lugn svävning (CSS, .landing-float). */
 function FloatTile({
   children,
   className,
@@ -178,7 +190,7 @@ function FloatTile({
   delay,
   active,
   progress,
-  reduce,
+  parallax,
 }: {
   children: React.ReactNode
   className?: string
@@ -186,25 +198,27 @@ function FloatTile({
   delay: number
   active: boolean
   progress: MotionValue<number>
-  reduce: boolean
+  parallax: boolean
 }) {
   const y = useTransform(progress, [0, 1], [depth, -depth])
   return (
-    <motion.div style={reduce ? undefined : { y }} className={cn("absolute", className)}>
+    <motion.div style={parallax ? { y } : undefined} className={cn("absolute", className)}>
       <motion.div
         initial={{ opacity: 0, scale: 0.9, y: 28 }}
         whileInView={{ opacity: 1, scale: 1, y: 0 }}
         viewport={{ once: true, margin: "-10% 0px" }}
         transition={{ duration: 0.9, ease: EASE, delay }}
       >
-        <motion.div
-          animate={active ? { y: [0, -10, 0] } : { y: 0 }}
-          transition={active ? { duration: 6 + delay * 4, repeat: Infinity, ease: "easeInOut" } : { duration: 0.4, ease: EASE }}
-          whileHover={{ scale: 1.04, y: -4 }}
-          className="pointer-events-auto overflow-hidden rounded-2xl border border-white/10 bg-[#0f141b]/85 text-foreground shadow-2xl shadow-black/50 backdrop-blur-md"
+        {/* Svävandet är transform (CSS), förstoringen vid hover CSS-egenskapen scale – de krockar inte. */}
+        <div
+          style={{ "--float-y": "-10px", "--float-dur": `${6 + delay * 4}s`, "--float-delay": `${delay}s` } as React.CSSProperties}
+          className={cn(
+            "pointer-events-auto overflow-hidden rounded-2xl border border-white/10 bg-[#0f141b]/85 text-foreground shadow-2xl shadow-black/50 transition-[scale] duration-300 hover:scale-[1.04] motion-reduce:transition-none md:backdrop-blur-md",
+            active && "landing-float"
+          )}
         >
           {children}
-        </motion.div>
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -309,13 +323,18 @@ const SETS = [
   { n: 3, reps: 8, kg: "82,5", done: false },
 ] as const
 
+const REST_SECONDS = 90
+
 /** Passloggaren i miniformat: set, kg, reps och en vilotimer som tickar ner. */
 function WorkoutTile({ active }: { active: boolean }) {
-  const rest = useLoop(REST, 90, active, "linear")
-  const restLabel = useTransform(rest, (v) => {
-    const s = Math.max(0, Math.ceil(v))
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
-  })
+  const rest = useMotionValue(REST_SECONDS)
+  const restLabel = useTransform(rest, (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`)
+  // En tick per sekund (ingen loop per bildruta) och bara när sektionen syns.
+  React.useEffect(() => {
+    if (!active) return
+    const id = window.setInterval(() => rest.set(rest.get() <= 0 ? REST_SECONDS : rest.get() - 1), 1000)
+    return () => window.clearInterval(id)
+  }, [rest, active])
   return (
     <div className="w-56 p-3.5">
       <div className="flex items-center justify-between">
@@ -375,10 +394,10 @@ function ChatTile() {
 
 /**
  * Brickorna runt rubriken. Monteras bara från xl (1280 px) så att inget hamnar
- * utanför skärmen och inga dolda loopar körs på mobilen.
+ * utanför skärmen och inga dolda animationer körs på mobilen.
  */
-function FloatingTiles({ active, progress, reduce }: { active: boolean; progress: MotionValue<number>; reduce: boolean }) {
-  const shared = { active, progress, reduce }
+function FloatingTiles({ active, progress, parallax, reduce }: { active: boolean; progress: MotionValue<number>; parallax: boolean; reduce: boolean }) {
+  const shared = { active, progress, parallax }
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 hidden xl:block">
       <FloatTile {...shared} className="top-[3%] left-0 -rotate-6" depth={70} delay={0.1}>
@@ -398,7 +417,7 @@ function FloatingTiles({ active, progress, reduce }: { active: boolean; progress
 }
 
 /* ------------------------------------------------------------------ */
-/* Rubrik och den pulserande knappen                                   */
+/* Rubrik och de pulserande brickorna                                  */
 /* ------------------------------------------------------------------ */
 
 /** Ett ord som glider upp ur en osynlig mask. */
@@ -417,14 +436,14 @@ function Headline() {
     <motion.h2
       id={TITLE_ID}
       variants={stagger(0.09)}
-      className="text-[2.75rem] leading-[0.98] font-extrabold tracking-[-0.04em] text-balance sm:text-7xl md:text-8xl xl:text-[7.25rem]"
+      className="text-[2.5rem] leading-[0.98] font-extrabold tracking-[-0.04em] text-balance sm:text-7xl md:text-8xl xl:text-[7.25rem]"
     >
       <span className="block">
         <Word>Din</Word> <Word>resa</Word>
       </span>{" "}
       <span className="relative inline-block">
         <Word>
-          <GradientText>börjar idag.</GradientText>
+          <GradientText>börjar nu.</GradientText>
         </Word>
         <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.04em] left-[4%] h-[0.16em] w-[92%] text-brand/80">
           <motion.path variants={SWOOSH} d="M3 14 C 80 4, 180 2, 297 10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
@@ -436,11 +455,10 @@ function Headline() {
 
 /**
  * Sidans sista och största uppmaning: butiksbrickorna i ett pulserande grönt
- * sken som dras en aning mot muspekaren. Klick ger konfetti och öppnar
- * butiken (eller "Släpps snart" innan apparna är publicerade).
+ * sken som dras en aning mot muspekaren. Klick öppnar butiken (eller
+ * "Släpps snart" innan apparna är publicerade).
  */
-function DownloadBadges({ active, reduce }: { active: boolean; reduce: boolean }) {
-  const glow = useLoop(BREATHE, 2.6, active)
+function DownloadBadges({ active, reduce, size }: { active: boolean; reduce: boolean; size: "md" | "lg" }) {
   const mx = useMotionValue(0)
   const my = useMotionValue(0)
   const x = useSpring(mx, MAGNET_SPRING)
@@ -461,27 +479,33 @@ function DownloadBadges({ active, reduce }: { active: boolean; reduce: boolean }
       }}
       className="group relative"
     >
-      <motion.span aria-hidden style={{ opacity: glow }} className="pointer-events-none absolute -inset-5 rounded-[28px] bg-brand/40 blur-2xl will-change-[opacity]" />
+      {/* Skenet: radiell gradient (inget blur-filter) vars opacitet andas med CSS. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute -inset-x-10 -inset-y-8 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_40%,transparent),transparent)] opacity-80",
+          active && "transform-gpu animate-[pulse_2.6s_cubic-bezier(0.4,0,0.6,1)_infinite]"
+        )}
+      />
+      {/* Ringar som vidgas och tonar ut – CSS på transform/opacitet, bara från md. */}
       {active &&
         [0, 1].map((i) => (
-          <motion.span
+          <span
             key={i}
             aria-hidden
-            className="pointer-events-none absolute -inset-2 rounded-[24px] border-2 border-brand/60"
-            initial={{ scaleX: 1, scaleY: 1, opacity: 0.7 }}
-            animate={{ scaleX: 1.08, scaleY: 1.35, opacity: 0 }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut", delay: i * 1.2 }}
+            style={{ animationDelay: `${i * 1.2}s` }}
+            className="pointer-events-none absolute -inset-2 hidden transform-gpu animate-[cta-ring_2.4s_ease-out_infinite] rounded-[24px] border-2 border-brand/60 opacity-0 md:block"
           />
         ))}
-      <div aria-describedby={NOTE_ID} className="relative">
-        <StoreBadges size="lg" align="center" />
+      <div className="relative">
+        <StoreBadges size={size} align="center" />
       </div>
     </motion.div>
   )
 }
 
 /* ------------------------------------------------------------------ */
-/* Snabbstart och trygghetsrad                                         */
+/* PT-ansökan, support och trygghetsrad                                */
 /* ------------------------------------------------------------------ */
 
 /** PT-vägen och support under brickorna (inga inloggningslänkar – Coavira är en app). */
@@ -490,12 +514,12 @@ const ROW_LABEL = "font-semibold text-foreground underline decoration-white/25 u
 
 function SecondaryLinks() {
   return (
-    <div className="flex flex-col items-center justify-center gap-x-6 md:flex-row md:flex-wrap">
+    <div className="flex flex-wrap items-center justify-center gap-x-4">
       {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
       <a href={LINKS.ptApply} className={ROW_LINK}>
         <BadgeCheck aria-hidden className="size-4 text-brand" />
         Är du PT?
-        <span className={ROW_LABEL}>Ansök om att coacha på Coavira</span>
+        <span className={ROW_LABEL}>Ansök om att coacha</span>
         <span className="sr-only"> (öppnar e-post)</span>
         <ArrowUpRight aria-hidden className="size-3.5 opacity-60 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
       </a>
@@ -509,25 +533,28 @@ function SecondaryLinks() {
 }
 
 const TRUST = [
-  { icon: CreditCard, text: "Säker kortbetalning via Stripe" },
-  { icon: BadgeCheck, text: "Manuellt verifierade PT:er" },
+  { icon: BadgeCheck, text: "Verifierade PT:er" },
   { icon: ShieldCheck, text: "Hälsodata bara med ditt samtycke" },
+  { icon: Smartphone, text: "iPhone & Android" },
 ] as const
 
 /* ------------------------------------------------------------------ */
 /* FinalCta                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Sidans sista uppmaning: rubrik, pulserande knapp, snabbstart och trygghetsrad. */
+/** Sidans sista uppmaning: rubrik, pulserande butiksbrickor, PT/support och trygghetsrad. */
 export function FinalCta() {
   const ref = React.useRef<HTMLElement>(null)
-  // Hydreringssäker: falskt på servern och vid första renderingen, följer sedan inställningen live.
+  // Hydreringssäkra: falska på servern och vid första renderingen, följer sedan inställningen live.
   const reduce = useMediaQuery("(prefers-reduced-motion: reduce)")
-  const inView = useInView(ref, { margin: "-10% 0px" })
-  const active = inView && !reduce
+  const desktop = useMediaQuery("(min-width: 48rem)")
   const wide = useMediaQuery("(min-width: 80rem)")
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
-  // Ett mjukt ljus som följer muspekaren (bara transform/opacitet).
+  const inView = useInView(ref, { margin: "-10% 0px" })
+  // Oändliga animationer bara när sektionen syns; scrollkopplad parallax bara från md.
+  const active = inView && !reduce
+  const parallax = desktop && !reduce
+  const progress = useMotionValue(0)
+  // Ett mjukt ljus som följer muspekaren (bara transform/opacitet, bara från md).
   const px = useMotionValue(0)
   const py = useMotionValue(0)
   const spotX = useSpring(px, SPOT_SPRING)
@@ -563,24 +590,28 @@ export function FinalCta() {
       onPointerLeave={() => {
         animate(spotOpacity, 0, { duration: 0.5 })
       }}
-      className="relative isolate scroll-mt-24 overflow-hidden px-4 pt-28 pb-32 sm:px-6 sm:pt-36 sm:pb-40 lg:pt-44 lg:pb-48"
+      className="relative isolate scroll-mt-24 overflow-hidden px-4 pt-16 pb-16 sm:px-6 sm:pt-28 sm:pb-32 md:pt-36 md:pb-40 lg:pt-44 lg:pb-48"
     >
-      <CtaBackdrop active={active} progress={scrollYProgress} reduce={reduce} />
+      <style href="coavira-final-cta-keyframes" precedence="default">
+        {KEYFRAMES}
+      </style>
+      {parallax && <ScrollLink target={ref} progress={progress} />}
+      <CtaBackdrop active={active} progress={progress} parallax={parallax} />
       <motion.div
         aria-hidden
         style={{ x: spotX, y: spotY, opacity: spotOpacity }}
-        className="pointer-events-none absolute top-0 left-0 -z-10 size-[40rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.1),transparent)] will-change-transform"
+        className="pointer-events-none absolute top-0 left-0 -z-10 hidden size-[40rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.1),transparent)] md:block"
       />
 
       <div className="relative mx-auto max-w-7xl">
-        {wide && <FloatingTiles active={active} progress={scrollYProgress} reduce={reduce} />}
+        {wide && <FloatingTiles active={active} progress={progress} parallax={parallax} reduce={reduce} />}
 
         <motion.div
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-80px" }}
           variants={stagger(0.11)}
-          className="relative z-10 mx-auto flex max-w-4xl flex-col items-center gap-8 text-center sm:gap-10"
+          className="relative z-10 mx-auto flex max-w-4xl flex-col items-center gap-6 text-center sm:gap-10"
         >
           <motion.div variants={fadeUp}>
             <Eyebrow>Ditt första steg</Eyebrow>
@@ -588,23 +619,21 @@ export function FinalCta() {
 
           <Headline />
 
-          <motion.p variants={fadeUp} className="max-w-2xl text-lg text-pretty text-muted-foreground sm:text-xl">
-            Ladda ned Coavira <span className="font-semibold text-foreground">gratis</span> till iPhone eller Android. Köp din PT:s tjänster med kort, boka passen
-            och se framstegen – träning, kost, kalender och chatt i en och samma app.
+          <motion.p variants={fadeUp} className="max-w-xl text-base text-pretty text-muted-foreground sm:text-xl">
+            Ladda ned Coavira <span className="font-semibold text-foreground">gratis</span> och träna med din PT – var du än är.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="flex w-full flex-col items-center gap-4">
-            <DownloadBadges active={active} reduce={reduce} />
-            <p id={NOTE_ID} className="mt-2 max-w-md text-sm text-pretty text-muted-foreground">
-              Appen är gratis – du betalar bara för tjänsterna du köper av din PT, och priset du ser är priset du betalar.
-            </p>
+          <motion.div variants={fadeUp} className="flex w-full flex-col items-center gap-3 sm:gap-4">
+            {/* Mindre brickor på telefoner så att båda ryms på en rad. */}
+            <DownloadBadges active={active} reduce={reduce} size={desktop ? "lg" : "md"} />
+            {COMING_SOON && <p className="text-sm text-muted-foreground">Appen släpps snart.</p>}
           </motion.div>
 
           <motion.div variants={fadeUp} className="flex w-full justify-center">
             <SecondaryLinks />
           </motion.div>
 
-          <motion.ul variants={fadeUp} className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
+          <motion.ul variants={fadeUp} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-muted-foreground sm:gap-x-6">
             {TRUST.map(({ icon: Icon, text }) => (
               <li key={text} className="inline-flex items-center gap-2">
                 <Icon aria-hidden className="size-4 text-brand" />
@@ -622,7 +651,7 @@ export function FinalCta() {
 /* Sidfot                                                              */
 /* ------------------------------------------------------------------ */
 
-type FooterLink = { label: string; href: string; kind: "anchor" | "route" | "mail"; hint?: string; icon?: LucideIcon }
+type FooterLink = { label: string; href: string; kind: "anchor" | "route" | "mail" }
 
 const PRODUCT_LINKS: readonly FooterLink[] = NAV.map((item) => ({ label: item.label, href: item.href, kind: "anchor" }))
 
@@ -632,16 +661,15 @@ const APP_LINKS: readonly FooterLink[] = [
   { label: "Support", href: LINKS.support, kind: "route" },
 ]
 
-const ABOUT_LINKS: readonly FooterLink[] = [
-  { label: "Support", href: LINKS.support, kind: "route", hint: "Hjälp med appen", icon: LifeBuoy },
-  { label: "Sekretesspolicy", href: LINKS.privacy, kind: "route", hint: "Så hanterar vi dina data", icon: ShieldCheck },
-  { label: "Användarvillkor", href: LINKS.terms, kind: "route", hint: "Villkor för appen", icon: FileText },
-  { label: "Kontakt", href: LINKS.contact, kind: "mail", hint: BRAND.contactEmail, icon: Mail },
+/** Det App Store och Google Play kräver: integritet, villkor och kontakt. */
+const LEGAL_LINKS: readonly FooterLink[] = [
+  { label: "Sekretesspolicy", href: LINKS.privacy, kind: "route" },
+  { label: "Användarvillkor", href: LINKS.terms, kind: "route" },
+  { label: "Kontakt", href: LINKS.contact, kind: "mail" },
 ]
 
 const FOOTER_CHIPS = [
   { icon: BadgeCheck, text: "Verifierade PT:er" },
-  { icon: CreditCard, text: "Betalning via Stripe" },
   { icon: Smartphone, text: "För iPhone och Android" },
 ] as const
 
@@ -682,7 +710,7 @@ function FooterColumn({ title, links, reduce, className }: { title: string; link
   return (
     <motion.div variants={fadeUp} className={className}>
       <h3 className="text-xs font-semibold tracking-wider text-foreground uppercase">{title}</h3>
-      <ul className="mt-3">
+      <ul className="mt-2 md:mt-3">
         {links.map((link) => (
           <li key={link.label}>
             <FooterLinkItem link={link} reduce={reduce} />
@@ -693,83 +721,14 @@ function FooterColumn({ title, links, reduce, className }: { title: string; link
   )
 }
 
-/** Mobil: "Juridik & kontakt" fälls ut på plats (knapp med aria-expanded). */
-function LegalDisclosure({ className }: { className?: string }) {
-  const [open, setOpen] = React.useState(false)
-  const panelId = React.useId()
-  return (
-    <motion.div variants={fadeUp} className={cn("rounded-2xl border border-white/10 bg-white/[0.03]", className)}>
-      <h3>
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((v) => !v)}
-          className={cn("flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-4 text-left text-sm font-semibold transition-colors hover:bg-white/[0.04]", FOCUS)}
-        >
-          <span className="flex items-center gap-2.5">
-            <ShieldCheck aria-hidden className="size-4 text-brand" />
-            Juridik &amp; kontakt
-          </span>
-          <motion.span aria-hidden animate={{ rotate: open ? 180 : 0 }} transition={{ type: "spring", stiffness: 380, damping: 28 }} className="grid place-items-center">
-            <ChevronDown className="size-4 text-muted-foreground" />
-          </motion.span>
-        </button>
-      </h3>
-      <div id={panelId}>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.ul
-              key="lankar"
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              variants={stagger(0.05)}
-              className="space-y-1 px-2 pb-2"
-            >
-              {ABOUT_LINKS.map((link) => {
-                const Icon = link.icon ?? ArrowUpRight
-                const body = (
-                  <>
-                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/[0.05]">
-                      <Icon aria-hidden className="size-4 text-brand" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-foreground">{link.label}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{link.hint}</span>
-                    </span>
-                    {link.kind === "mail" ? <span className="sr-only"> (öppnar e-post)</span> : null}
-                    <ArrowUpRight aria-hidden className="size-4 text-muted-foreground" />
-                  </>
-                )
-                const cls = cn("flex min-h-12 items-center gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-white/[0.05]", FOCUS)
-                return (
-                  <motion.li key={link.label} variants={fadeUp}>
-                    {link.kind === "route" ? (
-                      <Link href={link.href} className={cls}>
-                        {body}
-                      </Link>
-                    ) : (
-                      <a href={link.href} className={cls}>
-                        {body}
-                      </a>
-                    )}
-                  </motion.li>
-                )
-              })}
-            </motion.ul>
-          )}
-        </AnimatePresence>
-      </div>
-    </motion.div>
-  )
-}
-
-/** Sidfoten: logga, länkkolumner, juridik/kontakt, stort ordmärke och copyright. */
+/**
+ * Sidfoten: logga, länkkolumner, stort ordmärke och copyright. På telefoner kompakt:
+ * logga + en rad, två korta kolumner (Appen, Juridik & kontakt) och inget ordmärke.
+ */
 export function LandingFooter() {
   const reduce = !!useReducedMotion()
   return (
-    <footer className="relative isolate overflow-hidden px-4 pt-20 pb-[calc(2rem+var(--safe-bottom))] sm:px-6 sm:pt-24">
+    <footer className="relative isolate overflow-hidden px-4 pt-12 pb-[calc(1.5rem+var(--safe-bottom))] sm:px-6 sm:pt-24 sm:pb-[calc(2rem+var(--safe-bottom))]">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent" />
         <div className="absolute -top-40 left-1/2 h-72 w-[min(56rem,100%)] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.1),transparent)]" />
@@ -777,13 +736,13 @@ export function LandingFooter() {
       <h2 className="sr-only">Sidfot</h2>
 
       <div className="mx-auto max-w-6xl">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)] lg:gap-16">
+        <div className="grid gap-8 md:gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)] lg:gap-16">
           <motion.div
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, margin: "-40px" }}
             variants={stagger(0.08)}
-            className="max-w-sm space-y-5"
+            className="max-w-sm space-y-1 md:space-y-5"
           >
             <motion.div variants={fadeUp}>
               <a
@@ -797,9 +756,9 @@ export function LandingFooter() {
               </a>
             </motion.div>
             <motion.p variants={fadeUp} className="text-sm text-pretty text-muted-foreground">
-              Träning, kost och coachning med din PT – samlat i en plattform.
+              Träning, kost och din PT – i en app.
             </motion.p>
-            <motion.ul variants={fadeUp} className="flex flex-wrap gap-2">
+            <motion.ul variants={fadeUp} className="hidden flex-wrap gap-2 md:flex">
               {FOOTER_CHIPS.map(({ icon: Icon, text }) => (
                 <li key={text} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-muted-foreground">
                   <Icon aria-hidden className="size-3.5 text-brand" />
@@ -815,12 +774,12 @@ export function LandingFooter() {
             whileInView="show"
             viewport={{ once: true, margin: "-40px" }}
             variants={stagger(0.08, 0.1)}
-            className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3"
+            className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-3"
           >
-            <FooterColumn title="Produkt" links={PRODUCT_LINKS} reduce={reduce} />
+            {/* Menyns ankare finns redan i den fasta menyn – på telefoner hoppar vi över dem här. */}
+            <FooterColumn title="Produkt" links={PRODUCT_LINKS} reduce={reduce} className="hidden md:block" />
             <FooterColumn title="Appen" links={APP_LINKS} reduce={reduce} />
-            <FooterColumn title="Om Coavira" links={ABOUT_LINKS} reduce={reduce} className="hidden md:block" />
-            <LegalDisclosure className="col-span-2 md:hidden" />
+            <FooterColumn title="Juridik & kontakt" links={LEGAL_LINKS} reduce={reduce} />
           </motion.nav>
         </div>
 
@@ -830,7 +789,7 @@ export function LandingFooter() {
           whileInView="show"
           viewport={{ once: true }}
           variants={stagger(0.05)}
-          className="pointer-events-none mt-16 flex justify-center overflow-hidden text-[22vw] leading-[0.85] font-extrabold tracking-[-0.06em] select-none sm:mt-20 xl:text-[15rem]"
+          className="pointer-events-none mt-20 hidden justify-center overflow-hidden text-[22vw] leading-[0.85] font-extrabold tracking-[-0.06em] select-none md:flex xl:text-[15rem]"
         >
           {WORDMARK.map((ch, i) => (
             <motion.span key={`${ch}-${i}`} variants={LETTER} className="inline-block bg-gradient-to-b from-white/[0.14] via-white/[0.05] to-transparent bg-clip-text pb-[0.06em] text-transparent">
@@ -839,15 +798,15 @@ export function LandingFooter() {
           ))}
         </motion.div>
 
-        <div className="flex flex-col gap-3 border-t border-white/10 pt-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-x-6 border-t border-white/10 pt-3 text-xs text-muted-foreground sm:text-sm md:mt-0 md:pt-6">
           <p>© 2026 {BRAND.name}</p>
-          <p>
+          <p className="order-last w-full sm:order-none sm:w-auto">
             Byggt i Sverige <span aria-hidden>🇸🇪</span> · Data lagras inom EU
           </p>
           <a
             href="#innehall"
             onClick={(e) => jumpTo(e, "#innehall", reduce, "hero-title")}
-            className={cn("group inline-flex min-h-11 items-center gap-2 self-start rounded-full text-sm font-medium text-foreground/85 transition-colors hover:text-foreground sm:self-auto", FOCUS)}
+            className={cn("group inline-flex min-h-11 items-center gap-2 rounded-full text-sm font-medium text-foreground/85 transition-colors hover:text-foreground", FOCUS)}
           >
             Till toppen
             <span className="grid size-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] transition-[border-color,translate] duration-300 group-hover:-translate-y-0.5 group-hover:border-brand/40">

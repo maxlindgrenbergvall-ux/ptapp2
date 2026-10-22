@@ -414,10 +414,10 @@ function GoalPicker({
       <RoleToggle role={role} onChange={onRole} />
 
       {/* Mobil: rubrik och räknare på samma rad. */}
-      <div className="mt-5 flex items-end justify-between gap-x-4 gap-y-4 sm:mt-7 sm:flex-wrap sm:gap-x-6">
+      <div className="mt-5 flex items-end justify-between gap-x-3 gap-y-4 sm:mt-7 sm:flex-wrap sm:gap-x-6">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">Testa: välj upp till {MAX_GOALS} mål</p>
-          <h3 id="mal-val-titel" className="mt-1.5 text-2xl leading-tight font-bold tracking-tight sm:mt-2 sm:text-3xl">
+          <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">Välj upp till {MAX_GOALS} mål</p>
+          <h3 id="mal-val-titel" className="mt-1.5 text-xl leading-tight font-bold tracking-tight sm:mt-2 sm:text-3xl">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={role}
@@ -561,7 +561,7 @@ function GoalCounter({ n, denied }: { n: number; denied: number }) {
           </span>
           <span className="text-xl font-bold text-muted-foreground sm:text-2xl">/{MAX_GOALS}</span>
         </span>
-        <span className="pb-1 text-xs leading-tight font-medium text-muted-foreground">
+        <span className="hidden pb-1 text-xs leading-tight font-medium text-muted-foreground sm:inline">
           mål
           <br />
           {n === 1 ? "valt" : "valda"}
@@ -569,7 +569,7 @@ function GoalCounter({ n, denied }: { n: number; denied: number }) {
       </div>
       <div aria-hidden className="flex gap-1.5">
         {Array.from({ length: MAX_GOALS }, (_, i) => (
-          <span key={i} className="h-1.5 w-7 overflow-hidden rounded-full bg-white/10 sm:w-9">
+          <span key={i} className="h-1.5 w-6 overflow-hidden rounded-full bg-white/10 sm:w-9">
             <motion.span initial={false} animate={{ scaleX: i < n ? 1 : 0 }} transition={SOFT_SPRING} className="block h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-brand" />
           </span>
         ))}
@@ -1027,7 +1027,7 @@ function FramstegScreen({ role, chosen, groups, pulse, run, reduce }: { role: Ro
 
   return (
     // Kortare skärm i mobilen; den rullar ändå fram till det mål man nyss valde.
-    <div className="relative h-[430px] sm:h-[540px]">
+    <div className="relative h-[460px] sm:h-[540px]">
       <svg aria-hidden width="0" height="0" className="absolute">
         <defs>
           <linearGradient id="mal-spark-fyllning" x1="0" x2="0" y1="0" y2="1">
