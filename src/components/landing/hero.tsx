@@ -20,7 +20,6 @@ import {
 } from "framer-motion"
 import {
   ArrowDown,
-  ArrowRight,
   BadgeCheck,
   Bell,
   CalendarCheck,
@@ -50,11 +49,11 @@ import {
   Watch,
   type LucideIcon,
 } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
 import { LINKS } from "@/components/landing/links"
+import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, Eyebrow, FloatingBadge, GlowOrb, GradientText, GridBackdrop, PhoneFrame, useConfetti } from "@/components/landing/primitives"
 import { MACROS, type MacroKey } from "@/components/nutrition/macros"
 import { cn } from "@/lib/utils"
@@ -103,7 +102,7 @@ const TRUST: { label: string; icon: LucideIcon }[] = [
   { label: "Flera PT:er samtidigt", icon: Users },
   { label: "Chatt och samtal med din PT", icon: Video },
   { label: "Exportera eller radera din data när du vill", icon: Download },
-  { label: "iOS- och Android-app på väg", icon: Smartphone },
+  { label: "För iPhone och Android", icon: Smartphone },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -275,7 +274,7 @@ function HeroCopy({ active }: { active: boolean }) {
   return (
     <div className="relative z-10 flex flex-col items-center gap-5 text-center sm:gap-7 lg:items-start lg:text-left">
       <div className={cn(ENTER, "duration-700 slide-in-from-bottom-6")}>
-        <Eyebrow>Ny plattform för PT:er och klienter</Eyebrow>
+        <Eyebrow>Appen för PT:er och klienter</Eyebrow>
       </div>
 
       <Headline />
@@ -289,19 +288,9 @@ function HeroCopy({ active }: { active: boolean }) {
         className={cn(ENTER, "flex w-full max-w-sm flex-col gap-3 duration-700 slide-in-from-bottom-6 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start")}
         style={enterDelay(0.4)}
       >
-        <div className="group relative">
-          <motion.span aria-hidden {...loop(active, GLOW, 3.4)} className="pointer-events-none absolute -inset-1.5 rounded-full bg-brand/50 blur-xl" />
-          <Link
-            href={LINKS.start}
-            className="relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-brand px-7 text-base font-semibold text-brand-foreground shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-transform duration-300 ease-out group-hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none active:translate-y-0 active:scale-[0.98] sm:w-auto"
-          >
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/55 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-            />
-            <span className="relative">Skapa klientkonto – 0 kr</span>
-            <ArrowRight aria-hidden className="relative size-5 transition-transform duration-300 group-hover:translate-x-1" />
-          </Link>
+        <div className="group relative flex justify-center lg:justify-start">
+          <motion.span aria-hidden {...loop(active, GLOW, 3.4)} className="pointer-events-none absolute -inset-3 rounded-[24px] bg-brand/25 blur-2xl" />
+          <StoreBadges size="lg" align="center" className="relative lg:justify-start" />
         </div>
         {/* Mobil: en kompakt textlänk så att huvudknappen får all tyngd. Från sm: en kantad knapp bredvid. */}
         <a
@@ -317,8 +306,8 @@ function HeroCopy({ active }: { active: boolean }) {
       <div className={cn(ENTER, "-mt-2 flex flex-col items-center gap-2 duration-700 slide-in-from-bottom-6 lg:items-start")} style={enterDelay(0.5)}>
         <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:gap-x-3 lg:justify-start">
           <span className="inline-flex items-center gap-1.5">
-            <Lock aria-hidden className="size-4 text-brand" />
-            Apple, Google eller e-post
+            <Smartphone aria-hidden className="size-4 text-brand" />
+            Gratis att ladda ned
           </span>
           {/* Punkten bara där raden får plats på en rad – annars hänger den kvar i slutet av första raden. */}
           <span aria-hidden className="hidden text-white/25 sm:inline">
@@ -330,7 +319,7 @@ function HeroCopy({ active }: { active: boolean }) {
           </span>
         </p>
         <p className="max-w-md text-sm text-pretty text-muted-foreground">
-          0 kr gäller klientkontot – du betalar bara för tjänsterna du köper. PT-konton skapas av Coavira efter granskning av certifikat.
+          Appen är gratis – du betalar bara för tjänsterna du köper av din PT, direkt i appen. PT-konton skapas av Coavira efter granskning av certifikat.
         </p>
         {/* På mobil är telefonen som sticker upp under texten själva scroll-signalen. */}
         <a

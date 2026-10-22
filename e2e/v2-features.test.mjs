@@ -134,7 +134,7 @@ await d.waitForFunction(() => document.querySelector("img[src^='data:image']"))
 check((await d.locator("#cert").count()) === 0, "PT-profil: PT kan inte lägga till certifikat själv")
 check(
   (await d.locator("[data-testid=cert-info]").innerText()).includes(
-    "Alla certifikat, licenser och intyg måste skickas in till oss för manuell verifiering via certifiering@coavira.com innan de godkänns på din profil."
+    "Alla certifikat, licenser och intyg måste skickas in till oss för manuell verifiering via certifiering@coavira.fit innan de godkänns på din profil."
   ),
   "PT-profil: informationstexten om manuell verifiering visas"
 )

@@ -7,12 +7,13 @@
  * Mobil: menyknapp som fäller ut en glaspanel (stängs med Esc och vid klick).
  */
 import { AnimatePresence, LayoutGroup, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, type Variants } from "framer-motion"
-import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, LogIn, ShieldCheck } from "lucide-react"
+import { ArrowDown, ArrowUpRight, BadgeCheck } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
 import { LINKS, NAV } from "@/components/landing/links"
+import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE } from "@/components/landing/primitives"
 import { BRAND } from "@/lib/brand"
 import { cn } from "@/lib/utils"
@@ -92,9 +93,13 @@ function useActiveSection() {
   return active
 }
 
-/** Glödande "Kom igång" som dras en aning mot muspekaren (magnetisk) och får ett ljussvep vid hovring. */
+/**
+ * Glödande "Ladda ned appen" som dras en aning mot muspekaren (magnetisk) och
+ * får ett ljussvep vid hovring. Scrollar till nedladdningssektionen med
+ * App Store- och Google Play-brickorna.
+ */
 function StartCta({
-  label = "Kom igång",
+  label = "Ladda ned appen",
   onNavigate,
   className,
   linkClassName,
@@ -136,9 +141,12 @@ function StartCta({
         animate={reduce ? { opacity: 0.45 } : { opacity: [0.35, 0.75, 0.35] }}
         transition={reduce ? { duration: 0 } : { duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
       />
-      <Link
-        href={LINKS.start}
-        onClick={onNavigate}
+      <a
+        href={LINKS.download}
+        onClick={(e) => {
+          scrollToAnchor(e, LINKS.download, Boolean(reduce))
+          onNavigate?.()
+        }}
         className={cn(
           "relative inline-flex h-11 items-center justify-center gap-1.5 overflow-hidden rounded-full bg-brand px-5 text-sm font-semibold whitespace-nowrap text-brand-foreground shadow-[0_8px_30px_-6px] shadow-brand/50 transition-[filter] duration-300 hover:brightness-105",
           FOCUS_RING,
@@ -151,8 +159,8 @@ function StartCta({
         />
         <span aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
         <span className="relative">{label}</span>
-        <ArrowRight aria-hidden className={cn("relative size-4 transition-transform duration-300 group-hover/cta:translate-x-0.5", arrowClassName)} />
-      </Link>
+        <ArrowDown aria-hidden className={cn("relative size-4 transition-transform duration-300 group-hover/cta:translate-y-0.5", arrowClassName)} />
+      </a>
     </motion.div>
   )
 }
@@ -357,19 +365,9 @@ export function LandingNav() {
               </LayoutGroup>
             </motion.nav>
 
-            {/* Höger: logga in, Kom igång och (mobil) menyknapp */}
+            {/* Höger: Ladda ned appen och (mobil) menyknapp. Ingen inloggning – Coavira är en mobilapp. */}
             <motion.div {...enter(0.18)} className="flex flex-1 basis-0 items-center justify-end gap-2">
-              <Link
-                href={LINKS.login}
-                className={cn(
-                  "hidden h-11 items-center justify-center gap-2 rounded-full text-sm font-medium text-muted-foreground transition-colors duration-200 hover:bg-white/[0.06] hover:text-foreground md:inline-flex md:w-11 lg:w-auto lg:px-4",
-                  FOCUS_RING
-                )}
-              >
-                <LogIn aria-hidden className="size-[18px] lg:hidden" />
-                <span className="sr-only lg:not-sr-only">Logga in</span>
-              </Link>
-              <StartCta arrowClassName="hidden sm:block md:hidden lg:block" linkClassName="px-4 sm:px-5" />
+              <StartCta label="Ladda ned" arrowClassName="hidden sm:block" linkClassName="px-4 sm:px-5" />
               <button
                 ref={toggleRef}
                 type="button"
@@ -440,43 +438,16 @@ export function LandingNav() {
 
                   <motion.div variants={itemVariants} aria-hidden className="relative my-3 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-                  {/* Panelens knapp säger vad den gör (klientkonto) i stället för att upprepa "Kom igång" i menyraden. Smala skärmar: knapparna radbryts. */}
-                  <motion.div variants={itemVariants} className="relative flex flex-wrap gap-2">
-                    <Link
-                      href={LINKS.login}
-                      onClick={close}
-                      className={cn(
-                        "inline-flex h-12 grow basis-24 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold whitespace-nowrap transition-colors duration-200 hover:bg-white/[0.08]",
-                        FOCUS_RING
-                      )}
-                    >
-                      Logga in
-                    </Link>
-                    <StartCta label="Skapa klientkonto" onNavigate={close} className="flex grow-[2] basis-48" linkClassName="h-12 w-full" />
+                  {/* Nedladdning: samma butiksbrickor som på resten av sidan. */}
+                  <motion.div variants={itemVariants} className="relative">
+                    <StoreBadges align="center" className="[&>*]:grow [&>*]:justify-center" />
                   </motion.div>
 
                   <motion.p variants={itemVariants} className="relative mt-3 text-center text-xs text-balance text-muted-foreground">
-                    0 kr att skapa – med Apple, Google eller e-post.
+                    Gratis att ladda ned för iPhone och Android.
                   </motion.p>
 
                   <motion.div variants={itemVariants} className="relative mt-3 space-y-2">
-                    <Link
-                      href={LINKS.ptLogin}
-                      onClick={close}
-                      className={cn(
-                        "group/pt flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors duration-200 hover:bg-white/[0.06]",
-                        FOCUS_RING
-                      )}
-                    >
-                      <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
-                        <ShieldCheck className="size-[18px]" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold">PT-inloggning</span>
-                        <span className="block text-xs text-muted-foreground">För verifierade PT:er – logga in med e-post och lösenord.</span>
-                      </span>
-                      <ChevronRight aria-hidden className="size-4 shrink-0 text-brand transition-transform duration-300 group-hover/pt:translate-x-0.5" />
-                    </Link>
                     {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
                     <a
                       href={LINKS.ptApply}

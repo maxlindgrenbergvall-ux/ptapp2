@@ -178,7 +178,7 @@ const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const q = await c2.newPage()
 q.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await q.goto(`${base}/`)
-check(await q.locator(`main a[href="/kom-igang"]`).first().isVisible(), "landningssidan leder till Kom igång för utloggade")
+check(await q.locator("main [data-store=ios]").first().isVisible(), "landningssidan leder till App Store/Google Play, inte till webbinloggning")
 await q.goto(`${base}/kom-igang`)
 for (const label of ["Fortsätt med Apple", "Fortsätt med Google", "Registrera dig", "Logga in"]) {
   check(await q.locator(`text=${label}`).first().isVisible(), `startsidan har "${label}"`)

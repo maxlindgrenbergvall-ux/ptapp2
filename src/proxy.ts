@@ -15,10 +15,12 @@ import {
 
 const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH, DASHBOARD_PATH]
 /**
- * Sidor för utloggade. Inloggade skickas till sin startsida. "/" är
- * landningssidan; START_PATH (/kom-igang) är inloggning/registrering.
+ * Sidor för utloggade. Inloggade skickas till sin startsida. START_PATH
+ * (/kom-igang) är appens inloggning/registrering. Landningssidan "/" visas för
+ * alla i webbläsaren (Coavira är en mobilapp, ingen webbportal); appen skickas
+ * vidare från "/" ovan.
  */
-const AUTH_PAGES = ["/", START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
+const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
 const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 

@@ -5,7 +5,7 @@
  * kostar 0 kr, PT:er ansöker och verifieras manuellt. Bredvid en levande
  * exempelmeny med PT-tjänster: välj tjänst, testa mersäljet av kostcoaching
  * (samma flöde som i appen) och – som PT – sätt egna priser. Alla priser är
- * exempel, och "0 kr" gäller bara att skapa kontot (inga gratispass).
+ * exempel, och "0 kr" gäller bara appen och kontot (inga gratispass).
  */
 import {
   animate,
@@ -30,7 +30,6 @@ import {
   FileBadge,
   Layers,
   Lock,
-  LogIn,
   Mail,
   Minus,
   Plus,
@@ -42,10 +41,10 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
 
 import { LINKS } from "@/components/landing/links"
+import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, fadeUp, FloatingBadge, GlowOrb, GradientText, GridBackdrop, Reveal, Section, stagger, useConfetti } from "@/components/landing/primitives"
 import { formatSek } from "@/lib/money"
 import { cn } from "@/lib/utils"
@@ -366,7 +365,7 @@ function AudienceToggle({ value, onChange }: { value: Audience; onChange: (a: Au
 
 // ----------------------------------------------------------- huvudkorten ---
 
-/** "0 kr" som studsar in – gäller bara att skapa klientkontot. */
+/** "0 kr" som studsar in – gäller att ladda ned appen och skapa klientkontot. */
 function ZeroPrice() {
   return (
     <div className="relative mt-1 flex items-end gap-3">
@@ -384,24 +383,24 @@ function ZeroPrice() {
         <span className="text-3xl font-bold tracking-tight">kr</span>
       </p>
       <span className="relative pb-2 text-sm leading-tight text-muted-foreground">
-        att skapa
+        att ladda
         <br />
-        konto
+        ned appen
       </span>
     </div>
   )
 }
 
-/** Klientkortet: 0 kr för kontot, allt i appen, och "Skapa klientkonto". */
+/** Klientkortet: gratis app, allt i appen, och butiksbrickorna. */
 function ClientCard({ onShowPt }: { onShowPt: () => void }) {
   return (
     <PriceCard highlight aria-labelledby="priser-klient-titel" className="p-6 sm:p-8" {...SWAP}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tag icon={UserRound}>För klienter</Tag>
-        <span className="text-xs text-muted-foreground">Kom igång direkt</span>
+        <span className="text-xs text-muted-foreground">iPhone och Android</span>
       </div>
       <h3 id="priser-klient-titel" className="mt-6 text-lg font-semibold">
-        Klientkonto
+        Coavira-appen
       </h3>
       <ZeroPrice />
       <p className="mt-5 text-pretty text-muted-foreground">
@@ -411,11 +410,8 @@ function ClientCard({ onShowPt }: { onShowPt: () => void }) {
       <div aria-hidden className={cn(DIVIDER, "my-6")} />
       <CheckList items={CLIENT_FEATURES} label="Det här finns i appen" />
       <div className="mt-8">
-        <Link href={LINKS.start} className={cn(PRIMARY_BTN, "w-full", FOCUS)}>
-          Skapa klientkonto – 0 kr
-          <ArrowRight aria-hidden className="size-4 transition-transform group-hover/btn:translate-x-1 motion-reduce:transition-none" />
-        </Link>
-        <p className="mt-3 text-center text-sm text-muted-foreground">Med Apple, Google eller e-post.</p>
+        <StoreBadges align="center" className="[&>*]:grow [&>*]:justify-center" />
+        <p className="mt-3 text-center text-sm text-muted-foreground">Konto med Apple, Google eller e-post direkt i appen.</p>
       </div>
       <p className="mt-6 flex flex-wrap items-center gap-x-1 border-t border-white/5 pt-4 text-sm text-muted-foreground">
         Är du PT?
@@ -500,14 +496,6 @@ function PtCard() {
           <ArrowRight aria-hidden className="size-4 transition-transform group-hover/btn:translate-x-1 motion-reduce:transition-none" />
         </a>
         <p className="mt-3 text-center text-xs text-pretty text-muted-foreground">Vi granskar dina certifikat manuellt och återkommer med villkor.</p>
-      </div>
-      <div className="mt-6 flex justify-center border-t border-white/5 pt-4">
-        <Link href={LINKS.ptLogin} className={cn(GHOST_BTN, FOCUS)}>
-          <LogIn aria-hidden className="size-4 text-brand" />
-          <span>
-            <span className="text-muted-foreground">Redan PT?</span> Logga in
-          </span>
-        </Link>
       </div>
     </PriceCard>
   )
@@ -921,7 +909,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
             <span className="pb-1 text-sm text-muted-foreground">Totalt</span>
             <Kr value={total} start={start} pulse className="text-3xl font-bold tracking-tight" />
           </div>
-          {/* Demoknapp – sekundär stil så att "Skapa klientkonto" förblir sektionens enda fyllda CTA */}
+          {/* Demoknapp – sekundär stil så att butiksbrickorna förblir sektionens primära CTA */}
           <button
             type="button"
             onClick={pay}
@@ -944,7 +932,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                     ? "Demo – klienten skickas vidare till Stripe, och passen låses upp när betalningen är klar."
                     : "Demo – i appen skickas du nu vidare till Stripe för säker kortbetalning."}
                 </p>
-                {/* Vidare till riktig registrering i stället för en återvändsgränd */}
+                {/* Vidare till appen (eller PT-ansökan) i stället för en återvändsgränd */}
                 {pt ? (
                   <a
                     href={LINKS.ptApply}
@@ -955,13 +943,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                     <ArrowRight aria-hidden className="size-3.5" />
                   </a>
                 ) : (
-                  <Link
-                    href={LINKS.start}
-                    className={cn("mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}
-                  >
-                    Skapa klientkonto – 0 kr och köp i appen
-                    <ArrowRight aria-hidden className="size-3.5" />
-                  </Link>
+                  <StoreBadges className="mt-2" />
                 )}
               </motion.div>
             )}
@@ -1062,7 +1044,7 @@ export function Pricing() {
           Tydliga priser. <GradientText>Inga dolda avgifter.</GradientText>
         </>
       }
-      intro="Som klient skapar du konto för 0 kr. Du betalar bara för det du köper av din PT – med kort via Stripe, och priset du ser är priset du betalar."
+      intro="Appen är gratis att ladda ned. Som klient betalar du bara för det du köper av din PT – med kort via Stripe, och priset du ser är priset du betalar."
     >
       <Backdrop />
       <Reveal className="mb-10 flex justify-center sm:mb-12">

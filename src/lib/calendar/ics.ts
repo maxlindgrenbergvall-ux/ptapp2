@@ -49,7 +49,7 @@ const STATUS: Record<IcsEvent["status"], string> = {
 
 export function buildIcs(events: IcsEvent[], opts: { name: string; now?: Date; host?: string }): string {
   const now = utc(opts.now ?? new Date())
-  const host = opts.host ?? "coavira.app"
+  const host = opts.host ?? "coavira.fit"
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",

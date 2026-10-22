@@ -43,7 +43,7 @@ for (const [name, width, height, mobile] of [
     return { scroll: document.documentElement.scrollWidth > w, wide }
   })
   await p.screenshot({ path: `${out}/${name}-helsida.png`, fullPage: true })
-  for (const id of ["funktioner", "mal", "kommunikation", "priser", "kom-igang-cta"]) {
+  for (const id of ["funktioner", "mal", "kommunikation", "priser", "ladda-ned"]) {
     const el = p.locator(`#${id}`)
     if (await el.count()) {
       await el.scrollIntoViewIfNeeded()

@@ -7,7 +7,9 @@ export const BRAND = {
   color: "#aced37",
   ink: "#0e1a01",
   /** Ansökan/verifiering för PT:er (certifikat granskas manuellt). */
-  certificationEmail: "certifiering@coavira.com",
+  certificationEmail: "certifiering@coavira.fit",
   /** Allmän kontakt (landningssidans sidfot och villkor). */
-  contactEmail: "kontakt@coavira.com",
+  contactEmail: "kontakt@coavira.fit",
+  /** Support för appen (supportsidan – krävs av App Store och Google Play). */
+  supportEmail: "support@coavira.fit",
 } as const

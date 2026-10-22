@@ -14,7 +14,7 @@ import type { CapacitorConfig } from "@capacitor/cli"
  *
  * Utan nätverk visas reservsidan mobile/www/offline.html.
  */
-const DEFAULT_SERVER_URL = "https://ptapp2.vercel.app"
+const DEFAULT_SERVER_URL = "https://coavira.fit"
 
 const serverUrl = (process.env.CAPACITOR_SERVER_URL?.trim() || DEFAULT_SERVER_URL).replace(/\/+$/, "")
 const isLocal = serverUrl.startsWith("http://")

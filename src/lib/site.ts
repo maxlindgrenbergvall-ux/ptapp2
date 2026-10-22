@@ -1,5 +1,5 @@
 /**
- * Plattformens publika adress (den egna domänen, t.ex. https://coavira.se).
+ * Plattformens publika adress (den egna domänen, t.ex. https://coavira.fit).
  *
  * Sätts med NEXT_PUBLIC_SITE_URL i Vercel (Production). Utan den används
  * Vercels produktionsadress. Används för kanonisk adress, sociala
@@ -10,7 +10,7 @@
  * användaren faktiskt är på (window.location.origin / request-origin), så att
  * inloggningscookies och PKCE-nyckeln alltid hör till samma domän.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://ptapp2.vercel.app").trim().replace(/\/+$/, "")
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://coavira.fit").trim().replace(/\/+$/, "")
 
 /**
  * Värdnamnet som Vercel-adresserna (*.vercel.app) ska skickas vidare till, eller

@@ -383,8 +383,8 @@ function VerifiedCertifications({ certifications }: { certifications: string[] }
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
         <span>
           Alla certifikat, licenser och intyg måste skickas in till oss för manuell verifiering via{" "}
-          <a href="mailto:certifiering@coavira.com" className="font-medium underline underline-offset-4">
-            certifiering@coavira.com
+          <a href="mailto:certifiering@coavira.fit" className="font-medium underline underline-offset-4">
+            certifiering@coavira.fit
           </a>{" "}
           innan de godkänns på din profil.
         </span>

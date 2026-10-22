@@ -1,6 +1,8 @@
-// E2E för landningssidan (/): struktur, fakta, länkar, interaktiva demos,
-// responsivitet (inget sidledsscroll 360–1440 px), minska rörelse, SEO-filer
-// och att appen (CoaviraApp) och inloggningssidan fortfarande fungerar.
+// E2E för landningssidan (/) på coavira.fit: Coavira är en mobilapp, så sidan
+// har App Store-/Google Play-brickor ("Släpps snart" innan publicering) och inga
+// inloggnings- eller portallänkar. Struktur, fakta, demos, responsivitet
+// (360–1440 px), minska rörelse, SEO-filer/metadata, supportsidan och att
+// appen (CoaviraApp) fortfarande börjar på sin inloggning.
 //   npm run build && npm start   (utan Supabase-variabler)
 //   BASE_URL=http://localhost:3000 node e2e/landing.test.mjs [skärmdumpsmapp]
 import { chromium } from "playwright"
@@ -38,14 +40,14 @@ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, c
 const p = watch(await ctx.newPage())
 const res = await p.goto(base + "/", { waitUntil: "networkidle" })
 check(res.status() === 200, "landningssidan svarar 200")
-check((await p.title()).startsWith("Coavira – Framtidens träning & kost"), `sidtitel: ${await p.title()}`)
+check((await p.title()).startsWith("Coavira – Appen för träning & kost"), `sidtitel: ${await p.title()}`)
 check((await p.locator("h1").count()) === 1, "exakt en h1")
 const h1 = (await p.locator("h1").innerText()).replace(/\s+/g, " ")
 check(/Framtidens träning & kost\. ?Allt i en och samma plattform\./.test(h1), `rubriken: "${h1}"`)
 check((await p.locator("text=Sömlös coachning för").first().isVisible()), "underrubriken syns")
 const bg = await p.evaluate(() => getComputedStyle(document.querySelector(".landing")).backgroundColor)
 check(/rgb\(10, 13, 18\)|#0a0d12/i.test(bg), `alltid mörk bakgrund även i ljust systemtema (${bg})`)
-for (const id of ["funktioner", "mal", "kommunikation", "priser", "kom-igang-cta"]) {
+for (const id of ["funktioner", "mal", "kommunikation", "priser", "ladda-ned"]) {
   check((await p.locator(`#${id}`).count()) === 1, `sektionen #${id} finns`)
 }
 check((await p.locator("footer").count()) >= 1, "sidfot finns")
@@ -61,10 +63,34 @@ check(!/(provision|plattformsavgift|månadsavgift|abonnemang)\D{0,20}\d/i.test(t
 
 // Länkar
 const hrefs = await p.$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
-check(hrefs.filter((h) => h === "/kom-igang").length >= 3, "flera CTA:er till Kom igång (/kom-igang)")
-for (const h of ["/logga-in", "/registrera", "/logga-in/pt", "/integritet", "/villkor"]) check(hrefs.includes(h), `länk till ${h}`)
-check(hrefs.some((h) => h?.startsWith("mailto:certifiering@coavira.com")), "PT-ansökan via certifiering@coavira.com")
-check(hrefs.some((h) => h?.startsWith("mailto:kontakt@")), "kontaktlänk i sidfoten")
+// Ingen webbportal: inga inloggnings-, registrerings- eller app-sidor länkas.
+const portal = hrefs.filter((h) => /^\/(kom-igang|logga-in|registrera|klient|pt|dashboard|valkommen)(\/|$|\?)/.test(h ?? ""))
+check(portal.length === 0, `inga inloggnings-/portallänkar (${portal.join(", ") || "inga"})`)
+check(!/Logga in|Registrera|PT-inloggning|Kom igång/.test(text), "ingen inloggningstext på sidan")
+for (const h of ["/support", "/integritet", "/villkor"]) check(hrefs.includes(h), `länk till ${h} (krävs av App Store/Google Play)`)
+const iosBadges = await p.locator("[data-store=ios]").count()
+const androidBadges = await p.locator("[data-store=android]").count()
+check(iosBadges >= 4 && androidBadges >= 4, `butiksbrickor överallt (App Store ${iosBadges}, Google Play ${androidBadges})`)
+check(await p.locator("[data-store=ios]").first().innerText().then((t) => /Hämta i\s*App Store/.test(t)), "App Store-brickan: Hämta i App Store")
+check(await p.locator("[data-store=android]").first().innerText().then((t) => /Ladda ned på\s*Google Play/i.test(t)), "Google Play-brickan: Ladda ned på Google Play")
+check(hrefs.some((h) => h?.startsWith("mailto:certifiering@coavira.fit")), "PT-ansökan via certifiering@coavira.fit")
+check(hrefs.some((h) => h?.startsWith("mailto:kontakt@coavira.fit")), "kontaktlänk i sidfoten (coavira.fit)")
+
+// "Släpps snart" när apparna inte är publicerade än.
+await p.locator("[data-store=ios]").first().click()
+const soon = p.locator("[data-testid=coming-soon]")
+await soon.waitFor()
+check(/App Store/.test(await soon.innerText()) && /släpps snart/i.test(await soon.innerText()), "App Store-brickan visar Släpps snart")
+await p.keyboard.press("Escape")
+await soon.waitFor({ state: "detached" })
+await p.locator("#ladda-ned [data-store=android]").scrollIntoViewIfNeeded()
+await p.locator("#ladda-ned [data-store=android]").click()
+await soon.waitFor()
+check((await soon.innerText()).includes("Google Play"), "Google Play-brickan visar Släpps snart")
+await p.screenshot({ path: `${out}/landing-slapps-snart.png` })
+await p.locator('[data-testid=coming-soon] button[aria-label="Stäng"]').click()
+await soon.waitFor({ state: "detached" })
+ok("rutan stängs")
 await p.screenshot({ path: `${out}/landing-desktop.png` })
 
 // ------------------------------------------------- 2. interaktiva demos ---
@@ -110,7 +136,7 @@ ok("samtalet kan avslutas")
 // Priser: PT-fliken och mersälj av kostcoaching.
 await p.locator("#priser").scrollIntoViewIfNeeded()
 await p.locator('#priser [role=tab]', { hasText: "För PT:er" }).click()
-await p.waitForSelector("#priser a[href^='mailto:certifiering@coavira.com']")
+await p.waitForSelector("#priser a[href^='mailto:certifiering@coavira.fit']")
 ok("PT-fliken visar ansökan")
 const upsell = p.locator("#priser button", { hasText: "Lägg till kostcoaching" }).first()
 await upsell.scrollIntoViewIfNeeded()
@@ -166,17 +192,19 @@ await app.close()
 const robots = await (await fetch(base + "/robots.txt")).text()
 check(/Disallow: \/klient/.test(robots) && /Sitemap: https?:\/\//.test(robots), "robots.txt stänger appens sidor och pekar på sitemap")
 const sitemap = await (await fetch(base + "/sitemap.xml")).text()
-check(sitemap.includes("/kom-igang") && sitemap.includes("/villkor"), "sitemap.xml listar de publika sidorna")
+check(sitemap.includes("https://coavira.fit/support") && sitemap.includes("/villkor") && !sitemap.includes("/kom-igang"), "sitemap.xml: coavira.fit, support/villkor, ingen inloggning")
+check(/Sitemap: https:\/\/coavira\.fit\/sitemap\.xml/.test(robots), "robots.txt pekar på coavira.fit")
 const og = await fetch(base + "/opengraph-image")
 check(og.ok && og.headers.get("content-type")?.includes("image/png"), "Open Graph-bild finns")
 const page = await (await fetch(base + "/")).text()
-check(/<meta property="og:image"/.test(page) && /<link rel="canonical"/.test(page), "og:image och kanonisk adress i HTML")
+check(/<meta property="og:image" content="https:\/\/coavira\.fit\//.test(page), "og:image på coavira.fit")
+check(/<link rel="canonical" href="https:\/\/coavira\.fit"/.test(page) && /<meta property="og:url" content="https:\/\/coavira\.fit"/.test(page), "kanonisk adress och og:url = coavira.fit")
 
 const misc = watch(await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage())
 await misc.goto(base + "/villkor")
 check(await misc.locator("text=Villkor i korthet").isVisible(), "/villkor visas")
-await misc.goto(base + "/kom-igang")
-check(await misc.locator("text=Fortsätt med Apple").isVisible() && await misc.locator("text=Registrera dig").isVisible(), "/kom-igang har Apple, Google och e-post")
+await misc.goto(base + "/support")
+check(await misc.locator("text=support@coavira.fit").first().isVisible(), "/support visar supportadressen")
 
 console.log(errors.length ? `sidfel:\n${errors.join("\n")}` : "inga sidfel")
 if (errors.length) process.exitCode = 1

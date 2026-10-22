@@ -42,10 +42,10 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
 
 import { LINKS } from "@/components/landing/links"
+import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, FloatingBadge, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Reveal, Section, useConfetti } from "@/components/landing/primitives"
 import { INTERESTS, formatSeconds, metricsFor, type InterestDef, type MetricDef } from "@/lib/interests"
 import { cn } from "@/lib/utils"
@@ -717,7 +717,7 @@ function PtReach({ specialty }: { specialty?: InterestDef }) {
   )
 }
 
-/** Skapa konto (klient) eller ansök (PT). */
+/** Ladda ned appen (klient) eller ansök (PT). */
 function GoalCta({ role }: { role: Role }) {
   return (
     <div className="mt-6">
@@ -744,25 +744,12 @@ function GoalCta({ role }: { role: Role }) {
               <ArrowRight aria-hidden className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
             </a>
           ) : (
-            <Link
-              href={LINKS.start}
-              className={cn(
-                "group relative inline-flex h-14 w-full shrink-0 items-center justify-center gap-2 overflow-hidden rounded-full bg-brand px-7 text-base font-semibold text-brand-foreground shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset,0_10px_40px_-12px_rgba(172,237,55,0.6)] transition-transform duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] sm:w-auto",
-                FOCUS_RING
-              )}
-            >
-              <span
-                aria-hidden
-                className="absolute inset-y-0 left-0 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/55 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-              />
-              <span className="relative">Skapa ditt konto – 0 kr</span>
-              <ArrowRight aria-hidden className="relative size-5 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>
+            <StoreBadges align="center" className="shrink-0 sm:justify-start" />
           )}
           <p className="text-sm text-pretty text-muted-foreground">
             {role === "pt"
               ? "PT-konton skapas av Coavira efter manuell granskning av ditt certifikat. Du sätter dina egna priser."
-              : "Apple, Google eller e-post. 0 kr gäller kontot – tjänsterna köper du av din PT med kort."}
+              : "Gratis att ladda ned. Tjänsterna köper du av din PT med kort, direkt i appen."}
           </p>
         </motion.div>
       </AnimatePresence>

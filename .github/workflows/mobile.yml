@@ -52,8 +52,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Den egna domänen: repo-variabeln SITE_URL (t.ex. https://coavira.se) räcker för både webb och app.
-  CAPACITOR_SERVER_URL: ${{ inputs.server_url || vars.CAPACITOR_SERVER_URL || vars.SITE_URL || 'https://ptapp2.vercel.app' }}
+  # Den egna domänen: repo-variabeln SITE_URL (t.ex. https://coavira.fit) räcker för både webb och app.
+  CAPACITOR_SERVER_URL: ${{ inputs.server_url || vars.CAPACITOR_SERVER_URL || vars.SITE_URL || 'https://coavira.fit' }}
 
 jobs:
   android:

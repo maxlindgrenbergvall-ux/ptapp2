@@ -3,7 +3,7 @@
 // en kort stund vid start eller när telefonen saknar nätverk.
 import fs from "node:fs"
 
-const url = (process.env.CAPACITOR_SERVER_URL?.trim() || "https://ptapp2.vercel.app").replace(/\/+$/, "")
+const url = (process.env.CAPACITOR_SERVER_URL?.trim() || "https://coavira.fit").replace(/\/+$/, "")
 const dir = new URL("../mobile/www/", import.meta.url)
 fs.mkdirSync(dir, { recursive: true })
 

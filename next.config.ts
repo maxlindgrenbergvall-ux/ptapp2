@@ -42,15 +42,14 @@ if (supabaseUrl && supabaseKey) {
 }
 
 /**
- * Den egna domänen (t.ex. https://coavira.se). SITE_URL eller
- * NEXT_PUBLIC_SITE_URL i Vercel; annars Vercels produktionsadress för projektet.
+ * Den officiella domänen: https://coavira.fit (metadata, Open Graph, kanonisk
+ * adress, sitemap). SITE_URL/NEXT_PUBLIC_SITE_URL i Vercel kan skriva över den;
+ * när den är satt uttryckligen skickas även *.vercel.app vidare till domänen.
  */
 const explicitSiteUrl = pick("NEXT_PUBLIC_SITE_URL", "SITE_URL");
-const siteUrl =
-  explicitSiteUrl ||
-  (process.env.VERCEL_ENV === "production" && process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "");
-if (siteUrl && !/^https?:\/\/[^/\s]+$/.test(siteUrl.replace(/\/+$/, ""))) {
-  throw new Error(`SITE_URL/NEXT_PUBLIC_SITE_URL ska vara en adress utan sökväg, t.ex. https://coavira.se (fick "${siteUrl}")`);
+const siteUrl = explicitSiteUrl || "https://coavira.fit";
+if (!/^https?:\/\/[^/\s]+$/.test(siteUrl.replace(/\/+$/, ""))) {
+  throw new Error(`SITE_URL/NEXT_PUBLIC_SITE_URL ska vara en adress utan sökväg, t.ex. https://coavira.fit (fick "${siteUrl}")`);
 }
 
 const nextConfig: NextConfig = {

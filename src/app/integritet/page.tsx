@@ -29,7 +29,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong className="text-foreground">Dina rättigheter:</strong> du kan ladda ner all din data och radera ditt konto
-          under Framsteg → Din data. Radering tar bort all data om dig permanent.
+          i appen under Coavira-loggan → Min data och sekretess. Radering tar bort all data om dig permanent.
         </p>
       </div>
     </AuthCard>

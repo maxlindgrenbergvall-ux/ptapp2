@@ -1,31 +1,29 @@
 "use client"
 
 /**
- * Avslutningen på landningssidan: en stor uppmaning (#kom-igang-cta) med en
- * pulserande knapp som skjuter konfetti, snabbstart med Apple/Google/e-post och
- * flytande app-brickor – och sidfoten med länkar, juridik och kontakt.
+ * Avslutningen på landningssidan: en stor uppmaning (#ladda-ned) med
+ * pulserande App Store-/Google Play-brickor som skjuter konfetti, PT-ansökan och
+ * support, flytande app-brickor – och sidfoten med support, sekretesspolicy,
+ * användarvillkor och kontakt (det App Store och Google Play kräver).
  * Bakgrunden (norrsken, rutnät, horisont) och brickorna rör sig bara när
- * sektionen syns och "minska rörelse" är av. "0 kr" gäller bara klientkontot.
+ * sektionen syns och "minska rörelse" är av. Inga inloggningslänkar – Coavira är en mobilapp.
  */
 import { animate, AnimatePresence, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue, type Variants } from "framer-motion"
-import { ArrowRight, ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, ChevronDown, CreditCard, Dumbbell, FileText, LogIn, Mail, ShieldCheck, Smartphone, Timer, type LucideIcon } from "lucide-react"
+import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, ChevronDown, CreditCard, Dumbbell, FileText, LifeBuoy, Mail, ShieldCheck, Smartphone, Timer, type LucideIcon } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import * as React from "react"
 
-import { SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
 import { LINKS, NAV } from "@/components/landing/links"
-import { EASE, Eyebrow, fadeUp, GradientText, stagger, useConfetti } from "@/components/landing/primitives"
+import { StoreBadges } from "@/components/landing/store-badges"
+import { EASE, Eyebrow, fadeUp, GradientText, stagger } from "@/components/landing/primitives"
 import { BRAND } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
-const SECTION_ID = "kom-igang-cta"
+const SECTION_ID = "ladda-ned"
 const TITLE_ID = `${SECTION_ID}-title`
 const NOTE_ID = `${SECTION_ID}-note`
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-/** Så länge (ms) konfettin hinner synas innan vi navigerar vid ett vanligt klick. */
-const CONFETTI_DELAY = 420
 const SPOT_SPRING = { stiffness: 140, damping: 22, mass: 0.6 }
 const MAGNET_SPRING = { stiffness: 260, damping: 18, mass: 0.4 }
 
@@ -437,27 +435,16 @@ function Headline() {
 }
 
 /**
- * Den stora knappen: pulserande ringar och sken, dras lätt mot muspekaren och
- * skjuter konfetti. Ett vanligt klick väntar ~0,4 s så att konfettin syns; klick
- * med Cmd/Ctrl/Skift (ny flik) och "minska rörelse" navigerar direkt.
+ * Sidans sista och största uppmaning: butiksbrickorna i ett pulserande grönt
+ * sken som dras en aning mot muspekaren. Klick ger konfetti och öppnar
+ * butiken (eller "Släpps snart" innan apparna är publicerade).
  */
-function JourneyButton({ active, reduce }: { active: boolean; reduce: boolean }) {
-  const router = useRouter()
-  const fire = useConfetti()
-  const linkRef = React.useRef<HTMLAnchorElement>(null)
-  const timer = React.useRef<number | null>(null)
+function DownloadBadges({ active, reduce }: { active: boolean; reduce: boolean }) {
   const glow = useLoop(BREATHE, 2.6, active)
   const mx = useMotionValue(0)
   const my = useMotionValue(0)
   const x = useSpring(mx, MAGNET_SPRING)
   const y = useSpring(my, MAGNET_SPRING)
-
-  React.useEffect(() => {
-    const pending = timer
-    return () => {
-      if (pending.current !== null) window.clearTimeout(pending.current)
-    }
-  }, [])
 
   return (
     <motion.div
@@ -465,57 +452,30 @@ function JourneyButton({ active, reduce }: { active: boolean; reduce: boolean })
       onPointerMove={(e) => {
         if (reduce || e.pointerType !== "mouse") return
         const r = e.currentTarget.getBoundingClientRect()
-        mx.set((e.clientX - (r.left + r.width / 2)) * 0.16)
-        my.set((e.clientY - (r.top + r.height / 2)) * 0.3)
+        mx.set((e.clientX - (r.left + r.width / 2)) * 0.12)
+        my.set((e.clientY - (r.top + r.height / 2)) * 0.25)
       }}
       onPointerLeave={() => {
         mx.set(0)
         my.set(0)
       }}
-      className="group relative w-full max-w-sm sm:w-auto sm:max-w-none"
+      className="group relative"
     >
-      <motion.span aria-hidden style={{ opacity: glow }} className="pointer-events-none absolute -inset-3 rounded-full bg-brand/45 blur-2xl will-change-[opacity]" />
+      <motion.span aria-hidden style={{ opacity: glow }} className="pointer-events-none absolute -inset-5 rounded-[28px] bg-brand/40 blur-2xl will-change-[opacity]" />
       {active &&
         [0, 1].map((i) => (
           <motion.span
             key={i}
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-full border-2 border-brand/70"
+            className="pointer-events-none absolute -inset-2 rounded-[24px] border-2 border-brand/60"
             initial={{ scaleX: 1, scaleY: 1, opacity: 0.7 }}
-            animate={{ scaleX: 1.1, scaleY: 1.55, opacity: 0 }}
+            animate={{ scaleX: 1.08, scaleY: 1.35, opacity: 0 }}
             transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut", delay: i * 1.2 }}
           />
         ))}
-      <Link
-        ref={linkRef}
-        href={LINKS.start}
-        aria-describedby={NOTE_ID}
-        onClick={() => {
-          if (timer.current === null) void fire(linkRef.current, { particles: 160, spread: 100 })
-        }}
-        onNavigate={(e) => {
-          if (reduce) return
-          e.preventDefault()
-          if (timer.current !== null) return
-          timer.current = window.setTimeout(() => {
-            timer.current = null
-            router.push(LINKS.start)
-          }, CONFETTI_DELAY)
-        }}
-        className={cn(
-          "relative inline-flex min-h-16 w-full items-center justify-center gap-3 overflow-hidden rounded-full bg-brand px-6 py-3 text-center text-base font-bold text-brand-foreground shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset,0_20px_60px_-15px_rgba(172,237,55,0.7)] transition-transform duration-300 ease-out group-hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] sm:min-h-[4.5rem] sm:w-auto sm:px-10 sm:text-lg md:text-xl",
-          FOCUS
-        )}
-      >
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-0 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/55 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
-        />
-        <span className="relative">Skapa klientkonto – 0 kr</span>
-        <span aria-hidden className="relative grid size-8 shrink-0 place-items-center rounded-full bg-brand-foreground/10 sm:size-9">
-          <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-0.5" />
-        </span>
-      </Link>
+      <div aria-describedby={NOTE_ID} className="relative">
+        <StoreBadges size="lg" align="center" />
+      </div>
     </motion.div>
   )
 }
@@ -524,62 +484,26 @@ function JourneyButton({ active, reduce }: { active: boolean; reduce: boolean })
 /* Snabbstart och trygghetsrad                                         */
 /* ------------------------------------------------------------------ */
 
-const QUICK_BTN = "inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full px-4 text-sm font-semibold transition-[background-color,border-color,translate] duration-300 hover:-translate-y-0.5"
-
-/**
- * Apple/Google är appens riktiga knappar (SocialButtons): de startar inloggningen
- * direkt, och i demoläget visas en notis och man går vidare till välkomststeget.
- * Knapparnas egna `dark:`-färger följer systemtemat, inte .landing, så här tvingas
- * landningssidans stil fram: vit Apple-knapp, glasig Google-knapp, rundade som
- * e-postknappen och med samma fokusring. Från sm ligger de sida vid sida.
- */
-const SOCIAL =
-  "sm:col-span-2 sm:[&>div]:grid-cols-2 [&_button]:gap-2.5 [&_button]:rounded-full [&_button]:text-sm [&_button]:font-semibold [&_button]:hover:-translate-y-0.5 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-ring [&_button]:focus-visible:ring-offset-2 [&_button]:focus-visible:ring-offset-background [&_button[data-variant=default]]:bg-white [&_button[data-variant=default]]:text-black [&_button[data-variant=default]]:hover:bg-white/90 [&_button[data-variant=outline]]:border-white/15 [&_button[data-variant=outline]]:bg-white/[0.06] [&_button[data-variant=outline]]:text-foreground [&_button[data-variant=outline]]:shadow-none [&_button[data-variant=outline]]:hover:border-white/25 [&_button[data-variant=outline]]:hover:bg-white/[0.1]"
-
-/** Länkarna under snabbstarten: logga in, PT-inloggning och PT-ansökan. */
+/** PT-vägen och support under brickorna (inga inloggningslänkar – Coavira är en app). */
 const ROW_LINK = cn("group inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm text-muted-foreground transition-colors hover:text-foreground", FOCUS)
 const ROW_LABEL = "font-semibold text-foreground underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand"
 
-function QuickStart() {
+function SecondaryLinks() {
   return (
-    <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] backdrop-blur-md sm:p-5">
-      <div aria-hidden className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent" />
-      <div className="mb-4 flex items-center gap-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        <span aria-hidden className="h-px flex-1 bg-gradient-to-r from-transparent to-white/15" />
-        Eller fortsätt direkt
-        <span aria-hidden className="h-px flex-1 bg-gradient-to-l from-transparent to-white/15" />
-      </div>
-      <div role="group" aria-label="Snabbstart" className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        <div className={SOCIAL}>
-          <SocialButtons />
-        </div>
-        <Link
-          href={LINKS.signup}
-          className={cn(QUICK_BTN, "border border-white/15 bg-white/[0.06] text-foreground hover:border-brand/40 hover:bg-white/[0.1] sm:col-span-2 lg:col-span-1", FOCUS)}
-        >
-          <Mail aria-hidden className="size-5 text-brand" />
-          Registrera med e-post
-        </Link>
-      </div>
-      <div className="mt-3 flex flex-col items-center justify-center gap-x-6 md:flex-row md:flex-wrap">
-        <Link href={LINKS.login} className={ROW_LINK}>
-          <LogIn aria-hidden className="size-4 text-brand" />
-          Har du konto?
-          <span className={ROW_LABEL}>Logga in</span>
-        </Link>
-        <Link href={LINKS.ptLogin} className={ROW_LINK}>
-          <BadgeCheck aria-hidden className="size-4 text-brand" />
-          Är du PT?
-          <span className={ROW_LABEL}>PT-inloggning</span>
-        </Link>
-        {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
-        <a href={LINKS.ptApply} className={ROW_LINK}>
-          <Mail aria-hidden className="size-4 text-brand" />
-          <span className={ROW_LABEL}>Ansök som PT</span>
-          <span className="sr-only"> (öppnar e-post)</span>
-          <ArrowUpRight aria-hidden className="size-3.5 opacity-60 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-        </a>
-      </div>
+    <div className="flex flex-col items-center justify-center gap-x-6 md:flex-row md:flex-wrap">
+      {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
+      <a href={LINKS.ptApply} className={ROW_LINK}>
+        <BadgeCheck aria-hidden className="size-4 text-brand" />
+        Är du PT?
+        <span className={ROW_LABEL}>Ansök om att coacha på Coavira</span>
+        <span className="sr-only"> (öppnar e-post)</span>
+        <ArrowUpRight aria-hidden className="size-3.5 opacity-60 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+      </a>
+      <Link href={LINKS.support} className={ROW_LINK}>
+        <LifeBuoy aria-hidden className="size-4 text-brand" />
+        Frågor?
+        <span className={ROW_LABEL}>Support</span>
+      </Link>
     </div>
   )
 }
@@ -665,19 +589,19 @@ export function FinalCta() {
           <Headline />
 
           <motion.p variants={fadeUp} className="max-w-2xl text-lg text-pretty text-muted-foreground sm:text-xl">
-            Skapa ditt klientkonto för <span className="font-semibold text-foreground">0 kr</span> med Apple, Google eller e-post. Köp din PT:s tjänster med kort,
-            boka passen och se framstegen – träning, kost, kalender och chatt på ett och samma ställe.
+            Ladda ned Coavira <span className="font-semibold text-foreground">gratis</span> till iPhone eller Android. Köp din PT:s tjänster med kort, boka passen
+            och se framstegen – träning, kost, kalender och chatt i en och samma app.
           </motion.p>
 
           <motion.div variants={fadeUp} className="flex w-full flex-col items-center gap-4">
-            <JourneyButton active={active} reduce={reduce} />
-            <p id={NOTE_ID} className="max-w-md text-sm text-pretty text-muted-foreground">
-              0 kr gäller klientkontot – du betalar bara för tjänsterna du köper, och priset du ser är priset du betalar.
+            <DownloadBadges active={active} reduce={reduce} />
+            <p id={NOTE_ID} className="mt-2 max-w-md text-sm text-pretty text-muted-foreground">
+              Appen är gratis – du betalar bara för tjänsterna du köper av din PT, och priset du ser är priset du betalar.
             </p>
           </motion.div>
 
           <motion.div variants={fadeUp} className="flex w-full justify-center">
-            <QuickStart />
+            <SecondaryLinks />
           </motion.div>
 
           <motion.ul variants={fadeUp} className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-muted-foreground">
@@ -702,24 +626,23 @@ type FooterLink = { label: string; href: string; kind: "anchor" | "route" | "mai
 
 const PRODUCT_LINKS: readonly FooterLink[] = NAV.map((item) => ({ label: item.label, href: item.href, kind: "anchor" }))
 
-const ACCOUNT_LINKS: readonly FooterLink[] = [
-  { label: "Kom igång", href: LINKS.start, kind: "route" },
-  { label: "Logga in", href: LINKS.login, kind: "route" },
-  { label: "Registrera", href: LINKS.signup, kind: "route" },
-  { label: "PT-inloggning", href: LINKS.ptLogin, kind: "route" },
+const APP_LINKS: readonly FooterLink[] = [
+  { label: "Ladda ned appen", href: LINKS.download, kind: "anchor" },
   { label: "Ansök som PT", href: LINKS.ptApply, kind: "mail" },
+  { label: "Support", href: LINKS.support, kind: "route" },
 ]
 
 const ABOUT_LINKS: readonly FooterLink[] = [
-  { label: "Integritet", href: LINKS.privacy, kind: "route", hint: "Så hanterar vi dina data", icon: ShieldCheck },
-  { label: "Villkor", href: LINKS.terms, kind: "route", hint: "Användarvillkor", icon: FileText },
+  { label: "Support", href: LINKS.support, kind: "route", hint: "Hjälp med appen", icon: LifeBuoy },
+  { label: "Sekretesspolicy", href: LINKS.privacy, kind: "route", hint: "Så hanterar vi dina data", icon: ShieldCheck },
+  { label: "Användarvillkor", href: LINKS.terms, kind: "route", hint: "Villkor för appen", icon: FileText },
   { label: "Kontakt", href: LINKS.contact, kind: "mail", hint: BRAND.contactEmail, icon: Mail },
 ]
 
 const FOOTER_CHIPS = [
   { icon: BadgeCheck, text: "Verifierade PT:er" },
   { icon: CreditCard, text: "Betalning via Stripe" },
-  { icon: Smartphone, text: "iOS- och Android-app på väg" },
+  { icon: Smartphone, text: "För iPhone och Android" },
 ] as const
 
 const WORDMARK = BRAND.name.split("")
@@ -895,7 +818,7 @@ export function LandingFooter() {
             className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3"
           >
             <FooterColumn title="Produkt" links={PRODUCT_LINKS} reduce={reduce} />
-            <FooterColumn title="Konto" links={ACCOUNT_LINKS} reduce={reduce} />
+            <FooterColumn title="Appen" links={APP_LINKS} reduce={reduce} />
             <FooterColumn title="Om Coavira" links={ABOUT_LINKS} reduce={reduce} className="hidden md:block" />
             <LegalDisclosure className="col-span-2 md:hidden" />
           </motion.nav>

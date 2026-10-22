@@ -10,7 +10,6 @@
 import { animate, AnimatePresence, LayoutGroup, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion"
 import {
   Activity,
-  ArrowRight,
   BadgeCheck,
   CalendarCheck,
   CalendarDays,
@@ -40,11 +39,11 @@ import {
   Wifi,
   type LucideIcon,
 } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
 
 import { BrandGlyph } from "@/components/brand"
 import { LINKS } from "@/components/landing/links"
+import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Reveal, Section, TiltCard, useConfetti } from "@/components/landing/primitives"
 import { MACROS, MacroDot, sumMacros } from "@/components/nutrition/macros"
 import { BRAND } from "@/lib/brand"
@@ -1400,7 +1399,7 @@ function ConnectionsDemo() {
           ))}
         </ul>
       </div>
-      <p className="mt-4 text-center text-xs text-muted-foreground">iOS- och Android-app på väg</p>
+      <p className="mt-4 text-center text-xs text-muted-foreground">I Coavira-appen för iPhone och Android</p>
     </div>
   )
 }
@@ -1517,12 +1516,9 @@ export function FeatureBento() {
 
         <Reveal className="relative mt-8 flex flex-col items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur-md sm:mt-10 sm:flex-row sm:p-6 sm:text-left">
           <p className="text-pretty text-muted-foreground">
-            <span className="font-semibold text-foreground">Redo att köra?</span> Skapa ditt klientkonto för 0 kr med Apple, Google eller e-post.
+            <span className="font-semibold text-foreground">Redo att köra?</span> Ladda ned Coavira gratis till iPhone eller Android.
           </p>
-          <Link href={LINKS.start} className={cn(PRIMARY_BTN, "group h-12 shrink-0 px-6", FOCUS)}>
-            Skapa konto – 0 kr
-            <ArrowRight aria-hidden className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
+          <StoreBadges align="center" className="shrink-0" />
         </Reveal>
       </div>
     </Section>

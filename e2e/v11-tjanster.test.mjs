@@ -176,7 +176,7 @@ check(await p.locator('button:has-text("Spara") >> nth=0').isDisabled(), "kostsc
 await p.goto(base + "/pt/profil")
 await p.waitForSelector("text=Tjänster och priser")
 check(
-  (await p.locator("[data-testid=cert-info]").innerText()).includes("certifiering@coavira.com"),
+  (await p.locator("[data-testid=cert-info]").innerText()).includes("certifiering@coavira.fit"),
   "certifikat: hänvisning till manuell verifiering"
 )
 check((await p.locator("#cert").count()) === 0, "certifikat kan inte läggas till av PT:n")
