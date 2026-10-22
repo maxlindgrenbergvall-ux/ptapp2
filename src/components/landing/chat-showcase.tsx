@@ -6,8 +6,14 @@
  * "Missat videosamtal"-kort med Ring upp och ett låtsassamtal där den egna
  * kamerarutan kan dras (eller flyttas med piltangenterna) och snäpper mot
  * närmaste hörn. Ingen kamera eller mikrofon används.
+ *
+ * Prestanda: alla ändlösa rörelser (ringen, pulsen, skrivprickarna, staplarna,
+ * handen, personen i bild) är CSS-animationer på transform/opacity – ingen
+ * JavaScript per bildruta. Skenen är radiella gradienter utan blur-filter och
+ * backdrop-blur finns bara från md. Det enda som räknar i JS är samtalstiden,
+ * och den går bara medan demosamtalet är öppet.
  */
-import { AnimatePresence, animate, motion, useInView, useIsPresent, useMotionValue, useReducedMotion, useScroll, useTransform } from "framer-motion"
+import { AnimatePresence, animate, motion, useInView, useIsPresent, useMotionValue, useReducedMotion } from "framer-motion"
 import {
   BadgeCheck,
   CheckCheck,
@@ -85,26 +91,43 @@ const TIMELINE = [
 ] as const
 const LAST_FRAME = TIMELINE.length - 1
 
+/** Punkterna till vänster. På telefon visas bara rubriken (en rad), texten från md. */
 const FEATURES: { spot: Spot; icon: LucideIcon; title: string; text: string }[] = [
   {
     spot: "chat",
     icon: MessageCircle,
-    title: "Chatt med bilagor",
-    text: "Skicka bilder, teknikvideor och PDF:er. Feedback på ett pass hamnar i samma tråd – kopplad till just det passet.",
+    title: "Chatta och skicka teknikvideor",
+    text: "Bilder, filmer och PDF:er – feedbacken kopplas till rätt pass.",
   },
   {
     spot: "call",
     icon: Video,
-    title: "Röst- och videosamtal i appen",
-    text: "Ring direkt från chatten – inga länkar, inga extra appar. Din kameraruta drar du dit den inte är i vägen.",
+    title: "Ring och videoringa i appen",
+    text: "Inga länkar, inga extra appar. Kamerarutan flyttar du dit du vill.",
   },
   {
     spot: "missed",
     icon: PhoneMissed,
-    title: "Missat samtal? Ring upp.",
-    text: "Missade samtal hamnar som ett kort i chatten. Ett tryck på Ring upp, så är ni igång igen.",
+    title: "Missat samtal? Ring upp direkt",
+    text: "Det missade samtalet blir ett kort i chatten. Ett tryck, så är ni igång.",
   },
 ]
+
+/** Skrivprickarnas fasförskjutning (negativ fördröjning: vågen är igång direkt, inget hopp vid start). */
+// Samma variant (motion-safe:) som animate-bounce, annars nollställer animation-förkortningen fördröjningen.
+const DOT_DELAYS = ["motion-safe:[animation-delay:-0.45s]", "motion-safe:[animation-delay:-0.3s]", "motion-safe:[animation-delay:-0.15s]"]
+
+/** "Pratar"-staplarna: varje stapel glider ner och klipps av nertill (transform i stället för höjd). */
+const BARS = [
+  { y: "7px", dur: "1.1s", delay: "-0.3s" },
+  { y: "4px", dur: "1.3s", delay: "-0.8s" },
+  { y: "8px", dur: "1.5s", delay: "-0.5s" },
+]
+
+/** CSS-variabler till .landing-float (globals.css): sträcka, varvtid och fördröjning. */
+function floatVars(y: string, dur: string, delay = "0s") {
+  return { "--float-y": y, "--float-dur": dur, "--float-delay": delay } as React.CSSProperties
+}
 
 /** Fokusring som används på alla knappar i sektionen. */
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -185,12 +208,14 @@ export function ChatShowcase() {
       eyebrow="Chatt & samtal"
       title={
         <>
-          Coachning som känns <GradientText>nära.</GradientText>
+          Din coach.{" "}
+          <br />
+          Ett <GradientText>tryck</GradientText> bort.
         </>
       }
-      intro="Chatta, skicka teknikvideor och ring din PT – direkt i appen. Allt samlas i samma tråd, så ingenting faller mellan stolarna."
+      intro="Fråga, filma och ring din PT – allt i samma tråd."
     >
-      <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-12">
+      <div className="grid items-center gap-8 sm:gap-12 lg:grid-cols-2">
         <FeatureColumn
           callOpen={callOpen}
           onSpot={setSpot}
@@ -204,7 +229,7 @@ export function ChatShowcase() {
           }}
         />
         <DemoStage phoneRef={phoneRef} callOpen={callOpen}>
-          <div className="relative h-[520px] sm:h-[560px]">
+          <div className="relative h-[500px] sm:h-[560px]">
             <ChatScreen items={items} typing={typing} spot={spot} pulse={!hasCalled} inert={callOpen} onCall={openCall} />
             <AnimatePresence>{callOpen && <CallScreen key={`call-${callId}`} onEnd={endCall} />}</AnimatePresence>
           </div>
@@ -224,7 +249,8 @@ export function ChatShowcase() {
 function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot: (spot: Spot | null) => void; onTry: (el: HTMLElement) => void }) {
   return (
     <div>
-      <Stagger className="space-y-4" step={0.1}>
+      {/* Telefon: kompakt lista (ikon + en rad, tät luft). Från md: kort med förklarande text. */}
+      <Stagger className="space-y-2 md:space-y-4" step={0.1}>
         {FEATURES.map((f, i) => (
           <StaggerItem key={f.spot}>
             <GlassCard
@@ -232,20 +258,20 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
               onPointerLeave={() => onSpot(null)}
               whileHover={{ y: -4 }}
               transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="group flex gap-4 p-5 sm:p-6"
+              className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 md:items-start md:gap-4 md:rounded-3xl md:p-5 lg:p-6"
             >
               <span
                 aria-hidden
                 className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               />
-              <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand ring-1 ring-brand/20">
-                <f.icon className="size-5" />
+              <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20 md:size-11 md:rounded-2xl">
+                <f.icon className="size-[18px] md:size-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
-                <p className="mt-1 text-[15px] leading-relaxed text-pretty text-muted-foreground">{f.text}</p>
+                <h3 className="text-[15px] leading-snug font-semibold tracking-tight md:text-lg">{f.title}</h3>
+                <p className="mt-1 hidden text-[15px] leading-relaxed text-pretty text-muted-foreground md:block">{f.text}</p>
               </div>
-              <span aria-hidden className="hidden self-start text-xs font-medium text-muted-foreground tabular-nums sm:block">
+              <span aria-hidden className="hidden self-start text-xs font-medium text-muted-foreground tabular-nums md:block">
                 0{i + 1}
               </span>
             </GlassCard>
@@ -253,18 +279,18 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
         ))}
       </Stagger>
 
-      <Reveal delay={0.15} className="mt-6 space-y-3 text-sm text-muted-foreground">
+      <Reveal delay={0.15} className="mt-4 space-y-3 text-sm text-muted-foreground md:mt-6">
         <p className="flex items-start gap-2.5">
           <Lock className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-          <span>Samtal låses upp när du har köpt en tjänst eller bokat ett pass med din PT.</span>
+          <span>Samtal låses upp efter köp eller bokat pass.</span>
         </p>
-        <p className="flex items-start gap-2.5">
+        <p className="hidden items-start gap-2.5 md:flex">
           <Users className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-          <span>Flera PT:er? Du får en egen tråd med var och en.</span>
+          <span>Flera PT:er? En egen tråd med var och en.</span>
         </p>
       </Reveal>
 
-      <Reveal delay={0.25} className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+      <Reveal delay={0.25} className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 md:mt-8">
         <button
           type="button"
           disabled={callOpen}
@@ -279,7 +305,7 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
           </span>
           {callOpen ? "Samtal pågår…" : "Testa videosamtalet"}
         </button>
-        <p className="text-xs text-muted-foreground">Interaktiv demo – ingen kamera eller mikrofon används.</p>
+        <p className="text-xs text-muted-foreground">Demo – ingen kamera eller mikrofon används.</p>
       </Reveal>
     </div>
   )
@@ -290,41 +316,28 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
 /* ------------------------------------------------------------------ */
 
 function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject<HTMLDivElement | null>; callOpen: boolean; children: React.ReactNode }) {
-  const reduce = useReducedMotion()
-  const wrapRef = React.useRef<HTMLDivElement>(null)
-  const ringRef = React.useRef<SVGSVGElement>(null)
-  // Ringen snurrar bara nära skärmen. Är den dold (under md) räknas den aldrig som synlig och står still.
-  const ringInView = useInView(ringRef, { margin: "200px" })
-  const spin = ringInView && !reduce
-  const { scrollYProgress } = useScroll({ target: wrapRef, offset: ["start end", "end start"] })
-  // Parallax: 0 vid start (samma på server och klient), står still med "minska rörelse".
-  const y = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -70])
-
   return (
-    <div ref={wrapRef} className="relative flex flex-col items-center">
-      {/* Bakgrund: grönt sken (starkare under samtal) och roterande ringar */}
+    <div className="relative flex flex-col items-center">
+      {/* Bakgrund: grönt sken (starkare under samtal) och en roterande ring. Skenen är radiella
+          gradienter (inget blur-filter), ringen en CSS-animation som bara finns från md. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="absolute size-[420px] max-w-full rounded-full bg-brand/15 blur-[100px]" />
-        <motion.div
-          initial={false}
-          animate={{ opacity: callOpen ? 1 : 0 }}
-          transition={{ duration: 0.8, ease: EASE }}
-          className="absolute size-[320px] max-w-full rounded-full bg-emerald-400/25 blur-[90px]"
+        <div className="absolute size-[560px] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_18%,transparent),transparent)] md:size-[640px]" />
+        <div
+          className={cn(
+            "absolute size-[440px] bg-[radial-gradient(closest-side,oklch(0.765_0.177_163/0.28),transparent)] opacity-0 transition-opacity duration-700 ease-out",
+            callOpen && "opacity-100"
+          )}
         />
-        <motion.svg
-          ref={ringRef}
+        <svg
           viewBox="0 0 100 100"
-          initial={{ rotate: 0 }}
-          animate={{ rotate: spin ? 360 : 0 }}
-          transition={spin ? { duration: 90, repeat: Infinity, ease: "linear" } : { duration: 0 }}
-          className="absolute hidden size-[440px] text-white/[0.08] md:block"
+          className="absolute hidden size-[440px] transform-gpu text-white/[0.08] motion-safe:animate-[spin_90s_linear_infinite] md:block"
         >
           <circle cx="50" cy="50" r="49.5" fill="none" stroke="currentColor" strokeWidth="0.25" strokeDasharray="0.6 2.2" />
-        </motion.svg>
+        </svg>
         <div className="absolute hidden size-[560px] rounded-full border border-white/[0.04] xl:block" />
       </div>
 
-      <motion.div style={{ y }} className="relative">
+      <div className="relative">
         <motion.div
           ref={phoneRef}
           initial={{ opacity: 0, y: 60, rotateX: 14, scale: 0.94 }}
@@ -336,7 +349,8 @@ function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject
           <PhoneFrame time="12:07">{children}</PhoneFrame>
         </motion.div>
 
-        <div aria-hidden className={cn("pointer-events-none absolute inset-0 transition-opacity duration-500", callOpen && "opacity-0")}>
+        {/* Dekorativa brickor runt telefonen: bara på breda skärmar (xl), aldrig på telefon. */}
+        <div aria-hidden className={cn("pointer-events-none absolute inset-0 hidden transition-opacity duration-500 xl:block", callOpen && "opacity-0")}>
           <FloatingBadge delay={0.4} className="top-28 right-[calc(100%-18px)] hidden w-max xl:block">
             <span className="flex size-8 items-center justify-center rounded-xl bg-brand/15 text-brand">
               <Dumbbell className="size-4" />
@@ -356,9 +370,10 @@ function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject
             </span>
           </FloatingBadge>
         </div>
-      </motion.div>
+      </div>
 
-      <p className="relative mt-8 max-w-xs text-center text-sm text-muted-foreground">
+      {/* Bara från md – på telefon räcker knappen "Testa videosamtalet" ovanför. */}
+      <p className="relative mt-8 hidden max-w-xs text-center text-sm text-muted-foreground md:block">
         Prova: tryck <span className="font-medium text-foreground">Ring upp</span> i chatten och dra kamerarutan dit du vill.
       </p>
     </div>
@@ -385,7 +400,6 @@ function ChatScreen({
   inert: boolean
   onCall: (opener: HTMLElement) => void
 }) {
-  const reduce = useReducedMotion()
   const callLit = spot === "call"
   return (
     <div inert={inert} className="flex h-full flex-col">
@@ -438,7 +452,7 @@ function ChatScreen({
                   className={cn("shrink-0", centered ? "origin-bottom" : mine ? "origin-bottom-right" : "origin-bottom-left")}
                 >
                   <div className={cn("transition-opacity duration-300", dim && "opacity-40")}>
-                    <ChatItemView item={item} lit={lit} pulse={pulse && !reduce} onCall={onCall} />
+                    <ChatItemView item={item} lit={lit} pulse={pulse} onCall={onCall} />
                   </div>
                 </motion.li>
               )
@@ -580,37 +594,30 @@ function ChatItemView({ item, lit, pulse, onCall }: { item: ChatItem; lit: boole
           FOCUS
         )}
       >
-        {pulse && (
-          <motion.span
-            aria-hidden
-            className="absolute inset-0 rounded-full bg-brand"
-            initial={{ scaleX: 1, scaleY: 1, opacity: 0.45 }}
-            animate={{ scaleX: 1.05, scaleY: 1.4, opacity: 0 }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
-          />
-        )}
-        <Video className="relative size-4" aria-hidden />
+        {/* Pulsen är CSS (animate-ping på transform/opacity) och syns inte med "minska rörelse". */}
+        <span aria-hidden className="relative flex size-4 items-center justify-center">
+          {pulse && <span className="absolute inset-0 rounded-full bg-brand-foreground/30 motion-safe:animate-ping motion-safe:[animation-duration:1.6s] motion-reduce:hidden" />}
+          <Video className="relative size-4" />
+        </span>
         <span className="relative">Ring upp</span>
       </button>
     </div>
   )
 }
 
-/** "Elin skriver…" med tre studsande prickar. */
+/**
+ * "Elin skriver…" med tre studsande prickar (CSS animate-bounce). Varje prick ligger i en
+ * 12 px hög ram som studsar, så att bounce-animationens −25 % blir 3 px.
+ */
 function TypingBubble() {
-  const reduce = useReducedMotion()
   return (
     <div className="flex justify-start">
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white/[0.08] px-3.5 py-3">
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-white/[0.08] px-3.5 py-[9px]">
         <span className="sr-only">{PT_FIRST} skriver…</span>
-        {[0, 1, 2].map((i) => (
-          <motion.span
-            key={i}
-            aria-hidden
-            className="size-1.5 rounded-full bg-foreground/70"
-            animate={reduce ? { opacity: [0.4, 1, 0.4] } : { y: [0, -3, 0], opacity: [0.45, 1, 0.45] }}
-            transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: i * 0.15 }}
-          />
+        {DOT_DELAYS.map((delay) => (
+          <span key={delay} aria-hidden className={cn("flex h-3 items-center motion-safe:animate-bounce", delay)}>
+            <span className="size-1.5 rounded-full bg-foreground/70" />
+          </span>
         ))}
       </div>
     </div>
@@ -726,7 +733,7 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
               transition={{ duration: 0.4, ease: EASE }}
               className="absolute inset-x-0 top-3 flex justify-center"
             >
-              <span className="flex items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium backdrop-blur-md">
+              <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium md:bg-black/45 md:backdrop-blur-md">
                 <SpeakingBars />
                 {PT_NAME} · <span className="tabular-nums">{formatTimer(seconds)}</span>
               </span>
@@ -765,9 +772,9 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
         />
       </div>
 
-      {/* Kontroller: frostad list med etiketter under ikonerna (som i appen) */}
+      {/* Kontroller: list med etiketter under ikonerna (som i appen) – frostad först från md */}
       <div className="flex justify-center px-3 pt-2 pb-4">
-        <div className="flex items-end gap-3.5 rounded-[1.75rem] bg-white/10 px-4 py-2.5 ring-1 ring-white/10 backdrop-blur-xl">
+        <div className="flex items-end gap-3.5 rounded-[1.75rem] bg-white/[0.14] px-4 py-2.5 ring-1 ring-white/10 md:bg-white/10 md:backdrop-blur-xl">
           <LabeledControl caption={muted ? "Ljud av" : "Mikrofon"}>
             <RoundButton label="Stäng av mikrofonen" pressed={muted} onClick={() => setMuted((m) => !m)}>
               {muted ? <MicOff /> : <Mic />}
@@ -793,9 +800,11 @@ function CallScreen({ onEnd }: { onEnd: (seconds: number) => void }) {
   )
 }
 
-/** Motpartens "video": ringande avatar, sedan en stiliserad bild i motljus. */
+/**
+ * Motpartens "video": ringande avatar, sedan en stiliserad bild i motljus.
+ * Ringarna och personens gungning är CSS-animationer (står still med "minska rörelse").
+ */
 function RemoteFeed({ phase }: { phase: Phase }) {
-  const reduce = useReducedMotion()
   return (
     <div className="absolute inset-0">
       <AnimatePresence initial={false}>
@@ -810,20 +819,15 @@ function RemoteFeed({ phase }: { phase: Phase }) {
             className="absolute inset-0 overflow-hidden bg-[linear-gradient(165deg,#22382d_0%,#111c17_55%,#0a100d_100%)]"
           >
             {/* Rummet: fönsterljus, viktskivor på väggen och en hylla */}
-            <div className="absolute -top-16 -right-12 size-56 rounded-full bg-emerald-200/15 blur-3xl" />
+            <div className="absolute -top-28 -right-24 size-80 bg-[radial-gradient(closest-side,oklch(0.905_0.093_164/0.16),transparent)]" />
             <div className="absolute top-16 left-5 flex flex-col items-center gap-1.5">
               <span className="size-10 rounded-full border-[6px] border-white/[0.07]" />
               <span className="size-7 rounded-full border-[5px] border-white/[0.06]" />
             </div>
             <div className="absolute top-28 right-6 h-1 w-16 rounded-full bg-white/[0.07]" />
             {/* Personen (stiliserad, i motljus) */}
-            <motion.div
-              initial={{ y: 0, rotate: 0 }}
-              animate={reduce ? { y: 0, rotate: 0 } : { y: [0, -3, 0], rotate: [0, -0.8, 0] }}
-              transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute inset-x-0 bottom-0 flex flex-col items-center"
-            >
-              <div className="absolute bottom-28 size-52 rounded-full bg-brand/10 blur-2xl" />
+            <div style={floatVars("-3px", "4.5s")} className="landing-float absolute inset-x-0 bottom-0 flex flex-col items-center">
+              <div className="absolute bottom-[72px] size-72 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_12%,transparent),transparent)]" />
               <div className="relative size-[84px] rounded-full bg-[radial-gradient(circle_at_38%_30%,#557a66,#1d2c25_72%)] ring-1 ring-emerald-100/15" />
               <div className="relative -mt-1 h-4 w-9 bg-[#1f2f27]" />
               <div className="relative -mt-1 h-[150px] w-[220px] rounded-t-[110px] bg-[linear-gradient(180deg,#2e4a3c,#121c17)] ring-1 ring-emerald-100/10">
@@ -832,7 +836,7 @@ function RemoteFeed({ phase }: { phase: Phase }) {
                   <BrandGlyph className="size-3.5" />
                 </span>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -842,15 +846,8 @@ function RemoteFeed({ phase }: { phase: Phase }) {
             className="absolute inset-0 flex flex-col items-center justify-center gap-4 pb-24"
           >
             <span aria-hidden className="relative">
-              {[0, 1].map((i) => (
-                <motion.span
-                  key={i}
-                  className="absolute inset-0 rounded-full border border-white/25"
-                  initial={{ scale: 1, opacity: 0 }}
-                  animate={reduce ? { scale: 1, opacity: 0.4 } : { scale: [1, 1.9], opacity: [0.6, 0] }}
-                  transition={{ duration: 1.8, repeat: Infinity, delay: i * 0.9, ease: "easeOut" }}
-                />
-              ))}
+              <span className="absolute inset-0 rounded-full border border-white/25 opacity-60 motion-safe:animate-ping motion-safe:[animation-duration:1.8s]" />
+              <span className="absolute inset-0 rounded-full border border-white/25 opacity-60 motion-safe:animate-ping motion-safe:[animation-delay:-0.9s] motion-safe:[animation-duration:1.8s]" />
               <PersonAvatar name={PT_NAME} className={cn("relative size-24 text-2xl ring-4 ring-white/10", AVATAR_TONE)} />
             </span>
             <div className="text-center">
@@ -867,37 +864,24 @@ function RemoteFeed({ phase }: { phase: Phase }) {
   )
 }
 
-/** Tre staplar som visar att motparten pratar. */
+/** Tre staplar som visar att motparten pratar: CSS-gungning nedåt, nederdelen klipps (overflow-hidden). */
 function SpeakingBars() {
-  const reduce = useReducedMotion()
   return (
-    <span aria-hidden className="flex h-3 items-end gap-[2px]">
-      {[0.5, 1, 0.7].map((h, i) => (
-        <motion.span
-          key={i}
-          className="h-full w-[3px] origin-bottom rounded-full bg-brand"
-          initial={{ scaleY: h }}
-          animate={reduce ? { scaleY: h } : { scaleY: [h, 0.3, 1, h] }}
-          transition={{ duration: 1.1 + i * 0.2, repeat: Infinity, ease: "easeInOut" }}
-        />
+    <span aria-hidden className="flex h-3 items-end gap-[2px] overflow-hidden">
+      {BARS.map((b) => (
+        <span key={b.dur} style={floatVars(b.y, b.dur, b.delay)} className="landing-float h-full w-[3px] rounded-full bg-brand" />
       ))}
     </span>
   )
 }
 
-/** "Dra kamerarutan ↔" med en hand som vickar. */
+/** "Dra kamerarutan ↔" med en hand som gungar (CSS, står still med "minska rörelse"). */
 function HintChip() {
-  const reduce = useReducedMotion()
   return (
-    <span className="flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
-      <motion.span
-        className="inline-flex"
-        initial={{ x: 0 }}
-        animate={reduce ? { x: 0 } : { x: [0, -3, 3, 0] }}
-        transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.4 }}
-      >
+    <span className="flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white md:bg-black/55 md:backdrop-blur-md">
+      <span style={floatVars("-2px", "1.4s")} className="landing-float inline-flex">
         <Hand className="size-3.5" />
-      </motion.span>
+      </span>
       Dra kamerarutan ↔
     </span>
   )
@@ -991,7 +975,7 @@ function SelfView({
       whileHover={{ scale: 1.03 }}
       whileDrag={{ scale: 1.07 }}
       style={{ x, y }}
-      className="absolute right-3 bottom-3 z-10 aspect-[3/4] w-[84px] cursor-grab touch-none overflow-hidden rounded-2xl border border-white/25 shadow-2xl shadow-black/50 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-black active:cursor-grabbing"
+      className="absolute right-3 bottom-3 z-10 aspect-[3/4] w-[84px] cursor-grab touch-none overflow-hidden will-change-transform rounded-2xl border border-white/25 shadow-2xl shadow-black/50 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-black active:cursor-grabbing"
     >
       {cameraOff ? (
         <div aria-hidden className="flex h-full flex-col items-center justify-center gap-1 bg-[#161b21] text-white/75">

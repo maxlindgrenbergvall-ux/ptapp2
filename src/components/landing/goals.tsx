@@ -6,6 +6,10 @@
  * telefonen om direkt med mätpunkterna som hör till. Exempelvärdena räknas
  * fram ur mätpunktens nyckel (samma värden varje gång) – inga riktiga
  * användare eller siffror.
+ *
+ * Prestanda: ringen och omloppsbanan roterar med CSS (kompositorn, ingen
+ * JavaScript per bildruta) och visas bara från md. Inga blur-filter – sken är
+ * radiella gradienter. Scroll-parallaxen monteras bara från md.
  */
 import {
   AnimatePresence,
@@ -14,6 +18,7 @@ import {
   motion,
   useInView,
   useMotionValue,
+  useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
@@ -232,16 +237,30 @@ function groupsFor(keys: string[]): Group[] {
   }, [])
 }
 
-/** Ett rörelsevärde som snurrar varv på varv medan `active` (syns + ingen "minska rörelse"). */
-function useSpin(active: boolean, seconds: number) {
-  const value = useMotionValue(0)
-  React.useEffect(() => {
-    if (!active) return
-    const from = value.get()
-    const controls = animate(value, [from, from + 360], { duration: seconds, ease: "linear", repeat: Infinity })
-    return () => controls.stop()
-  }, [active, seconds, value])
-  return value
+/** Från md (768 px). Falskt på servern och i första renderingen, så att HTML:en blir lika. */
+const MD_QUERY = "(min-width: 768px)"
+const subscribeMd = (onChange: () => void) => {
+  const mq = window.matchMedia(MD_QUERY)
+  mq.addEventListener("change", onChange)
+  return () => mq.removeEventListener("change", onChange)
+}
+const useFromMd = () =>
+  React.useSyncExternalStore(
+    subscribeMd,
+    () => window.matchMedia(MD_QUERY).matches,
+    () => false
+  )
+
+/**
+ * Startar en nyss monterad emojis motrotation (CSS) i takt med omloppsbanans rotation –
+ * annars står emojin snett om den läggs till efter att banan börjat snurra. Körs en gång
+ * vid montering, aldrig per bildruta.
+ */
+function syncSpin(el: HTMLElement | null) {
+  if (!el || typeof el.getAnimations !== "function") return
+  const lead = el.closest<HTMLElement>("[data-omlopp]")?.getAnimations()[0]
+  const own = el.getAnimations()[0]
+  if (own && lead && lead.startTime !== null) own.startTime = lead.startTime
 }
 
 /* ------------------------------------------------------------------ */
@@ -313,7 +332,7 @@ export function GoalShowcase() {
           Vad vill du <GradientText>uppnå?</GradientText>
         </>
       }
-      intro="Berätta vad du tränar för, så skräddarsyr Coavira din Framsteg-vy – tid på milen för cyklisten, 1RM för styrkelyftaren. Testa själv: vyn byggs om i realtid."
+      intro="Välj mål – appen bygger din Framsteg-vy direkt."
     >
       <Backdrop />
       {/*
@@ -321,7 +340,7 @@ export function GoalShowcase() {
         mobilen, så att man ser vyn byggas om när man trycker. På desktop ligger väljaren och
         utfallet i vänsterkolumnen och ser ut som ett kort, med telefonen bredvid.
       */}
-      <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-0">
+      <div className="grid grid-cols-1 gap-4 sm:gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-0">
         <Reveal className="min-w-0 lg:col-start-1 lg:row-start-1">
           <GoalPicker role={role} selected={selected} denied={denied} onRole={changeRole} onToggle={toggle} onClear={clear} />
         </Reveal>
@@ -384,16 +403,21 @@ function GoalPicker({
     onClear()
   }
   return (
-    <GlassCard className="rounded-[2rem] p-5 sm:p-7 lg:rounded-b-none lg:border-b-0 lg:pb-6">
+    <GlassCard className="rounded-[2rem] p-4 sm:p-7 lg:rounded-b-none lg:border-b-0 lg:pb-6">
       <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-brand/10 blur-3xl" />
+      {/* Sken som gradient i stället för blur-filter. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 -right-32 size-80 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_16%,transparent),transparent)]"
+      />
 
       <RoleToggle role={role} onChange={onRole} />
 
-      <div className="mt-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      {/* Mobil: rubrik och räknare på samma rad. */}
+      <div className="mt-5 flex items-end justify-between gap-x-4 gap-y-4 sm:mt-7 sm:flex-wrap sm:gap-x-6">
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">Testa: välj upp till {MAX_GOALS} mål</p>
-          <h3 id="mal-val-titel" className="mt-2 text-2xl leading-tight font-bold tracking-tight sm:text-3xl">
+          <h3 id="mal-val-titel" className="mt-1.5 text-2xl leading-tight font-bold tracking-tight sm:mt-2 sm:text-3xl">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
                 key={role}
@@ -411,10 +435,8 @@ function GoalPicker({
         <GoalCounter n={n} denied={denied} />
       </div>
 
-      <p className="mt-3 max-w-lg text-sm text-pretty text-muted-foreground">
-        {role === "pt"
-          ? "Klienten väljer sina intressen – du ser exakt de mätpunkterna i klientens Progress-flik. Dina klienters framsteg, mätt mot det de faktiskt tränar för."
-          : "Du väljer intressen när du skapar kontot och kan ändra dem när som helst i profilen. Framsteg visar mätpunkterna som hör till."}
+      <p className="mt-2 text-sm text-pretty text-muted-foreground sm:mt-3">
+        {role === "pt" ? "Klientens mål styr vad du ser i Progress." : "Ändra dina mål när du vill i profilen."}
       </p>
 
       {/* Under sm: en svepbar rad ända ut till kortets kanter. Luft upptill och nedtill för ordningssiffran och fokusringen. */}
@@ -422,7 +444,7 @@ function GoalPicker({
         ref={groupRef}
         role="group"
         aria-labelledby="mal-val-titel"
-        className="-mx-5 mt-2.5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-2.5 pb-2 [scrollbar-width:none] sm:mx-0 sm:mt-5 sm:flex-wrap sm:overflow-visible sm:p-0 [&::-webkit-scrollbar]:hidden"
+        className="-mx-4 mt-1.5 flex snap-x scroll-px-4 gap-2.5 overflow-x-auto px-4 pt-2.5 pb-2 [scrollbar-width:none] sm:mx-0 sm:mt-5 sm:flex-wrap sm:overflow-visible sm:p-0 [&::-webkit-scrollbar]:hidden"
       >
         {INTERESTS.map((interest) => {
           const order = selected.indexOf(interest.key) + 1
@@ -430,7 +452,7 @@ function GoalPicker({
         })}
       </div>
 
-      <div className="mt-4 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="mt-1 flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:mt-4">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={Math.min(n, MAX_GOALS)}
@@ -441,9 +463,9 @@ function GoalPicker({
             className={cn("text-sm font-medium", full ? "text-brand" : "text-muted-foreground")}
           >
             {n === 0 && "Börja med det du tränar mest för."}
-            {n === 1 && "Snyggt! Lägg till upp till två mål till."}
+            {n === 1 && "Snyggt! Två till får plats."}
             {n === 2 && "Ett mål kvar – kör!"}
-            {full && "Full pott! 🎉 Tryck på ett valt mål för att byta."}
+            {full && "Full pott! 🎉 Tryck på ett mål för att byta."}
           </motion.p>
         </AnimatePresence>
         {n > 0 && (
@@ -467,7 +489,7 @@ function GoalPicker({
  */
 function GoalOutcome({ role, specialty }: { role: Role; specialty?: InterestDef }) {
   return (
-    <GlassCard className="rounded-[2rem] p-5 sm:p-7 lg:h-full lg:rounded-t-none lg:border-t-0 lg:pt-0 lg:shadow-none">
+    <GlassCard className="rounded-[2rem] p-4 sm:p-7 lg:h-full lg:rounded-t-none lg:border-t-0 lg:pt-0 lg:shadow-none">
       <div aria-hidden className="mb-6 hidden h-px bg-gradient-to-r from-white/[0.02] via-white/10 to-white/[0.02] lg:block" />
 
       <AnimatePresence mode="popLayout" initial={false}>
@@ -477,7 +499,7 @@ function GoalOutcome({ role, specialty }: { role: Role; specialty?: InterestDef 
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12, transition: { duration: 0.2 } }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="min-h-[8.5rem]"
+          className="min-h-[4.5rem] sm:min-h-[8.5rem]"
         >
           {role === "pt" ? <PtReach specialty={specialty} /> : <PtMatches specialty={specialty} />}
         </motion.div>
@@ -523,21 +545,21 @@ function GoalCounter({ n, denied }: { n: number; denied: number }) {
       key={denied}
       animate={denied ? { x: [0, -9, 9, -6, 6, -2, 0] } : undefined}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="flex shrink-0 flex-col items-start gap-2 sm:items-end"
+      className="flex shrink-0 flex-col items-end gap-1.5 sm:gap-2"
     >
       <span className="sr-only">
         {n} av {MAX_GOALS} mål valda
       </span>
       <div aria-hidden className="flex items-end gap-2">
         <span className="flex items-baseline">
-          <span className="relative inline-flex h-12 items-center overflow-hidden text-5xl leading-none font-extrabold tracking-tight text-brand tabular-nums">
+          <span className="relative inline-flex h-10 items-center overflow-hidden text-4xl leading-none font-extrabold tracking-tight text-brand tabular-nums sm:h-12 sm:text-5xl">
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.span key={n} initial={{ y: "100%", opacity: 0 }} animate={{ y: "0%", opacity: 1 }} exit={{ y: "-100%", opacity: 0 }} transition={SPRING}>
                 {n}
               </motion.span>
             </AnimatePresence>
           </span>
-          <span className="text-2xl font-bold text-muted-foreground">/{MAX_GOALS}</span>
+          <span className="text-xl font-bold text-muted-foreground sm:text-2xl">/{MAX_GOALS}</span>
         </span>
         <span className="pb-1 text-xs leading-tight font-medium text-muted-foreground">
           mål
@@ -547,7 +569,7 @@ function GoalCounter({ n, denied }: { n: number; denied: number }) {
       </div>
       <div aria-hidden className="flex gap-1.5">
         {Array.from({ length: MAX_GOALS }, (_, i) => (
-          <span key={i} className="h-1.5 w-9 overflow-hidden rounded-full bg-white/10">
+          <span key={i} className="h-1.5 w-7 overflow-hidden rounded-full bg-white/10 sm:w-9">
             <motion.span initial={false} animate={{ scaleX: i < n ? 1 : 0 }} transition={SOFT_SPRING} className="block h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-brand" />
           </span>
         ))}
@@ -624,9 +646,7 @@ function PtMatches({ specialty }: { specialty?: InterestDef }) {
         <p className="flex items-center gap-2 text-sm font-semibold">
           <Search aria-hidden className="size-4 text-brand" /> Hitta en PT som passar dig
         </p>
-        <p className="mt-2 text-sm text-pretty text-muted-foreground">
-          Filtrera på inriktning, pris, stad och distans i Hitta PT. Alla PT:er granskas manuellt innan de får ett konto.
-        </p>
+        <p className="mt-2 text-sm text-pretty text-muted-foreground">Filtrera på inriktning, pris, stad och distans. Alla PT:er granskas manuellt.</p>
       </div>
     )
   }
@@ -641,6 +661,7 @@ function PtMatches({ specialty }: { specialty?: InterestDef }) {
         </p>
         <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted-foreground">Exempel</span>
       </div>
+      {/* Mobil: två exempel-PT:er på en rad i stället för tre på två. */}
       <ul className="mt-3 flex flex-wrap gap-2">
         {examplePts(specialty.key).map((pt, i) => (
           <motion.li
@@ -648,7 +669,10 @@ function PtMatches({ specialty }: { specialty?: InterestDef }) {
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ ...SOFT_SPRING, delay: 0.05 + i * 0.06 }}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] pr-3 pl-1 text-[13px] font-medium"
+            className={cn(
+              "inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] pr-3 pl-1 text-[13px] font-medium",
+              i > 1 && "hidden sm:inline-flex"
+            )}
           >
             <span aria-hidden className={cn("grid size-7 place-items-center rounded-full text-[10px] font-bold", pt.tone)}>
               {initials(pt.name)}
@@ -659,9 +683,7 @@ function PtMatches({ specialty }: { specialty?: InterestDef }) {
           </motion.li>
         ))}
       </ul>
-      <p className="mt-3 text-sm text-pretty text-muted-foreground">
-        Filtrera på inriktning i Hitta PT – de som matchar bäst visas först. Alla PT:er granskas manuellt innan de får ett konto.
-      </p>
+      <p className="mt-3 hidden text-sm text-pretty text-muted-foreground md:block">Filtrera på inriktning i Hitta PT. Alla PT:er granskas manuellt.</p>
     </div>
   )
 }
@@ -674,14 +696,14 @@ function PtReach({ specialty }: { specialty?: InterestDef }) {
       icon: Search,
       text: label ? (
         <>
-          Klienter som filtrerar på <span className="font-medium text-foreground">{label}</span> i Hitta PT hittar dig via dina inriktningar.
+          Klienter som filtrerar på <span className="font-medium text-foreground">{label}</span> i Hitta PT hittar dig.
         </>
       ) : (
-        "Klienter filtrerar på inriktning i Hitta PT – välj dina i profilen."
+        "Klienter filtrerar på inriktning i Hitta PT."
       ),
     },
-    { icon: Sparkles, text: "Skapa personliga erbjudanden per inriktning." },
-    { icon: ChartLine, text: "Följ klientens mätpunkter i fliken Progress." },
+    { icon: Sparkles, text: "Egna erbjudanden per inriktning." },
+    { icon: ChartLine, text: "Klientens mätpunkter i fliken Progress." },
   ]
   return (
     <div>
@@ -697,7 +719,7 @@ function PtReach({ specialty }: { specialty?: InterestDef }) {
           "Syns för rätt klienter"
         )}
       </p>
-      <ul className="mt-3 space-y-2">
+      <ul className="mt-2.5 space-y-1.5 sm:mt-3 sm:space-y-2">
         {rows.map(({ icon: Icon, text }, i) => (
           <motion.li
             key={i}
@@ -720,7 +742,7 @@ function PtReach({ specialty }: { specialty?: InterestDef }) {
 /** Ladda ned appen (klient) eller ansök (PT). */
 function GoalCta({ role }: { role: Role }) {
   return (
-    <div className="mt-6">
+    <div className="mt-4 sm:mt-6">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={role}
@@ -747,9 +769,7 @@ function GoalCta({ role }: { role: Role }) {
             <StoreBadges align="center" className="shrink-0 sm:justify-start" />
           )}
           <p className="text-sm text-pretty text-muted-foreground">
-            {role === "pt"
-              ? "PT-konton skapas av Coavira efter manuell granskning av ditt certifikat. Du sätter dina egna priser."
-              : "Gratis att ladda ned. Tjänsterna köper du av din PT med kort, direkt i appen."}
+            {role === "pt" ? "Vi granskar ditt certifikat och skapar kontot. Du sätter dina priser." : "Gratis att ladda ned för iPhone och Android."}
           </p>
         </motion.div>
       </AnimatePresence>
@@ -761,12 +781,17 @@ function GoalCta({ role }: { role: Role }) {
 /* Telefonen: scen, sken, omloppsbana och flytande brickor             */
 /* ------------------------------------------------------------------ */
 
+/** Banans och emojins rotation – samma längd, så att motrotationen tar ut banans exakt. */
+const ORBIT_SPIN = "animate-[spin_40s_linear_infinite]"
+const ORBIT_COUNTER_SPIN = "animate-[spin_40s_linear_infinite_reverse]"
+
 function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen: InterestDef[]; groups: Group[]; spot?: InterestDef; pulse: Pulse }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const reduce = !!useReducedMotion()
-  const inView = useInView(ref, { margin: "-10% 0px" })
+  const fromMd = useFromMd()
+  // Ringen snurrar bara när telefonen är nära skärmen. Marginalen gör att omstarten aldrig syns.
+  const near = useInView(ref, { margin: "200px 0px" })
   const seen = useInView(ref, { once: true, margin: "0px 0px -20% 0px" })
-  const spin = useSpin(inView && !reduce, 40)
 
   // Pekaren lutar telefonen (bara mus, inte med "minska rörelse").
   const px = useMotionValue(0)
@@ -776,137 +801,180 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
   const rotateY = useTransform(sx, (v) => -6 + v * 14)
   const rotateX = useTransform(sy, (v) => 3 - v * 10)
 
-  // Parallax: brickorna rör sig lite mer än telefonen vid scroll men följer med den, så att de
-  // inte glider in över innehållet. 0 vid start, så att serverns HTML och klientens första
-  // rendering är lika även med "minska rörelse".
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
-  const phoneY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -60))
-  const badgesY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -70))
+  // Parallax (ScrollDrift, bara från md). 0 annars, så att serverns HTML och klientens första rendering är lika.
+  const phoneY = useMotionValue(0)
+  const badgesY = useMotionValue(0)
 
   return (
-    <div
-      ref={ref}
-      id="mal-telefon"
-      className="relative mx-auto w-full max-w-[600px] scroll-mt-24"
-      onPointerMove={(e) => {
-        if (reduce || e.pointerType !== "mouse") return
-        const r = e.currentTarget.getBoundingClientRect()
-        px.set((e.clientX - r.left) / r.width - 0.5)
-        py.set((e.clientY - r.top) / r.height - 0.5)
-      }}
-      onPointerLeave={() => {
-        px.set(0)
-        py.set(0)
-      }}
-    >
-      <div className="mb-2 flex justify-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-md">
-          <span aria-hidden className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand/70 motion-reduce:animate-none" />
-            <span className="relative size-2 rounded-full bg-brand" />
-          </span>
-          Live-förhandsvisning · {role === "pt" ? "PT-vy" : "klientvy"}
-        </span>
-      </div>
-
-      <div className="relative flex justify-center py-3 sm:py-8">
-        <Halo spin={spin} chosen={chosen} reduce={reduce} />
-        <div aria-hidden className="pointer-events-none absolute inset-x-6 top-1/2 h-72 -translate-y-1/2 rounded-full bg-brand/15 blur-3xl sm:hidden" />
-        <div aria-hidden className="pointer-events-none absolute bottom-4 left-1/2 h-10 w-56 -translate-x-1/2 rounded-full bg-black/70 blur-2xl" />
-
-        <motion.div style={{ y: phoneY }} className="relative z-10">
-          <motion.div style={{ rotateX, rotateY, transformPerspective: 1400 }}>
-            <PhoneFrame time="07:42">
-              <FramstegScreen role={role} chosen={chosen} groups={groups} pulse={pulse} run={seen} reduce={reduce} />
-            </PhoneFrame>
-          </motion.div>
-        </motion.div>
-
-        {/*
-          Flytande brickor (dekor – samma fakta står i texten bredvid). En rad var och placerade vid
-          telefonens övre och nedre ram, så att de aldrig täcker mätpunkterna eller rubrikerna.
-        */}
-        <motion.div aria-hidden style={{ y: badgesY }} className="pointer-events-none absolute inset-0 z-20 hidden sm:block lg:hidden xl:block">
-          {spot && (
-            <FloatingBadge className="top-3 -right-4" delay={0.4}>
-              <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
-                <Trophy className="size-4" />
-              </span>
-              <span className="text-[13px] font-semibold whitespace-nowrap">Personbästa!</span>
-              <span className="relative -ml-1 grid place-items-center">
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span
-                    key={spot.key}
-                    initial={{ scale: 0, rotate: -30 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, rotate: 30 }}
-                    transition={SPRING}
-                    className="block text-base leading-none"
-                  >
-                    {spot.emoji}
-                  </motion.span>
-                </AnimatePresence>
-              </span>
-            </FloatingBadge>
-          )}
-          <FloatingBadge className="-bottom-1 -left-4" delay={0.7} distance={8}>
-            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300">
-              {role === "pt" ? <Target className="size-4" /> : <Eye className="size-4" />}
+    <>
+      <div
+        ref={ref}
+        id="mal-telefon"
+        className="relative mx-auto w-full max-w-[600px] scroll-mt-24"
+        onPointerMove={(e) => {
+          if (reduce || e.pointerType !== "mouse") return
+          const r = e.currentTarget.getBoundingClientRect()
+          px.set((e.clientX - r.left) / r.width - 0.5)
+          py.set((e.clientY - r.top) / r.height - 0.5)
+        }}
+        onPointerLeave={() => {
+          px.set(0)
+          py.set(0)
+        }}
+      >
+        <div className="mb-2 hidden justify-center md:flex">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground md:backdrop-blur-md">
+            <span aria-hidden className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand/70 motion-reduce:animate-none" />
+              <span className="relative size-2 rounded-full bg-brand" />
             </span>
-            <span className="text-[13px] font-semibold whitespace-nowrap">{role === "pt" ? "Dina klienters mål 🎯" : "Syns för din PT 👀"}</span>
-          </FloatingBadge>
-        </motion.div>
-      </div>
+            Live-förhandsvisning · {role === "pt" ? "PT-vy" : "klientvy"}
+          </span>
+        </div>
 
-      <p className="mx-auto mt-2 max-w-sm text-center text-xs text-pretty text-muted-foreground">
-        Exempeldata. Mätpunkter märkta <span className="font-semibold text-brand">Auto</span> räknas fram ur passloggen och viktloggen – resten loggar du själv. Allt
-        syns för dig och dina PT:er.
-      </p>
-    </div>
+        <div className="relative flex justify-center py-1 sm:py-6 md:py-8">
+          <Halo spin={near && !reduce} chosen={chosen} reduce={reduce} />
+          {/* Mobil: ett mjukt sken bakom telefonen i stället för ringen (gradient, inget blur-filter). */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-1/2 h-80 -translate-y-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)] md:hidden"
+          />
+          {/* Skugga under telefonen. */}
+          <div aria-hidden className="pointer-events-none absolute bottom-0 left-1/2 h-20 w-72 -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(0,0,0,0.7),transparent)]" />
+
+          <motion.div style={{ y: phoneY }} className="relative z-10">
+            <motion.div style={{ rotateX, rotateY, transformPerspective: 1400 }}>
+              <PhoneFrame time="07:42">
+                <FramstegScreen role={role} chosen={chosen} groups={groups} pulse={pulse} run={seen} reduce={reduce} />
+              </PhoneFrame>
+            </motion.div>
+          </motion.div>
+
+          {/*
+            Flytande brickor (dekor – samma fakta står i texten bredvid, och de visas bara från md).
+            En rad var och placerade vid telefonens övre och nedre ram, så att de aldrig täcker
+            mätpunkterna eller rubrikerna.
+          */}
+          <motion.div aria-hidden style={{ y: badgesY }} className="pointer-events-none absolute inset-0 z-20 hidden md:block lg:hidden xl:block">
+            {spot && (
+              <FloatingBadge className="top-3 -right-4" delay={0.4}>
+                <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
+                  <Trophy className="size-4" />
+                </span>
+                <span className="text-[13px] font-semibold whitespace-nowrap">Personbästa!</span>
+                <span className="relative -ml-1 grid place-items-center">
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.span
+                      key={spot.key}
+                      initial={{ scale: 0, rotate: -30 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0, rotate: 30 }}
+                      transition={SPRING}
+                      className="block text-base leading-none"
+                    >
+                      {spot.emoji}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+              </FloatingBadge>
+            )}
+            <FloatingBadge className="-bottom-1 -left-4" delay={0.7} distance={8}>
+              <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300">
+                {role === "pt" ? <Target className="size-4" /> : <Eye className="size-4" />}
+              </span>
+              <span className="text-[13px] font-semibold whitespace-nowrap">{role === "pt" ? "Dina klienters mål 🎯" : "Syns för din PT 👀"}</span>
+            </FloatingBadge>
+          </motion.div>
+        </div>
+
+        <p className="mx-auto mt-1 max-w-sm text-center text-xs text-pretty text-muted-foreground md:mt-2">
+          Exempeldata.
+          <span className="hidden md:inline">
+            {" "}
+            Mätpunkter märkta <span className="font-semibold text-brand">Auto</span> räknas fram ur pass- och viktloggen, resten loggar du själv.
+          </span>
+        </p>
+      </div>
+      {/* Syskon efter telefonen: då är ref:en satt när useScroll startar. */}
+      {fromMd && !reduce && <ScrollDrift target={ref} phoneY={phoneY} badgesY={badgesY} />}
+    </>
   )
 }
 
-/** Glöd, en roterande ljusring och de valda målens emojis i omloppsbana runt telefonen. */
-function Halo({ spin, chosen, reduce }: { spin: MotionValue<number>; chosen: InterestDef[]; reduce: boolean }) {
+/**
+ * Scroll-parallax: brickorna rör sig lite mer än telefonen men följer med den, så att de inte
+ * glider in över innehållet. Monteras bara från md och utan "minska rörelse" – på telefoner
+ * körs ingen scrollmätning alls.
+ */
+function ScrollDrift({ target, phoneY, badgesY }: { target: React.RefObject<HTMLDivElement | null>; phoneY: MotionValue<number>; badgesY: MotionValue<number> }) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start end", "end start"] })
+  useMotionValueEvent(scrollYProgress, "change", (v) => {
+    phoneY.set(v * -60)
+    badgesY.set(v * -70)
+  })
+  // Tillbaka till 0 om fönstret krymper under md.
+  React.useEffect(
+    () => () => {
+      phoneY.set(0)
+      badgesY.set(0)
+    },
+    [phoneY, badgesY]
+  )
+  return null
+}
+
+/**
+ * Glöd, en roterande ljusring och de valda målens emojis i omloppsbana runt telefonen. Bara
+ * från md, och rotationen är ren CSS (kompositorn) – ingen JavaScript per bildruta.
+ */
+function Halo({ spin, chosen, reduce }: { spin: boolean; chosen: InterestDef[]; reduce: boolean }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 hidden aspect-square w-[min(30rem,calc(100%_-_3.5rem))] -translate-x-1/2 -translate-y-1/2 sm:block">
+    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 hidden aspect-square w-[min(30rem,calc(100%_-_3.5rem))] -translate-x-1/2 -translate-y-1/2 md:block">
       <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.17),transparent_76%)]" />
-      <motion.div
-        style={{ rotate: spin }}
-        className="absolute inset-0 rounded-full opacity-80 [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_60deg,transparent_140deg,#34d399_220deg,transparent_310deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))]"
+      <div
+        className={cn(
+          "absolute inset-0 rounded-full opacity-80 [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_60deg,transparent_140deg,#34d399_220deg,transparent_310deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))]",
+          spin && "animate-[spin_24s_linear_infinite] motion-reduce:animate-none"
+        )}
       />
       <div className="absolute inset-[13%] rounded-full border border-dashed border-white/[0.07]" />
-      <motion.div style={{ rotate: spin }} className="absolute inset-0">
+      <div data-omlopp className={cn("absolute inset-0", spin && ORBIT_SPIN)}>
         <AnimatePresence>
           {chosen.map((interest, i) => (
             <Orbiter key={interest.key} emoji={interest.emoji} angle={55 + (i * 360) / chosen.length} spin={spin} reduce={reduce} />
           ))}
         </AnimatePresence>
-      </motion.div>
+      </div>
     </div>
   )
 }
 
-/** En emoji på ringen. Glider till sin nya plats när mål läggs till eller tas bort, och står alltid upprätt. */
-function Orbiter({ emoji, angle, spin, reduce }: { emoji: string; angle: number; spin: MotionValue<number>; reduce: boolean }) {
+/**
+ * En emoji på ringen. Glider till sin nya plats när mål läggs till eller tas bort och står
+ * alltid upprätt: banans CSS-rotation tas ut av samma rotation baklänges (i takt via syncSpin),
+ * platsens vinkel av en motrotation som bara rör sig medan emojin byter plats.
+ */
+function Orbiter({ emoji, angle, spin, reduce }: { emoji: string; angle: number; spin: boolean; reduce: boolean }) {
   const theta = useSpring(angle, { stiffness: 110, damping: 18 })
   React.useEffect(() => {
     if (reduce) theta.jump(angle)
     else theta.set(angle)
   }, [angle, reduce, theta])
-  const upright = useTransform([spin, theta], ([s, t]: number[]) => -(s + t))
+  const upright = useTransform(theta, (t) => -t)
   return (
     <motion.div style={{ rotate: theta }} className="absolute inset-0">
-      <motion.span
-        style={{ rotate: upright }}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0, opacity: 0 }}
-        transition={SPRING}
-        className="absolute top-0 left-1/2 -mt-6 -ml-6 grid size-12 place-items-center rounded-full border border-white/10 bg-[#11161d]/90 text-2xl shadow-lg shadow-black/50"
-      >
-        {emoji}
-      </motion.span>
+      <span ref={syncSpin} className={cn("absolute top-0 left-1/2 -mt-6 -ml-6 size-12", spin && ORBIT_COUNTER_SPIN)}>
+        <motion.span
+          style={{ rotate: upright }}
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+          transition={SPRING}
+          className="grid size-full place-items-center rounded-full border border-white/10 bg-[#11161d]/90 text-2xl shadow-lg shadow-black/50"
+        >
+          {emoji}
+        </motion.span>
+      </span>
     </motion.div>
   )
 }
@@ -958,7 +1026,8 @@ function FramstegScreen({ role, chosen, groups, pulse, run, reduce }: { role: Ro
   }, [pulse, reduce])
 
   return (
-    <div className="relative h-[540px]">
+    // Kortare skärm i mobilen; den rullar ändå fram till det mål man nyss valde.
+    <div className="relative h-[430px] sm:h-[540px]">
       <svg aria-hidden width="0" height="0" className="absolute">
         <defs>
           <linearGradient id="mal-spark-fyllning" x1="0" x2="0" y1="0" y2="1">
@@ -1027,9 +1096,7 @@ function FramstegScreen({ role, chosen, groups, pulse, run, reduce }: { role: Ro
                     <Sparkles aria-hidden className="size-3.5 text-primary" /> Välj dina intressen
                   </p>
                   <p className="text-muted-foreground">
-                    {role === "pt"
-                      ? "Klienten har inte valt några intressen än."
-                      : "Berätta vad du tränar för, så visar vi rätt mätpunkter här – t.ex. bästa tid på milen för cykling eller 1RM för styrkelyft."}
+                    {role === "pt" ? "Klienten har inte valt några intressen än." : "Välj vad du tränar för så visas rätt mätpunkter här."}
                   </p>
                 </motion.div>
               ) : (
