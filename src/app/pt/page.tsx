@@ -247,7 +247,10 @@ function RecentPurchases() {
               <PersonAvatar name={client?.name ?? "Klient"} src={client?.avatarUrl} className="size-8" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{client?.name ?? "Klient"}</span>
-                <span className="block truncate text-xs text-muted-foreground">{p.title}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {p.title}
+                  {(p.quantity ?? 1) > 1 && ` × ${p.quantity}`}
+                </span>
               </span>
               <span className="shrink-0 text-xs font-medium tabular">{formatSek(p.priceSek)}</span>
             </Link>

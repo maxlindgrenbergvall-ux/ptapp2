@@ -26,6 +26,8 @@ const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).
 const cartCount = async () => Number((await p.locator("[data-testid=cart-count]").innerText().catch(() => "0")).trim() || 0)
 const sek = (n) => `${n.toLocaleString("sv-SE").replace(/ /g, " ")} kr`
 const norm = (s) => s.replace(/\s+/g, " ").trim()
+// Serviceavgift 7 %, hela kronor (som databasen och src/lib/payments/fees.ts).
+const fee = (subtotal) => Math.floor((subtotal * 7 + 50) / 100)
 
 // ------------------------------------------------- 1. Hitta PT: utvald först ---
 await p.goto(base + "/klient/hitta")
@@ -81,7 +83,27 @@ check((await groups.count()) === 2, "varukorgen är grupperad per PT")
 check(await cart.locator("text=du betalar en PT i taget").isVisible(), "förklarar att man betalar en PT i taget")
 const davidGroup = cart.locator("section[aria-label='Varukorg hos David Ek']")
 const davidTotal = davidServices[0].priceSek + davidServices[1].priceSek
-check(norm(await davidGroup.locator("[data-testid=cart-total]").innerText()) === sek(davidTotal), `summan per PT (${sek(davidTotal)})`)
+check(norm(await davidGroup.locator("[data-testid=cart-total-subtotal]").innerText()) === sek(davidTotal), `deltotal per PT (${sek(davidTotal)})`)
+check(norm(await davidGroup.locator("[data-testid=cart-total-fee]").innerText()) === sek(fee(davidTotal)), `serviceavgift 7 % (${sek(fee(davidTotal))})`)
+check(norm(await davidGroup.locator("[data-testid=cart-total]").innerText()) === sek(davidTotal + fee(davidTotal)), `totalt att betala (${sek(davidTotal + fee(davidTotal))})`)
+check(/Serviceavgift \(7 %\)/.test(await davidGroup.innerText()) && /Totalt att betala/.test(await davidGroup.innerText()), "avgiften redovisas som egen rad")
+
+// v17: antal enstaka pass direkt i varukorgen.
+const single = davidServices.find((x) => x.kind === "single")
+const pkg = davidServices.find((x) => x.kind !== "single")
+const singleRow = davidGroup.locator("li", { hasText: single.title })
+check(await davidGroup.locator(`button[aria-label="Minska antal ${single.title}"]`).isDisabled(), "minus är avstängt vid 1 pass")
+check((await davidGroup.locator(`[aria-label="Antal ${pkg.title}"]`).count()) === 0, "paket har inget antal att välja")
+await davidGroup.locator(`button[aria-label="Öka antal ${single.title}"]`).click()
+await davidGroup.locator(`button[aria-label="Öka antal ${single.title}"]`).click()
+await p.waitForFunction(() => [...document.querySelectorAll("[data-testid=cart-quantity]")].some((e) => e.textContent === "3"))
+check(norm(await singleRow.locator("[data-testid=cart-line-total]").innerText()) === sek(single.priceSek * 3), `3 pass: radpriset uppdateras (${sek(single.priceSek * 3)})`)
+const sub3 = single.priceSek * 3 + pkg.priceSek
+check(norm(await davidGroup.locator("[data-testid=cart-total]").innerText()) === sek(sub3 + fee(sub3)), `totalen räknas om med avgift (${sek(sub3 + fee(sub3))})`)
+check((await demo()).cart.find((c) => c.serviceId === single.id)?.quantity === 3, "antalet sparas i varukorgen")
+await davidGroup.locator(`button[aria-label="Minska antal ${single.title}"]`).click()
+await p.waitForFunction(() => [...document.querySelectorAll("[data-testid=cart-quantity]")].some((e) => e.textContent === "2"))
+ok("minus minskar antalet")
 await p.screenshot({ path: `${out}/v16-varukorg.png` })
 
 // Mersälj i varukorgen om PT:n säljer kost och klienten inte redan har den.
@@ -94,7 +116,8 @@ if (otherNutrition) {
 // Ta bort en tjänst.
 await davidGroup.locator(`button[aria-label="Ta bort ${davidServices[1].title} ur varukorgen"]`).click()
 await p.waitForFunction(() => document.querySelector("[data-testid=cart-count]")?.textContent === "2")
-check(norm(await davidGroup.locator("[data-testid=cart-total]").innerText()) === sek(davidServices[0].priceSek), "borttagen tjänst försvinner ur summan")
+const left = davidServices[0].kind === "single" ? davidServices[0].priceSek * 2 : davidServices[0].priceSek
+check(norm(await davidGroup.locator("[data-testid=cart-total-subtotal]").innerText()) === sek(left), "borttagen tjänst försvinner ur summan")
 
 // Kassan för en PT: demoläget simulerar betalningen; den PT:ns rader töms, den andra ligger kvar.
 await otherGroup.locator("button:has-text('Till kassan')").click()
@@ -104,12 +127,22 @@ const d1 = await demo()
 check(d1.purchases.some((x) => x.serviceId === otherSingle.id && x.status === "paid"), `köpet hos ${other.name} är betalt`)
 check(d1.cart.length === 1 && d1.cart[0].serviceId === davidServices[0].id, "betald tjänst togs bort ur varukorgen, resten ligger kvar")
 check((await groups.count()) === 1, "bara Davids grupp är kvar i varukorgen")
+// Kassan hos David med 2 enstaka pass: köpet får antal, pass och pris × 2.
+if (davidServices[0].kind === "single") {
+  await davidGroup.locator("button:has-text('Till kassan')").click()
+  await p.waitForFunction(() => !document.querySelector("[data-testid=cart-count]"))
+  const bought = (await demo()).purchases.find((x) => x.serviceId === davidServices[0].id && x.status === "paid")
+  check(bought?.quantity === 2 && bought.sessions === 2 && bought.priceSek === davidServices[0].priceSek * 2, "köp med antal: 2 pass, 2 × priset")
+}
 await cart.locator("button[aria-label='Stäng varukorgen']").click()
 
 // Tom varukorg.
+// (Köpet hos David ovan tas också bort: en PT man redan tränar med rekommenderas inte i klockan.)
 await p.evaluate(() => {
   const s = JSON.parse(localStorage["coavira:demo:v4"])
   s.data.cart = []
+  s.data.purchases = s.data.purchases.filter((x) => x.trainerId !== "t6")
+  s.data.relationships = s.data.relationships.filter((r) => r.trainerId !== "t6")
   localStorage["coavira:demo:v4"] = JSON.stringify(s)
 })
 await p.reload()

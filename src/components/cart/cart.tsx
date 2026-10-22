@@ -5,7 +5,7 @@
  * Klienten samlar tjänster från en eller flera PT:er och betalar en PT i taget
  * (kassan i Stripe gäller en PT och högst fem tjänster).
  */
-import { CreditCard, Loader2, Salad, ShoppingBag, Trash2, X } from "lucide-react"
+import { CreditCard, Loader2, Minus, Plus, Salad, ShoppingBag, Trash2, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -16,6 +16,7 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHe
 import { cartCount, cartGroups, MAX_CHECKOUT_LINES, type CartGroup } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
+import { canChooseQuantity, MAX_QUANTITY, SERVICE_FEE_PERCENT } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
 
@@ -58,7 +59,7 @@ export function CartButton() {
 function CartContents({ onNavigate }: { onNavigate: () => void }) {
   const { data, me } = useAppData()
   const groups = cartGroups(data, me.id)
-  const count = groups.reduce((n, g) => n + g.services.length, 0)
+  const count = groups.reduce((n, g) => n + g.lines.length, 0)
 
   return (
     <>
@@ -112,18 +113,18 @@ function CartContents({ onNavigate }: { onNavigate: () => void }) {
 function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: () => void }) {
   const { data, me, mode, actions } = useAppData()
   const [pending, setPending] = React.useState(false)
-  const { trainer, services, totalSek } = group
+  const { trainer, lines, subtotalSek, serviceFeeSek, totalSek } = group
   const name = firstName(trainer.name)
-  const tooMany = services.length > MAX_CHECKOUT_LINES
+  const tooMany = lines.length > MAX_CHECKOUT_LINES
 
   // Mersälj: PT:ns kostcoaching om ingen tjänst i varukorgen redan ger kost.
   const nutrition = activeServices(data, trainer.id).find((s) => s.kind === "nutrition")
   const suggestNutrition =
-    nutrition && !services.some((s) => s.includesNutrition) && !hasNutritionAccess(data, trainer.id, me.id) && !tooMany
+    nutrition && !lines.some((l) => l.service.includesNutrition) && !hasNutritionAccess(data, trainer.id, me.id) && !tooMany
 
   const pay = async () => {
     setPending(true)
-    const error = await actions.checkout(services.map((s) => s.id))
+    const error = await actions.checkout(lines.map((l) => ({ serviceId: l.service.id, quantity: l.quantity })))
     if (error) {
       setPending(false)
       toast.error(error)
@@ -148,23 +149,30 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
         </div>
       </div>
       <ul className="divide-y">
-        {services.map((s) => (
-          <li key={s.id} className="flex items-start gap-3 p-3 text-sm">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium break-words">{s.title}</p>
-              <p className="text-xs text-muted-foreground">{serviceSummary(s)}</p>
+        {lines.map(({ service: s, quantity, lineSek }) => (
+          <li key={s.id} className="space-y-2 p-3 text-sm">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium break-words">{s.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {canChooseQuantity(s) ? `${formatSek(s.priceSek)} / pass` : serviceSummary(s)}
+                </p>
+              </div>
+              <span className="shrink-0 font-medium tabular" data-testid="cart-line-total">
+                {formatSek(lineSek)}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-my-1.5 size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label={`Ta bort ${s.title} ur varukorgen`}
+                onClick={() => actions.removeFromCart([s.id])}
+                disabled={pending}
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
-            <span className="shrink-0 font-medium tabular">{formatSek(s.priceSek)}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="-my-1.5 size-8 shrink-0 text-muted-foreground hover:text-destructive"
-              aria-label={`Ta bort ${s.title} ur varukorgen`}
-              onClick={() => actions.removeFromCart([s.id])}
-              disabled={pending}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {canChooseQuantity(s) && <QuantityStepper title={s.title} value={quantity} onChange={(n) => actions.setCartQuantity(s.id, n)} disabled={pending} />}
           </li>
         ))}
         {suggestNutrition && nutrition && (
@@ -181,12 +189,7 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
         )}
       </ul>
       <div className="space-y-2 border-t p-3">
-        <div className="flex items-center justify-between font-semibold">
-          <span>Totalt</span>
-          <span className="tabular" data-testid="cart-total">
-            {formatSek(totalSek)}
-          </span>
-        </div>
+        <CheckoutSummary subtotalSek={subtotalSek} serviceFeeSek={serviceFeeSek} totalSek={totalSek} testId="cart-total" />
         {tooMany && <p className="text-xs text-destructive">Högst {MAX_CHECKOUT_LINES} tjänster per köp – ta bort några.</p>}
         <Button className="w-full" onClick={() => void pay()} disabled={pending || tooMany}>
           {pending ? <Loader2 className="animate-spin" /> : <CreditCard />} Till kassan · {formatSek(totalSek)}
@@ -194,5 +197,65 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
         {mode === "demo" && <p className="text-center text-[11px] text-muted-foreground">Demoläge: betalningen simuleras.</p>}
       </div>
     </section>
+  )
+}
+
+/** − antal + för enstaka pass (1–20). */
+function QuantityStepper({ title, value, onChange, disabled }: { title: string; value: number; onChange: (n: number) => void; disabled?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-muted-foreground">Antal pass</span>
+      <div className="flex items-center rounded-full border" role="group" aria-label={`Antal ${title}`}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full"
+          aria-label={`Minska antal ${title}`}
+          onClick={() => onChange(value - 1)}
+          disabled={disabled || value <= 1}
+        >
+          <Minus className="size-4" />
+        </Button>
+        <span className="min-w-8 text-center font-semibold tabular" aria-live="polite" data-testid="cart-quantity">
+          {value}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full"
+          aria-label={`Öka antal ${title}`}
+          onClick={() => onChange(value + 1)}
+          disabled={disabled || value >= MAX_QUANTITY}
+        >
+          <Plus className="size-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Deltotal, serviceavgift (7 %) och totalt att betala – samma uppställning i varukorgen och i köpdialogen. */
+export function CheckoutSummary({ subtotalSek, serviceFeeSek, totalSek, testId }: { subtotalSek: number; serviceFeeSek: number; totalSek: number; testId?: string }) {
+  return (
+    <dl className="space-y-1 text-sm">
+      <div className="flex items-center justify-between text-muted-foreground">
+        <dt>Deltotal</dt>
+        <dd className="tabular" data-testid={testId ? `${testId}-subtotal` : undefined}>
+          {formatSek(subtotalSek)}
+        </dd>
+      </div>
+      <div className="flex items-center justify-between text-muted-foreground">
+        <dt>Serviceavgift ({SERVICE_FEE_PERCENT} %)</dt>
+        <dd className="tabular" data-testid={testId ? `${testId}-fee` : undefined}>
+          {formatSek(serviceFeeSek)}
+        </dd>
+      </div>
+      <div className="flex items-center justify-between border-t pt-1.5 font-semibold">
+        <dt>Totalt att betala</dt>
+        <dd className="tabular" data-testid={testId}>
+          {formatSek(totalSek)}
+        </dd>
+      </div>
+    </dl>
   )
 }

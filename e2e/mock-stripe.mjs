@@ -25,7 +25,8 @@ http.createServer(async (req, res) => {
   }
   if (req.method === "GET" && url.pathname === "/v1/checkout/sessions/cs_test_1") {
     log.push({ method: "GET", path: url.pathname })
-    return send(200, { id: "cs_test_1", status: "complete", payment_status: "paid", amount_total: 80000, currency: "sek", client_reference_id: CO_NEW, payment_intent: "pi_test_1" })
+    // 800 kr + serviceavgift 7 % (56 kr) = 856 kr.
+    return send(200, { id: "cs_test_1", status: "complete", payment_status: "paid", amount_total: 85600, currency: "sek", client_reference_id: CO_NEW, payment_intent: "pi_test_1" })
   }
   // v16: PT Boost, 199 kr.
   if (req.method === "GET" && url.pathname === "/v1/checkout/sessions/cs_boost_1") {

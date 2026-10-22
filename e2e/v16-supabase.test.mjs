@@ -58,12 +58,32 @@ async function login(email) {
   check(/on_conflict=client_id%2Cservice_id|on_conflict=client_id,service_id/.test(add?.query ?? "") && /ignore-duplicates/.test(add?.prefer ?? ""), "samma tjänst två gånger ignoreras (upsert)")
 
   await p.click('button[aria-label^="Varukorg"]')
+  // v17: antal enstaka pass sparas i cart_items.
+  await p.locator(`button[aria-label="Öka antal Enstaka pass"]`).click()
+  await p.waitForFunction(() => [...document.querySelectorAll("[data-testid=cart-quantity]")].some((e) => e.textContent === "2"))
+  await p.waitForTimeout(800)
+  log = await getLog()
+  const patch = log.find((e) => e.table === "cart_items" && e.method === "PATCH")
+  check(patch?.body?.quantity === 2 && patch.query.includes(`service_id=eq.${S_SINGLE}`) && patch.query.includes(`client_id=eq.${C1}`), "antalet sparas i cart_items (bara quantity)")
+  check(Object.keys(patch?.body ?? {}).join() === "quantity", "bara kolumnen quantity skickas")
   await p.locator(`button[aria-label="Ta bort Enstaka pass ur varukorgen"]`).click()
   await p.waitForFunction(() => document.querySelector("[data-testid=cart-count]")?.textContent === "1")
   await p.waitForTimeout(800)
   log = await getLog()
   const del = log.find((e) => e.table === "cart_items" && e.method === "DELETE")
   check(Boolean(del) && del.query.includes(`client_id=eq.${C1}`) && del.query.includes(`service_id=in.`) && del.query.includes(S_SINGLE), "borttagen tjänst raderas ur cart_items")
+
+  // v17: kassan med antal och serviceavgift (7 %) – Stripe får tjänsten × 2 och avgiften som egen rad.
+  const co = await p.request.post(`${base}/api/checkout`, { data: { items: [{ serviceId: S_SINGLE, quantity: 2 }] } })
+  check(co.ok() && /pay\/cs_test_1/.test((await co.json()).url ?? ""), "kassan med 2 enstaka pass startar")
+  log = await getLog()
+  const rpcCo = log.filter((e) => e.table === "create_checkout").at(-1)
+  check(JSON.stringify(rpcCo?.body) === JSON.stringify({ p_service_ids: [S_SINGLE], p_quantities: [2] }), "databasen får tjänst och antal (inga priser från webbläsaren)")
+  const form = (await (await fetch(`${stripe}/__log`)).json()).filter((e) => e.method === "POST").at(-1)?.form ?? {}
+  check(form["line_items[0][quantity]"] === "2" && form["line_items[0][price_data][unit_amount]"] === "80000", "Stripe: 2 × 800 kr")
+  check(form["line_items[1][price_data][unit_amount]"] === "11200" && form["line_items[1][quantity]"] === "1", "Stripe: serviceavgift 7 % av 1 600 kr = 112 kr")
+  const bad = await p.request.post(`${base}/api/checkout`, { data: { items: [] } })
+  check(bad.status() === 400, "tom kassa avvisas")
 
   // En klient kan inte köpa boost.
   const r = await p.request.post(`${base}/api/stripe/boost-checkout`)

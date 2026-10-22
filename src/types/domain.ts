@@ -527,6 +527,8 @@ export interface CartItem {
   serviceId: ID
   trainerId: ID
   addedAt: string
+  /** Antal (bara enstaka pass, 1–20). Saknas = 1. */
+  quantity?: number
 }
 
 // ================================================================ tjänster ===
@@ -572,7 +574,10 @@ export interface Purchase {
   title: string
   sessions: number
   includesNutrition: boolean
+  /** Totalpris för raden (antal × styckpris). */
   priceSek: number
+  /** Antal (bara enstaka pass kan vara fler än 1). Saknas i äldre data = 1. */
+  quantity?: number
   status: PurchaseStatus
   createdAt: ISODateTime
   paidAt?: ISODateTime

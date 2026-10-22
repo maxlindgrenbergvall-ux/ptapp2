@@ -80,6 +80,7 @@ interface CartRow {
   service_id: string
   trainer_id: string
   added_at: string
+  quantity?: number
 }
 interface ReviewRow {
   id: string
@@ -281,6 +282,7 @@ export interface PurchaseRow {
   sessions: number
   includes_nutrition: boolean
   price_sek: number
+  quantity?: number
   status: Purchase["status"]
   created_at: string
   paid_at: string | null
@@ -324,7 +326,13 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
 
-const toCart = (r: CartRow): CartItem => ({ clientId: r.client_id, serviceId: r.service_id, trainerId: r.trainer_id, addedAt: r.added_at })
+const toCart = (r: CartRow): CartItem => ({
+  clientId: r.client_id,
+  serviceId: r.service_id,
+  trainerId: r.trainer_id,
+  addedAt: r.added_at,
+  quantity: r.quantity ?? 1,
+})
 
 const toReview = (r: ReviewRow): Review => ({
   id: r.id,
@@ -550,6 +558,7 @@ export const toPurchase = (r: PurchaseRow): Purchase => ({
   sessions: r.sessions,
   includesNutrition: r.includes_nutrition,
   priceSek: r.price_sek,
+  quantity: r.quantity ?? 1,
   status: r.status,
   createdAt: r.created_at,
   paidAt: r.paid_at ?? undefined,
@@ -714,7 +723,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("wearable_connections").select("provider, status, connected_at, last_synced_at, last_error"),
     sb.from("food_products").select("*").eq("source", "custom").order("updated_at", { ascending: false }).limit(200),
     // Varukorgen (RLS: bara min egen).
-    sb.from("cart_items").select("client_id, service_id, trainer_id, added_at").order("added_at"),
+    sb.from("cart_items").select("client_id, service_id, trainer_id, added_at, quantity").order("added_at"),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -1135,12 +1144,23 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
         sb
           .from("cart_items")
           .upsert(
-            { client_id: action.item.clientId, service_id: action.item.serviceId, trainer_id: action.item.trainerId, added_at: action.item.addedAt },
+            {
+              client_id: action.item.clientId,
+              service_id: action.item.serviceId,
+              trainer_id: action.item.trainerId,
+              added_at: action.item.addedAt,
+              quantity: action.item.quantity ?? 1,
+            },
             { onConflict: "client_id,service_id", ignoreDuplicates: true }
           )
       )
     case "removeCartItems":
       return result(sb.from("cart_items").delete().eq("client_id", action.clientId).in("service_id", action.serviceIds))
+    // Bara antalet får ändras (kolumnbehörighet i databasen).
+    case "setCartQuantity":
+      return result(
+        sb.from("cart_items").update({ quantity: action.quantity }).eq("client_id", action.clientId).eq("service_id", action.serviceId)
+      )
     case "upsertSleep": {
       const l = action.log
       return result(
@@ -1201,7 +1221,9 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
         const old = p.old as Partial<CartRow>
         if (old.client_id && old.service_id) dispatch({ type: "removeCartItems", clientId: old.client_id, serviceIds: [old.service_id] })
       } else if (p.new && "service_id" in p.new) {
-        dispatch({ type: "addCartItem", item: toCart(p.new as CartRow) })
+        const item = toCart(p.new as CartRow)
+        dispatch({ type: "addCartItem", item })
+        if (p.eventType === "UPDATE") dispatch({ type: "setCartQuantity", clientId: item.clientId, serviceId: item.serviceId, quantity: item.quantity ?? 1 })
       }
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "purchases" }, (p) => {

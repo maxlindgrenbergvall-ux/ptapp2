@@ -226,12 +226,18 @@ http.createServer(async (req, res) => {
     if (m[1] && table === "create_checkout") {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
-      const lines = serviceRows.filter((x) => p.p_service_ids.includes(x.id))
+      // v17: antal (enstaka pass) och serviceavgift 7 % (som service_fee_sek i databasen).
+      const lines = p.p_service_ids.map((id, i) => ({ s: serviceRows.find((x) => x.id === id), qty: p.p_quantities?.[i] ?? 1 })).filter((l) => l.s)
+      const subtotal = lines.reduce((a, l) => a + l.s.price_sek * l.qty, 0)
+      const fee = Math.floor((subtotal * 7 + 50) / 100)
       return send(200, {
         checkout_id: CO_NEW,
         trainer_id: T1,
-        total_sek: lines.reduce((a, x) => a + x.price_sek, 0),
-        lines: lines.map((x) => ({ purchase_id: x.id, title: x.title, price_sek: x.price_sek, kind: x.kind })),
+        subtotal_sek: subtotal,
+        fee_percent: 7,
+        service_fee_sek: fee,
+        total_sek: subtotal + fee,
+        lines: lines.map(({ s: x, qty }) => ({ purchase_id: x.id, title: x.title, kind: x.kind, quantity: qty, unit_price_sek: x.price_sek, price_sek: x.price_sek * qty })),
       })
     }
     if (m[1] && table === "create_boost_checkout") {

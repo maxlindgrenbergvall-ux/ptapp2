@@ -18,6 +18,7 @@ import { BrandMark } from "@/components/brand"
 import { extendBoost } from "@/lib/boost"
 import { BRAND } from "@/lib/brand"
 import { MAX_CART_ITEMS } from "@/lib/cart"
+import { canChooseQuantity, clampQuantity } from "@/lib/payments/fees"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
 import {
@@ -75,6 +76,12 @@ export interface SyncState {
 }
 
 // Ny nyckel när demodatan ändrar form (v4: egna pass, kopplade program och klarmarkering) – demon börjar om med färsk data.
+/** En rad i kassan: tjänst och antal (antal > 1 bara för enstaka pass). */
+export interface CheckoutItem {
+  serviceId: ID
+  quantity: number
+}
+
 const DEMO_KEY = "coavira:demo:v4"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
 const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
@@ -254,11 +261,13 @@ function createActions(ctx: {
      * klienten till Stripe Checkout (servern hämtar priserna); i demoläget
      * simuleras en godkänd betalning direkt.
      */
-    checkout: async (serviceIds: ID[]): Promise<string | null> => {
+    checkout: async (lines: ID[] | CheckoutItem[]): Promise<string | null> => {
+      const items: CheckoutItem[] = lines.map((l) => (typeof l === "string" ? { serviceId: l, quantity: 1 } : l))
       const data = getData()
-      const services = serviceIds.map((id) => data.services.find((x) => x.id === id)).filter((x): x is TrainerService => Boolean(x))
-      if (!services.length || services.length !== serviceIds.length) return "Tjänsten finns inte längre."
+      const services = items.map((i) => data.services.find((x) => x.id === i.serviceId)).filter((x): x is TrainerService => Boolean(x))
+      if (!services.length || services.length !== items.length) return "Tjänsten finns inte längre."
       if (new Set(services.map((x) => x.trainerId)).size !== 1) return "Alla tjänster måste vara hos samma PT."
+      const qty = (s: TrainerService) => (canChooseQuantity(s) ? clampQuantity(items.find((i) => i.serviceId === s.id)?.quantity ?? 1) : 1)
       if (ctx.mode === "demo") {
         const checkoutId = newId()
         const purchases: Purchase[] = services.map((x) => ({
@@ -269,9 +278,10 @@ function createActions(ctx: {
           serviceId: x.id,
           kind: x.kind,
           title: x.title,
-          sessions: x.sessions,
+          sessions: x.sessions * qty(x),
           includesNutrition: x.includesNutrition,
-          priceSek: x.priceSek,
+          priceSek: x.priceSek * qty(x),
+          quantity: qty(x),
           status: "paid",
           createdAt: now(),
           paidAt: now(),
@@ -283,7 +293,7 @@ function createActions(ctx: {
         const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ serviceIds }),
+          body: JSON.stringify({ items: services.map((x) => ({ serviceId: x.id, quantity: qty(x) })) }),
         })
         const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
         if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
@@ -304,11 +314,20 @@ function createActions(ctx: {
       const mine = data.cart.filter((c) => c.clientId === me.id)
       if (mine.some((c) => c.serviceId === serviceId)) return null
       if (mine.length >= MAX_CART_ITEMS) return `Varukorgen är full (högst ${MAX_CART_ITEMS} tjänster).`
-      commit({ type: "addCartItem", item: { clientId: me.id, serviceId, trainerId: service.trainerId, addedAt: now() } })
+      commit({ type: "addCartItem", item: { clientId: me.id, serviceId, trainerId: service.trainerId, addedAt: now(), quantity: 1 } })
       return null
     },
     removeFromCart: (serviceIds: ID[]) => {
       if (serviceIds.length) commit({ type: "removeCartItems", clientId: me.id, serviceIds })
+    },
+    /** Klient: antal enstaka pass i varukorgen (1–20). Andra tjänster är alltid 1. */
+    setCartQuantity: (serviceId: ID, quantity: number) => {
+      const data = getData()
+      const service = data.services.find((x) => x.id === serviceId)
+      const item = data.cart.find((c) => c.clientId === me.id && c.serviceId === serviceId)
+      if (!service || !item || !canChooseQuantity(service)) return
+      const next = clampQuantity(quantity)
+      if (next !== (item.quantity ?? 1)) commit({ type: "setCartQuantity", clientId: me.id, serviceId, quantity: next })
     },
     /**
      * PT: köp PT Boost (199 kr, 7 dagar). Med Supabase skickas PT:n till Stripe

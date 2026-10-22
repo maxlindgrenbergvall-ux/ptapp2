@@ -4,12 +4,13 @@ import { Check, CreditCard, Dumbbell, Loader2, Salad, ShoppingBag, Sparkles } fr
 import * as React from "react"
 import { toast } from "sonner"
 
-import { openCart } from "@/components/cart/cart"
+import { CheckoutSummary, openCart } from "@/components/cart/cart"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { isInCart } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
+import { checkoutTotals } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
@@ -121,7 +122,8 @@ function CheckoutDialog({
   }
 
   const lines = service ? [service, ...(addNutrition && nutrition ? [nutrition] : [])] : []
-  const total = lines.reduce((sum, s) => sum + s.priceSek, 0)
+  // Deltotal + serviceavgift (7 %) – samma regel som databasen och Stripe.
+  const { subtotalSek, serviceFeeSek, totalSek: total } = checkoutTotals(lines.reduce((sum, s) => sum + s.priceSek, 0))
 
   const pay = async () => {
     setPending(true)
@@ -188,11 +190,8 @@ function CheckoutDialog({
                   <span className="shrink-0 font-medium tabular">{formatSek(s.priceSek)}</span>
                 </li>
               ))}
-              <li className="flex items-center justify-between gap-3 p-3 font-semibold">
-                <span>Totalt</span>
-                <span className="tabular" data-testid="checkout-total">
-                  {formatSek(total)}
-                </span>
+              <li className="p-3">
+                <CheckoutSummary subtotalSek={subtotalSek} serviceFeeSek={serviceFeeSek} totalSek={total} testId="checkout-total" />
               </li>
             </ul>
             {offerNutrition && nutrition && !addNutrition && (

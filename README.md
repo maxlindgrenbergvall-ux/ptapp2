@@ -33,7 +33,8 @@ npm run dev                  # http://localhost:3000
    14. `supabase/migrations/20261027000000_v14_fixes_rules.sql`. Den rättar RLS-felet vid profilbildsuppladdning, kost-PT-flaggan, spärrar genomförda pass i förtid, kräver vikter vid klarmarkering och låser samtal utan köp eller bokat pass.
    15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
    16. `supabase/migrations/20261029000000_v16_cart_boost.sql`. Den lägger till varukorgen (`cart_items`, `abandoned_carts`, `mark_cart_reminded`) och PT Boost (`trainer_boosts`, `trainers.boosted_until`, `create_boost_checkout`, `mark_boost_paid`, `mark_boost_refunded`).
-   17. `supabase/seed.sql`
+   17. `supabase/migrations/20261030000000_v17_quantity_service_fee.sql`. Den lägger till antal enstaka pass (varukorg och köp), serviceavgiften 7 % (`checkout_fees`, `service_fee_sek`) och härdar RLS-hjälpfunktionerna inför öppen registrering.
+   18. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -352,6 +353,25 @@ npm run dev                  # http://localhost:3000
 - **Klockan:** utvalda PT:er rekommenderas till klienter som har personliga erbjudanden påslagna och har visat intresse för PT:ns inriktning. Högst 2 visas, inga PT:er klienten redan tränar med, och klienten kan dölja dem.
 - **Märkning:** betalda placeringar märks för klienten ("Utvalda PT:er är betalda placeringar", "Annons" i klockan), enligt marknadsföringslagen och EU:s krav på att betald rangordning ska anges.
 
+## Nytt i v17: antal, serviceavgift och öppen registrering
+
+**Antal enstaka pass:** i varukorgen väljer klienten antal (1–20) med − och + för enstaka pass. Radpriset är styckpris × antal. Paket och kostcoaching är alltid 1 st. Antalet sparas i `cart_items.quantity`. Ett köp av 3 × enstaka pass ger 3 pass att boka (`purchases.quantity`, `sessions`, `price_sek`).
+
+**Serviceavgift 7 %:**
+- Avgiften räknas på deltotalen per kassa och avrundas till hela kronor (950 kr → 67 kr). Varukorgen och köpdialogen visar *Deltotal*, *Serviceavgift (7 %)* och *Totalt att betala*.
+- Databasen bestämmer beloppet: `create_checkout(p_service_ids, p_quantities)` räknar ut avgiften med `service_fee_sek()` och sparar den i `checkout_fees`. Klienten ser sina egna avgifter; PT:er ser dem inte.
+- Stripe: `/api/checkout` skickar tjänsterna (styckpris × antal) och avgiften som en egen rad, "Serviceavgift (7 %)". Avgiften kontrolleras mot samma regel i `src/lib/payments/fees.ts` innan sessionen skapas.
+- `mark_checkout_paid` godkänner bara deltotal + avgift. PT:n får tjänstens pris; avgiften är Coaviras.
+
+**Öppen registrering på appens domän:** koden har ingen inbjudnings- eller åtkomstspärr. Alla kan registrera sig med e-post, Google eller Apple, välja *klient* i välkomststeget och komma in direkt. PT-konton skapas fortfarande bara av Coavira efter manuell granskning (`complete_onboarding` nekar rollen PT). Tre inställningar utanför koden kan ändå stänga ute nya användare:
+1. **Vercel → Settings → Deployment Protection:** med *Standard Protection* kan Vercel kräva inloggning på `*.vercel.app`-adresser när projektet har en egen domän. Sätt *Vercel Authentication* till **Only Preview Deployments**, eller ge appen en egen domän (t.ex. `app.coavira.fit` + `NEXT_PUBLIC_APP_URL`).
+2. **Supabase → Authentication → Emails → SMTP Settings:** Supabases inbyggda e-post skickar bara till medlemmar i projektets team, och med en låg gräns per timme. Koppla en egen SMTP-tjänst (t.ex. Resend eller Postmark), annars får nya användare aldrig bekräftelsemejlet.
+3. **Google Cloud → OAuth consent screen:** i läget *Testing* kan bara listade testanvändare logga in med Google. Välj **Publish app**.
+
+**Säkerhet:**
+- Alla tabeller har RLS, och `rls_v17.test.sql` testar att en nyregistrerad användare bara ser sin egen data. Den testar också att PT- och adminfunktioner är låsta, och att anonyma besökare varken ser data eller kan anropa RLS-hjälpfunktionerna.
+- `node scripts/check-secrets.mjs` (efter `npm run build` med hemligheterna satta) kontrollerar att inga hemliga nycklar finns i webbläsarkoden och att ingen `NEXT_PUBLIC_`-variabel har ett hemligt namn.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -579,7 +599,8 @@ node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwe
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
 node e2e/v16-varukorg-boost.test.mjs # varukorg (flera PT:er, mersälj, kassa per PT, sparas), PT Boost, Utvald i Hitta PT och klockan
-node e2e/v16-supabase.test.mjs  # Supabase-läge: cart_items, Boost via Stripe (19 900 öre, metadata), verify, webhook, återbetalning
+node e2e/v16-supabase.test.mjs  # Supabase-läge: cart_items (+ antal), kassa med antal och serviceavgift, Boost via Stripe, webhook
+node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 

@@ -92,6 +92,8 @@ export type PersistableAction =
   | { type: "addCartItem"; item: CartItem }
   /** Klient: ta bort tjänster ur varukorgen. */
   | { type: "removeCartItems"; clientId: ID; serviceIds: ID[] }
+  /** Klient: ändra antalet enstaka pass i varukorgen. */
+  | { type: "setCartQuantity"; clientId: ID; serviceId: ID; quantity: number }
 
 export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus" | "avatarUrl">>
 
@@ -536,6 +538,11 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       return { ...data, cart: data.cart.filter((c) => c.clientId !== action.clientId || !action.serviceIds.includes(c.serviceId)) }
     case "setCart":
       return { ...data, cart: action.cart }
+    case "setCartQuantity":
+      return {
+        ...data,
+        cart: data.cart.map((c) => (c.clientId === action.clientId && c.serviceId === action.serviceId ? { ...c, quantity: action.quantity } : c)),
+      }
     case "setTrainerBoost":
       return {
         ...data,

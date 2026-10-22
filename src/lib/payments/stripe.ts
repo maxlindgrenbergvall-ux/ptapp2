@@ -2,6 +2,8 @@ import "server-only"
 
 import Stripe from "stripe"
 
+import { MAX_QUANTITY, SERVICE_FEE_PERCENT, serviceFeeSek } from "@/lib/payments/fees"
+
 /**
  * Stripe via det officiella SDK:t. Hemliga nycklar finns bara på servern:
  *   STRIPE_SECRET_KEY      sk_live_… / sk_test_…
@@ -34,13 +36,17 @@ export function getStripe(): Stripe {
 
 export interface CheckoutLine {
   title: string
-  /** Pris i hela kronor (från databasen). */
-  priceSek: number
+  /** Styckpris i hela kronor (från databasen). */
+  unitPriceSek: number
+  /** Antal (enstaka pass kan vara fler än 1). */
+  quantity: number
 }
 
 /**
- * Parametrarna till Checkout Session. Validerar att varje rad har ett positivt
- * heltalsbelopp i öre – ett trasigt pris ska stoppas här, inte hos Stripe.
+ * Parametrarna till Checkout Session: tjänsterna (styckpris × antal) och en
+ * egen rad för serviceavgiften (7 %). Avgiften räknas ut i databasen
+ * (create_checkout) och kontrolleras här mot samma regel, så att Stripe aldrig
+ * tar betalt för ett annat belopp än det klienten såg och databasen förväntar sig.
  */
 export function checkoutSessionParams(input: {
   checkoutId: string
@@ -48,17 +54,41 @@ export function checkoutSessionParams(input: {
   trainerId: string
   email?: string
   lines: CheckoutLine[]
+  /** Serviceavgift i hela kronor (från databasen). */
+  serviceFeeSek: number
   origin: string
 }): Stripe.Checkout.SessionCreateParams {
   if (!input.lines.length) throw new Error("Kassan är tom")
   const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = input.lines.map((l) => {
-    const unitAmount = Math.round(Number(l.priceSek) * 100)
+    const unitAmount = Math.round(Number(l.unitPriceSek) * 100)
     if (!Number.isSafeInteger(unitAmount) || unitAmount < 300) throw new Error(`Ogiltigt pris för "${l.title}"`)
+    if (!Number.isInteger(l.quantity) || l.quantity < 1 || l.quantity > MAX_QUANTITY) throw new Error(`Ogiltigt antal för "${l.title}"`)
     return {
-      quantity: 1,
+      quantity: l.quantity,
       price_data: { currency: "sek", unit_amount: unitAmount, product_data: { name: l.title.slice(0, 250) } },
     }
   })
+  const subtotalSek = input.lines.reduce((sum, l) => sum + l.unitPriceSek * l.quantity, 0)
+  if (input.serviceFeeSek !== serviceFeeSek(subtotalSek)) {
+    throw new Error(`Serviceavgiften stämmer inte (${input.serviceFeeSek} kr, väntade ${serviceFeeSek(subtotalSek)} kr)`)
+  }
+  if (input.serviceFeeSek > 0) {
+    line_items.push({
+      quantity: 1,
+      price_data: {
+        currency: "sek",
+        unit_amount: input.serviceFeeSek * 100,
+        product_data: { name: `Serviceavgift (${SERVICE_FEE_PERCENT} %)`, description: "Coaviras avgift för betalning, bokning och support." },
+      },
+    })
+  }
+  const metadata = {
+    checkout_id: input.checkoutId,
+    client_id: input.clientId,
+    trainer_id: input.trainerId,
+    subtotal_sek: String(subtotalSek),
+    service_fee_sek: String(input.serviceFeeSek),
+  }
   return {
     mode: "payment",
     locale: "sv",
@@ -66,7 +96,7 @@ export function checkoutSessionParams(input: {
     line_items,
     ...(input.email ? { customer_email: input.email } : {}),
     client_reference_id: input.checkoutId,
-    metadata: { checkout_id: input.checkoutId, client_id: input.clientId, trainer_id: input.trainerId },
+    metadata,
     payment_intent_data: { metadata: { checkout_id: input.checkoutId } },
     success_url: `${input.origin}/klient/kop?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${input.origin}/klient/hitta/${input.trainerId}?kop=avbrutet`,
