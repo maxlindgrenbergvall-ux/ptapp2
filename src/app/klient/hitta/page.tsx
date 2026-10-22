@@ -217,10 +217,10 @@ export default function DiscoverPage() {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="flex min-w-0 items-center gap-1.5 font-semibold">
-                        <span className="truncate">{t.name}</span>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <h2 className="truncate font-semibold">{t.name}</h2>
                         {boosted && <BoostedBadge className="shrink-0" />}
-                      </h2>
+                      </div>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="size-3" /> {t.city}
                         {t.coachingMode !== "onsite" && ` · ${t.coachingMode === "remote" ? "Bara distans" : "Distans"}`} ·{" "}

@@ -32,7 +32,8 @@ npm run dev                  # http://localhost:3000
    13. `supabase/migrations/20261026000000_v13_own_workouts_verify_avatar.sql`. Den lägger till klientens egna pass, PT:ns klarmarkering, program kopplade till bokade pass, profilbild för klienter och "Dagens kost" i realtid.
    14. `supabase/migrations/20261027000000_v14_fixes_rules.sql`. Den rättar RLS-felet vid profilbildsuppladdning, kost-PT-flaggan, spärrar genomförda pass i förtid, kräver vikter vid klarmarkering och låser samtal utan köp eller bokat pass.
    15. `supabase/migrations/20261028000000_v15_push_tokens.sql`. Den lägger till push-tokens för mobilappen (`push_tokens`, `register_push_token`, `unregister_push_token`).
-   16. `supabase/seed.sql`
+   16. `supabase/migrations/20261029000000_v16_cart_boost.sql`. Den lägger till varukorgen (`cart_items`, `abandoned_carts`, `mark_cart_reminded`) och PT Boost (`trainer_boosts`, `trainers.boosted_until`, `create_boost_checkout`, `mark_boost_paid`, `mark_boost_refunded`).
+   17. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -57,6 +58,7 @@ npm run dev                  # http://localhost:3000
 8. **Betalning (Stripe)**, krävs för att klienter ska kunna köpa pass:
    - Sätt serverhemligheterna `STRIPE_SECRET_KEY` (sk_live_… eller sk_test_…), `STRIPE_WEBHOOK_SECRET` (whsec_…) och `SUPABASE_SERVICE_ROLE_KEY` i Vercel. Ingen av dem får ha prefixet `NEXT_PUBLIC_`.
    - I Stripe, under **Developers → Webhooks**, lägg till `https://<domän>/api/stripe/webhook` med händelserna `checkout.session.completed`, `checkout.session.async_payment_succeeded` och `charge.refunded`.
+   - Samma webhook hanterar PT Boost (`metadata.kind = "boost"`); inga extra händelser behövs.
    - Utan Stripe-nycklar visar kassan "Kortbetalning är inte aktiverad än". En betalning utanför appen (t.ex. Swish) kan registreras manuellt i SQL Editor med `select mark_checkout_paid('<checkout_id>', null, null, null);`.
    - Verifierade certifikat läggs in av admin: `select admin_set_certifications('pt@exempel.se', array['Licensierad PT']);`.
 9. Valfritt:
@@ -331,6 +333,25 @@ npm run dev                  # http://localhost:3000
   - Kostbyggaren har enheterna g, st, dl, msk (15 ml) och tsk (5 ml).
   - Köksmått räknas om till gram med livsmedlets densitet (`densityOf`, t.ex. 1 dl havregryn ≈ 35 g). Raden sparar `qty` och `gPerMl`.
 
+## Nytt i v16: varukorg och PT Boost
+
+**Varukorg (klient)**
+- Knappen med påsen i sidhuvudet öppnar varukorgen (`src/components/cart/cart.tsx`). Klienten lägger tjänster i den med **Lägg i varukorg** på en PT:s profil; **Välj** köper direkt som förut.
+- Varukorgen kan innehålla tjänster från flera PT:er, grupperade per PT. Kassan (Stripe) gäller en PT och högst 5 tjänster åt gången (`create_checkout`), så varje PT har en egen **Till kassan**. Saknar klienten kost hos PT:n föreslås PT:ns kostcoaching.
+- Varukorgen sparas i `cart_items` (offlinekön, realtid mellan enheter) och lokalt i demoläget. En betald tjänst tas bort automatiskt (trigger på `purchases`).
+- **Påminnelser (förberett):** `abandoned_carts(interval)` listar klienter vars varukorg legat orörd längre än intervallet och inte påmints om (antal, summa, PT:er). `mark_cart_reminded(client_id)` markerar påminnelsen. Båda kan bara anropas med service role, t.ex. från ett schemalagt jobb som skickar push via `push_tokens`.
+
+**PT Boost (199 kr för 7 dagar)**
+- PT:n köper Boost under **Min profil** (`src/components/boost/boost.tsx`). Profilen måste vara publicerad.
+- Köpflödet:
+  - `POST /api/stripe/boost-checkout` kör `create_boost_checkout()` (priset bestäms i databasen) och skapar en Checkout-session med 19 900 öre i SEK, `mode: payment` och metadata `kind: boost`, `boost_id`, `trainer_id` och `boost_duration_days: 7`.
+  - Webhooken `checkout.session.completed` anropar `mark_boost_paid()`, som sätter `trainers.boosted_until` till nu + 7 dagar. Köper PT:n igen medan boosten pågår läggs de nya 7 dagarna efter den pågående.
+  - `GET /api/stripe/boost-checkout/verify` bekräftar direkt efter returen, utan att vänta på webhooken. `charge.refunded` kortar boosten med 7 dagar.
+- PT:n kan aldrig sätta `boosted_until` själv (trigger), och `trainer_boosts` är skrivskyddad för användare.
+- **Synlighet:** utvalda PT:er visas först i **Hitta PT** (standardsorteringen "Bäst matchning", bland dem som matchar filtren) med märket **Utvald**. Väljer klienten en annan sortering gäller den.
+- **Klockan:** utvalda PT:er rekommenderas till klienter som har personliga erbjudanden påslagna och har visat intresse för PT:ns inriktning. Högst 2 visas, inga PT:er klienten redan tränar med, och klienten kan dölja dem.
+- **Märkning:** betalda placeringar märks för klienten ("Utvalda PT:er är betalda placeringar", "Annons" i klockan), enligt marknadsföringslagen och EU:s krav på att betald rangordning ska anges.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -557,6 +578,8 @@ node e2e/v15-app-demo.test.mjs  # mobilappen (låtsas-Capacitor): djuplänkar, k
 node e2e/v15-app-oauth.test.mjs # mobilappen i Supabase-läge: Google i systemwebbläsaren, PKCE, tillbaka via com.coavira.app://
 node e2e/v14-regler.test.mjs    # Kostschema-filter/tagg, logiska enheter, tidsspärr, vikter krävs, uppvärmning/nedvarvning, samtalslås
 node e2e/v12-multi-pt.test.mjs  # logomeny, flera PT:er, chatt per PT, missat samtal, kostval, kost-PT, intressen → Framsteg
+node e2e/v16-varukorg-boost.test.mjs # varukorg (flera PT:er, mersälj, kassa per PT, sparas), PT Boost, Utvald i Hitta PT och klockan
+node e2e/v16-supabase.test.mjs  # Supabase-läge: cart_items, Boost via Stripe (19 900 öre, metadata), verify, webhook, återbetalning
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
 
