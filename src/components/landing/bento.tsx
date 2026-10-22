@@ -196,17 +196,18 @@ function BentoCard({
             aria-hidden
             className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent opacity-40 transition-opacity duration-500 group-hover:opacity-100"
           />
+          {/* Mobil: mindre ikon, rubrik och luft – samma uttryck som desktop från sm. */}
           <div className="relative">
             <div className="flex items-center gap-2.5">
-              <span className="grid size-9 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/25">
-                <Icon aria-hidden className="size-[18px]" />
+              <span className="grid size-7 place-items-center rounded-lg bg-brand/10 text-brand ring-1 ring-brand/25 sm:size-9 sm:rounded-xl">
+                <Icon aria-hidden className="size-4 sm:size-[18px]" />
               </span>
               <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{kicker}</span>
             </div>
-            <h3 className="mt-4 text-2xl leading-tight font-bold tracking-tight text-balance sm:text-[1.75rem]">{title}</h3>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-pretty text-muted-foreground">{text}</p>
+            <h3 className="mt-3 text-xl leading-tight font-bold tracking-tight text-balance sm:mt-4 sm:text-[1.75rem]">{title}</h3>
+            <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-pretty text-muted-foreground sm:mt-2 sm:text-[15px]">{text}</p>
           </div>
-          <div className="relative mt-6 flex flex-1 flex-col">{children}</div>
+          <div className="relative mt-4 flex flex-1 flex-col sm:mt-6">{children}</div>
         </GlassCard>
       </TiltCard>
     </Reveal>

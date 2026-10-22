@@ -93,18 +93,14 @@ const TABS: { label: string; icon: LucideIcon; active?: boolean; dot?: boolean }
   { label: "Chatt", icon: MessageCircle, dot: true },
 ]
 
-/** Sanna fakta om plattformen för det rullande bandet. */
+/** Sanna fakta om appen för det rullande bandet – korta, max sex stycken. */
 const TRUST: { label: string; icon: LucideIcon }[] = [
-  { label: "Manuellt verifierade PT:er", icon: BadgeCheck },
-  { label: "Säker kortbetalning via Stripe", icon: CreditCard },
-  { label: "Data lagras inom EU", icon: ShieldCheck },
+  { label: "Verifierade PT:er", icon: BadgeCheck },
+  { label: "Svenska livsmedel & streckkoder", icon: ScanBarcode },
   { label: "Kalendersynk med Google, Outlook & Apple", icon: CalendarSync },
-  { label: "Kopplas till Apple Health, Garmin & Strava", icon: Watch },
-  { label: "Hälsodata bara med ditt samtycke", icon: Lock },
-  { label: "Flera PT:er samtidigt", icon: Users },
-  { label: "Chatt och samtal med din PT", icon: Video },
-  { label: "Exportera eller radera din data när du vill", icon: Download },
-  { label: "För iPhone och Android", icon: Smartphone },
+  { label: "Apple Health, Garmin & Strava", icon: Watch },
+  { label: "Chatt & videosamtal med din PT", icon: Video },
+  { label: "Data lagras inom EU", icon: ShieldCheck },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -114,21 +110,30 @@ const TRUST: { label: string; icon: LucideIcon }[] = [
 /** 1420 → "1 420" (hårt mellanslag, som i appen). */
 const fmt = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
 
-const FLOAT = { transform: ["translateY(0px)", "translateY(-14px)", "translateY(0px)"] }
-const SPIN = { transform: ["rotate(0deg)", "rotate(360deg)"] }
-const GLOW = { opacity: [0.45, 0.85, 0.45] }
 const PULSE_KEYS = [1, 1.12, 1]
 
+/** Tailwinds md – från hit finns pekarlutning och scroll-parallax. */
+const MD = "(min-width: 768px)"
+
 /**
- * Oändlig loop (svävning, rotation, sken) som props till ett motion-element.
- * Transform och opacitet går via Web Animations i kompositorn i stället för JS
- * varje bildruta. Loopen körs bara när `active` – alltså när hjälten syns och
- * "minska rörelse" är av – annars vilar elementet i första läget.
+ * Sant när mediefrågan matchar. Servern och hydreringen svarar alltid false
+ * (mobilläget), så att HTML:en matchar; direkt efteråt byter React till det
+ * riktiga värdet och följer sedan ändringar (t.ex. när fönstret ändrar storlek).
  */
-function loop(active: boolean, keyframes: typeof FLOAT | typeof GLOW, duration: number, ease: "linear" | "easeInOut" = "easeInOut") {
-  if (active) return { animate: keyframes, transition: { duration, ease, repeat: Infinity } }
-  const rest = "transform" in keyframes ? { transform: keyframes.transform[0] } : { opacity: keyframes.opacity[0] }
-  return { animate: rest, transition: { duration: 0 } }
+function useMediaQuery(query: string) {
+  const subscribe = React.useCallback(
+    (onChange: () => void) => {
+      const mq = window.matchMedia(query)
+      mq.addEventListener("change", onChange)
+      return () => mq.removeEventListener("change", onChange)
+    },
+    [query]
+  )
+  return React.useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false
+  )
 }
 
 /** Räknar upp mot `target` när `start` blir sant (direkt med "minska rörelse"). */
