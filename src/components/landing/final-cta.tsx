@@ -17,7 +17,7 @@ import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, Dumbbell, Life
 import Link from "next/link"
 import * as React from "react"
 
-import { CookieSettingsButton } from "@/components/analytics/analytics"
+import { CookieSettingsButton } from "@/components/cookie-banner"
 import { BrandMark } from "@/components/brand"
 import { LINKS, NAV, STORE_URLS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"

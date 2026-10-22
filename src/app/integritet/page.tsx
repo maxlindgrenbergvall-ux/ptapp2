@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { CookieSettingsButton } from "@/components/analytics/analytics"
+import { CookieSettingsButton } from "@/components/cookie-banner"
 import { AuthCard } from "@/components/auth/auth-card"
 
 export const metadata: Metadata = { title: "Integritet" }

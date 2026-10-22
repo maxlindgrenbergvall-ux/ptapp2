@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
-import { Analytics } from "@/components/analytics/analytics"
+import { CookieBanner } from "@/components/cookie-banner"
+import { GoogleAnalytics } from "@/components/google-analytics"
 import { NativeBridge } from "@/components/native/native-bridge"
 import { Toaster } from "@/components/ui/sonner"
 import { BRAND } from "@/lib/brand"
@@ -41,8 +42,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <Toaster position="top-center" mobileOffset={{ top: "calc(var(--safe-top) + 16px)" }} />
         <NativeBridge />
-        {/* GA4 – bara på coavira.fit och bara efter samtycke (se Analytics). */}
-        <Analytics />
+        {/* Bara på coavira.fit: cookie-rutan, och GA4 först när coavira_cookie_consent = "granted". */}
+        <CookieBanner />
+        <GoogleAnalytics />
       </body>
     </html>
   )

@@ -367,9 +367,9 @@ Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Goog
 - **Delningsbild:** `public/og-image.png` (1200×630) visar appens riktiga hemskärm. Skapa om den när hero ändras: starta sidan och kör `BASE_URL=http://localhost:3000 node scripts/og-image.mjs`.
 - **Strukturerad data (JSON-LD):** `Organization`, `WebSite` och `MobileApplication` (iOS och Android, gratis, `HealthApplication`). När `NEXT_PUBLIC_APP_STORE_URL`/`NEXT_PUBLIC_PLAY_STORE_URL` sätts läggs butikslänkarna till och tillgängligheten blir `InStock`. Inga betyg eller recensioner förrän det finns riktiga. Testa med [Rich Results Test](https://search.google.com/test/rich-results).
 - **robots.txt/sitemap.xml:** `src/app/robots.ts` (Allow: /, stänger appen, API och inloggningen) och `src/app/sitemap.ts` (de fyra publika sidorna med `lastmod` = `LAST_UPDATED` i `src/lib/seo.ts`). Skicka in `https://coavira.fit/sitemap.xml` i Google Search Console.
-- **Google Analytics 4** (`G-23NXJ2VS0B`, kan ändras med `NEXT_PUBLIC_GA_ID`), `src/components/analytics/analytics.tsx`:
+- **Cookie-ruta och Google Analytics 4** (`G-23NXJ2VS0B`, kan ändras med `NEXT_PUBLIC_GA_ID`): `src/components/cookie-banner.tsx`, `src/components/google-analytics.tsx` och samtyckeslogiken i `src/lib/consent.ts`, monterade i `src/app/layout.tsx`:
   - Bara på `coavira.fit`/`www.coavira.fit`: aldrig i appen/webbportalen (`ptapp2.vercel.app`), i mobilappen, på localhost eller i förhandsversioner.
-  - Laddas först när besökaren godkänt statistik i samtyckesrutan (krav enligt LEK/GDPR). "Bara nödvändiga" är lika enkelt. Valet ändras via "Cookie-inställningar" i sidfoten eller på `/integritet#cookies`.
+  - "Godkänn alla" sparar `coavira_cookie_consent = "granted"` i localStorage och startar GA4 direkt (utan omladdning). "Endast nödvändiga" sparar `"denied"` och GA4 laddas aldrig. Knapparna är lika stora och lika tydliga (LEK/GDPR, IMY). Finns ett sparat val visas rutan inte igen; valet ändras via "Cookie-inställningar" i sidfoten eller på `/integritet#cookies`.
   - `next/script` med `afterInteractive` (påverkar inte första renderingen). Inga annonsfunktioner: `ad_*` nekas och Google signals är avstängt. Vid återkallat samtycke tas `_ga`-cookies bort.
   - Testas i `e2e/seo.test.mjs` (även att ingen GA-kod laddas före samtycke).
 

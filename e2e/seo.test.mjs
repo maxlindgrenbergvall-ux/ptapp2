@@ -99,25 +99,51 @@ const banner = (page) => page.getByTestId("cookie-banner")
 
 {
   const { ctx, page, ga, errors } = await open("http://coavira.fit/")
-  check(await banner(page).isVisible(), "coavira.fit: samtyckesrutan visas")
-  check(ga.length === 0, "ingen GA-kod laddas före samtycke")
+  const consent = () => page.evaluate(() => localStorage.getItem("coavira_cookie_consent"))
+  check(await banner(page).isVisible(), "coavira.fit: cookie-rutan visas")
+  check(
+    (await banner(page).innerText()).includes(
+      "Vi använder nödvändiga cookies för att sidan ska fungera, samt statistik-cookies för att analysera trafik och förbättra upplevelsen på coavira.fit."
+    ),
+    "rutans text"
+  )
+  check(ga.length === 0 && (await consent()) === null, "ingen GA-kod och inget sparat val före samtycke")
   check((await page.evaluate(() => document.documentElement.scrollWidth)) <= 390, "rutan ger ingen sidledsscroll")
-  await page.getByRole("button", { name: "Bara nödvändiga" }).click()
-  await page.waitForTimeout(400)
-  check(!(await banner(page).isVisible()), "Bara nödvändiga stänger rutan")
+  await page.getByRole("button", { name: "Endast nödvändiga" }).click()
+  await page.waitForTimeout(500)
+  check(!(await banner(page).isVisible()) && (await consent()) === "denied", 'Endast nödvändiga: rutan stängs, coavira_cookie_consent = "denied"')
   await page.reload({ waitUntil: "networkidle" })
   await page.waitForTimeout(600)
-  check(!(await banner(page).isVisible()) && ga.length === 0, "valet sparas – ingen GA efter omladdning")
-  // Ändra valet via sidfoten.
+  check(!(await banner(page).isVisible()) && ga.length === 0, "valet sparas – ingen ruta och ingen GA efter omladdning")
+  // Ändra valet via sidfoten; GA4 ska starta direkt, utan omladdning.
   await page.getByRole("button", { name: "Cookie-inställningar" }).click()
   check(await banner(page).isVisible(), "Cookie-inställningar i sidfoten visar rutan igen")
-  await page.getByRole("button", { name: "Godkänn statistik" }).click()
+  await page.evaluate(() => (window.__sammaSida = true))
+  await page.getByRole("button", { name: "Godkänn alla" }).click()
   await page.waitForFunction(() => Array.isArray(window.dataLayer) && window.dataLayer.length > 0, null, { timeout: 5000 }).catch(() => {})
-  check(ga.some((u) => u.includes("gtag/js?id=G-23NXJ2VS0B")), `GA4 (G-23NXJ2VS0B) laddas efter samtycke (${ga.length} anrop)`)
+  check(ga.some((u) => u.includes("gtag/js?id=G-23NXJ2VS0B")), `Godkänn alla: GA4 (G-23NXJ2VS0B) laddas (${ga.length} anrop)`)
+  check(await page.evaluate(() => window.__sammaSida === true), "GA4 startar utan omladdning av sidan")
+  check((await consent()) === "granted", 'coavira_cookie_consent = "granted"')
   const dl = await page.evaluate(() => JSON.stringify(window.dataLayer?.map((a) => Array.from(a)) ?? []))
   check(dl.includes('"config","G-23NXJ2VS0B"') && dl.includes('"ad_storage":"denied"') && dl.includes('"allow_google_signals":false'), "gtag: config med ID, inga annonsfunktioner")
   check(!(await banner(page).isVisible()), "rutan stängs efter godkännande")
+  await page.reload({ waitUntil: "networkidle" })
+  await page.waitForTimeout(600)
+  check(!(await banner(page).isVisible()) && ga.filter((u) => u.includes("gtag/js")).length === 2, "efter omladdning: ingen ruta, GA4 laddas direkt")
   check(errors.length === 0, `inga sidfel (${errors.join("; ")})`)
+  await ctx.close()
+}
+{
+  // Val sparat med den första versionens nyckel gäller fortfarande.
+  const ctx = await browser.newContext()
+  await ctx.addInitScript(() => {
+    if (!sessionStorage.getItem("klar")) localStorage.setItem("coavira:analytics", "denied")
+    sessionStorage.setItem("klar", "1")
+  })
+  const page = await ctx.newPage()
+  await page.goto("http://coavira.fit/", { waitUntil: "networkidle" })
+  await page.waitForTimeout(600)
+  check(!(await banner(page).isVisible()), "tidigare sparat val (gammal nyckel) respekteras")
   await ctx.close()
 }
 {
