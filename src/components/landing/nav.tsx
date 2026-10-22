@@ -13,11 +13,9 @@ import {
   LayoutGroup,
   motion,
   useMotionValue,
-  useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useSpring,
-  type MotionValue,
   type Variants,
 } from "framer-motion"
 import { ArrowDown, ArrowUpRight, BadgeCheck } from "lucide-react"
@@ -102,7 +100,8 @@ function useIsWide() {
  * Läsframsteg: tunn grön linje längs menyns underkant. Monteras bara från md,
  * så att fjädern (useSpring) inte räknar om vid varje scrollbild på telefon.
  */
-function ScrollProgress({ progress, visible, reduce }: { progress: MotionValue<number>; visible: boolean; reduce: boolean }) {
+function ScrollProgress({ visible, reduce }: { visible: boolean; reduce: boolean }) {
+  const { scrollYProgress: progress } = useScroll()
   const smooth = useSpring(progress, { stiffness: 160, damping: 30, restDelta: 0.001 })
   return (
     <motion.div
@@ -236,7 +235,6 @@ function MenuIcon({ open }: { open: boolean }) {
 /** Fast toppmeny för landningssidan (dator: länkar i mitten, mobil: utfällbar panel). */
 export function LandingNav() {
   const reduce = useReducedMotion()
-  const { scrollY, scrollYProgress } = useScroll()
   const wide = useIsWide()
   const [scrolled, setScrolled] = React.useState(false)
   const [open, setOpen] = React.useState(false)
@@ -246,11 +244,20 @@ export function LandingNav() {
   const headerRef = React.useRef<HTMLElement>(null)
   const skipRef = React.useRef<HTMLAnchorElement>(null)
 
-  // Bara vid passage av tröskeln – inte en uppdatering per scrollbild.
-  useMotionValueEvent(scrollY, "change", (v) => {
-    const next = v > SCROLL_THRESHOLD
-    if (next !== scrolled) setScrolled(next)
-  })
+  // Passiv lyssnare som bara läser scrollY (ingen layoutmätning) och bara
+  // uppdaterar state när tröskeln passeras – inte en gång per scrollbild.
+  React.useEffect(() => {
+    let last: boolean | null = null
+    const onScroll = () => {
+      const next = window.scrollY > SCROLL_THRESHOLD
+      if (next === last) return
+      last = next
+      setScrolled(next)
+    }
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   // Öppen mobilmeny: Esc stänger (fokus tillbaka till knappen), och den stängs om fönstret blir brett.
   React.useEffect(() => {
@@ -345,7 +352,7 @@ export function LandingNav() {
         >
           <span className="absolute inset-x-0 top-0 h-px bg-white/[0.03]" />
         </motion.div>
-        {wide && <ScrollProgress progress={scrollYProgress} visible={scrolled} reduce={Boolean(reduce)} />}
+        {wide && <ScrollProgress visible={scrolled} reduce={Boolean(reduce)} />}
 
         <div className="relative px-4 sm:px-6">
           <motion.div initial={false} animate={{ y: solid ? 0 : 8 }} transition={BAR_SPRING} className="mx-auto flex h-16 max-w-6xl items-center gap-3 will-change-transform">

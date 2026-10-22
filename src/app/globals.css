@@ -219,6 +219,61 @@
   animation: landing-float var(--float-dur, 5s) ease-in-out var(--float-delay, 0s) infinite;
   will-change: transform;
 }
+/* Sektionernas CSS-loopar (bento, avslutande CTA) – bara transform och opacity, körs på kompositorn. */
+/* Ljuspunkt från --bento-from-x/y till --bento-to-x/y; tonar in och ut, vilar sista 20 %. */
+@keyframes bento-travel {
+  0% {
+    transform: translate3d(var(--bento-from-x, 0), var(--bento-from-y, 0), 0);
+    opacity: 0;
+  }
+  12%,
+  68% {
+    opacity: 1;
+  }
+  80%,
+  100% {
+    transform: translate3d(var(--bento-to-x, 0), var(--bento-to-y, 0), 0);
+    opacity: 0;
+  }
+}
+/* Pulsring som växer till --bento-ring-scale och tonar ut från --bento-ring-from. */
+@keyframes bento-ring {
+  0% {
+    transform: scale(1);
+    opacity: var(--bento-ring-from, 0.6);
+  }
+  100% {
+    transform: scale(var(--bento-ring-scale, 1.5));
+    opacity: 0;
+  }
+}
+@keyframes bento-blink {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes cta-ring {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.08, 1.35);
+  }
+}
+@keyframes cta-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 56px, 0);
+  }
+}
 /* Telefoner: ingen backdrop-filter (dyrt vid scroll); korten har tät nog bakgrund ändå. */
 @media (max-width: 767px) {
   .landing [class*="backdrop-blur"] {

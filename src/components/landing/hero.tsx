@@ -243,8 +243,10 @@ function Backdrop({ y }: { y?: MotionValue<number> }) {
 /**
  * In-animation i ren CSS (tw-animate-css): startar vid första målningen, före
  * hydrering, så att h1 och knappar syns direkt i serverns HTML – även utan JS.
+ * fill-mode-backwards (inte both): när animationen är klar släpps transform och
+ * filter helt, så att elementen inte blir kvar som egna GPU-lager.
  */
-const ENTER = "animate-in fade-in-0 fill-mode-both ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none"
+const ENTER = "animate-in fade-in-0 fill-mode-backwards ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none"
 const enterDelay = (s: number): React.CSSProperties => ({ animationDelay: `${s}s` })
 
 /**

@@ -33,13 +33,7 @@ const MAGNET_SPRING = { stiffness: 260, damping: 18, mass: 0.4 }
 /** Ingen butiksadress än = apparna är inte publicerade (brickorna visar "Släpps snart"). */
 const COMING_SOON = !STORE_URLS.ios && !STORE_URLS.android
 
-/**
- * Egna nyckelbilder för sektionen – bara transform och opacitet. React 19 lyfter
- * <style> med href/precedence till <head> och skriver den bara en gång.
- */
-const KEYFRAMES =
-  "@keyframes cta-ring{from{opacity:.7;transform:scale(1)}to{opacity:0;transform:scale(1.08,1.35)}}" +
-  "@keyframes cta-drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,56px,0)}}"
+// Nyckelbilderna cta-ring och cta-drift ligger i globals.css (bara transform och opacitet).
 
 const WORD: Variants = {
   hidden: { opacity: 0, y: "105%" },
@@ -592,9 +586,6 @@ export function FinalCta() {
       }}
       className="relative isolate scroll-mt-24 overflow-hidden px-4 pt-16 pb-16 sm:px-6 sm:pt-28 sm:pb-32 md:pt-36 md:pb-40 lg:pt-44 lg:pb-48"
     >
-      <style href="coavira-final-cta-keyframes" precedence="default">
-        {KEYFRAMES}
-      </style>
       {parallax && <ScrollLink target={ref} progress={progress} />}
       <CtaBackdrop active={active} progress={progress} parallax={parallax} />
       <motion.div
