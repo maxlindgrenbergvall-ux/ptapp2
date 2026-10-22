@@ -76,6 +76,7 @@ const sv = (n: number, decimals?: number) => (decimals === undefined ? String(Ma
  * Sektionens egna nyckelrutor (bara transform och opacity → körs på kompositorn).
  * - bento-travel: ljuspunkt från --bento-from-x/y till --bento-to-x/y, tonar in och ut, vilar sista 20 %.
  * - bento-ring: pulsring som växer till --bento-ring-scale och tonar ut från --bento-ring-from.
+ * - bento-blink: mjuk blinkning 0,2 → 1 → 0,2.
  * Läggs i <head> en gång via React 19:s <style href precedence>.
  */
 const KEYFRAMES = `
@@ -87,6 +88,10 @@ const KEYFRAMES = `
 @keyframes bento-ring {
   0% { transform: scale(1); opacity: var(--bento-ring-from, 0.6) }
   100% { transform: scale(var(--bento-ring-scale, 1.5)); opacity: 0 }
+}
+@keyframes bento-blink {
+  0%, 100% { opacity: 0.2 }
+  50% { opacity: 1 }
 }
 `
 
@@ -940,9 +945,9 @@ function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; tar
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Nästa lediga tid blinkar mjukt: CSS (Tailwinds pulse), bara opacity. */}
+      {/* Nästa lediga tid blinkar mjukt: CSS (bento-blink), bara opacity. */}
       {target && !booked && live && (
-        <span aria-hidden className="pointer-events-none absolute inset-0 animate-[pulse_1.8s_ease-in-out_infinite] rounded-lg ring-1 ring-brand/70 will-change-[opacity]" />
+        <span aria-hidden className="pointer-events-none absolute inset-0 animate-[bento-blink_1.8s_ease-in-out_infinite] rounded-lg ring-1 ring-brand/70 will-change-[opacity]" />
       )}
       {fresh && booked && (
         <motion.span
