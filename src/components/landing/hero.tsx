@@ -161,20 +161,24 @@ export function Hero() {
   const reduce = !!useReducedMotion()
   const inView = useInView(ref)
   const active = inView && !reduce
+  // Pekarlutning och parallax bara från md. På telefoner sätts inga motion-stilar alls.
+  const desktop = useMediaQuery(MD)
+  const parallax = desktop && !reduce
   // Pekarens läge (-0.5 … 0.5) med fjädring – styr telefonens lutning och djupet.
   const px = useMotionValue(0)
   const py = useMotionValue(0)
   const sx = useSpring(px, { stiffness: 80, damping: 18, mass: 0.8 })
   const sy = useSpring(py, { stiffness: 80, damping: 18, mass: 0.8 })
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] })
-  const backdropY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -140))
+  // Hur långt hjälten scrollats (0–1). Fylls bara i av <ScrollProgress>, alltså på dator.
+  const progress = useMotionValue(0)
+  const backdropY = useTransform(progress, (v) => v * -140)
 
   return (
     <section
       ref={ref}
       aria-labelledby="hero-title"
       onPointerMove={(e) => {
-        if (reduce || e.pointerType !== "mouse") return
+        if (!parallax || e.pointerType !== "mouse") return
         px.set(e.clientX / window.innerWidth - 0.5)
         py.set(e.clientY / window.innerHeight - 0.5)
       }}
@@ -182,27 +186,49 @@ export function Hero() {
         px.set(0)
         py.set(0)
       }}
-      className="relative isolate flex flex-col overflow-hidden lg:min-h-svh"
+      className={cn(
+        "relative isolate flex flex-col overflow-hidden lg:min-h-svh",
+        // Utanför bild pausas alla CSS-loopar i hjälten. !important behövs mot .landing-float i globals.css (utanför lager).
+        !inView && "[&_.hero-loop]:[animation-play-state:paused]! [&_.landing-float]:[animation-play-state:paused]!"
+      )}
     >
-      <Backdrop y={backdropY} />
-      <div className="relative mx-auto grid w-full max-w-7xl flex-1 items-center gap-6 px-4 pt-[calc(4rem+var(--safe-top)+1.25rem)] pb-12 sm:px-6 sm:pt-[calc(4rem+var(--safe-top)+3.5rem)] lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pt-[calc(4rem+var(--safe-top)+2rem)] lg:pb-8">
-        <HeroCopy active={active} />
-        <AppShowcase sx={sx} sy={sy} progress={scrollYProgress} reduce={reduce} active={active} />
+      {parallax && <ScrollProgress target={ref} progress={progress} />}
+      <Backdrop y={parallax ? backdropY : undefined} />
+      <div className="relative mx-auto grid w-full max-w-7xl flex-1 items-center gap-4 px-4 pt-[calc(4rem+var(--safe-top)+0.75rem)] pb-6 sm:gap-6 sm:px-6 sm:pt-[calc(4rem+var(--safe-top)+3.5rem)] sm:pb-12 lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pt-[calc(4rem+var(--safe-top)+2rem)] lg:pb-8">
+        <HeroCopy />
+        <AppShowcase sx={sx} sy={sy} progress={progress} desktop={desktop} reduce={reduce} active={active} />
       </div>
       <TrustMarquee reduce={reduce} />
     </section>
   )
 }
 
-/** Rutnät, gröna glöd och ett svagt ljus uppifrån. Rör sig långsamt vid scroll. */
-function Backdrop({ y }: { y: MotionValue<number> }) {
+/**
+ * Kopplar hjältens scrollförlopp till `progress`. Monteras bara på dator utan
+ * "minska rörelse" – på telefoner finns alltså ingen scroll-lyssnare alls.
+ */
+function ScrollProgress({ target, progress }: { target: React.RefObject<HTMLElement | null>; progress: MotionValue<number> }) {
+  const { scrollYProgress } = useScroll({ target, offset: ["start start", "end start"] })
+  React.useEffect(() => {
+    progress.set(scrollYProgress.get())
+    const off = scrollYProgress.on("change", (v) => progress.set(v))
+    return () => {
+      off()
+      progress.set(0)
+    }
+  }, [scrollYProgress, progress])
+  return null
+}
+
+/** Rutnät, gröna glöd (radiella gradienter – inga blur-filter) och ett svagt ljus uppifrån. Parallax bara på dator. */
+function Backdrop({ y }: { y?: MotionValue<number> }) {
   return (
     <>
-      <motion.div aria-hidden style={{ y }} className="pointer-events-none absolute inset-0 -z-10 will-change-transform">
+      <motion.div aria-hidden style={y ? { y } : undefined} className={cn("pointer-events-none absolute inset-0 -z-10", y && "will-change-transform")}>
         <GridBackdrop className="[mask-image:radial-gradient(ellipse_70%_60%_at_50%_35%,black_15%,transparent_75%)]" />
-        <GlowOrb className="-top-56 right-[-14%] size-[44rem] bg-brand/[0.15]" />
-        <GlowOrb className="top-[28%] -left-64 size-[34rem] bg-emerald-500/[0.13]" />
-        <GlowOrb className="-bottom-72 left-[38%] size-[30rem] bg-emerald-400/10" />
+        <GlowOrb className="-top-56 right-[-14%] size-[44rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_15%,transparent),transparent)]" />
+        <GlowOrb className="top-[28%] -left-64 size-[34rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--color-emerald-500)_13%,transparent),transparent)]" />
+        <GlowOrb className="-bottom-72 left-[38%] hidden size-[30rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--color-emerald-400)_10%,transparent),transparent)] md:block" />
         <div className="absolute inset-x-0 top-0 h-[30rem] bg-[radial-gradient(ellipse_55%_100%_at_50%_0%,rgba(172,237,55,0.08),transparent)]" />
       </motion.div>
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-48 bg-gradient-to-b from-transparent to-background" />
@@ -221,7 +247,23 @@ function Backdrop({ y }: { y: MotionValue<number> }) {
 const ENTER = "animate-in fade-in-0 fill-mode-both ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none"
 const enterDelay = (s: number): React.CSSProperties => ({ animationDelay: `${s}s` })
 
-const LINE_TWO = ["Allt", "i", "en", "och", "samma", "plattform."]
+/**
+ * "Träning och kost" i gradient. Varje ord animeras för sig och får därför en
+ * egen del av gradienten (lime → mint → smaragd), så att den ser sammanhängande ut.
+ */
+const LINE_ONE = [
+  { word: "Träning", stops: "via-[color-mix(in_oklab,var(--brand),var(--color-emerald-300))] to-emerald-300" },
+  {
+    word: "och",
+    stops:
+      "from-emerald-300 via-[color-mix(in_oklab,var(--color-emerald-300)_75%,var(--color-emerald-500))] to-[color-mix(in_oklab,var(--color-emerald-300),var(--color-emerald-500))]",
+  },
+  {
+    word: "kost",
+    stops: "from-[color-mix(in_oklab,var(--color-emerald-300),var(--color-emerald-500))] via-[color-mix(in_oklab,var(--color-emerald-300)_25%,var(--color-emerald-500))]",
+  },
+]
+const LINE_TWO = ["På", "dina", "villkor."]
 
 /** Ett ord som glider upp ur en osynlig mask (opacitet + y + lätt vridning). */
 function Word({ children, index, className }: { children: React.ReactNode; index: number; className?: string }) {
@@ -242,11 +284,16 @@ function Headline() {
       className="text-[2.375rem] leading-[1.02] font-extrabold tracking-[-0.035em] text-balance min-[420px]:text-[2.75rem] sm:text-6xl md:text-[4rem] lg:text-[3.25rem] xl:text-[4.25rem]"
     >
       <span className="block">
-        <Word index={0}>Framtidens</Word>{" "}
-        <span className="relative inline-block whitespace-nowrap">
-          <Word index={1}>
-            <GradientText>träning &amp; kost</GradientText>.
-          </Word>
+        <span className="relative inline-block">
+          {LINE_ONE.map(({ word, stops }, i) => (
+            <React.Fragment key={word}>
+              {i > 0 && " "}
+              <Word index={i}>
+                <GradientText className={stops}>{word}</GradientText>
+                {i === LINE_ONE.length - 1 && "."}
+              </Word>
+            </React.Fragment>
+          ))}
           <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.06em] left-0 h-[0.2em] w-[92%] text-brand/80">
             <motion.path
               initial={{ pathLength: 0, opacity: 0 }}
@@ -266,7 +313,7 @@ function Headline() {
         {LINE_TWO.map((w, i) => (
           <React.Fragment key={w}>
             {i > 0 && " "}
-            <Word index={i + 2} className="bg-gradient-to-b from-foreground via-foreground/80 to-foreground/50 bg-clip-text text-transparent">
+            <Word index={i + LINE_ONE.length} className="bg-gradient-to-b from-foreground via-foreground/80 to-foreground/50 bg-clip-text text-transparent">
               {w}
             </Word>
           </React.Fragment>
@@ -276,27 +323,34 @@ function Headline() {
   )
 }
 
-/** Vänsterspalten: etikett, rubrik, ingress, knappar och trygghetsrad. */
-function HeroCopy({ active }: { active: boolean }) {
+/** Vänsterspalten: etikett, rubrik, ingress, knappar och en trygghetsrad. */
+function HeroCopy() {
   return (
-    <div className="relative z-10 flex flex-col items-center gap-5 text-center sm:gap-7 lg:items-start lg:text-left">
+    <div className="relative z-10 flex flex-col items-center gap-4 text-center sm:gap-7 lg:items-start lg:text-left">
       <div className={cn(ENTER, "duration-700 slide-in-from-bottom-6")}>
-        <Eyebrow>Appen för PT:er och klienter</Eyebrow>
+        <Eyebrow>Appen för dig och din PT</Eyebrow>
       </div>
 
       <Headline />
 
-      <p className={cn(ENTER, "max-w-xl text-lg text-pretty text-muted-foreground duration-700 slide-in-from-bottom-6 sm:text-xl")} style={enterDelay(0.3)}>
-        Sömlös coachning för <span className="font-medium text-foreground">PT:er</span>. Maximal effekt för{" "}
-        <span className="font-medium text-foreground">klienter</span>. Inget betalningskrångel.
+      <p className={cn(ENTER, "max-w-xl text-base text-pretty text-muted-foreground duration-700 slide-in-from-bottom-6 sm:text-xl")} style={enterDelay(0.3)}>
+        Koppla samman med <span className="font-medium text-foreground">din PT</span>, följ ditt skräddarsydda{" "}
+        <span className="font-medium text-foreground">kostschema</span> och nå dina mål snabbare i en och samma app.
       </p>
 
       <div
-        className={cn(ENTER, "flex w-full max-w-sm flex-col gap-3 duration-700 slide-in-from-bottom-6 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start")}
+        className={cn(
+          ENTER,
+          "flex w-full max-w-sm flex-col gap-2 duration-700 slide-in-from-bottom-6 sm:w-auto sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3 lg:justify-start"
+        )}
         style={enterDelay(0.4)}
       >
         <div className="group relative flex justify-center lg:justify-start">
-          <motion.span aria-hidden {...loop(active, GLOW, 3.4)} className="pointer-events-none absolute -inset-3 rounded-[24px] bg-brand/25 blur-2xl" />
+          {/* Sken bakom butiksknapparna: radiell gradient i stället för blur-filter. Pulserar (CSS, opacitet) bara från md. */}
+          <span
+            aria-hidden
+            className="hero-loop pointer-events-none absolute -inset-x-8 -inset-y-6 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_30%,transparent),transparent)] opacity-80 md:motion-safe:animate-[pulse_3.4s_ease-in-out_infinite]"
+          />
           <StoreBadges size="lg" align="center" className="relative lg:justify-start" />
         </div>
         {/* Mobil: en kompakt textlänk så att huvudknappen får all tyngd. Från sm: en kantad knapp bredvid. */}
@@ -310,24 +364,13 @@ function HeroCopy({ active }: { active: boolean }) {
         </a>
       </div>
 
-      <div className={cn(ENTER, "-mt-2 flex flex-col items-center gap-2 duration-700 slide-in-from-bottom-6 lg:items-start")} style={enterDelay(0.5)}>
-        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:gap-x-3 lg:justify-start">
-          <span className="inline-flex items-center gap-1.5">
-            <Smartphone aria-hidden className="size-4 text-brand" />
-            Gratis att ladda ned
-          </span>
-          {/* Punkten bara där raden får plats på en rad – annars hänger den kvar i slutet av första raden. */}
-          <span aria-hidden className="hidden text-white/25 sm:inline">
-            ·
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <CreditCard aria-hidden className="size-4 text-brand" />
-            Säker kortbetalning via Stripe
-          </span>
+      <div className={cn(ENTER, "-mt-1 flex flex-col items-center gap-2 duration-700 slide-in-from-bottom-6 sm:-mt-2 lg:items-start")} style={enterDelay(0.5)}>
+        <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Smartphone aria-hidden className="size-4 shrink-0 text-brand" />
+          Gratis att ladda ned · iPhone &amp; Android
         </p>
-        <p className="max-w-md text-sm text-pretty text-muted-foreground">
-          Appen är gratis – du betalar bara för tjänsterna du köper av din PT, direkt i appen. PT-konton skapas av Coavira efter granskning av certifikat.
-        </p>
+        {/* En rad om PT-kontona – bara från sm, på mobil räcker raden ovan. */}
+        <p className="hidden text-sm text-muted-foreground sm:block">PT-konton skapas av Coavira efter manuell granskning av certifikat.</p>
         {/* På mobil är telefonen som sticker upp under texten själva scroll-signalen. */}
         <a
           href="#funktioner"
@@ -349,37 +392,31 @@ function AppShowcase({
   sx,
   sy,
   progress,
+  desktop,
   reduce,
   active,
 }: {
   sx: MotionValue<number>
   sy: MotionValue<number>
   progress: MotionValue<number>
+  /** Från md: pekarlutning och parallax. Under md sätts inga motion-stilar. */
+  desktop: boolean
   reduce: boolean
   active: boolean
 }) {
   const [booked, setBooked] = React.useState(false)
   const [bookings, setBookings] = React.useState(0)
 
-  // Grundlutning: tydlig på dator, mildare när telefonen står ensam (mobil/surfplatta).
-  const tilt = useMotionValue(1)
-  React.useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)")
-    const apply = () => tilt.set(mq.matches ? 1 : 0.55)
-    apply()
-    mq.addEventListener("change", apply)
-    return () => mq.removeEventListener("change", apply)
-  }, [tilt])
-
-  // Djup: telefonen lutar, bakre kortet och brickorna förskjuts åt olika håll.
-  const rotateY = useTransform([sx, tilt], ([x, t]: number[]) => -13 * t + x * 16)
-  const rotateX = useTransform([sy, tilt], ([y, t]: number[]) => 7 * t - y * 10)
+  // Djup (bara från md): telefonen lutar efter pekaren, bakre kortet och brickorna
+  // förskjuts åt olika håll. Grundlutningen ligger i CSS (se nedan), så här är allt 0 i vila.
+  const rotateY = useTransform(sx, (x) => x * 16)
+  const rotateX = useTransform(sy, (y) => y * -10)
   const glareX = useTransform(sx, (v) => `${v * 50}%`)
-  const phoneY = useTransform(progress, (v) => (reduce ? 0 : v * 90))
+  const phoneY = useTransform(progress, (v) => v * 90)
   const backX = useTransform(sx, (v) => v * -28)
-  const backY = useTransform(progress, (v) => (reduce ? 0 : v * 170))
+  const backY = useTransform(progress, (v) => v * 170)
   const badgesX = useTransform(sx, (v) => v * 22)
-  const badgesY = useTransform([sy, progress], ([s, p]: number[]) => s * 16 + (reduce ? 0 : p * -60))
+  const badgesY = useTransform([sy, progress], ([s, p]: number[]) => s * 16 + p * -60)
 
   // "Nytt pass inbokat!"-brickan studsar till när man bokar i telefonen.
   const pulse = useMotionValue(1)
@@ -391,44 +428,58 @@ function AppShowcase({
 
   return (
     <div
-      className={cn(ENTER, "relative mx-auto flex h-[640px] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]")}
+      className={cn(
+        ENTER,
+        // Mobil: lägre scen (telefonen skalas ned nedan), från sm som förut.
+        "relative mx-auto flex h-[33rem] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]"
+      )}
       style={enterDelay(0.3)}
     >
-      <Halo active={active} />
+      <Halo />
 
       {/* Bakre lager: PT:ns kalender sticker fram bakom telefonen (inte vid lg – där syns bara en remsa). */}
-      <motion.div aria-hidden style={{ x: backX, y: backY }} className="absolute top-[40%] left-[1%] hidden sm:block lg:hidden xl:block">
+      <motion.div aria-hidden style={desktop ? { x: backX, y: backY } : undefined} className="absolute top-[40%] left-[1%] hidden sm:block lg:hidden xl:block">
         <PtCalendarCard />
       </motion.div>
 
-      {/* Skugga under telefonen. */}
-      <div aria-hidden className="pointer-events-none absolute bottom-[3%] left-1/2 h-10 w-56 -translate-x-1/2 rounded-full bg-black/70 blur-2xl" />
+      {/* Skugga under telefonen: radiell gradient i stället för blur-filter. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-[3%] left-1/2 h-12 w-60 -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(0,0,0,0.7),transparent)] sm:h-16 sm:w-72"
+      />
 
-      <motion.div style={{ y: phoneY }} className="relative z-10">
-        <motion.div style={{ rotateX, rotateY, transformPerspective: 1600 }}>
-          <motion.div {...loop(active, FLOAT, 7)}>
-            <ClientHomeScreen
-              booked={booked}
-              tried={bookings > 0}
-              glareX={glareX}
-              reduce={reduce}
-              active={active}
-              onBook={() => {
-                setBooked(true)
-                setBookings((n) => n + 1)
-              }}
-              onUndo={() => setBooked(false)}
-            />
+      {/* Mobil: telefonen skalas till 80 % (CSS-egenskapen scale, krockar inte med transform). */}
+      <motion.div style={desktop ? { y: phoneY } : undefined} className="relative z-10 max-sm:scale-[0.8]">
+        {/* Grundlutning i ren CSS – syns direkt, även före hydrering: mildare när telefonen står ensam, tydlig bredvid texten (lg). */}
+        <div className="[transform:perspective(1600px)_rotateX(4deg)_rotateY(-7deg)] lg:[transform:perspective(1600px)_rotateX(7deg)_rotateY(-13deg)]">
+          {/* Lutning efter pekaren – bara från md. */}
+          <motion.div style={desktop ? { rotateX, rotateY, transformPerspective: 1600 } : undefined}>
+            {/* Svävandet: CSS-animation på transform (.landing-float i globals.css) – kompositorn, ingen JS per bildruta. */}
+            <div style={{ "--float-y": "-14px", "--float-dur": "7s" } as React.CSSProperties} className="landing-float transform-gpu">
+              <ClientHomeScreen
+                booked={booked}
+                tried={bookings > 0}
+                glareX={desktop ? glareX : undefined}
+                reduce={reduce}
+                active={active}
+                onBook={() => {
+                  setBooked(true)
+                  setBookings((n) => n + 1)
+                }}
+                onUndo={() => setBooked(false)}
+              />
+            </div>
           </motion.div>
-        </motion.div>
+        </div>
       </motion.div>
 
       {/*
         Flytande brickor (dekor – samma fakta finns i text på sidan). De ligger
         utanför telefonen så långt det går, så att de bara skär in i skärmens
-        kantmarginal och aldrig döljer veckoremsan eller Dagens kost.
+        kantmarginal och aldrig döljer veckoremsan eller Dagens kost. På mobil
+        syns bara två. Dolda brickor (display:none) varken tonar in eller svävar.
       */}
-      <motion.div aria-hidden style={{ x: badgesX, y: badgesY }} className="pointer-events-none absolute inset-0 z-20">
+      <motion.div aria-hidden style={desktop ? { x: badgesX, y: badgesY } : undefined} className="pointer-events-none absolute inset-0 z-20">
         <motion.div
           style={{ scale: pulse }}
           className="absolute top-0 right-0 origin-right sm:top-[20%] sm:right-auto sm:-left-10 sm:origin-left lg:-left-24 xl:-left-16"
@@ -445,7 +496,7 @@ function AppShowcase({
         </div>
         <div className="absolute -bottom-3 left-0 sm:bottom-[3%] sm:-left-10 lg:-left-24 xl:-left-16">
           <FloatingBadge className="pointer-events-auto relative" delay={1.5} distance={8}>
-            <BadgeBody icon={BadgeCheck} tone="bg-brand/15 text-brand" title="100% verifierade PT:er" emoji="🔥" sub="Certifikat granskas manuellt" />
+            <BadgeBody icon={BadgeCheck} tone="bg-brand/15 text-brand" title="Verifierade PT:er" sub="Certifikat granskas manuellt" />
           </FloatingBadge>
         </div>
         <div className="absolute top-0 right-0 hidden xl:block 2xl:-right-16">
@@ -453,30 +504,26 @@ function AppShowcase({
             <BadgeBody icon={PhoneMissed} tone="bg-rose-400/15 text-rose-300" title="Missat samtal – ring upp" emoji="📞" sub="Elin Söderberg · 08:12" />
           </FloatingBadge>
         </div>
-        <AnimatePresence>
-          {bookings === 0 && (
-            <motion.div
-              key="hint"
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0, transition: { delay: 2.2, duration: 0.6, ease: EASE } }}
-              exit={{ opacity: 0, x: 10, transition: { duration: 0.3 } }}
-              className="absolute top-[72%] right-0 hidden items-center gap-1.5 text-sm font-medium text-brand xl:flex"
-            >
-              <svg viewBox="0 0 40 24" className="h-6 w-10" fill="none">
-                <path d="M38 4 C 26 4, 14 8, 4 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="3 4" />
-                <path d="M4 18 l 7 -1 M4 18 l 1 -7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-              Testa att boka
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Tipset bara från xl. In-animationen är CSS, så den körs inte alls när tipset är dolt. */}
+        {bookings === 0 && (
+          <div
+            className={cn(ENTER, "absolute top-[72%] right-0 hidden items-center gap-1.5 text-sm font-medium text-brand duration-[600ms] slide-in-from-right-[10px] xl:flex")}
+            style={enterDelay(2.2)}
+          >
+            <svg viewBox="0 0 40 24" className="h-6 w-10" fill="none">
+              <path d="M38 4 C 26 4, 14 8, 4 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="3 4" />
+              <path d="M4 18 l 7 -1 M4 18 l 1 -7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            Testa att boka
+          </div>
+        )}
       </motion.div>
     </div>
   )
 }
 
-/** Innehåll i en flytande bricka: ikon, rubrik (+ emoji) och en rad till på större skärmar. */
-function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; tone: string; title: string; emoji: string; sub: string }) {
+/** Innehåll i en flytande bricka: ikon, rubrik (+ ev. emoji) och en rad till på större skärmar. */
+function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; tone: string; title: string; emoji?: string; sub: string }) {
   return (
     <>
       <span className={cn("grid size-8 shrink-0 place-items-center rounded-xl", tone)}>
@@ -484,7 +531,8 @@ function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; 
       </span>
       <span className="leading-tight">
         <span className="block text-[13px] font-semibold whitespace-nowrap">
-          {title} <span>{emoji}</span>
+          {title}
+          {emoji && <span> {emoji}</span>}
         </span>
         <span className="hidden text-[11px] font-normal whitespace-nowrap text-muted-foreground sm:block lg:hidden xl:block">{sub}</span>
       </span>
@@ -492,19 +540,20 @@ function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; 
   )
 }
 
-/** Glöd, en roterande ljusring och en omloppsbana med en grön prick bakom telefonen. */
-function Halo({ active }: { active: boolean }) {
+/**
+ * Glöd, en roterande ljusring och en omloppsbana med en grön prick bakom telefonen.
+ * Rotationerna är CSS-animationer (kompositorn); `.hero-loop` pausar dem när hjälten
+ * inte syns. Omloppsbanan snurrar bara från md – på telefoner står pricken still.
+ */
+function Halo() {
   return (
-    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 size-[26rem] -translate-x-1/2 -translate-y-1/2 sm:size-[36rem]">
+    <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 size-[21rem] -translate-x-1/2 -translate-y-1/2 sm:size-[36rem]">
       <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.2),transparent_78%)]" />
-      <motion.div
-        {...loop(active, SPIN, 40, "linear")}
-        className="absolute inset-0 rounded-full opacity-80 [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_70deg,transparent_150deg,#34d399_230deg,transparent_320deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))]"
-      />
+      <div className="hero-loop absolute inset-0 transform-gpu rounded-full opacity-80 will-change-transform [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_70deg,transparent_150deg,#34d399_230deg,transparent_320deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))] motion-safe:animate-[spin_40s_linear_infinite]" />
       <div className="absolute inset-[15%] rounded-full border border-white/[0.07]" />
-      <motion.div {...loop(active, SPIN, 16, "linear")} className="absolute inset-[15%]">
+      <div className="hero-loop absolute inset-[15%] md:will-change-transform md:motion-safe:animate-[spin_16s_linear_infinite]">
         <span className="absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full bg-brand shadow-[0_0_14px_3px] shadow-brand/60" />
-      </motion.div>
+      </div>
       <div className="absolute inset-[32%] rounded-full border border-dashed border-white/[0.06]" />
     </div>
   )
@@ -562,7 +611,8 @@ function ClientHomeScreen({
 }: {
   booked: boolean
   tried: boolean
-  glareX: MotionValue<string>
+  /** Ljusreflexen följer pekaren – bara från md (annars står den still). */
+  glareX?: MotionValue<string>
   reduce: boolean
   /** Hjälten syns och "minska rörelse" är av – då får Boka-ringen pulsera. */
   active: boolean

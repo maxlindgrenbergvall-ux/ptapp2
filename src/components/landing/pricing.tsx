@@ -413,7 +413,7 @@ function ClientCard({ onShowPt }: { onShowPt: () => void }) {
       <div className="mt-5 sm:mt-8">
         {/* Telefon: lite smalare brickor så att båda ryms på en rad */}
         <StoreBadges align="center" className="[&>*]:grow [&>*]:justify-center max-sm:gap-2 max-sm:[&>*]:gap-2 max-sm:[&>*]:px-3" />
-        <p className="mt-2 text-center text-xs text-muted-foreground sm:mt-3 sm:text-sm">Konto med Apple, Google eller e-post direkt i appen.</p>
+        <p className="mt-3 hidden text-center text-sm text-muted-foreground sm:block">Konto med Apple, Google eller e-post direkt i appen.</p>
       </div>
       <p className="mt-4 flex flex-wrap items-center gap-x-1 border-t border-white/5 pt-2 text-sm text-muted-foreground sm:mt-6 sm:pt-4">
         Är du PT?
@@ -699,9 +699,9 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                         )}
                       </span>
                       <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground sm:text-xs">{s.summary}</span>
-                      <span className="mt-auto flex items-baseline gap-1.5 pt-1.5 pr-6 sm:pt-2 sm:pr-0">
+                      <span className="mt-auto flex items-baseline gap-1 pt-1.5 pr-6 sm:gap-1.5 sm:pt-2 sm:pr-0">
                         <span className={cn("text-[11px] text-muted-foreground", pt && "max-sm:sr-only")}>{pt ? "Ditt pris" : "t.ex."}</span>
-                        <Kr value={prices[s.id]} start={start} className="text-base font-bold tracking-tight sm:text-lg" />
+                        <Kr value={prices[s.id]} start={start} className="text-[15px] font-bold tracking-tight sm:text-lg" />
                       </span>
                     </span>
                     {/* Radioprick: nere till höger på telefon, uppe till höger från sm */}
@@ -858,7 +858,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                       FOCUS
                     )}
                   >
-                    <Shimmer go={shine && !open} />
+                    <Shimmer go={shine} />
                     <Plus aria-hidden className={cn("size-4 transition-transform duration-300", open && "rotate-45")} />
                     Lägg till kostcoaching
                     <span className="ml-auto shrink-0 pl-2 text-xs font-medium whitespace-nowrap text-muted-foreground tabular-nums">+ {formatSek(prices.nutrition)}</span>

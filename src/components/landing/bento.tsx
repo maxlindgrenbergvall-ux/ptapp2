@@ -554,23 +554,24 @@ function SyncDemo() {
 
   return (
     <div ref={ref} className="flex flex-1 flex-col">
-      <div className="relative grid flex-1 items-center gap-3 md:grid-cols-[minmax(0,1fr)_4.5rem_auto] md:gap-0">
-        <GridBackdrop className="opacity-60" />
-        {/* Mobil: PT-bricka + stråle i stället för hela passbyggaren, så att kortet inte blir två skärmar långt. */}
+      <div className="relative grid flex-1 items-center gap-1 md:grid-cols-[minmax(0,1fr)_4.5rem_auto] md:gap-0">
+        <GridBackdrop className="opacity-60 max-md:hidden" />
+        {/* Mobil: PT-bricka + kort stråle i stället för hela passbyggaren, så att kortet inte blir två skärmar långt. */}
         <div className="hidden md:block">
           <PtPanel step={step} />
         </div>
-        <div className="flex flex-col items-center gap-3 md:hidden">
+        <div className="flex flex-col items-center gap-1 md:hidden">
           <PtChip step={step} />
           <Beam pulse={pulse} live={live} axis="y" />
         </div>
         <div className="hidden px-3 md:block">
           <Beam pulse={pulse} live={live} axis="x" />
         </div>
-        <ClientPhone step={step} pulse={pulse} />
+        <ClientPhone step={step} pulse={pulse} live={live} />
       </div>
-      <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs" aria-label="Steg i demon">
+      {/* Mobil: stegen läses bara av skärmläsare – knappen och telefonen visar redan var demon är. */}
+      <div className="mt-4 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
+        <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-xs max-sm:sr-only" aria-label="Steg i demon">
           {SYNC_STEPS.map((s, i) => (
             <li key={s} className="flex items-center gap-1.5" aria-current={i === step ? "step" : undefined}>
               <span
@@ -636,7 +637,7 @@ const KIND_HINT: Record<FoodKind, string> = {
   spoon: "g, msk eller tsk",
   solid: "Kött & fisk · bara g",
 }
-/** Antal livsmedelsrader som syns direkt på mobil – resten fälls ut med en knapp. */
+/** Antal livsmedelsrader som syns på mobil – resten syns från md. */
 const MOBILE_FOODS = 2
 const PLANS = [
   { key: "elin", name: "Elin S." },
@@ -677,7 +678,8 @@ function FoodRow({ item, onChange, className }: { item: MealItem; onChange: (nex
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{item.name}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{KIND_HINT[foodKind(item.name)]}</p>
+          {/* Mobil: enhetsknapparna visar redan vilka enheter som gäller – tipset syns från md. */}
+          <p className="hidden truncate text-[11px] text-muted-foreground md:block">{KIND_HINT[foodKind(item.name)]}</p>
         </div>
         <p className="shrink-0 pt-0.5 text-xs text-muted-foreground tabular">
           {item.grams} g · <span className="font-semibold text-foreground">{item.kcal}</span> kcal
@@ -744,7 +746,7 @@ function KcalRing({ value, start }: { value: number; start: boolean }) {
   const reduce = useReducedMotion()
   const pct = Math.min(1, value / TARGETS.kcal)
   return (
-    <div role="img" aria-label={`${Math.round(value)} av ${TARGETS.kcal} kcal`} className="relative grid size-24 shrink-0 place-items-center">
+    <div role="img" aria-label={`${Math.round(value)} av ${TARGETS.kcal} kcal`} className="relative grid size-20 shrink-0 place-items-center md:size-24">
       <svg viewBox="0 0 100 100" aria-hidden className="absolute inset-0 -rotate-90">
         <circle cx="50" cy="50" r="42" fill="none" strokeWidth="8" className="stroke-white/10" />
         <motion.circle
@@ -761,7 +763,7 @@ function KcalRing({ value, start }: { value: number; start: boolean }) {
         />
       </svg>
       <div aria-hidden className="relative text-center leading-none">
-        <AnimatedNumber value={value} start={start} className="text-xl font-bold" />
+        <AnimatedNumber value={value} start={start} className="text-lg font-bold md:text-xl" />
         <p className="mt-1 text-[10px] text-muted-foreground">kcal</p>
       </div>
     </div>
@@ -776,9 +778,6 @@ function NutritionDemo() {
   const [items, setItems] = React.useState<MealItem[]>(START_ITEMS)
   const [plan, setPlan] = React.useState<PlanKey>("elin")
   const [message, setMessage] = React.useState("")
-  const [showAll, setShowAll] = React.useState(false)
-  const listId = React.useId()
-  const moreCount = items.length - MOBILE_FOODS
   const total = sumMacros(items)
 
   const update = (index: number, next: MealItem) => {
@@ -790,57 +789,44 @@ function NutritionDemo() {
   }
 
   // justify-evenly: när kortet sträcks ut (två rader på surfplatta) fördelas luften jämnt i stället för ett stort hål.
+  // Mobil: bara sökfältet, två livsmedel och makrona – rubrikrad, källrad och schemaväljaren syns från md.
   return (
     <div ref={ref} className="flex flex-1 flex-col justify-evenly gap-4">
       <div className={cn(PANEL, "p-3 sm:p-3.5")}>
-        <div className="flex items-center justify-between gap-2 px-0.5">
+        <div className="hidden items-center justify-between gap-2 px-0.5 md:flex">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Utensils aria-hidden className="size-4 text-brand" />
             Dagens kost
           </p>
           <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted-foreground">mot dina mål</span>
         </div>
-        <div aria-hidden className="mt-3 flex h-11 items-center gap-2.5 rounded-xl border border-white/10 bg-black/30 pr-1.5 pl-3">
+        <div aria-hidden className="flex h-11 items-center gap-2.5 rounded-xl border border-white/10 bg-black/30 pr-1.5 pl-3 md:mt-3">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">Sök livsmedel eller skanna streckkod</span>
           <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand/10 text-brand ring-1 ring-brand/25">
             <ScanBarcode className="size-4" />
+            {/* Skanningslinjen: CSS-svävning (.landing-float i globals.css) 6 px → 26 px och tillbaka. */}
             {live && (
-              <motion.span
-                className="absolute inset-x-1 top-1/2 h-px bg-brand shadow-[0_0_8px_1px] shadow-brand"
-                animate={{ y: [-10, 10, -10] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              <span
+                style={cssVars({ "--float-y": "20px", "--float-dur": "2.4s" })}
+                className="landing-float absolute inset-x-1 top-1.5 h-px bg-brand shadow-[0_0_8px_1px] shadow-brand"
               />
             )}
           </span>
         </div>
-        <p className="mt-1.5 px-0.5 text-[11px] text-muted-foreground">Livsmedel och streckkoder från Open Food Facts</p>
+        <p className="mt-1.5 hidden px-0.5 text-[11px] text-muted-foreground md:block">Svenska livsmedel först · märkesvaror och streckkoder via Open Food Facts</p>
         <LayoutGroup id="bento-units">
-          {/* Mobil: två rader syns direkt, resten fälls ut. Totalen räknar alltid med alla livsmedel. */}
-          <ul id={listId} className="mt-3 flex flex-col gap-2" aria-label="Loggade livsmedel">
+          {/* Mobil: två livsmedel räcker för att visa enhetslogiken. Totalen räknar alltid hela dagen. */}
+          <ul className="mt-3 flex flex-col gap-2" aria-label="Loggade livsmedel">
             {items.map((item, i) => (
-              <FoodRow key={item.name} item={item} className={!showAll && i >= MOBILE_FOODS ? "hidden sm:block" : undefined} onChange={(next) => update(i, next)} />
+              <FoodRow key={item.name} item={item} className={i >= MOBILE_FOODS ? "hidden md:block" : undefined} onChange={(next) => update(i, next)} />
             ))}
           </ul>
         </LayoutGroup>
-        {moreCount > 0 && (
-          <button
-            type="button"
-            aria-expanded={showAll}
-            aria-controls={listId}
-            onClick={() => setShowAll((s) => !s)}
-            className={cn(
-              "mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 text-xs font-medium text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground sm:hidden",
-              FOCUS
-            )}
-          >
-            {showAll ? "Visa färre" : `Visa ${moreCount} livsmedel till`}
-            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-300", showAll && "rotate-180")} />
-          </button>
-        )}
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-brand/[0.08] to-transparent p-3.5">
+        {/* Mobil: ring och makron alltid bredvid varandra (ingen radbrytning som dubblar höjden). */}
+        <div className="mt-3 flex items-center justify-center gap-3 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-brand/[0.08] to-transparent p-3 md:flex-wrap md:gap-4 md:p-3.5">
           <KcalRing value={total.kcal} start={seen} />
-          <div className="min-w-[10rem] flex-1 space-y-2.5">
+          <div className="min-w-0 flex-1 space-y-2 md:min-w-[10rem] md:space-y-2.5">
             {MACROS.map((m) => {
               const v = total[m.key]
               const target = TARGETS[m.key]
@@ -871,13 +857,13 @@ function NutritionDemo() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-brand/20 bg-brand/[0.06] p-3.5">
+      {/* Schemaväljaren är en extra demo – på mobil står regeln i kortets text. */}
+      <div className="hidden rounded-2xl border border-brand/20 bg-brand/[0.06] p-3.5 md:block">
         <p className="flex items-center gap-2 text-xs font-semibold text-brand">
-          <LockKeyhole aria-hidden className="size-3.5" />1 kostschema-regeln
+          <LockKeyhole aria-hidden className="size-3.5" />
+          Flera PT:er?
         </p>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Ett aktivt kostschema åt gången – även med flera PT:er. Du väljer vilket, de andra sparas som förslag.
-        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Du väljer vilket schema som gäller. De andra sparas som förslag.</p>
         <div role="group" aria-label="Välj aktivt kostschema" className="mt-3 grid grid-cols-2 gap-2">
           {PLANS.map((p) => {
             const active = plan === p.key
@@ -925,7 +911,7 @@ const CALENDARS = ["Google Kalender", "Outlook", "Apple Kalender"] as const
 
 function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; target: boolean; locked: boolean; fresh: boolean; live: boolean }) {
   return (
-    <div className="relative h-11 sm:h-12">
+    <div className="relative h-9 sm:h-12">
       <AnimatePresence initial={false} mode="popLayout">
         {booked ? (
           <motion.div
@@ -954,13 +940,9 @@ function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; tar
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Nästa lediga tid blinkar mjukt: CSS (Tailwinds pulse), bara opacity. */}
       {target && !booked && live && (
-        <motion.span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-brand/70"
-          animate={{ opacity: [0.2, 1, 0.2] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-        />
+        <span aria-hidden className="pointer-events-none absolute inset-0 animate-[pulse_1.8s_ease-in-out_infinite] rounded-lg ring-1 ring-brand/70 will-change-[opacity]" />
       )}
       {fresh && booked && (
         <motion.span
@@ -1006,9 +988,10 @@ function CalendarDemo() {
   }
 
   return (
-    <div ref={ref} className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+    // Mobil: veckorutnätet och passgränsen – rubrikraden, förklaringen och kalenderlistan syns från md.
+    <div ref={ref} className="grid flex-1 gap-3 md:gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       <div className={cn(PANEL, "p-3 sm:p-4")}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="hidden flex-wrap items-center justify-between gap-2 md:flex">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <CalendarDays aria-hidden className="size-4 text-brand" />
             Den här veckan
@@ -1022,7 +1005,7 @@ function CalendarDemo() {
         <div
           role="img"
           aria-label={`Veckokalender med ${count} bokade pass. ${full ? "Alla betalda pass är bokade." : `Nästa lediga tid: ${NEXT_LABEL}.`}`}
-          className="mt-3 grid grid-cols-[2.4rem_repeat(5,minmax(0,1fr))] gap-1.5"
+          className="grid grid-cols-[2.4rem_repeat(5,minmax(0,1fr))] gap-1.5 md:mt-3"
         >
           <span />
           {CAL_DAYS.map((d) => (
@@ -1076,7 +1059,7 @@ function CalendarDemo() {
               </div>
             ))}
           </div>
-          <p className="mt-2.5 text-xs text-muted-foreground">Det går aldrig att boka fler pass än det som är betalt.</p>
+          <p className="mt-2.5 hidden text-xs text-muted-foreground md:block">Bokningen låses när alla köpta pass är bokade.</p>
           <motion.button
             ref={bookRef}
             type="button"
@@ -1118,7 +1101,7 @@ function CalendarDemo() {
           </AnimatePresence>
         </div>
 
-        <div>
+        <div className="hidden md:block">
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Link2 aria-hidden className="size-3.5" />
             Synkas via prenumerationslänk – ändringar uppdateras automatiskt
@@ -1138,10 +1121,9 @@ function CalendarDemo() {
                 )}
                 <span aria-hidden className="relative flex size-2">
                   {live && (
-                    <motion.span
-                      className="absolute inset-0 rounded-full bg-brand"
-                      animate={{ scale: [1, 2.6], opacity: [0.6, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, delay: i * 0.5, ease: "easeOut" }}
+                    <span
+                      style={cssVars({ "--bento-ring-scale": "2.6", animationDelay: `${i * 0.5}s` })}
+                      className="absolute inset-0 animate-[bento-ring_2s_ease-out_infinite_both] rounded-full bg-brand will-change-transform"
                     />
                   )}
                   <span className="relative size-2 rounded-full bg-brand" />
@@ -1167,18 +1149,16 @@ const CHECKS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: KeyRound, title: "E-post + lösenord", text: "Enda sättet att logga in som PT" },
 ]
 
-/** Sköld med pulserande ringar. */
+/** Sköld med pulserande ringar (CSS, bento-ring). Dekor – visas från md. */
 function Shield({ live }: { live: boolean }) {
   return (
-    <div aria-hidden className="relative grid size-20 shrink-0 place-items-center">
+    <div aria-hidden className="relative hidden size-20 shrink-0 place-items-center md:grid">
       {live &&
         [0, 1].map((i) => (
-          <motion.span
+          <span
             key={i}
-            className="absolute inset-0 rounded-[1.6rem] border border-brand/50"
-            initial={{ scale: 1, opacity: 0 }}
-            animate={{ scale: [1, 1.45], opacity: [0.7, 0] }}
-            transition={{ duration: 2.6, repeat: Infinity, delay: i * 1.3, ease: "easeOut" }}
+            style={cssVars({ "--bento-ring-scale": "1.45", "--bento-ring-from": "0.7", animationDelay: `${i * 1.3}s` })}
+            className="absolute inset-0 animate-[bento-ring_2.6s_ease-out_infinite_both] rounded-[1.6rem] border border-brand/50 will-change-transform"
           />
         ))}
       <div className="relative grid size-20 place-items-center rounded-[1.6rem] border border-brand/30 bg-gradient-to-b from-brand/25 to-emerald-500/5 shadow-[0_0_50px_-12px] shadow-brand/70">
@@ -1189,11 +1169,25 @@ function Shield({ live }: { live: boolean }) {
 }
 
 /** En punkt i granskningen som bockas av i tur och ordning. */
-function CheckRow({ icon: Icon, title, text, index, active }: { icon: LucideIcon; title: string; text: string; index: number; active: boolean }) {
+function CheckRow({
+  icon: Icon,
+  title,
+  text,
+  index,
+  active,
+  className,
+}: {
+  icon: LucideIcon
+  title: string
+  text: string
+  index: number
+  active: boolean
+  className?: string
+}) {
   const reduce = useReducedMotion()
   const delay = 0.35 + index * 0.45
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
+    <li className={cn("flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5", className)}>
       <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-muted-foreground">
         <Icon aria-hidden className="size-4" />
       </span>
@@ -1228,13 +1222,15 @@ function SecurityDemo() {
   const seen = useInView(ref, { once: true, amount: 0.35 })
   const [run, setRun] = React.useState(0)
   return (
-    <div ref={ref} className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center gap-4">
+    // Mobil: profilen på en rad (avatar, namn, märke) utan sköld, och de två viktigaste kontrollerna.
+    <div ref={ref} className="flex flex-1 flex-col gap-3 md:gap-4">
+      <div className="flex items-center gap-3 md:gap-4">
         <Shield live={live} />
-        <div className="min-w-0">
+        <Initials name="Elin Söderberg" className="md:hidden" />
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:block">
           <p className="truncate text-sm font-semibold">Elin Söderberg</p>
-          <p className="text-xs text-muted-foreground">Personlig tränare</p>
-          <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand ring-1 ring-brand/25">
+          <p className="hidden text-xs text-muted-foreground md:block">Personlig tränare</p>
+          <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand ring-1 ring-brand/25 md:mt-1.5">
             <BadgeCheck aria-hidden className="size-3.5" />
             Verifierad PT
           </span>
@@ -1242,7 +1238,7 @@ function SecurityDemo() {
       </div>
       <ul key={run} className="space-y-2" aria-label="Så verifieras en PT">
         {CHECKS.map((c, i) => (
-          <CheckRow key={c.title} {...c} index={i} active={seen} />
+          <CheckRow key={c.title} {...c} index={i} active={seen} className={i >= 2 ? "max-md:hidden" : undefined} />
         ))}
       </ul>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -1296,8 +1292,9 @@ function PaymentDemo() {
               aria-hidden
               className="absolute inset-0 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,#22331a_0%,#111c16_45%,#070d0b_100%)] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] sm:p-5"
             >
-              <div className="absolute -top-16 -right-12 size-44 rounded-full bg-brand/25 blur-3xl" />
-              <div className="absolute -bottom-20 -left-10 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
+              {/* Glöd som radiella gradienter (ingen blur-filterpass) – samma mittpunkter som förut. */}
+              <div className="absolute -top-24 -right-20 size-60 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_22%,transparent),transparent)]" />
+              <div className="absolute -bottom-28 -left-18 size-56 bg-[radial-gradient(closest-side,rgb(52_211_153/0.1),transparent)]" />
               <div className="relative flex h-full flex-col justify-between">
                 <div className="flex items-start justify-between">
                   <span className="text-[11px] font-semibold tracking-wider text-white/70 uppercase">Kort</span>
@@ -1326,13 +1323,9 @@ function PaymentDemo() {
               </div>
               <p className="mt-2 text-sm font-semibold">Helhetspaket · träning + kost</p>
               <p className="text-xs text-muted-foreground">hos Elin Söderberg</p>
-              <dl className="mt-auto space-y-1 text-xs">
-                <div className="flex justify-between gap-2">
-                  <dt className="text-muted-foreground">Pris (t.ex.)</dt>
-                  <dd className="tabular">{price}</dd>
-                </div>
-                <div className="flex justify-between gap-2 border-t border-white/10 pt-1 font-semibold">
-                  <dt>Du betalar</dt>
+              <dl className="mt-auto text-xs">
+                <div className="flex justify-between gap-2 border-t border-white/10 pt-1.5 font-semibold">
+                  <dt>Pris (exempel)</dt>
                   <dd className="text-brand tabular">{price}</dd>
                 </div>
               </dl>
@@ -1372,6 +1365,8 @@ const connId = (label: string) => `bento-conn-${label.replace(/\s/g, "")}`
  * Demo: datakällor kopplade till Coavira med ljuspunkter som rör sig mot mitten.
  * Diagrammet är kvadratiskt och centreras i ytan som blir över, med app-raden
  * längst ned i linje med de andra korten i raden.
+ * Ljuspunkterna är CSS (bento-travel) på lager lika stora som rutan: lagret
+ * flyttas (källa − 50) % och glider till 0, där punkten sitter mitt i navet.
  */
 function ConnectionsDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
