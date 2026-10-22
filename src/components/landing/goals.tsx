@@ -21,7 +21,6 @@ import {
   type MotionValue,
 } from "framer-motion"
 import {
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
@@ -48,7 +47,7 @@ import * as React from "react"
 
 import { LINKS } from "@/components/landing/links"
 import { EASE, FloatingBadge, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Reveal, Section, useConfetti } from "@/components/landing/primitives"
-import { INTERESTS, formatMetric, formatSeconds, metricsFor, type InterestDef, type MetricDef } from "@/lib/interests"
+import { INTERESTS, formatSeconds, metricsFor, type InterestDef, type MetricDef } from "@/lib/interests"
 import { cn } from "@/lib/utils"
 import { SPECIALTIES } from "@/types/domain"
 
@@ -249,7 +248,7 @@ function useSpin(active: boolean, seconds: number) {
 /* Sektionen                                                           */
 /* ------------------------------------------------------------------ */
 
-/** Konfiguratorn till vänster, telefonen med Framsteg till höger. */
+/** Målväljaren och utfallet till vänster, telefonen med Framsteg till höger (i mobilen: väljare, telefon, utfall). */
 export function GoalShowcase() {
   const [selected, setSelected] = React.useState<string[]>(DEFAULT_GOALS)
   const [role, setRole] = React.useState<Role>("client")
@@ -317,20 +316,21 @@ export function GoalShowcase() {
       intro="Berätta vad du tränar för, så skräddarsyr Coavira din Framsteg-vy – tid på milen för cyklisten, 1RM för styrkelyftaren. Testa själv: vyn byggs om i realtid."
     >
       <Backdrop />
-      <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10">
-        <Reveal>
-          <Configurator
-            role={role}
-            selected={selected}
-            denied={denied}
-            specialty={specialty}
-            onRole={changeRole}
-            onToggle={toggle}
-            onClear={clear}
-          />
+      {/*
+        Ordningen väljare → telefon → PT:er och CTA gör att telefonen hamnar direkt under målen i
+        mobilen, så att man ser vyn byggas om när man trycker. På desktop ligger väljaren och
+        utfallet i vänsterkolumnen och ser ut som ett kort, med telefonen bredvid.
+      */}
+      <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-0">
+        <Reveal className="min-w-0 lg:col-start-1 lg:row-start-1">
+          <GoalPicker role={role} selected={selected} denied={denied} onRole={changeRole} onToggle={toggle} onClear={clear} />
         </Reveal>
-        <Reveal delay={0.15}>
+        <Reveal delay={0.15} className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
           <PhoneStage role={role} chosen={chosen} groups={groups} spot={spot} pulse={pulse} />
+        </Reveal>
+        {/* Tonar in så fort den syns – på desktop ser kortets nedre halva då aldrig avhuggen ut. */}
+        <Reveal viewport={{ once: true }} className="min-w-0 lg:col-start-1 lg:row-start-2">
+          <GoalOutcome role={role} specialty={specialty} />
         </Reveal>
       </div>
       <p className="sr-only" role="status" aria-live="polite">
@@ -356,11 +356,14 @@ function Backdrop() {
 /* Konfiguratorn                                                       */
 /* ------------------------------------------------------------------ */
 
-function Configurator({
+/**
+ * Övre delen: perspektiv, räknare och målen. I mobilen ligger målen på en rad som
+ * sveps i sidled, så att telefonen under syns medan man väljer.
+ */
+function GoalPicker({
   role,
   selected,
   denied,
-  specialty,
   onRole,
   onToggle,
   onClear,
@@ -368,7 +371,6 @@ function Configurator({
   role: Role
   selected: string[]
   denied: number
-  specialty?: InterestDef
   onRole: (role: Role) => void
   onToggle: (interest: InterestDef, from: HTMLElement) => void
   onClear: () => void
@@ -382,7 +384,7 @@ function Configurator({
     onClear()
   }
   return (
-    <GlassCard className="rounded-[2rem] p-5 sm:p-7">
+    <GlassCard className="rounded-[2rem] p-5 sm:p-7 lg:rounded-b-none lg:border-b-0 lg:pb-6">
       <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-brand/10 blur-3xl" />
 
@@ -415,7 +417,13 @@ function Configurator({
           : "Du väljer intressen när du skapar kontot och kan ändra dem när som helst i profilen. Framsteg visar mätpunkterna som hör till."}
       </p>
 
-      <div ref={groupRef} role="group" aria-labelledby="mal-val-titel" className="mt-5 flex flex-wrap gap-2.5">
+      {/* Under sm: en svepbar rad ända ut till kortets kanter. Luft upptill och nedtill för ordningssiffran och fokusringen. */}
+      <div
+        ref={groupRef}
+        role="group"
+        aria-labelledby="mal-val-titel"
+        className="-mx-5 mt-2.5 flex snap-x scroll-px-5 gap-2.5 overflow-x-auto px-5 pt-2.5 pb-2 [scrollbar-width:none] sm:mx-0 sm:mt-5 sm:flex-wrap sm:overflow-visible sm:p-0 [&::-webkit-scrollbar]:hidden"
+      >
         {INTERESTS.map((interest) => {
           const order = selected.indexOf(interest.key) + 1
           return <GoalChip key={interest.key} interest={interest} order={order} locked={full && order === 0} onToggle={onToggle} />
@@ -449,8 +457,18 @@ function Configurator({
           </button>
         )}
       </div>
+    </GlassCard>
+  )
+}
 
-      <div aria-hidden className="my-6 h-px bg-gradient-to-r from-white/[0.02] via-white/10 to-white/[0.02]" />
+/**
+ * Nedre delen: matchande PT:er (eller räckvidd för PT:n) och CTA. På desktop sitter den
+ * ihop med GoalPicker som ett kort; i mobilen är den ett eget kort under telefonen.
+ */
+function GoalOutcome({ role, specialty }: { role: Role; specialty?: InterestDef }) {
+  return (
+    <GlassCard className="rounded-[2rem] p-5 sm:p-7 lg:h-full lg:rounded-t-none lg:border-t-0 lg:pt-0 lg:shadow-none">
+      <div aria-hidden className="mb-6 hidden h-px bg-gradient-to-r from-white/[0.02] via-white/10 to-white/[0.02] lg:block" />
 
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
@@ -561,7 +579,7 @@ function GoalChip({
       whileTap={{ scale: 0.93 }}
       transition={SPRING}
       className={cn(
-        "relative inline-flex h-12 items-center gap-2.5 rounded-2xl border pr-4 pl-1.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,opacity] duration-300 sm:text-[15px]",
+        "relative inline-flex h-12 shrink-0 snap-start items-center gap-2.5 rounded-2xl border pr-4 pl-1.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,opacity] duration-300 sm:text-[15px]",
         FOCUS_RING,
         on
           ? "border-brand/60 bg-brand/[0.12] text-foreground shadow-[0_0_28px_-10px] shadow-brand/70"
@@ -641,7 +659,7 @@ function PtMatches({ specialty }: { specialty?: InterestDef }) {
           </motion.li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-pretty text-muted-foreground">
+      <p className="mt-3 text-sm text-pretty text-muted-foreground">
         Filtrera på inriktning i Hitta PT – de som matchar bäst visas först. Alla PT:er granskas manuellt innan de får ett konto.
       </p>
     </div>
@@ -741,20 +759,13 @@ function GoalCta({ role }: { role: Role }) {
               <ArrowRight aria-hidden className="relative size-5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           )}
-          <p className="text-xs text-pretty text-muted-foreground">
+          <p className="text-sm text-pretty text-muted-foreground">
             {role === "pt"
               ? "PT-konton skapas av Coavira efter manuell granskning av ditt certifikat. Du sätter dina egna priser."
               : "Apple, Google eller e-post. 0 kr gäller kontot – tjänsterna köper du av din PT med kort."}
           </p>
         </motion.div>
       </AnimatePresence>
-      <a
-        href="#mal-telefon"
-        className={cn("group mt-3 inline-flex h-11 items-center gap-2 rounded-full px-1 text-sm font-medium text-foreground/85 hover:text-foreground lg:hidden", FOCUS_RING)}
-      >
-        <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand">Se Framsteg-vyn</span>
-        <ArrowDown aria-hidden className="size-4" />
-      </a>
     </div>
   )
 }
@@ -778,13 +789,12 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
   const rotateY = useTransform(sx, (v) => -6 + v * 14)
   const rotateX = useTransform(sy, (v) => 3 - v * 10)
 
-  // Parallax: telefonen och brickorna rör sig i olika takt vid scroll. 0 vid start, så att
-  // serverns HTML och klientens första rendering är lika även med "minska rörelse".
+  // Parallax: brickorna rör sig lite mer än telefonen vid scroll men följer med den, så att de
+  // inte glider in över innehållet. 0 vid start, så att serverns HTML och klientens första
+  // rendering är lika även med "minska rörelse".
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
   const phoneY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -60))
-  const badgesY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -130))
-
-  const spotMetric = spot?.metrics[0]
+  const badgesY = useTransform(scrollYProgress, (v) => (reduce ? 0 : v * -70))
 
   return (
     <div
@@ -812,7 +822,7 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
         </span>
       </div>
 
-      <div className="relative flex justify-center py-8">
+      <div className="relative flex justify-center py-3 sm:py-8">
         <Halo spin={spin} chosen={chosen} reduce={reduce} />
         <div aria-hidden className="pointer-events-none absolute inset-x-6 top-1/2 h-72 -translate-y-1/2 rounded-full bg-brand/15 blur-3xl sm:hidden" />
         <div aria-hidden className="pointer-events-none absolute bottom-4 left-1/2 h-10 w-56 -translate-x-1/2 rounded-full bg-black/70 blur-2xl" />
@@ -825,40 +835,38 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
           </motion.div>
         </motion.div>
 
-        {/* Flytande brickor (dekor – samma fakta står i texten bredvid). */}
+        {/*
+          Flytande brickor (dekor – samma fakta står i texten bredvid). En rad var och placerade vid
+          telefonens övre och nedre ram, så att de aldrig täcker mätpunkterna eller rubrikerna.
+        */}
         <motion.div aria-hidden style={{ y: badgesY }} className="pointer-events-none absolute inset-0 z-20 hidden sm:block lg:hidden xl:block">
-          {spot && spotMetric && (
-            <FloatingBadge className="top-[14%] right-0" delay={0.4}>
+          {spot && (
+            <FloatingBadge className="top-3 -right-4" delay={0.4}>
               <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
                 <Trophy className="size-4" />
               </span>
-              <span className="relative leading-tight">
-                <span className="block text-[13px] font-semibold whitespace-nowrap">Personbästa! 🏆</span>
+              <span className="text-[13px] font-semibold whitespace-nowrap">Personbästa!</span>
+              <span className="relative -ml-1 grid place-items-center">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.span
-                    key={spotMetric.key}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.3, ease: EASE }}
-                    className="block text-[11px] font-normal whitespace-nowrap text-muted-foreground"
+                    key={spot.key}
+                    initial={{ scale: 0, rotate: -30 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    exit={{ scale: 0, rotate: 30 }}
+                    transition={SPRING}
+                    className="block text-base leading-none"
                   >
-                    {spot.emoji} {spotMetric.label} · {formatMetric(spotMetric, sampleOf(spotMetric).best)}
+                    {spot.emoji}
                   </motion.span>
                 </AnimatePresence>
               </span>
             </FloatingBadge>
           )}
-          <FloatingBadge className="bottom-[16%] left-0" delay={0.7} distance={8}>
+          <FloatingBadge className="-bottom-1 -left-4" delay={0.7} distance={8}>
             <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300">
               {role === "pt" ? <Target className="size-4" /> : <Eye className="size-4" />}
             </span>
-            <span className="leading-tight">
-              <span className="block text-[13px] font-semibold whitespace-nowrap">{role === "pt" ? "Dina klienters mål 🎯" : "Syns för din PT 👀"}</span>
-              <span className="block text-[11px] font-normal whitespace-nowrap text-muted-foreground">
-                {role === "pt" ? "Utifrån klientens intressen" : "Delas med dina PT:er"}
-              </span>
-            </span>
+            <span className="text-[13px] font-semibold whitespace-nowrap">{role === "pt" ? "Dina klienters mål 🎯" : "Syns för din PT 👀"}</span>
           </FloatingBadge>
         </motion.div>
       </div>

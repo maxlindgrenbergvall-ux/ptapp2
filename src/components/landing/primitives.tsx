@@ -5,7 +5,7 @@
  * scroll-animationer (framer-motion), telefonmockup, flytande brickor och
  * konfetti. Allt respekterar "minska rörelse" (MotionConfig i LandingShell).
  */
-import { motion, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform, type HTMLMotionProps, type Variants } from "framer-motion"
+import { motion, useInView, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform, type HTMLMotionProps, type Variants } from "framer-motion"
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -115,7 +115,7 @@ export function Section({
           <Reveal className={cn("mb-12 max-w-3xl space-y-4 sm:mb-16", align === "center" && "mx-auto text-center")}>
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
             {title && (
-              <h2 id={titleId} className="text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl md:text-6xl">
+              <h2 id={titleId} className="text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-5xl xl:text-[3.5rem]">
                 {title}
               </h2>
             )}
@@ -225,21 +225,30 @@ export function PhoneFrame({ children, className, time = "09:41" }: { children: 
 /**
  * Liten bricka som svävar upp och ner (t.ex. "Nytt pass inbokat! ⚡").
  * `delay` förskjuter både intoningen och svävandet så att brickorna inte rör sig i takt.
+ *
+ * Prestanda: intoningen spelas först när brickan syns, och svävandet körs bara medan
+ * brickan är i (eller nära) bild. Dolda brickor (display:none) räknas som utanför bild
+ * och står därför still. Svävandet animerar hela `transform` (inte `y`), vilket
+ * framer-motion kör som WAAPI på kompositorn i stället för på huvudtråden varje bildruta.
+ * Hover-förstoringen är CSS-egenskapen `scale`, som inte krockar med `transform`.
  */
 export function FloatingBadge({ children, className, delay = 0, distance = 10 }: { children: React.ReactNode; className?: string; delay?: number; distance?: number }) {
   const reduce = useReducedMotion()
+  const ref = React.useRef<HTMLDivElement>(null)
+  const live = useInView(ref, { margin: "150px" }) && !reduce
   return (
     <motion.div
+      ref={ref}
       initial={{ opacity: 0, scale: 0.85, y: 12 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      whileInView={{ opacity: 1, scale: 1, y: 0 }}
+      viewport={{ once: true }}
       transition={{ duration: 0.6, ease: EASE, delay }}
       className={cn("absolute z-10", className)}
     >
       <motion.div
-        animate={reduce ? undefined : { y: [0, -distance, 0] }}
-        transition={{ duration: 5 + delay, repeat: Infinity, ease: "easeInOut", delay }}
-        whileHover={{ scale: 1.05 }}
-        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#11161d]/80 px-3 py-2 text-sm font-medium shadow-xl shadow-black/40 backdrop-blur-md"
+        animate={live ? { transform: ["translateY(0px)", `translateY(${-distance}px)`, "translateY(0px)"] } : { transform: "translateY(0px)" }}
+        transition={live ? { duration: 5 + delay, repeat: Infinity, ease: "easeInOut", delay } : { duration: 0.6, ease: EASE }}
+        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#11161d]/95 px-3 py-2 text-sm font-medium shadow-xl shadow-black/40 transition-[scale] duration-200 hover:scale-105 motion-reduce:transition-none"
       >
         {children}
       </motion.div>

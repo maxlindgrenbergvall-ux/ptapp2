@@ -124,8 +124,6 @@ const PT_FEATURES = [
   "Verifierad profil efter granskning av dina certifikat",
 ] as const
 
-const SIGN_IN = ["Apple", "Google", "E-post"] as const
-
 const APPLY_STEPS: readonly { icon: LucideIcon; label: string }[] = [
   { icon: FileBadge, label: "Skicka dina certifikat" },
   { icon: ShieldCheck, label: "Vi granskar manuellt" },
@@ -394,7 +392,7 @@ function ZeroPrice() {
   )
 }
 
-/** Klientkortet: 0 kr för kontot, allt i appen, och "Skapa konto". */
+/** Klientkortet: 0 kr för kontot, allt i appen, och "Skapa klientkonto". */
 function ClientCard({ onShowPt }: { onShowPt: () => void }) {
   return (
     <PriceCard highlight aria-labelledby="priser-klient-titel" className="p-6 sm:p-8" {...SWAP}>
@@ -414,16 +412,10 @@ function ClientCard({ onShowPt }: { onShowPt: () => void }) {
       <CheckList items={CLIENT_FEATURES} label="Det här finns i appen" />
       <div className="mt-8">
         <Link href={LINKS.start} className={cn(PRIMARY_BTN, "w-full", FOCUS)}>
-          Skapa konto
+          Skapa klientkonto – 0 kr
           <ArrowRight aria-hidden className="size-4 transition-transform group-hover/btn:translate-x-1 motion-reduce:transition-none" />
         </Link>
-        <ul aria-label="Skapa konto med" className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          {SIGN_IN.map((way) => (
-            <li key={way} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-muted-foreground">
-              {way}
-            </li>
-          ))}
-        </ul>
+        <p className="mt-3 text-center text-sm text-muted-foreground">Med Apple, Google eller e-post.</p>
       </div>
       <p className="mt-6 flex flex-wrap items-center gap-x-1 border-t border-white/5 pt-4 text-sm text-muted-foreground">
         Är du PT?
@@ -879,7 +871,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                     {inView && !reduce && !open && <Shimmer />}
                     <Plus aria-hidden className={cn("size-4 transition-transform duration-300", open && "rotate-45")} />
                     Lägg till kostcoaching
-                    <span className="ml-auto pl-2 text-xs font-medium text-muted-foreground tabular-nums">+ {formatSek(prices.nutrition)}</span>
+                    <span className="ml-auto shrink-0 pl-2 text-xs font-medium whitespace-nowrap text-muted-foreground tabular-nums">+ {formatSek(prices.nutrition)}</span>
                   </button>
                   <AnimatePresence>
                     {open && (
@@ -929,26 +921,52 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
             <span className="pb-1 text-sm text-muted-foreground">Totalt</span>
             <Kr value={total} start={start} pulse className="text-3xl font-bold tracking-tight" />
           </div>
-          <button type="button" onClick={pay} className={cn(PRIMARY_BTN, "mt-4 w-full", FOCUS)}>
-            <CreditCard aria-hidden className="size-4" /> Betala <Kr value={total} start={start} />
+          {/* Demoknapp – sekundär stil så att "Skapa klientkonto" förblir sektionens enda fyllda CTA */}
+          <button
+            type="button"
+            onClick={pay}
+            className={cn(GHOST_BTN, "mt-4 w-full border-brand/40 bg-brand/[0.08] text-brand hover:border-brand/60 hover:bg-brand/[0.14]", FOCUS)}
+          >
+            <CreditCard aria-hidden className="size-4" /> Testa betalningen <span aria-hidden>·</span> <Kr value={total} start={start} />
           </button>
           <AnimatePresence>
             {paid && (
-              <motion.p
+              <motion.div
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: EASE }}
-                className="mt-3 flex items-start gap-2 text-xs text-pretty text-brand"
+                className="mt-3"
               >
-                <Lock aria-hidden className="mt-px size-3.5 shrink-0" />
-                {pt
-                  ? "Demo – klienten skickas vidare till Stripe, och passen låses upp när betalningen är klar."
-                  : "Demo – i appen skickas du nu vidare till Stripe för säker kortbetalning."}
-              </motion.p>
+                <p className="flex items-start gap-2 text-xs text-pretty text-brand">
+                  <Lock aria-hidden className="mt-px size-3.5 shrink-0" />
+                  {pt
+                    ? "Demo – klienten skickas vidare till Stripe, och passen låses upp när betalningen är klar."
+                    : "Demo – i appen skickas du nu vidare till Stripe för säker kortbetalning."}
+                </p>
+                {/* Vidare till riktig registrering i stället för en återvändsgränd */}
+                {pt ? (
+                  <a
+                    href={LINKS.ptApply}
+                    className={cn("mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}
+                  >
+                    Ansök som PT
+                    <span className="sr-only"> (öppnar e-post)</span>
+                    <ArrowRight aria-hidden className="size-3.5" />
+                  </a>
+                ) : (
+                  <Link
+                    href={LINKS.start}
+                    className={cn("mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}
+                  >
+                    Skapa klientkonto – 0 kr och köp i appen
+                    <ArrowRight aria-hidden className="size-3.5" />
+                  </Link>
+                )}
+              </motion.div>
             )}
           </AnimatePresence>
-          <p className="mt-3 text-xs text-muted-foreground">{pt ? "Klienten betalar exakt det pris du sätter." : "Priset du ser är priset du betalar."}</p>
+          {pt && <p className="mt-3 text-xs text-muted-foreground">Klienten betalar exakt det pris du sätter.</p>}
         </div>
         <p className="sr-only" aria-live="polite">
           {say}
@@ -958,20 +976,14 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   )
 }
 
-/** Högra kolumnen: exempelmenyn med två svävande brickor (bara på stora skärmar) som rör sig lite med scrollen. */
+/** Högra kolumnen: exempelmenyn med en svävande bricka (bara på stora skärmar) som rör sig lite med scrollen. */
 function ServicesColumn({ className, ...props }: ServicesProps & { className?: string }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const reduce = useReducedMotion()
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
-  const up = useTransform(scrollYProgress, [0, 1], [14, -14])
   const down = useTransform(scrollYProgress, [0, 1], [-12, 12])
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <motion.div aria-hidden style={reduce ? undefined : { y: up }} className="absolute -top-8 right-8 z-10 hidden lg:block">
-        <FloatingBadge className="relative" delay={0.3}>
-          <Lock className="size-4 text-brand" /> Kort via Stripe
-        </FloatingBadge>
-      </motion.div>
       <motion.div aria-hidden style={reduce ? undefined : { y: down }} className="absolute right-10 -bottom-8 z-10 hidden lg:block">
         <FloatingBadge className="relative" delay={0.9} distance={8}>
           <ShieldCheck className="size-4 text-brand" /> Passgräns: inga obetalda pass
@@ -1028,7 +1040,7 @@ function Backdrop() {
 
 // ------------------------------------------------------------- sektionen ---
 
-/** Priser & medlemskap: målgruppsväxlare, huvudkort (klient/PT), exempelmeny och löften. */
+/** Priser: målgruppsväxlare, huvudkort (klient/PT), exempelmeny och löften. */
 export function Pricing() {
   const [audience, setAudience] = React.useState<Audience>("client")
   const [prices, setPrices] = React.useState<Record<ServiceId, number>>(EXAMPLE_PRICES)
@@ -1044,7 +1056,7 @@ export function Pricing() {
     <Section
       id="priser"
       className="isolate overflow-x-clip"
-      eyebrow="Priser & medlemskap"
+      eyebrow="Priser"
       title={
         <>
           Tydliga priser. <GradientText>Inga dolda avgifter.</GradientText>

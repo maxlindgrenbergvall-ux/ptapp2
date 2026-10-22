@@ -15,8 +15,8 @@ import {
   CalendarCheck,
   CalendarDays,
   Check,
+  ChevronDown,
   CreditCard,
-  Download,
   Dumbbell,
   FileCheck,
   GripVertical,
@@ -33,7 +33,6 @@ import {
   RotateCcw,
   ScanBarcode,
   Search,
-  Server,
   ShieldCheck,
   UserCheck,
   Utensils,
@@ -50,6 +49,7 @@ import { EASE, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Revea
 import { MACROS, MacroDot, sumMacros } from "@/components/nutrition/macros"
 import { BRAND } from "@/lib/brand"
 import { FOODS } from "@/lib/foods"
+import { formatSek } from "@/lib/money"
 import { allowedUnits, amountOf, foodKind, itemFromFood, setAmount, switchUnit, type FoodKind } from "@/lib/nutrition/meal-items"
 import { cn } from "@/lib/utils"
 import type { MealItem, MealUnit } from "@/types/domain"
@@ -120,6 +120,8 @@ function Initials({ name, className, muted }: { name: string; className?: string
 /**
  * Ett kort i rutnätet: lutar mot pekaren (TiltCard), lyfter vid hovring och
  * har en glödande överkant. Rubriken är h3 under sektionens h2.
+ * Intoningen räknar bara marginal uppåt/nedåt, så att ett kort som sticker
+ * fram i den svepbara raden på mobil syns direkt.
  */
 function BentoCard({
   icon: Icon,
@@ -141,7 +143,7 @@ function BentoCard({
   tilt?: number
 }) {
   return (
-    <Reveal delay={delay} className={cn("min-w-0", className)}>
+    <Reveal delay={delay} viewport={{ once: true, margin: "-80px 0px" }} className={cn("min-w-0", className)}>
       <TiltCard max={tilt} className="h-full [&>div]:rounded-3xl">
         <GlassCard
           whileHover={{ y: -4 }}
@@ -201,7 +203,7 @@ function Beam({ pulse, live, axis }: { pulse: number; live: boolean; axis: "x" |
   const horizontal = axis === "x"
   const dot = "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
   return (
-    <div aria-hidden className={cn("relative", horizontal ? "h-px w-full" : "h-14 w-px")}>
+    <div aria-hidden className={cn("relative", horizontal ? "h-px w-full" : "h-10 w-px")}>
       <div className={cn("absolute inset-0 rounded-full from-brand/10 via-brand/70 to-brand/10", horizontal ? "bg-gradient-to-r" : "bg-gradient-to-b")} />
       <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -left-1 -translate-y-1/2" : "-top-1 left-1/2 -translate-x-1/2")} />
       <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -right-1 -translate-y-1/2" : "-bottom-1 left-1/2 -translate-x-1/2")} />
@@ -311,6 +313,39 @@ function PtPanel({ step }: { step: SyncStep }) {
           {step === 2 ? "Klarmarkerat" : "Ej klarmarkerat"}
         </span>
       </div>
+    </div>
+  )
+}
+
+const PT_CHIP_TEXT: Record<SyncStep, string> = {
+  0: "Bygger passet Ben & core",
+  1: "La till Bulgarisk utfallsböj",
+  2: "Vikter ifyllda efter passet",
+}
+
+/** Mobil: kompakt PT-bricka i stället för hela passbyggaren (samma pass syns ju i telefonen). Följer demons steg. */
+function PtChip({ step }: { step: SyncStep }) {
+  return (
+    <div className={cn(PANEL, "flex w-full max-w-[17rem] items-center gap-2.5 rounded-full py-1.5 pr-4 pl-1.5")}>
+      <Initials name="Elin Söderberg" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold">Elin Söderberg · PT</p>
+        <div className="relative h-4 overflow-hidden">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.p
+              key={step}
+              initial={{ y: 12, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -12, opacity: 0 }}
+              transition={{ duration: 0.25, ease: EASE }}
+              className="truncate text-[11px] leading-4 text-muted-foreground"
+            >
+              {PT_CHIP_TEXT[step]}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+      </div>
+      {step === 2 && <Check aria-hidden className="size-4 shrink-0 text-brand" />}
     </div>
   )
 }
@@ -443,9 +478,11 @@ function SyncDemo() {
     timers.current = []
   }, [])
 
-  const goTo = React.useCallback((next: SyncStep) => {
+  /** `announce` = false när demon spelar upp sig själv – då läses inget upp för den som bara scrollar förbi. */
+  const goTo = React.useCallback((next: SyncStep, announce = true) => {
     setStep(next)
     if (next > 0) setPulse((p) => p + 1)
+    if (!announce) return
     setMessage(
       next === 0
         ? "Demon är återställd."
@@ -458,7 +495,7 @@ function SyncDemo() {
   // Spelas upp av sig själv en gång när kortet syns (inte med "minska rörelse").
   React.useEffect(() => {
     if (!seen || reduce) return
-    timers.current = [window.setTimeout(() => goTo(1), 1300), window.setTimeout(() => goTo(2), 3900)]
+    timers.current = [window.setTimeout(() => goTo(1, false), 1300), window.setTimeout(() => goTo(2, false), 3900)]
     return clearTimers
   }, [seen, reduce, goTo, clearTimers])
 
@@ -478,8 +515,12 @@ function SyncDemo() {
     <div ref={ref} className="flex flex-1 flex-col">
       <div className="relative grid flex-1 items-center gap-3 md:grid-cols-[minmax(0,1fr)_4.5rem_auto] md:gap-0">
         <GridBackdrop className="opacity-60" />
-        <PtPanel step={step} />
-        <div className="flex justify-center md:hidden">
+        {/* Mobil: PT-bricka + stråle i stället för hela passbyggaren, så att kortet inte blir två skärmar långt. */}
+        <div className="hidden md:block">
+          <PtPanel step={step} />
+        </div>
+        <div className="flex flex-col items-center gap-3 md:hidden">
+          <PtChip step={step} />
           <Beam pulse={pulse} live={live} axis="y" />
         </div>
         <div className="hidden px-3 md:block">
@@ -554,6 +595,8 @@ const KIND_HINT: Record<FoodKind, string> = {
   spoon: "g, msk eller tsk",
   solid: "Kött & fisk · bara g",
 }
+/** Antal livsmedelsrader som syns direkt på mobil – resten fälls ut med en knapp. */
+const MOBILE_FOODS = 2
 const PLANS = [
   { key: "elin", name: "Elin S." },
   { key: "johan", name: "Johan P." },
@@ -582,14 +625,14 @@ function StepButton({ label, disabled, onClick, children }: { label: string; dis
 }
 
 /** En livsmedelsrad: mängd (+/−) och enhetsval enligt appens logiska enheter. */
-function FoodRow({ item, onChange }: { item: MealItem; onChange: (next: MealItem) => void }) {
+function FoodRow({ item, onChange, className }: { item: MealItem; onChange: (next: MealItem) => void; className?: string }) {
   const unit = item.unit ?? "g"
   const units = allowedUnits(item.name)
   const amount = amountOf(item)
   const step = STEP[unit]
   const label = `${sv(amount)} ${unit}`
   return (
-    <li className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3">
+    <li className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3", className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{item.name}</p>
@@ -692,6 +735,9 @@ function NutritionDemo() {
   const [items, setItems] = React.useState<MealItem[]>(START_ITEMS)
   const [plan, setPlan] = React.useState<PlanKey>("elin")
   const [message, setMessage] = React.useState("")
+  const [showAll, setShowAll] = React.useState(false)
+  const listId = React.useId()
+  const moreCount = items.length - MOBILE_FOODS
   const total = sumMacros(items)
 
   const update = (index: number, next: MealItem) => {
@@ -702,8 +748,9 @@ function NutritionDemo() {
     setMessage(`${next.name}: ${sv(amountOf(next))} ${unit}${unit === "g" ? "" : ` (${next.grams} g)`}, ${next.kcal} kcal. Totalt ${Math.round(t.kcal)} kcal.`)
   }
 
+  // justify-evenly: när kortet sträcks ut (två rader på surfplatta) fördelas luften jämnt i stället för ett stort hål.
   return (
-    <div ref={ref} className="flex flex-1 flex-col gap-4">
+    <div ref={ref} className="flex flex-1 flex-col justify-evenly gap-4">
       <div className={cn(PANEL, "p-3 sm:p-3.5")}>
         <div className="flex items-center justify-between gap-2 px-0.5">
           <p className="flex items-center gap-2 text-sm font-semibold">
@@ -728,12 +775,28 @@ function NutritionDemo() {
         </div>
         <p className="mt-1.5 px-0.5 text-[11px] text-muted-foreground">Livsmedel och streckkoder från Open Food Facts</p>
         <LayoutGroup id="bento-units">
-          <ul className="mt-3 space-y-2" aria-label="Loggade livsmedel">
+          {/* Mobil: två rader syns direkt, resten fälls ut. Totalen räknar alltid med alla livsmedel. */}
+          <ul id={listId} className="mt-3 flex flex-col gap-2" aria-label="Loggade livsmedel">
             {items.map((item, i) => (
-              <FoodRow key={item.name} item={item} onChange={(next) => update(i, next)} />
+              <FoodRow key={item.name} item={item} className={!showAll && i >= MOBILE_FOODS ? "hidden sm:block" : undefined} onChange={(next) => update(i, next)} />
             ))}
           </ul>
         </LayoutGroup>
+        {moreCount > 0 && (
+          <button
+            type="button"
+            aria-expanded={showAll}
+            aria-controls={listId}
+            onClick={() => setShowAll((s) => !s)}
+            className={cn(
+              "mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-white/15 text-xs font-medium text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground sm:hidden",
+              FOCUS
+            )}
+          >
+            {showAll ? "Visa färre" : `Visa ${moreCount} livsmedel till`}
+            <ChevronDown aria-hidden className={cn("size-3.5 transition-transform duration-300", showAll && "rotate-180")} />
+          </button>
+        )}
         <div className="mt-3 flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-white/[0.07] bg-gradient-to-br from-brand/[0.08] to-transparent p-3.5">
           <KcalRing value={total.kcal} start={seen} />
           <div className="min-w-[10rem] flex-1 space-y-2.5">
@@ -767,7 +830,7 @@ function NutritionDemo() {
         </div>
       </div>
 
-      <div className="mt-auto rounded-2xl border border-brand/20 bg-brand/[0.06] p-3.5">
+      <div className="rounded-2xl border border-brand/20 bg-brand/[0.06] p-3.5">
         <p className="flex items-center gap-2 text-xs font-semibold text-brand">
           <LockKeyhole aria-hidden className="size-3.5" />1 kostschema-regeln
         </p>
@@ -1062,11 +1125,6 @@ const CHECKS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: UserCheck, title: "PT-konto skapat av Coavira", text: "Ingen kan registrera sig själv som PT" },
   { icon: KeyRound, title: "E-post + lösenord", text: "Enda sättet att logga in som PT" },
 ]
-const PRIVACY: { icon: LucideIcon; label: string }[] = [
-  { icon: Lock, label: "Hälsodata bara med samtycke" },
-  { icon: Server, label: "Lagras inom EU" },
-  { icon: Download, label: "Exportera & radera när du vill" },
-]
 
 /** Sköld med pulserande ringar. */
 function Shield({ live }: { live: boolean }) {
@@ -1146,14 +1204,6 @@ function SecurityDemo() {
           <CheckRow key={c.title} {...c} index={i} active={seen} />
         ))}
       </ul>
-      <ul className="flex flex-wrap gap-1.5" aria-label="Din data">
-        {PRIVACY.map(({ icon: Icon, label }) => (
-          <li key={label} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium">
-            <Icon aria-hidden className="size-3 text-brand" />
-            {label}
-          </li>
-        ))}
-      </ul>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
         <a href={LINKS.ptApply} className={cn("inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}>
           <Mail aria-hidden className="size-4" />
@@ -1170,64 +1220,84 @@ function SecurityDemo() {
 
 // ------------------------------------------------- 5. Betalning ---
 
+/** Exempelpris för helhetspaketet – samma som Helhetspaket under Priser (EXAMPLE_PRICES.full i pricing.tsx). */
+const EXAMPLE_FULL_PRICE = 6995
+
 /** Demo: betalkort som vänds och visar köpet (exempelpris). */
 function PaymentDemo() {
   const [flipped, setFlipped] = React.useState(false)
+  const price = formatSek(EXAMPLE_FULL_PRICE)
   return (
-    <div className="flex flex-1 flex-col justify-end gap-4">
-      <div className="[perspective:1000px]">
-        <motion.div
-          className="relative mx-auto aspect-[1.586/1] w-full max-w-[340px] [transform-style:preserve-3d]"
-          initial={false}
-          animate={{ rotateY: flipped ? 180 : 0 }}
-          transition={{ type: "spring", stiffness: 120, damping: 17 }}
-        >
+    <div className="flex flex-1 flex-col gap-4">
+      {/* Kortet centreras i ytan som blir över – Stripe-raden ligger kvar längst ned. */}
+      <div className="flex flex-1 items-center justify-center pt-9 pb-1">
+        <div className="relative w-full max-w-[360px] [perspective:1000px]">
+          {/* Kvittot sticker upp snett bakom kortet och ger djup (dekor – köpet visas på kortets baksida). */}
           <div
             aria-hidden
-            className="absolute inset-0 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,#22331a_0%,#111c16_45%,#070d0b_100%)] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] sm:p-5"
+            className="absolute inset-x-5 -top-8 h-24 -rotate-3 rounded-xl border border-white/10 bg-[#141b24] px-3.5 pt-2.5 shadow-xl shadow-black/40"
           >
-            <div className="absolute -top-16 -right-12 size-44 rounded-full bg-brand/25 blur-3xl" />
-            <div className="absolute -bottom-20 -left-10 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
-            <div className="relative flex h-full flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <span className="text-[11px] font-semibold tracking-wider text-white/70 uppercase">Kort</span>
-                <Wifi className="size-5 rotate-90 text-white/70" />
-              </div>
-              <div className="h-7 w-10 rounded-md bg-gradient-to-br from-white/70 to-white/25 ring-1 ring-white/30" />
-              <div>
-                <p className="font-mono text-[13px] tracking-[0.2em] text-white/90 sm:text-sm">•••• •••• •••• 4242</p>
-                <div className="mt-1.5 flex justify-between text-[10px] tracking-wider text-white/60 uppercase">
-                  <span>Sara Lindqvist</span>
-                  <span className="tabular">09/29</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            aria-hidden={!flipped}
-            className="absolute inset-0 flex flex-col rounded-2xl border border-white/15 bg-[#0d1218] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Ditt köp</p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">
-                <Check aria-hidden className="size-3" />
+            <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+              <span>Kvitto</span>
+              <span className="inline-flex items-center gap-1 text-brand">
+                <Check className="size-3" />
                 Betalt
               </span>
             </div>
-            <p className="mt-2 text-sm font-semibold">Helhetspaket · träning + kost</p>
-            <p className="text-xs text-muted-foreground">hos Elin Söderberg</p>
-            <dl className="mt-auto space-y-1 text-xs">
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Pris (t.ex.)</dt>
-                <dd className="tabular">2&nbsp;495 kr</dd>
-              </div>
-              <div className="flex justify-between gap-2 border-t border-white/10 pt-1 font-semibold">
-                <dt>Du betalar</dt>
-                <dd className="text-brand tabular">2&nbsp;495 kr</dd>
-              </div>
-            </dl>
           </div>
-        </motion.div>
+          <motion.div
+            className="relative aspect-[1.586/1] w-full [transform-style:preserve-3d]"
+            initial={false}
+            animate={{ rotateY: flipped ? 180 : 0 }}
+            transition={{ type: "spring", stiffness: 120, damping: 17 }}
+          >
+            <div
+              aria-hidden
+              className="absolute inset-0 overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,#22331a_0%,#111c16_45%,#070d0b_100%)] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] sm:p-5"
+            >
+              <div className="absolute -top-16 -right-12 size-44 rounded-full bg-brand/25 blur-3xl" />
+              <div className="absolute -bottom-20 -left-10 size-40 rounded-full bg-emerald-400/10 blur-3xl" />
+              <div className="relative flex h-full flex-col justify-between">
+                <div className="flex items-start justify-between">
+                  <span className="text-[11px] font-semibold tracking-wider text-white/70 uppercase">Kort</span>
+                  <Wifi className="size-5 rotate-90 text-white/70" />
+                </div>
+                <div className="h-7 w-10 rounded-md bg-gradient-to-br from-white/70 to-white/25 ring-1 ring-white/30" />
+                <div>
+                  <p className="font-mono text-[13px] tracking-[0.2em] text-white/90 sm:text-sm">•••• •••• •••• 4242</p>
+                  <div className="mt-1.5 flex justify-between text-[10px] tracking-wider text-white/60 uppercase">
+                    <span>Sara Lindqvist</span>
+                    <span className="tabular">09/29</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              aria-hidden={!flipped}
+              className="absolute inset-0 flex flex-col rounded-2xl border border-white/15 bg-[#0d1218] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5"
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Ditt köp</p>
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">
+                  <Check aria-hidden className="size-3" />
+                  Betalt
+                </span>
+              </div>
+              <p className="mt-2 text-sm font-semibold">Helhetspaket · träning + kost</p>
+              <p className="text-xs text-muted-foreground">hos Elin Söderberg</p>
+              <dl className="mt-auto space-y-1 text-xs">
+                <div className="flex justify-between gap-2">
+                  <dt className="text-muted-foreground">Pris (t.ex.)</dt>
+                  <dd className="tabular">{price}</dd>
+                </div>
+                <div className="flex justify-between gap-2 border-t border-white/10 pt-1 font-semibold">
+                  <dt>Du betalar</dt>
+                  <dd className="text-brand tabular">{price}</dd>
+                </div>
+              </dl>
+            </div>
+          </motion.div>
+        </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -1245,39 +1315,48 @@ function PaymentDemo() {
 
 // --------------------------------------------- 6. Anslutningar ---
 
-/** Källor runt Coavira-märket (position i procent av ytan 4:3). */
+/** Källor runt Coavira-märket (position i procent av den kvadratiska ytan). */
 const SOURCES: { label: string; icon: LucideIcon; x: number; y: number }[] = [
-  { label: "Apple Health", icon: Heart, x: 24, y: 16 },
-  { label: "Garmin", icon: Watch, x: 76, y: 16 },
-  { label: "Strava", icon: Activity, x: 50, y: 88 },
+  { label: "Apple Health", icon: Heart, x: 25, y: 18 },
+  { label: "Garmin", icon: Watch, x: 75, y: 18 },
+  { label: "Strava", icon: Activity, x: 50, y: 84 },
 ]
+/** SVG-ytan är 400 × 400 (samma proportioner som rutan), så procent → koordinat är × 4 och mitten 200. */
+const HUB = 200
 
 /** Id för källans egen gradient (i användarkoordinater, så att även en lodrät linje målas). */
 const connId = (label: string) => `bento-conn-${label.replace(/\s/g, "")}`
 
-/** Demo: datakällor kopplade till Coavira med ljuspunkter som rör sig mot mitten. */
+/**
+ * Demo: datakällor kopplade till Coavira med ljuspunkter som rör sig mot mitten.
+ * Diagrammet är kvadratiskt och centreras i ytan som blir över, med app-raden
+ * längst ned i linje med de andra korten i raden.
+ */
 function ConnectionsDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
   const live = useLive(ref)
   return (
-    <div ref={ref} className="flex flex-1 flex-col justify-center">
-      <div className="relative mx-auto aspect-[4/3] w-full max-w-[320px]">
-        <svg aria-hidden viewBox="0 0 400 300" className="absolute inset-0 size-full">
+    <div ref={ref} className="flex flex-1 flex-col">
+      <div className="relative m-auto aspect-square w-full max-w-[320px] lg:max-w-none">
+        <svg aria-hidden viewBox="0 0 400 400" className="absolute inset-0 size-full">
           <defs>
             {SOURCES.map((s) => (
-              <linearGradient key={s.label} id={connId(s.label)} gradientUnits="userSpaceOnUse" x1={s.x * 4} y1={s.y * 3} x2={200} y2={150}>
+              <linearGradient key={s.label} id={connId(s.label)} gradientUnits="userSpaceOnUse" x1={s.x * 4} y1={s.y * 4} x2={HUB} y2={HUB}>
                 <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.15" />
                 <stop offset="100%" stopColor="var(--brand)" stopOpacity="0.7" />
               </linearGradient>
             ))}
           </defs>
+          {/* Svaga banor runt navet ger djup. */}
+          <circle cx={HUB} cy={HUB} r={96} fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth={1} />
+          <circle cx={HUB} cy={HUB} r={156} fill="none" stroke="rgb(255 255 255 / 0.05)" strokeWidth={1} strokeDasharray="2 7" />
           {SOURCES.map((s) => (
             <line
               key={s.label}
               x1={s.x * 4}
-              y1={s.y * 3}
-              x2={200}
-              y2={150}
+              y1={s.y * 4}
+              x2={HUB}
+              y2={HUB}
               stroke={`url(#${connId(s.label)})`}
               strokeWidth={1.5}
               strokeDasharray="3 6"
@@ -1290,8 +1369,8 @@ function ConnectionsDemo() {
                 key={s.label}
                 r={4}
                 fill="var(--brand)"
-                initial={{ cx: s.x * 4, cy: s.y * 3, opacity: 0 }}
-                animate={{ cx: [s.x * 4, 200], cy: [s.y * 3, 150], opacity: [0, 1, 0] }}
+                initial={{ cx: s.x * 4, cy: s.y * 4, opacity: 0 }}
+                animate={{ cx: [s.x * 4, HUB], cy: [s.y * 4, HUB], opacity: [0, 1, 0] }}
                 transition={{ duration: 2, repeat: Infinity, repeatDelay: 0.8, delay: i * 0.6, ease: "easeInOut" }}
               />
             ))}
@@ -1347,6 +1426,9 @@ function Backdrop() {
   )
 }
 
+/** Kort i den svepbara raden på mobil: 85 % bred så att nästa kort syns. Vanlig rutnätscell från md. */
+const SWIPE_CARD = "w-[85%] shrink-0 snap-start md:w-auto"
+
 /** Sektionen "Funktioner": bento-rutnätet med sex levande kort och en uppmaning under. */
 export function FeatureBento() {
   return (
@@ -1358,7 +1440,7 @@ export function FeatureBento() {
           Allt du behöver. <GradientText>Inget du inte behöver.</GradientText>
         </>
       }
-      intro="Pass, kost, kalender och betalning i ett och samma flöde – för PT:n som coachar och klienten som kör. Klicka, byt och boka direkt i korten."
+      intro="Pass, kost, kalender och betalning i ett och samma flöde – för PT:n som coachar och klienten som kör. Testa själv – byt, boka och klarmarkera direkt i korten."
     >
       <div className="relative">
         <Backdrop />
@@ -1394,26 +1476,43 @@ export function FeatureBento() {
           >
             <CalendarDemo />
           </BentoCard>
-          <BentoCard
-            icon={ShieldCheck}
-            kicker="Trygghet"
-            title="Verifierade PT:er. Skyddad data."
-            text="Varje PT-konto skapas av Coavira – först när certifikaten granskats manuellt. Hälsodata hanteras bara med ditt uttryckliga samtycke och lagras inom EU."
-          >
-            <SecurityDemo />
-          </BentoCard>
-          <BentoCard
-            icon={CreditCard}
-            kicker="Betalning"
-            title="Säker kortbetalning"
-            delay={0.08}
-            text="Köp PT:ns pass, program, kostcoaching eller helhetspaket med kort via Stripe. PT:n sätter priset – och priset du ser är priset du betalar."
-          >
-            <PaymentDemo />
-          </BentoCard>
-          <BentoCard icon={Plug} kicker="Anslutningar" title="Koppla dina appar" delay={0.16} text="Anslut Apple Health, Garmin och Strava till ditt Coavira-konto.">
-            <ConnectionsDemo />
-          </BentoCard>
+          {/*
+            Mobil: de tre sista korten ligger i en svepbar rad där nästa kort sticker fram,
+            i stället för tre skärmar till med staplade kort. Från md är raden "display: contents"
+            och korten ligger i rutnätet igen. På md flyttas Trygghet och Anslutningar sist (order),
+            så att det höga kostkortet paras med det korta betalkortet i stället för att sträckas ut.
+          */}
+          <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto overflow-y-hidden px-4 py-1 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 md:contents [&::-webkit-scrollbar]:hidden">
+            <BentoCard
+              className={cn(SWIPE_CARD, "md:order-1 lg:order-none")}
+              icon={ShieldCheck}
+              kicker="Trygghet"
+              title="Verifierade PT:er. Skyddad data."
+              text="Varje PT-konto skapas av Coavira – först när certifikaten granskats manuellt. Hälsodata hanteras bara med ditt uttryckliga samtycke och lagras inom EU."
+            >
+              <SecurityDemo />
+            </BentoCard>
+            <BentoCard
+              className={SWIPE_CARD}
+              icon={CreditCard}
+              kicker="Betalning"
+              title="Säker kortbetalning"
+              delay={0.08}
+              text="Köp PT:ns pass, program, kostcoaching eller helhetspaket med kort via Stripe. PT:n sätter priset – och priset du ser är priset du betalar."
+            >
+              <PaymentDemo />
+            </BentoCard>
+            <BentoCard
+              className={cn(SWIPE_CARD, "md:order-2 lg:order-none")}
+              icon={Plug}
+              kicker="Anslutningar"
+              title="Koppla dina appar"
+              delay={0.16}
+              text="Anslut Apple Health, Garmin och Strava till ditt Coavira-konto."
+            >
+              <ConnectionsDemo />
+            </BentoCard>
+          </div>
         </div>
 
         <Reveal className="relative mt-8 flex flex-col items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-center backdrop-blur-md sm:mt-10 sm:flex-row sm:p-6 sm:text-left">

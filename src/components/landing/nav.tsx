@@ -7,7 +7,7 @@
  * Mobil: menyknapp som fäller ut en glaspanel (stängs med Esc och vid klick).
  */
 import { AnimatePresence, LayoutGroup, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, type Variants } from "framer-motion"
-import { ArrowRight, ArrowUpRight, ChevronRight, LogIn, ShieldCheck } from "lucide-react"
+import { ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, LogIn, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
@@ -93,7 +93,19 @@ function useActiveSection() {
 }
 
 /** Glödande "Kom igång" som dras en aning mot muspekaren (magnetisk) och får ett ljussvep vid hovring. */
-function StartCta({ onNavigate, className, linkClassName, arrowClassName }: { onNavigate?: () => void; className?: string; linkClassName?: string; arrowClassName?: string }) {
+function StartCta({
+  label = "Kom igång",
+  onNavigate,
+  className,
+  linkClassName,
+  arrowClassName,
+}: {
+  label?: string
+  onNavigate?: () => void
+  className?: string
+  linkClassName?: string
+  arrowClassName?: string
+}) {
   const reduce = useReducedMotion()
   const x = useMotionValue(0)
   const y = useMotionValue(0)
@@ -103,6 +115,8 @@ function StartCta({ onNavigate, className, linkClassName, arrowClassName }: { on
     <motion.div
       style={{ x: sx, y: sy }}
       whileTap={{ scale: 0.96 }}
+      // whileTap ger annars omslaget tabindex="0" – ett tomt tabbstopp före länken. Bara länken ska nås med Tab.
+      tabIndex={-1}
       onPointerMove={(e) => {
         if (reduce || e.pointerType !== "mouse") return
         const r = e.currentTarget.getBoundingClientRect()
@@ -136,7 +150,7 @@ function StartCta({ onNavigate, className, linkClassName, arrowClassName }: { on
           className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/60 to-transparent transition-none group-hover/cta:translate-x-[400%] group-hover/cta:transition-transform group-hover/cta:duration-700 group-hover/cta:ease-out"
         />
         <span aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-        <span className="relative">Kom igång</span>
+        <span className="relative">{label}</span>
         <ArrowRight aria-hidden className={cn("relative size-4 transition-transform duration-300 group-hover/cta:translate-x-0.5", arrowClassName)} />
       </Link>
     </motion.div>
@@ -426,25 +440,26 @@ export function LandingNav() {
 
                   <motion.div variants={itemVariants} aria-hidden className="relative my-3 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-                  <motion.div variants={itemVariants} className="relative grid grid-cols-2 gap-2">
+                  {/* Panelens knapp säger vad den gör (klientkonto) i stället för att upprepa "Kom igång" i menyraden. Smala skärmar: knapparna radbryts. */}
+                  <motion.div variants={itemVariants} className="relative flex flex-wrap gap-2">
                     <Link
                       href={LINKS.login}
                       onClick={close}
                       className={cn(
-                        "inline-flex h-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold transition-colors duration-200 hover:bg-white/[0.08]",
+                        "inline-flex h-12 grow basis-24 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold whitespace-nowrap transition-colors duration-200 hover:bg-white/[0.08]",
                         FOCUS_RING
                       )}
                     >
                       Logga in
                     </Link>
-                    <StartCta onNavigate={close} className="flex" linkClassName="h-12 w-full" />
+                    <StartCta label="Skapa klientkonto" onNavigate={close} className="flex grow-[2] basis-48" linkClassName="h-12 w-full" />
                   </motion.div>
 
-                  <motion.p variants={itemVariants} className="relative mt-3 text-center text-xs text-muted-foreground">
-                    Skapa konto för 0 kr med Apple, Google eller e-post.
+                  <motion.p variants={itemVariants} className="relative mt-3 text-center text-xs text-balance text-muted-foreground">
+                    0 kr att skapa – med Apple, Google eller e-post.
                   </motion.p>
 
-                  <motion.div variants={itemVariants} className="relative mt-3">
+                  <motion.div variants={itemVariants} className="relative mt-3 space-y-2">
                     <Link
                       href={LINKS.ptLogin}
                       onClick={close}
@@ -462,6 +477,31 @@ export function LandingNav() {
                       </span>
                       <ChevronRight aria-hidden className="size-4 shrink-0 text-brand transition-transform duration-300 group-hover/pt:translate-x-0.5" />
                     </Link>
+                    {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
+                    <a
+                      href={LINKS.ptApply}
+                      onClick={close}
+                      className={cn(
+                        "group/apply flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition-colors duration-200 hover:bg-white/[0.06]",
+                        FOCUS_RING
+                      )}
+                    >
+                      <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
+                        <BadgeCheck className="size-[18px]" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">
+                          Ansök som PT<span className="sr-only"> (öppnar e-post)</span>
+                        </span>
+                        <span className="block text-xs break-words text-muted-foreground">
+                          Skicka ditt certifikat till {BRAND.certificationEmail} – vi granskar manuellt.
+                        </span>
+                      </span>
+                      <ArrowUpRight
+                        aria-hidden
+                        className="size-4 shrink-0 text-brand transition-transform duration-300 group-hover/apply:translate-x-0.5 group-hover/apply:-translate-y-0.5"
+                      />
+                    </a>
                   </motion.div>
                 </div>
               </motion.div>

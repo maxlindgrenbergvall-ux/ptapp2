@@ -13,6 +13,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
+import { SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
 import { LINKS, NAV } from "@/components/landing/links"
 import { EASE, Eyebrow, fadeUp, GradientText, stagger, useConfetti } from "@/components/landing/primitives"
@@ -98,29 +99,6 @@ function jumpTo(e: React.MouseEvent<HTMLAnchorElement>, href: string, reduce: bo
 }
 
 /* ------------------------------------------------------------------ */
-/* Logotyper (samma som inloggningsknapparna i appen)                  */
-/* ------------------------------------------------------------------ */
-
-function AppleLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden className={cn("size-5 fill-current", className)}>
-      <path d="M16.37 1.43c0 1.14-.49 2.27-1.18 3.08-.74.9-1.99 1.57-2.99 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.57-2.27 1.21-2.98.8-.94 2.14-1.64 3.25-1.68.03.13.05.28.05.43zm4.56 15.71c-.03.07-.46 1.58-1.52 3.12-.94 1.34-1.94 2.71-3.43 2.71-1.52 0-1.9-.88-3.63-.88-1.7 0-2.3.91-3.67.91-1.38 0-2.33-1.26-3.43-2.8-1.29-1.82-2.32-4.63-2.32-7.28 0-4.28 2.8-6.55 5.55-6.55 1.45 0 2.67.95 3.6.95.86 0 2.22-1.01 3.9-1.01.61 0 2.89.06 4.37 2.19-.13.09-2.38 1.37-2.38 4.19 0 3.26 2.85 4.42 2.96 4.45z" />
-    </svg>
-  )
-}
-
-function GoogleLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" aria-hidden className={cn("size-5", className)}>
-      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z" />
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z" />
-    </svg>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /* Bakgrund: norrsken, rutnät, stjärnor och en glödande horisont       */
 /* ------------------------------------------------------------------ */
 
@@ -172,11 +150,12 @@ function CtaBackdrop({ active, progress, reduce }: { active: boolean; progress: 
       </motion.div>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_55%_42%_at_50%_42%,rgba(172,237,55,0.1),transparent_70%)]" />
 
+      {/* Gnistorna pulserar bara när sektionen syns (active utesluter redan "minska rörelse"). */}
       {STARS.map((s) => (
         <span
           key={`${s.top}-${s.left}`}
           style={{ top: s.top, left: s.left, width: s.size, height: s.size, animationDelay: s.delay }}
-          className="absolute animate-pulse rounded-full bg-brand/80 shadow-[0_0_8px_2px] shadow-brand/40 motion-reduce:animate-none"
+          className={cn("absolute rounded-full bg-brand/80 shadow-[0_0_8px_2px] shadow-brand/40", active && "animate-pulse")}
         />
       ))}
 
@@ -532,7 +511,7 @@ function JourneyButton({ active, reduce }: { active: boolean; reduce: boolean })
           aria-hidden
           className="absolute inset-y-0 left-0 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/55 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[420%]"
         />
-        <span className="relative">Börja din resa med Coavira</span>
+        <span className="relative">Skapa klientkonto – 0 kr</span>
         <span aria-hidden className="relative grid size-8 shrink-0 place-items-center rounded-full bg-brand-foreground/10 sm:size-9">
           <ArrowRight className="size-5 transition-transform duration-300 group-hover:translate-x-0.5" />
         </span>
@@ -547,6 +526,20 @@ function JourneyButton({ active, reduce }: { active: boolean; reduce: boolean })
 
 const QUICK_BTN = "inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full px-4 text-sm font-semibold transition-[background-color,border-color,translate] duration-300 hover:-translate-y-0.5"
 
+/**
+ * Apple/Google är appens riktiga knappar (SocialButtons): de startar inloggningen
+ * direkt, och i demoläget visas en notis och man går vidare till välkomststeget.
+ * Knapparnas egna `dark:`-färger följer systemtemat, inte .landing, så här tvingas
+ * landningssidans stil fram: vit Apple-knapp, glasig Google-knapp, rundade som
+ * e-postknappen och med samma fokusring. Från sm ligger de sida vid sida.
+ */
+const SOCIAL =
+  "sm:col-span-2 sm:[&>div]:grid-cols-2 [&_button]:gap-2.5 [&_button]:rounded-full [&_button]:text-sm [&_button]:font-semibold [&_button]:hover:-translate-y-0.5 [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-ring [&_button]:focus-visible:ring-offset-2 [&_button]:focus-visible:ring-offset-background [&_button[data-variant=default]]:bg-white [&_button[data-variant=default]]:text-black [&_button[data-variant=default]]:hover:bg-white/90 [&_button[data-variant=outline]]:border-white/15 [&_button[data-variant=outline]]:bg-white/[0.06] [&_button[data-variant=outline]]:text-foreground [&_button[data-variant=outline]]:shadow-none [&_button[data-variant=outline]]:hover:border-white/25 [&_button[data-variant=outline]]:hover:bg-white/[0.1]"
+
+/** Länkarna under snabbstarten: logga in, PT-inloggning och PT-ansökan. */
+const ROW_LINK = cn("group inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm text-muted-foreground transition-colors hover:text-foreground", FOCUS)
+const ROW_LABEL = "font-semibold text-foreground underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand"
+
 function QuickStart() {
   return (
     <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] backdrop-blur-md sm:p-5">
@@ -557,14 +550,9 @@ function QuickStart() {
         <span aria-hidden className="h-px flex-1 bg-gradient-to-l from-transparent to-white/15" />
       </div>
       <div role="group" aria-label="Snabbstart" className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        <Link href={LINKS.start} className={cn(QUICK_BTN, "bg-white text-black hover:bg-white/90", FOCUS)}>
-          <AppleLogo />
-          Fortsätt med Apple
-        </Link>
-        <Link href={LINKS.start} className={cn(QUICK_BTN, "border border-white/15 bg-white/[0.06] text-foreground hover:border-white/25 hover:bg-white/[0.1]", FOCUS)}>
-          <GoogleLogo />
-          Fortsätt med Google
-        </Link>
+        <div className={SOCIAL}>
+          <SocialButtons />
+        </div>
         <Link
           href={LINKS.signup}
           className={cn(QUICK_BTN, "border border-white/15 bg-white/[0.06] text-foreground hover:border-brand/40 hover:bg-white/[0.1] sm:col-span-2 lg:col-span-1", FOCUS)}
@@ -573,17 +561,24 @@ function QuickStart() {
           Registrera med e-post
         </Link>
       </div>
-      <div className="mt-3 flex flex-col items-center justify-center gap-x-6 sm:flex-row">
-        <Link href={LINKS.login} className={cn("group inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm text-muted-foreground transition-colors hover:text-foreground", FOCUS)}>
+      <div className="mt-3 flex flex-col items-center justify-center gap-x-6 md:flex-row md:flex-wrap">
+        <Link href={LINKS.login} className={ROW_LINK}>
           <LogIn aria-hidden className="size-4 text-brand" />
           Har du konto?
-          <span className="font-semibold text-foreground underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand">Logga in</span>
+          <span className={ROW_LABEL}>Logga in</span>
         </Link>
-        <Link href={LINKS.ptLogin} className={cn("group inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm text-muted-foreground transition-colors hover:text-foreground", FOCUS)}>
+        <Link href={LINKS.ptLogin} className={ROW_LINK}>
           <BadgeCheck aria-hidden className="size-4 text-brand" />
           Är du PT?
-          <span className="font-semibold text-foreground underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand">PT-inloggning</span>
+          <span className={ROW_LABEL}>PT-inloggning</span>
         </Link>
+        {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
+        <a href={LINKS.ptApply} className={ROW_LINK}>
+          <Mail aria-hidden className="size-4 text-brand" />
+          <span className={ROW_LABEL}>Ansök som PT</span>
+          <span className="sr-only"> (öppnar e-post)</span>
+          <ArrowUpRight aria-hidden className="size-3.5 opacity-60 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+        </a>
       </div>
     </div>
   )

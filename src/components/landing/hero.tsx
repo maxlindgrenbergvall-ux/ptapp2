@@ -10,7 +10,6 @@ import {
   AnimatePresence,
   animate,
   motion,
-  useAnimationFrame,
   useInView,
   useMotionValue,
   useReducedMotion,
@@ -114,23 +113,21 @@ const TRUST: { label: string; icon: LucideIcon }[] = [
 /** 1420 → "1 420" (hårt mellanslag, som i appen). */
 const fmt = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ")
 
-const FLOAT_KEYS = [0, -14, 0]
-const SPIN_KEYS = [0, 360]
-const GLOW_KEYS = [0.45, 0.85, 0.45]
+const FLOAT = { transform: ["translateY(0px)", "translateY(-14px)", "translateY(0px)"] }
+const SPIN = { transform: ["rotate(0deg)", "rotate(360deg)"] }
+const GLOW = { opacity: [0.45, 0.85, 0.45] }
 const PULSE_KEYS = [1, 1.12, 1]
 
 /**
- * Oändlig loop på ett rörelsevärde (svävning, rotation, sken). Körs bara när
- * `active` – alltså när hjälten syns och "minska rörelse" är av.
+ * Oändlig loop (svävning, rotation, sken) som props till ett motion-element.
+ * Transform och opacitet går via Web Animations i kompositorn i stället för JS
+ * varje bildruta. Loopen körs bara när `active` – alltså när hjälten syns och
+ * "minska rörelse" är av – annars vilar elementet i första läget.
  */
-function useLoop(keyframes: number[], duration: number, active: boolean, ease: "linear" | "easeInOut" = "easeInOut") {
-  const value = useMotionValue(keyframes[0])
-  React.useEffect(() => {
-    if (!active) return
-    const controls = animate(value, keyframes, { duration, ease, repeat: Infinity })
-    return () => controls.stop()
-  }, [value, keyframes, duration, active, ease])
-  return value
+function loop(active: boolean, keyframes: typeof FLOAT | typeof GLOW, duration: number, ease: "linear" | "easeInOut" = "easeInOut") {
+  if (active) return { animate: keyframes, transition: { duration, ease, repeat: Infinity } }
+  const rest = "transform" in keyframes ? { transform: keyframes.transform[0] } : { opacity: keyframes.opacity[0] }
+  return { animate: rest, transition: { duration: 0 } }
 }
 
 /** Räknar upp mot `target` när `start` blir sant (direkt med "minska rörelse"). */
@@ -182,7 +179,7 @@ export function Hero() {
       className="relative isolate flex flex-col overflow-hidden lg:min-h-svh"
     >
       <Backdrop y={backdropY} />
-      <div className="relative mx-auto grid w-full max-w-7xl flex-1 items-center gap-6 px-4 pt-[calc(4rem+var(--safe-top)+2.5rem)] pb-12 sm:px-6 sm:pt-[calc(4rem+var(--safe-top)+3.5rem)] lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pt-[calc(4rem+var(--safe-top)+2rem)] lg:pb-8">
+      <div className="relative mx-auto grid w-full max-w-7xl flex-1 items-center gap-6 px-4 pt-[calc(4rem+var(--safe-top)+1.25rem)] pb-12 sm:px-6 sm:pt-[calc(4rem+var(--safe-top)+3.5rem)] lg:grid-cols-2 lg:gap-8 lg:px-8 lg:pt-[calc(4rem+var(--safe-top)+2rem)] lg:pb-8">
         <HeroCopy active={active} />
         <AppShowcase sx={sx} sy={sy} progress={scrollYProgress} reduce={reduce} active={active} />
       </div>
@@ -236,7 +233,7 @@ function Headline() {
   return (
     <h1
       id="hero-title"
-      className="text-[2.375rem] leading-[1.02] font-extrabold tracking-[-0.035em] min-[420px]:text-[2.75rem] sm:text-6xl md:text-7xl lg:text-[3.25rem] xl:text-[4.25rem]"
+      className="text-[2.375rem] leading-[1.02] font-extrabold tracking-[-0.035em] text-balance min-[420px]:text-[2.75rem] sm:text-6xl md:text-[4rem] lg:text-[3.25rem] xl:text-[4.25rem]"
     >
       <span className="block">
         <Word index={0}>Framtidens</Word>{" "}
@@ -275,9 +272,8 @@ function Headline() {
 
 /** Vänsterspalten: etikett, rubrik, ingress, knappar och trygghetsrad. */
 function HeroCopy({ active }: { active: boolean }) {
-  const glow = useLoop(GLOW_KEYS, 3.4, active)
   return (
-    <div className="relative z-10 flex flex-col items-center gap-7 text-center lg:items-start lg:text-left">
+    <div className="relative z-10 flex flex-col items-center gap-5 text-center sm:gap-7 lg:items-start lg:text-left">
       <div className={cn(ENTER, "duration-700 slide-in-from-bottom-6")}>
         <Eyebrow>Ny plattform för PT:er och klienter</Eyebrow>
       </div>
@@ -294,7 +290,7 @@ function HeroCopy({ active }: { active: boolean }) {
         style={enterDelay(0.4)}
       >
         <div className="group relative">
-          <motion.span aria-hidden style={{ opacity: glow }} className="pointer-events-none absolute -inset-1.5 rounded-full bg-brand/50 blur-xl" />
+          <motion.span aria-hidden {...loop(active, GLOW, 3.4)} className="pointer-events-none absolute -inset-1.5 rounded-full bg-brand/50 blur-xl" />
           <Link
             href={LINKS.start}
             className="relative inline-flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-brand px-7 text-base font-semibold text-brand-foreground shadow-[0_0_0_1px_rgba(255,255,255,0.35)_inset] transition-transform duration-300 ease-out group-hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none active:translate-y-0 active:scale-[0.98] sm:w-auto"
@@ -307,23 +303,25 @@ function HeroCopy({ active }: { active: boolean }) {
             <ArrowRight aria-hidden className="relative size-5 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
+        {/* Mobil: en kompakt textlänk så att huvudknappen får all tyngd. Från sm: en kantad knapp bredvid. */}
         <a
           href={LINKS.ptApply}
-          className="inline-flex h-14 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-6 text-base font-semibold text-foreground backdrop-blur-md transition-[background-color,border-color,translate] duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+          className="group/pt inline-flex h-11 items-center justify-center gap-2 self-center rounded-full px-2 text-sm font-semibold text-foreground transition-[background-color,border-color,translate] duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:h-14 sm:self-auto sm:border sm:border-white/15 sm:bg-white/[0.04] sm:px-6 sm:text-base sm:backdrop-blur-md sm:hover:-translate-y-0.5 sm:hover:border-white/25 sm:hover:bg-white/[0.08]"
         >
           <BadgeCheck aria-hidden className="size-5 text-brand" />
-          Är du PT? Ansök
+          <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover/pt:decoration-brand sm:no-underline">Är du PT? Ansök</span>
           <span className="sr-only"> (via e-post)</span>
         </a>
       </div>
 
       <div className={cn(ENTER, "-mt-2 flex flex-col items-center gap-2 duration-700 slide-in-from-bottom-6 lg:items-start")} style={enterDelay(0.5)}>
-        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground lg:justify-start">
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:gap-x-3 lg:justify-start">
           <span className="inline-flex items-center gap-1.5">
             <Lock aria-hidden className="size-4 text-brand" />
             Apple, Google eller e-post
           </span>
-          <span aria-hidden className="text-white/25">
+          {/* Punkten bara där raden får plats på en rad – annars hänger den kvar i slutet av första raden. */}
+          <span aria-hidden className="hidden text-white/25 sm:inline">
             ·
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -331,12 +329,13 @@ function HeroCopy({ active }: { active: boolean }) {
             Säker kortbetalning via Stripe
           </span>
         </p>
-        <p className="max-w-md text-xs text-pretty text-muted-foreground">
+        <p className="max-w-md text-sm text-pretty text-muted-foreground">
           0 kr gäller klientkontot – du betalar bara för tjänsterna du köper. PT-konton skapas av Coavira efter granskning av certifikat.
         </p>
+        {/* På mobil är telefonen som sticker upp under texten själva scroll-signalen. */}
         <a
           href="#funktioner"
-          className="group inline-flex h-11 items-center gap-2 rounded-full px-2 text-sm font-medium text-foreground/85 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="group hidden h-11 items-center gap-2 rounded-full px-2 text-sm font-medium text-foreground/85 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:inline-flex"
         >
           <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover:decoration-brand">Se funktionerna</span>
           <ArrowDown aria-hidden className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
@@ -386,10 +385,6 @@ function AppShowcase({
   const badgesX = useTransform(sx, (v) => v * 22)
   const badgesY = useTransform([sy, progress], ([s, p]: number[]) => s * 16 + (reduce ? 0 : p * -60))
 
-  const float = useLoop(FLOAT_KEYS, 7, active)
-  const spin = useLoop(SPIN_KEYS, 40, active, "linear")
-  const orbit = useLoop(SPIN_KEYS, 16, active, "linear")
-
   // "Nytt pass inbokat!"-brickan studsar till när man bokar i telefonen.
   const pulse = useMotionValue(1)
   React.useEffect(() => {
@@ -400,13 +395,13 @@ function AppShowcase({
 
   return (
     <div
-      className={cn(ENTER, "relative mx-auto flex h-[680px] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]")}
+      className={cn(ENTER, "relative mx-auto flex h-[640px] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]")}
       style={enterDelay(0.3)}
     >
-      <Halo spin={spin} orbit={orbit} />
+      <Halo active={active} />
 
-      {/* Bakre lager: PT:ns kalender sticker fram bakom telefonen. */}
-      <motion.div aria-hidden style={{ x: backX, y: backY }} className="absolute top-[40%] left-[1%] hidden sm:block">
+      {/* Bakre lager: PT:ns kalender sticker fram bakom telefonen (inte vid lg – där syns bara en remsa). */}
+      <motion.div aria-hidden style={{ x: backX, y: backY }} className="absolute top-[40%] left-[1%] hidden sm:block lg:hidden xl:block">
         <PtCalendarCard />
       </motion.div>
 
@@ -415,12 +410,13 @@ function AppShowcase({
 
       <motion.div style={{ y: phoneY }} className="relative z-10">
         <motion.div style={{ rotateX, rotateY, transformPerspective: 1600 }}>
-          <motion.div style={{ y: float }}>
+          <motion.div {...loop(active, FLOAT, 7)}>
             <ClientHomeScreen
               booked={booked}
               tried={bookings > 0}
               glareX={glareX}
               reduce={reduce}
+              active={active}
               onBook={() => {
                 setBooked(true)
                 setBookings((n) => n + 1)
@@ -431,24 +427,32 @@ function AppShowcase({
         </motion.div>
       </motion.div>
 
-      {/* Flytande brickor (dekor – samma fakta finns i text på sidan). */}
+      {/*
+        Flytande brickor (dekor – samma fakta finns i text på sidan). De ligger
+        utanför telefonen så långt det går, så att de bara skär in i skärmens
+        kantmarginal och aldrig döljer veckoremsan eller Dagens kost.
+      */}
       <motion.div aria-hidden style={{ x: badgesX, y: badgesY }} className="pointer-events-none absolute inset-0 z-20">
-        <motion.div style={{ scale: pulse }} className="absolute top-[1%] right-0 origin-right sm:top-[20%] sm:right-auto sm:left-0 sm:origin-left">
+        <motion.div
+          style={{ scale: pulse }}
+          className="absolute top-0 right-0 origin-right sm:top-[20%] sm:right-auto sm:-left-10 sm:origin-left lg:-left-24 xl:-left-16"
+        >
           <FloatingBadge className="pointer-events-auto relative" delay={0.9}>
             <BadgeBody icon={CalendarCheck} tone="bg-brand text-brand-foreground" title="Nytt pass inbokat!" emoji="⚡" sub="med Elin Söderberg" />
           </FloatingBadge>
         </motion.div>
-        <div className="absolute top-[31%] right-0 hidden sm:block lg:hidden xl:block">
+        {/* Bara där brickan får plats bredvid telefonen (md och 2xl); annars skulle den täcka Dagens kost. */}
+        <div className="absolute top-[31%] -right-16 hidden md:block lg:hidden 2xl:block">
           <FloatingBadge className="pointer-events-auto relative" delay={1.2} distance={12}>
             <BadgeBody icon={Salad} tone="bg-emerald-400/15 text-emerald-300" title="Kostschema uppdaterat" emoji="🥗" sub="Elin la till nya recept" />
           </FloatingBadge>
         </div>
-        <div className="absolute bottom-[1%] left-0 sm:bottom-[3%]">
+        <div className="absolute -bottom-3 left-0 sm:bottom-[3%] sm:-left-10 lg:-left-24 xl:-left-16">
           <FloatingBadge className="pointer-events-auto relative" delay={1.5} distance={8}>
             <BadgeBody icon={BadgeCheck} tone="bg-brand/15 text-brand" title="100% verifierade PT:er" emoji="🔥" sub="Certifikat granskas manuellt" />
           </FloatingBadge>
         </div>
-        <div className="absolute top-0 right-0 hidden xl:block">
+        <div className="absolute top-0 right-0 hidden xl:block 2xl:-right-16">
           <FloatingBadge className="pointer-events-auto relative" delay={1.8} distance={9}>
             <BadgeBody icon={PhoneMissed} tone="bg-rose-400/15 text-rose-300" title="Missat samtal – ring upp" emoji="📞" sub="Elin Söderberg · 08:12" />
           </FloatingBadge>
@@ -493,16 +497,16 @@ function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; 
 }
 
 /** Glöd, en roterande ljusring och en omloppsbana med en grön prick bakom telefonen. */
-function Halo({ spin, orbit }: { spin: MotionValue<number>; orbit: MotionValue<number> }) {
+function Halo({ active }: { active: boolean }) {
   return (
     <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 size-[26rem] -translate-x-1/2 -translate-y-1/2 sm:size-[36rem]">
       <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.2),transparent_78%)]" />
       <motion.div
-        style={{ rotate: spin }}
+        {...loop(active, SPIN, 40, "linear")}
         className="absolute inset-0 rounded-full opacity-80 [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_70deg,transparent_150deg,#34d399_230deg,transparent_320deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))]"
       />
       <div className="absolute inset-[15%] rounded-full border border-white/[0.07]" />
-      <motion.div style={{ rotate: orbit }} className="absolute inset-[15%]">
+      <motion.div {...loop(active, SPIN, 16, "linear")} className="absolute inset-[15%]">
         <span className="absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full bg-brand shadow-[0_0_14px_3px] shadow-brand/60" />
       </motion.div>
       <div className="absolute inset-[32%] rounded-full border border-dashed border-white/[0.06]" />
@@ -556,6 +560,7 @@ function ClientHomeScreen({
   tried,
   glareX,
   reduce,
+  active,
   onBook,
   onUndo,
 }: {
@@ -563,6 +568,8 @@ function ClientHomeScreen({
   tried: boolean
   glareX: MotionValue<string>
   reduce: boolean
+  /** Hjälten syns och "minska rörelse" är av – då får Boka-ringen pulsera. */
+  active: boolean
   onBook: () => void
   onUndo: () => void
 }) {
@@ -781,7 +788,10 @@ function ClientHomeScreen({
                       : "bg-brand text-brand-foreground shadow-[0_8px_24px_-8px] shadow-brand/70 hover:bg-brand/90"
                   )}
                 >
-                  {!booked && !tried && <span aria-hidden className="absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50 motion-safe:animate-pulse" />}
+                  {/* Ringen visar var man trycker; den pulserar bara medan hjälten syns. */}
+                  {!booked && !tried && (
+                    <span aria-hidden className={cn("absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50", active && "motion-safe:animate-pulse")} />
+                  )}
                   <span className="relative inline-flex items-center justify-center gap-1.5">
                     {booked ? (
                       "Dra tillbaka"
@@ -904,23 +914,27 @@ const MARQUEE_SPEED = 38
 /**
  * Rullande band med sanna fakta. Pausas vid hovring, med knappen eller när det
  * inte syns. Med "minska rörelse" står allt still och radbryts i stället.
+ * Rullningen är en Web Animation på transform: den körs i kompositorn utan JS
+ * per bildruta och står helt still (ingen loop alls) när den är pausad.
  */
 function TrustMarquee({ reduce }: { reduce: boolean }) {
   const viewportRef = React.useRef<HTMLDivElement>(null)
+  const railRef = React.useRef<HTMLDivElement>(null)
   const trackRef = React.useRef<HTMLUListElement>(null)
-  const widthRef = React.useRef(0)
+  const animRef = React.useRef<Animation | null>(null)
+  // Hur långt (0–1) bandet hunnit, så att det fortsätter där det var om bredden ändras.
+  const progressRef = React.useRef(0)
   const inView = useInView(viewportRef)
   const [hovered, setHovered] = React.useState(false)
   const [paused, setPaused] = React.useState(false)
-  const x = useMotionValue(0)
+  const [width, setWidth] = React.useState(0)
+  const running = !reduce && !paused && !hovered && inView
 
   // Bredden på en uppsättning (bandet hoppar tillbaka exakt så långt).
   React.useEffect(() => {
     const el = trackRef.current
     if (!el) return
-    const measure = () => {
-      widthRef.current = el.offsetWidth
-    }
+    const measure = () => setWidth(el.offsetWidth)
     measure()
     if (typeof ResizeObserver === "undefined") return
     const ro = new ResizeObserver(measure)
@@ -928,17 +942,29 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
     return () => ro.disconnect()
   }, [])
 
+  // Skapa animationen (pausad) – inte alls med "minska rörelse".
   React.useEffect(() => {
-    if (reduce) x.set(0)
-  }, [reduce, x])
+    const rail = railRef.current
+    if (!rail || reduce || !width || typeof rail.animate !== "function") return
+    const duration = (width / MARQUEE_SPEED) * 1000
+    const anim = rail.animate([{ transform: "translateX(0px)" }, { transform: `translateX(${-width}px)` }], { duration, iterations: Infinity, easing: "linear" })
+    anim.pause()
+    anim.currentTime = progressRef.current * duration
+    animRef.current = anim
+    return () => {
+      progressRef.current = ((Number(anim.currentTime) || 0) % duration) / duration
+      anim.cancel()
+      animRef.current = null
+    }
+  }, [reduce, width])
 
-  useAnimationFrame((_, delta) => {
-    const width = widthRef.current
-    if (reduce || paused || hovered || !inView || !width) return
-    let next = x.get() - (Math.min(delta, 64) / 1000) * MARQUEE_SPEED
-    if (next <= -width) next += width
-    x.set(next)
-  })
+  // Spela bara när bandet syns och ingen har pausat det.
+  React.useEffect(() => {
+    const anim = animRef.current
+    if (!anim) return
+    if (running) anim.play()
+    else anim.pause()
+  }, [running, reduce, width])
 
   return (
     <div className="relative z-10 border-y border-white/[0.06] bg-white/[0.02]">
@@ -949,7 +975,7 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
           onPointerLeave={() => setHovered(false)}
           className="relative min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] motion-reduce:[mask-image:none]"
         >
-          <motion.div style={{ x }} className="flex w-max motion-reduce:w-full">
+          <div ref={railRef} className="flex w-max motion-reduce:w-full">
             <ul
               ref={trackRef}
               aria-label="Fakta om Coavira"
@@ -964,7 +990,7 @@ function TrustMarquee({ reduce }: { reduce: boolean }) {
                 <TrustItem key={t.label} {...t} />
               ))}
             </ul>
-          </motion.div>
+          </div>
         </div>
         <button
           type="button"

@@ -3,7 +3,6 @@
 import * as React from "react"
 
 import { appUrlToPath, isNativeApp } from "@/lib/native/app"
-import { handlePushTap } from "@/lib/native/push"
 
 const LAUNCH_KEY = "coavira:launch-url-handled"
 
@@ -22,7 +21,12 @@ export function NativeBridge() {
     const removers: (() => void)[] = []
 
     void (async () => {
-      const [{ App }, { Browser }] = await Promise.all([import("@capacitor/app"), import("@capacitor/browser")])
+      // Laddas bara i appen: push.ts drar in Supabase-klienten, som landningssidan inte behöver.
+      const [{ App }, { Browser }, { handlePushTap }] = await Promise.all([
+        import("@capacitor/app"),
+        import("@capacitor/browser"),
+        import("@/lib/native/push"),
+      ])
       if (cancelled) return
       const open = async (url: string) => {
         const path = appUrlToPath(url, window.location.origin)

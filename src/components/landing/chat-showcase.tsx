@@ -195,8 +195,12 @@ export function ChatShowcase() {
           callOpen={callOpen}
           onSpot={setSpot}
           onTry={(el) => {
-            phoneRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" })
             openCall(el)
+            // Skrolla först efter omritningen: knappen blir disabled i samma klick och tappar fokus,
+            // och då avbryter webbläsaren annars den mjuka skrollningen (telefonen hamnar under skärmkanten).
+            window.requestAnimationFrame(() =>
+              window.requestAnimationFrame(() => phoneRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" }))
+            )
           }}
         />
         <DemoStage phoneRef={phoneRef} callOpen={callOpen}>
@@ -241,7 +245,7 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
                 <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
                 <p className="mt-1 text-[15px] leading-relaxed text-pretty text-muted-foreground">{f.text}</p>
               </div>
-              <span aria-hidden className="hidden self-start text-xs font-medium text-muted-foreground/60 tabular-nums sm:block">
+              <span aria-hidden className="hidden self-start text-xs font-medium text-muted-foreground tabular-nums sm:block">
                 0{i + 1}
               </span>
             </GlassCard>
@@ -288,6 +292,10 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
 function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject<HTMLDivElement | null>; callOpen: boolean; children: React.ReactNode }) {
   const reduce = useReducedMotion()
   const wrapRef = React.useRef<HTMLDivElement>(null)
+  const ringRef = React.useRef<SVGSVGElement>(null)
+  // Ringen snurrar bara nära skärmen. Är den dold (under md) räknas den aldrig som synlig och står still.
+  const ringInView = useInView(ringRef, { margin: "200px" })
+  const spin = ringInView && !reduce
   const { scrollYProgress } = useScroll({ target: wrapRef, offset: ["start end", "end start"] })
   // Parallax: 0 vid start (samma på server och klient), står still med "minska rörelse".
   const y = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -70])
@@ -304,10 +312,11 @@ function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject
           className="absolute size-[320px] max-w-full rounded-full bg-emerald-400/25 blur-[90px]"
         />
         <motion.svg
+          ref={ringRef}
           viewBox="0 0 100 100"
           initial={{ rotate: 0 }}
-          animate={{ rotate: reduce ? 0 : 360 }}
-          transition={{ duration: 90, repeat: Infinity, ease: "linear" }}
+          animate={{ rotate: spin ? 360 : 0 }}
+          transition={spin ? { duration: 90, repeat: Infinity, ease: "linear" } : { duration: 0 }}
           className="absolute hidden size-[440px] text-white/[0.08] md:block"
         >
           <circle cx="50" cy="50" r="49.5" fill="none" stroke="currentColor" strokeWidth="0.25" strokeDasharray="0.6 2.2" />
