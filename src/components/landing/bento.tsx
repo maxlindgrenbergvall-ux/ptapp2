@@ -241,35 +241,30 @@ const SYNC_STEPS = ["Planera", "Synka", "Klarmarkera"] as const
 
 const rowsFor = (key: string, rows: PassRow[], step: SyncStep) => (key === "main" && step >= 1 ? [...rows, EXTRA_ROW] : rows)
 
-/** Ljusstråle mellan PT-panelen och klientens telefon; `pulse` skickar en extra ljuspuls. */
+/**
+ * Ljusstråle mellan PT-panelen och klientens telefon; `pulse` skickar en extra ljuspuls.
+ * Ljuspunkterna är CSS-animationer (bento-travel) på ett lager lika stort som strålen,
+ * så att -50 % → 50 % betyder strålens ena ände → den andra.
+ */
 function Beam({ pulse, live, axis }: { pulse: number; live: boolean; axis: "x" | "y" }) {
   const horizontal = axis === "x"
   const dot = "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+  const travel = cssVars(horizontal ? { "--bento-from-x": "-50%", "--bento-to-x": "50%" } : { "--bento-from-y": "-50%", "--bento-to-y": "50%" })
   return (
-    <div aria-hidden className={cn("relative", horizontal ? "h-px w-full" : "h-10 w-px")}>
+    <div aria-hidden className={cn("relative", horizontal ? "h-px w-full" : "h-5 w-px")}>
       <div className={cn("absolute inset-0 rounded-full from-brand/10 via-brand/70 to-brand/10", horizontal ? "bg-gradient-to-r" : "bg-gradient-to-b")} />
       <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -left-1 -translate-y-1/2" : "-top-1 left-1/2 -translate-x-1/2")} />
       <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -right-1 -translate-y-1/2" : "-bottom-1 left-1/2 -translate-x-1/2")} />
       {live && (
-        <motion.div
-          className="absolute inset-0"
-          initial={horizontal ? { x: "-50%" } : { y: "-50%" }}
-          animate={horizontal ? { x: ["-50%", "50%"] } : { y: ["-50%", "50%"] }}
-          transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 0.5, ease: "easeInOut" }}
-        >
+        <div style={travel} className="absolute inset-0 animate-[bento-travel_2.7s_ease-in-out_infinite_both] will-change-transform">
           <span className={cn("absolute size-1.5 rounded-full bg-white shadow-[0_0_10px_3px] shadow-brand/70", dot)} />
-        </motion.div>
+        </div>
       )}
+      {/* Engångspuls vid varje steg – nyckeln startar om animationen. */}
       {pulse > 0 && (
-        <motion.div
-          key={pulse}
-          className="absolute inset-0"
-          initial={horizontal ? { x: "-50%", opacity: 0 } : { y: "-50%", opacity: 0 }}
-          animate={horizontal ? { x: "50%", opacity: [0, 1, 1, 0] } : { y: "50%", opacity: [0, 1, 1, 0] }}
-          transition={{ duration: 0.9, ease: EASE }}
-        >
+        <div key={pulse} style={travel} className="absolute inset-0 animate-[bento-travel_0.9s_cubic-bezier(0.22,1,0.36,1)_both]">
           <span className={cn("absolute size-3 rounded-full bg-brand shadow-[0_0_24px_8px] shadow-brand/70", dot)} />
-        </motion.div>
+        </div>
       )}
     </div>
   )
@@ -393,12 +388,15 @@ function PtChip({ step }: { step: SyncStep }) {
   )
 }
 
-/** Klientens telefon: samma pass, synkat. Dold för skärmläsare – ändringarna läses upp via demons statusrad. */
-function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
+/**
+ * Klientens telefon: samma pass, synkat. Dold för skärmläsare – ändringarna läses upp via demons statusrad.
+ * Mobil: lägre skärm utan flikrad (dekor), så att kortet inte blir en hel skärm långt.
+ */
+function ClientPhone({ step, pulse, live }: { step: SyncStep; pulse: number; live: boolean }) {
   return (
     <div aria-hidden className="flex justify-center">
       <PhoneFrame className="w-[248px] sm:w-[256px]" time={step === 2 ? "08:04" : "06:58"}>
-        <div className="flex h-[372px] flex-col gap-2.5 px-3.5 pt-2 pb-4">
+        <div className="flex h-[336px] flex-col gap-2 px-3.5 pt-2 pb-3 md:h-[372px] md:gap-2.5 md:pb-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] text-muted-foreground">Tisdag · Sara</p>
@@ -412,7 +410,7 @@ function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
               className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand"
             >
               <span className="relative flex size-1.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-brand/70 motion-reduce:animate-none" />
+                {live && <span className="absolute inset-0 animate-ping rounded-full bg-brand/70 will-change-transform motion-reduce:animate-none" />}
                 <span className="relative size-1.5 rounded-full bg-brand" />
               </span>
               Synkat
@@ -493,7 +491,7 @@ function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
               </motion.div>
             )}
           </AnimatePresence>
-          <div aria-hidden className={cn("flex items-center justify-around rounded-2xl border border-border bg-card/80 py-2 text-muted-foreground", step !== 2 && "mt-auto")}>
+          <div aria-hidden className={cn("hidden items-center justify-around rounded-2xl border border-border bg-card/80 py-2 text-muted-foreground md:flex", step !== 2 && "mt-auto")}>
             {[Dumbbell, CalendarDays, Utensils, MessageCircle].map((TabIcon, i) => (
               <TabIcon key={i} className={cn("size-4", i === 0 && "text-brand")} />
             ))}
