@@ -61,10 +61,15 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
       <DialogContent
         showCloseButton={false}
         // Dialogen renderas utanför .landing (portal) – klassen ger samma mörka tema.
-        className="landing max-w-[calc(100%-2rem)] overflow-hidden rounded-3xl border-white/10 bg-[#0d1117]/95 p-0 text-center shadow-2xl shadow-black/60 backdrop-blur-xl sm:max-w-md"
+        // Den är själv .landing, så globals.css regel för telefoner gäller inte: blur bara från md, tät bakgrund under.
+        className="landing max-w-[calc(100%-2rem)] overflow-hidden rounded-3xl border-white/10 bg-[#0d1117] p-0 text-center shadow-2xl shadow-black/60 sm:max-w-md md:bg-[#0d1117]/95 md:backdrop-blur-xl"
         data-testid="coming-soon"
       >
-        <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full bg-brand/25 blur-3xl" />
+        {/* Glöd som radiell gradient (billig) i stället för blur-3xl. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-36 left-1/2 size-96 -translate-x-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_25%,transparent),transparent)]"
+        />
         <button
           type="button"
           onClick={onClose}
@@ -167,7 +172,8 @@ export function StoreBadge({ store, size = "md", className }: { store: Store; si
     <>
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition-[left,opacity] duration-700 group-hover:left-[110%] group-hover:opacity-100"
+        // Ljussvep med translate (ingen layout per bild) i stället för att animera left.
+        className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition-[translate,opacity] duration-700 group-hover:translate-x-[430%] group-hover:opacity-100"
       />
       {store === "ios" ? <AppleLogo className={size === "lg" ? "size-8" : "size-6"} /> : <PlayLogo className={size === "lg" ? "size-8" : "size-6"} />}
       <span className="flex flex-col items-start leading-none">
@@ -177,7 +183,8 @@ export function StoreBadge({ store, size = "md", className }: { store: Store; si
     </>
   )
   const cls = cn(
-    "group relative inline-flex shrink-0 items-center gap-2.5 overflow-hidden rounded-[14px] border border-white/25 bg-black text-left shadow-lg shadow-black/40 transition-[border-color,box-shadow] duration-300 hover:border-white/45 hover:shadow-[0_10px_40px_-10px] hover:shadow-brand/40",
+    // transform-gpu: brickan lyfts/trycks med transform vid hovring och tryck.
+    "group relative inline-flex shrink-0 transform-gpu items-center gap-2.5 overflow-hidden rounded-[14px] border border-white/25 bg-black text-left shadow-lg shadow-black/40 transition-[border-color,box-shadow] duration-300 hover:border-white/45 hover:shadow-[0_10px_40px_-10px] hover:shadow-brand/40",
     size === "lg" ? "h-[60px] px-5" : "h-12 px-4",
     FOCUS,
     className

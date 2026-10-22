@@ -348,7 +348,7 @@ export function LandingNav() {
         {wide && <ScrollProgress progress={scrollYProgress} visible={scrolled} reduce={Boolean(reduce)} />}
 
         <div className="relative px-4 sm:px-6">
-          <motion.div initial={false} animate={{ y: solid ? 0 : 8 }} transition={BAR_SPRING} className="mx-auto flex h-16 max-w-6xl transform-gpu items-center gap-3">
+          <motion.div initial={false} animate={{ y: solid ? 0 : 8 }} transition={BAR_SPRING} className="mx-auto flex h-16 max-w-6xl items-center gap-3 will-change-transform">
             {/* Vänster: logga */}
             <motion.div {...enter(0.05)} className="flex flex-1 basis-0 items-center">
               <Link href="/" aria-label={`${BRAND.name} – startsidan`} className={cn("group/logo -m-1.5 flex items-center gap-2.5 rounded-xl p-1.5", FOCUS_RING)}>
@@ -447,13 +447,18 @@ export function LandingNav() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25, ease: EASE }}
                 onClick={close}
-                className="fixed inset-0 -z-10 bg-background/60 backdrop-blur-sm"
+                // Panelen finns bara under md: tät toning i stället för backdrop-blur.
+                className="fixed inset-0 -z-10 bg-background/80"
               />
             )}
             {open && (
               <motion.div key="panel" variants={panelVariants} initial="hidden" animate="show" exit="exit" className="absolute inset-x-0 top-full origin-top px-3 pt-2 sm:px-6">
-                <div className="relative mx-auto max-h-[calc(100svh-var(--safe-top)-5rem)] max-w-6xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#0d1117]/90 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl">
-                  <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 size-56 rounded-full bg-brand/15 blur-3xl" />
+                <div className="relative mx-auto max-h-[calc(100svh-var(--safe-top)-5rem)] max-w-6xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#0d1117] p-3 shadow-2xl shadow-black/60">
+                  {/* Glöd som radiell gradient (billig) i stället för blur-3xl. */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute -top-32 -right-24 size-72 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_18%,transparent),transparent)]"
+                  />
                   <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent" />
 
                   <nav aria-label="Huvudmeny" className="relative">
