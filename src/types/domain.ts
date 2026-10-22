@@ -80,6 +80,8 @@ export interface Trainer {
   /** Vad PT:n erbjuder. En kost-PT säljer inga pass och en tränings-PT ingen kost. */
   offersTraining: boolean
   offersNutrition: boolean
+  /** PT Boost: utvald (först i Hitta PT och i rekommendationer) till och med denna tid (ISO). */
+  boostedUntil?: string
 }
 
 export type ClientStatus = "active" | "paused" | "pending"
@@ -515,6 +517,16 @@ export interface AppData {
   relationships: CoachingRelationship[]
   /** Loggade mätpunkter för intressena (Framsteg). */
   progressEntries: ProgressEntry[]
+  /** Klientens varukorg (tjänster från en eller flera PT:er). Tom för PT:er. */
+  cart: CartItem[]
+}
+
+/** En tjänst i klientens varukorg. Sparas i databasen (cart_items) för påminnelser. */
+export interface CartItem {
+  clientId: ID
+  serviceId: ID
+  trainerId: ID
+  addedAt: string
 }
 
 // ================================================================ tjänster ===

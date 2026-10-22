@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { SlotPicker } from "@/components/calendar/slot-picker"
 import { ServiceMenu } from "@/components/services/service-menu"
+import { BoostedBadge } from "@/components/boost/boost"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +24,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { isBoosted } from "@/lib/boost"
 import { formatSek } from "@/lib/money"
 import { useAppData } from "@/lib/data/store"
 import { formatDayLong, formatTimeRange } from "@/lib/calendar/time"
@@ -68,6 +70,7 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
         <PersonAvatar name={trainer.name} src={trainer.avatarUrl} className="size-20 text-xl" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{trainer.name}</h1>
+          {isBoosted(trainer) && <BoostedBadge className="mt-1" />}
           <p className="flex items-center justify-center gap-1 text-sm text-muted-foreground">
             <MapPin className="size-3.5" /> {trainer.city}
             {" "}· {COACHING_MODE_LABEL[trainer.coachingMode]}

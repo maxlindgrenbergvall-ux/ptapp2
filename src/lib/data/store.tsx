@@ -15,7 +15,9 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { BrandMark } from "@/components/brand"
+import { extendBoost } from "@/lib/boost"
 import { BRAND } from "@/lib/brand"
+import { MAX_CART_ITEMS } from "@/lib/cart"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
 import {
@@ -289,6 +291,55 @@ function createActions(ctx: {
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."
+      }
+    },
+    /**
+     * Klient: lägg en tjänst i varukorgen. Sparas lokalt direkt och i databasen
+     * (cart_items), så att varukorgen finns kvar mellan besök och enheter.
+     */
+    addToCart: (serviceId: ID): string | null => {
+      const data = getData()
+      const service = data.services.find((x) => x.id === serviceId && x.active)
+      if (!service) return "Tjänsten finns inte längre."
+      const mine = data.cart.filter((c) => c.clientId === me.id)
+      if (mine.some((c) => c.serviceId === serviceId)) return null
+      if (mine.length >= MAX_CART_ITEMS) return `Varukorgen är full (högst ${MAX_CART_ITEMS} tjänster).`
+      commit({ type: "addCartItem", item: { clientId: me.id, serviceId, trainerId: service.trainerId, addedAt: now() } })
+      return null
+    },
+    removeFromCart: (serviceIds: ID[]) => {
+      if (serviceIds.length) commit({ type: "removeCartItems", clientId: me.id, serviceIds })
+    },
+    /**
+     * PT: köp PT Boost (199 kr, 7 dagar). Med Supabase skickas PT:n till Stripe
+     * Checkout (priset bestäms av databasen); i demoläget simuleras köpet direkt.
+     */
+    buyBoost: async (): Promise<string | null> => {
+      const self = getData().trainers.find((t) => t.id === me.id)
+      if (!self?.isPublished) return "Publicera din profil innan du boostar den."
+      if (ctx.mode === "demo") {
+        ctx.dispatch({ type: "setTrainerBoost", trainerId: me.id, boostedUntil: extendBoost(self.boostedUntil) })
+        return null
+      }
+      try {
+        const res = await fetch("/api/stripe/boost-checkout", { method: "POST" })
+        const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+        if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
+        window.location.assign(body.url)
+        return null
+      } catch {
+        return "Ingen uppkoppling – försök igen."
+      }
+    },
+    /** PT, efter Stripe: är boosten betald? Uppdaterar profilen när den är det. */
+    confirmBoost: async (sessionId: string): Promise<"paid" | "pending" | "expired" | "unknown"> => {
+      try {
+        const res = await fetch(`/api/stripe/boost-checkout/verify?session_id=${encodeURIComponent(sessionId)}`)
+        const body = (await res.json().catch(() => ({}))) as { status?: "paid" | "pending" | "expired" | "unknown"; boostedUntil?: string | null }
+        if (body.status === "paid" && body.boostedUntil) ctx.dispatch({ type: "setTrainerBoost", trainerId: me.id, boostedUntil: body.boostedUntil })
+        return body.status ?? "unknown"
+      } catch {
+        return "pending"
       }
     },
     toggleMeal: (clientId: ID, date: ISODate, mealId: ID) => {

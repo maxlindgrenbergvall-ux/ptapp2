@@ -7,6 +7,7 @@ import type * as React from "react"
 
 import { AppMenu } from "@/components/app-menu"
 import { useUnreadCount } from "@/components/chat/chat-thread"
+import { CartButton } from "@/components/cart/cart"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { useAppData } from "@/lib/data/store"
@@ -37,6 +38,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center pt-[var(--safe-top)] justify-between border-b bg-background/80 px-4 backdrop-blur">
           <AppMenu />
           <div className="flex items-center gap-1">
+            <CartButton />
             <NotificationBell />
           </div>
         </header>

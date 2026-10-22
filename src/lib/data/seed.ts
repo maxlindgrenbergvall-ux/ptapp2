@@ -758,6 +758,7 @@ export function createSeedData(today = todayISO()): AppData {
     customFoods: [],
     offers: makeOffers(today),
     relationships: [],
+    cart: [],
     progressEntries: [
       { id: "pe-1", clientId: "c1", metric: "hyrox_total", value: 5880, date: addDays(today, -56) },
       { id: "pe-2", clientId: "c1", metric: "hyrox_total", value: 5610, date: addDays(today, -21) },
@@ -805,5 +806,7 @@ export function createSeedData(today = todayISO()): AppData {
   ]
   data.messages = data.messages.map((m) => ({ ...m, trainerId: m.trainerId ?? "t1" }))
   data.purchases = makePurchases(data, today)
+  // PT Boost: David är utvald i några dagar till (syns först i Hitta PT och i klockan).
+  data.trainers = data.trainers.map((t) => (t.id === "t6" ? { ...t, boostedUntil: `${addDays(today, 4)}T21:00:00.000Z` } : t))
   return data
 }

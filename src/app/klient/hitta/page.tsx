@@ -4,10 +4,12 @@ import { MapPin, Search, SlidersHorizontal, Wifi } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
+import { BoostedBadge } from "@/components/boost/boost"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { isBoosted } from "@/lib/boost"
 import { formatSek } from "@/lib/money"
 import { useNextSlots } from "@/lib/calendar/use-slots"
 import { useAppData } from "@/lib/data/store"
@@ -55,7 +57,7 @@ export default function DiscoverPage() {
       // Matchning: andel valda inriktningar som PT:n har.
       const match = selected.length ? selected.filter((s) => t.specialties.includes(s)).length / selected.length : 1
       // Kostschema = PT:n har kryssat i "Kost" OCH säljer en aktiv kosttjänst.
-      return { trainer: t, nextSlot, match, nutrition: offersNutritionPlan(data, t) }
+      return { trainer: t, nextSlot, match, nutrition: offersNutritionPlan(data, t), boosted: isBoosted(t) }
     })
     .filter(({ trainer: t, match, nutrition }) => {
       const text = q.trim().toLowerCase()
@@ -75,8 +77,10 @@ export default function DiscoverPage() {
       if (sort === "rating") return b.trainer.rating - a.trainer.rating
       if (sort === "price") return a.trainer.pricePerSession - b.trainer.pricePerSession
       if (sort === "available") return (a.nextSlot ?? "9").localeCompare(b.nextSlot ?? "9")
-      return b.match - a.match || b.trainer.rating - a.trainer.rating
+      // Standardsorteringen: utvalda PT:er (PT Boost) först bland dem som matchar.
+      return Number(b.boosted) - Number(a.boosted) || b.match - a.match || b.trainer.rating - a.trainer.rating
     })
+  const anyBoosted = sort === "match" && results.some((r) => r.boosted)
 
   const toggle = (s: Specialty) => {
     // Att aktivt välja en inriktning är den starkaste intressesignalen (sparas bara lokalt).
@@ -193,6 +197,7 @@ export default function DiscoverPage() {
 
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {results.length} tränare
+        {anyBoosted && <span className="block text-xs">Utvalda PT:er är betalda placeringar och visas först.</span>}
       </p>
 
       <ul className="space-y-3">
@@ -201,15 +206,21 @@ export default function DiscoverPage() {
             <EmptyState icon={Search} title="Ingen PT matchar" text="Prova att ta bort ett filter." />
           </li>
         )}
-        {results.map(({ trainer: t, nextSlot, match, nutrition }) => (
+        {results.map(({ trainer: t, nextSlot, match, nutrition, boosted }) => (
           <li key={t.id}>
-            <Link href={`/klient/hitta/${t.id}`} className="block rounded-2xl border bg-card p-4 transition-colors hover:border-foreground/30">
+            <Link
+              href={`/klient/hitta/${t.id}`}
+              className={cn("block rounded-2xl border bg-card p-4 transition-colors hover:border-foreground/30", boosted && "border-brand/60 ring-1 ring-brand/30")}
+            >
               <div className="flex gap-3">
                 <PersonAvatar name={t.name} src={t.avatarUrl} className="size-12" />
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="truncate font-semibold">{t.name}</h2>
+                      <h2 className="flex min-w-0 items-center gap-1.5 font-semibold">
+                        <span className="truncate">{t.name}</span>
+                        {boosted && <BoostedBadge className="shrink-0" />}
+                      </h2>
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MapPin className="size-3" /> {t.city}
                         {t.coachingMode !== "onsite" && ` · ${t.coachingMode === "remote" ? "Bara distans" : "Distans"}`} ·{" "}

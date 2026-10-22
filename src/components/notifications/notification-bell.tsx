@@ -1,15 +1,18 @@
 "use client"
 
-import { Bell, CalendarCheck, CalendarClock, CalendarPlus, CalendarX2, Check, Sparkles, type LucideIcon } from "lucide-react"
+import { Bell, CalendarCheck, CalendarClock, CalendarPlus, CalendarX2, Check, Sparkles, X, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { BoostedBadge } from "@/components/boost/boost"
 import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
+import { PersonAvatar } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { matchBoostedTrainers } from "@/lib/boost"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
 import { describeGroup, groupNotifications, timeAgo, type NotificationGroup } from "@/lib/notifications/present"
@@ -58,7 +61,13 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
     () => (isClient && interests.enabled ? matchOffers(data.offers, interests.scores, { dismissed: interests.dismissed, today: todayISO() }) : []),
     [isClient, interests.enabled, interests.scores, interests.dismissed, data.offers]
   )
-  const unseenOffers = offers.filter((o) => !interests.seen.includes(o.id)).length
+  // PT Boost: utvalda PT:er inom klientens intressen (bara med personliga erbjudanden påslagna).
+  const featured = React.useMemo(() => {
+    if (!isClient || !interests.enabled) return []
+    const mine = data.relationships.filter((r) => r.clientId === me.id && r.status !== "ended").map((r) => r.trainerId)
+    return matchBoostedTrainers(data.trainers, interests.scores, { dismissed: interests.dismissed, excludeTrainerIds: mine })
+  }, [isClient, interests.enabled, interests.scores, interests.dismissed, data.relationships, data.trainers, me.id])
+  const unseenOffers = [...offers, ...featured].filter((o) => !interests.seen.includes(o.id)).length
   const badge = unread + unseenOffers
 
   const markAllRead = () => actions.markNotificationsRead(mine.filter((n) => !n.readAt).map((n) => n.id))
@@ -66,7 +75,7 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
   const onOpenChange = (o: boolean) => {
     setOpen(o)
     if (o) {
-      if (offers.length) interests.markSeen(offers.map((x) => x.id))
+      if (offers.length || featured.length) interests.markSeen([...offers, ...featured].map((x) => x.id))
     } else {
       // Det man sett när menyn var öppen räknas som läst.
       markAllRead()
@@ -130,12 +139,45 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
                 </h3>
                 {!interests.enabled ? (
                   <p className="text-xs text-muted-foreground">Personliga erbjudanden är avstängda.</p>
-                ) : offers.length === 0 ? (
+                ) : offers.length === 0 && featured.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
                     Utforska inriktningar under <span className="font-medium">Hitta PT</span> så tipsar vi om erbjudanden som passar dig.
                   </p>
                 ) : (
                   <div className="space-y-2">
+                    {featured.map((f) => (
+                      <div key={f.id} className="relative flex items-center gap-3 rounded-xl border border-brand/50 bg-background p-2.5" data-testid="featured-trainer">
+                        <PersonAvatar name={f.trainer.name} src={f.trainer.avatarUrl} className="size-9" />
+                        <div className="min-w-0 flex-1">
+                          <Link
+                            href={`/klient/hitta/${f.trainer.id}`}
+                            onClick={() => {
+                              interests.record([f.category], "offer")
+                              onOpenChange(false)
+                            }}
+                            className="flex items-center gap-1.5 text-sm font-medium after:absolute after:inset-0 hover:underline"
+                          >
+                            <span className="truncate">{f.trainer.name}</span>
+                            <BoostedBadge className="shrink-0" />
+                          </Link>
+                          <p className="truncate text-xs text-muted-foreground">
+                            Annons · {SPECIALTY_LABEL[f.category]} i {f.trainer.city}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="relative z-10 size-7 shrink-0"
+                          aria-label={`Dölj ${f.trainer.name}`}
+                          onClick={() => {
+                            interests.dismiss(f.id)
+                            toast("Rekommendationen är dold")
+                          }}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                     {offers.map((o) => {
                       const t = trainerName(o.trainerId)
                       return (

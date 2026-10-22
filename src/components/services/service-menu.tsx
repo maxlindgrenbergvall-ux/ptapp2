@@ -1,11 +1,13 @@
 "use client"
 
-import { Check, CreditCard, Dumbbell, Loader2, Salad, Sparkles } from "lucide-react"
+import { Check, CreditCard, Dumbbell, Loader2, Salad, ShoppingBag, Sparkles } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { openCart } from "@/components/cart/cart"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { isInCart } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
 import { firstName } from "@/lib/names"
@@ -29,8 +31,18 @@ export function ServiceMenu({
   onPurchased?: () => void
   className?: string
 }) {
-  const { data } = useAppData()
+  const { data, me, actions } = useAppData()
   const services = activeServices(data, trainer.id).filter((s) => !only || only(s))
+  const canCart = me.role === "client"
+
+  const addToCart = (s: TrainerService) => {
+    const error = actions.addToCart(s.id)
+    if (error) {
+      toast.error(error)
+      return
+    }
+    toast.success(`${s.title} ligger i varukorgen`, { action: { label: "Visa varukorg", onClick: openCart } })
+  }
   const [chosen, setChosen] = React.useState<TrainerService | null>(null)
 
   if (!services.length) {
@@ -56,9 +68,21 @@ export function ServiceMenu({
             </div>
             <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
               <span className="font-semibold tabular">{formatSek(s.priceSek)}</span>
-              <Button size="sm" onClick={() => setChosen(s)} aria-label={`Välj ${s.title}`}>
-                Välj
-              </Button>
+              <div className="flex gap-1.5">
+                {canCart &&
+                  (isInCart(data, me.id, s.id) ? (
+                    <Button size="sm" variant="outline" onClick={openCart} aria-label={`${s.title} ligger i varukorgen – visa varukorgen`}>
+                      <Check /> I varukorgen
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => addToCart(s)} aria-label={`Lägg ${s.title} i varukorgen`}>
+                      <ShoppingBag /> Lägg i varukorg
+                    </Button>
+                  ))}
+                <Button size="sm" onClick={() => setChosen(s)} aria-label={`Välj ${s.title}`}>
+                  Välj
+                </Button>
+              </div>
             </div>
           </li>
         ))}

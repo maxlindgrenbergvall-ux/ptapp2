@@ -73,6 +73,50 @@ export function checkoutSessionParams(input: {
   }
 }
 
+/** PT Boost i Stripe: 199 kr för 7 dagar (metadata.kind = "boost" skiljer köpet från klienternas kassor). */
+export const BOOST_UNIT_AMOUNT = 19_900
+
+/**
+ * Checkout Session för ett boostköp. Priset kommer från databasen
+ * (create_boost_checkout) och måste vara exakt 199 kr; pengarna går till
+ * Coaviras Stripe-konto som en engångsbetalning.
+ */
+export function boostSessionParams(input: {
+  boostId: string
+  trainerId: string
+  priceSek: number
+  durationDays: number
+  email?: string
+  origin: string
+}): Stripe.Checkout.SessionCreateParams {
+  const unitAmount = Math.round(Number(input.priceSek) * 100)
+  if (unitAmount !== BOOST_UNIT_AMOUNT) throw new Error(`Ogiltigt pris för boost: ${input.priceSek} kr`)
+  const metadata = { kind: "boost", boost_id: input.boostId, trainer_id: input.trainerId, boost_duration_days: String(input.durationDays) }
+  return {
+    mode: "payment",
+    locale: "sv",
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: "sek",
+          unit_amount: unitAmount,
+          product_data: {
+            name: `PT Boost – ${input.durationDays} dagars synlighet`,
+            description: "Utvald PT: först i Hitta PT och i rekommendationer till klienter med matchande intressen.",
+          },
+        },
+      },
+    ],
+    ...(input.email ? { customer_email: input.email } : {}),
+    client_reference_id: input.boostId,
+    metadata,
+    payment_intent_data: { metadata },
+    success_url: `${input.origin}/pt/profil?boost=klar&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${input.origin}/pt/profil?boost=avbrutet`,
+  }
+}
+
 /** Stripes felmeddelande i läsbar form (för loggen och klienten). */
 export function describeStripeError(e: unknown): { message: string; log: Record<string, unknown> } {
   if (e instanceof Stripe.errors.StripeError) {

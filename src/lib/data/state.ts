@@ -9,6 +9,7 @@
  */
 import type {
   AppData,
+  CartItem,
   AppNotification,
   AvailabilityRule,
   CalendarEvent,
@@ -87,6 +88,10 @@ export type PersistableAction =
   /** Klient: ta bort ett eget pass. */
   | { type: "deleteWorkout"; workoutId: ID }
   | { type: "deleteProgressEntry"; id: ID }
+  /** Klient: lägg en tjänst i varukorgen (samma tjänst bara en gång). */
+  | { type: "addCartItem"; item: CartItem }
+  /** Klient: ta bort tjänster ur varukorgen. */
+  | { type: "removeCartItems"; clientId: ID; serviceIds: ID[] }
 
 export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus" | "avatarUrl">>
 
@@ -122,6 +127,10 @@ export type LocalAction =
   | { type: "upsertPurchases"; purchases: Purchase[]; today?: ISODate }
   /** PT: en ny klient (t.ex. efter ett köp) som inte fanns när datan laddades. */
   | { type: "addClient"; client: Client }
+  /** PT Boost betald (servern eller demoläget): PT:n är utvald till och med `boostedUntil`. */
+  | { type: "setTrainerBoost"; trainerId: ID; boostedUntil: string | null }
+  /** Varukorgen ändrad på servern (t.ex. betald på en annan enhet). */
+  | { type: "setCart"; cart: CartItem[] }
 
 export type Action = PersistableAction | LocalAction
 
@@ -514,8 +523,24 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         const fresh = c.trainerId !== p.trainerId || c.status === "pending"
         return { ...c, trainerId: p.trainerId, status: "active" as const, startDate: fresh ? (action.today ?? c.startDate) : c.startDate }
       })
-      return { ...data, purchases, clients, relationships }
+      // Som databasen: betalda tjänster försvinner ur varukorgen.
+      const cart = data.cart.filter((c) => !paid.some((p) => p.clientId === c.clientId && p.serviceId === c.serviceId))
+      return { ...data, purchases, clients, relationships, cart }
     }
+    case "addCartItem": {
+      const { item } = action
+      if (data.cart.some((c) => c.clientId === item.clientId && c.serviceId === item.serviceId)) return data
+      return { ...data, cart: [...data.cart, item] }
+    }
+    case "removeCartItems":
+      return { ...data, cart: data.cart.filter((c) => c.clientId !== action.clientId || !action.serviceIds.includes(c.serviceId)) }
+    case "setCart":
+      return { ...data, cart: action.cart }
+    case "setTrainerBoost":
+      return {
+        ...data,
+        trainers: data.trainers.map((t) => (t.id === action.trainerId ? { ...t, boostedUntil: action.boostedUntil ?? undefined } : t)),
+      }
   }
 }
 
@@ -593,6 +618,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
           .filter((c) => c.trainerId)
           .map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
     progressEntries: list(d.progressEntries),
+    cart: list(d.cart),
   }
 }
 

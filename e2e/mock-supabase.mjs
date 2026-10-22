@@ -81,7 +81,12 @@ const purchaseRows = [
   { id: "bbbbbbbb-0000-4000-8000-000000000001", checkout_id: CO_PAID, client_id: C1, trainer_id: T1, service_id: null, kind: "package", title: "Program 5 pass", sessions: 5, includes_nutrition: false, price_sek: 3500, status: "paid", created_at: `${TODAY}T08:00:00Z`, paid_at: `${TODAY}T08:01:00Z`, stripe_session_id: "cs_old" },
   { id: "bbbbbbbb-0000-4000-8000-000000000002", checkout_id: CO_NEW, client_id: C1, trainer_id: T1, service_id: S_SINGLE, kind: "single", title: "Enstaka pass", sessions: 1, includes_nutrition: false, price_sek: 800, status: "pending", created_at: `${TODAY}T09:00:00Z`, paid_at: null, stripe_session_id: "cs_test_1" },
 ]
+// v16: varukorg (Sara har en tjänst sparad) och PT Boost (ett obetalt boostköp med Stripe-session).
+const cartRows = [{ client_id: C1, service_id: S_SINGLE, trainer_id: T1, added_at: `${TODAY}T07:00:00Z` }]
+const BOOST = "cccccccc-0000-4000-8000-000000000001"
+const boostRows = [{ id: BOOST, trainer_id: T1, price_sek: 199, duration_days: 7, status: "pending", stripe_session_id: "cs_boost_1", created_at: `${TODAY}T09:00:00Z` }]
 const rpc = {
+  attach_boost_session: null,
   calendar_feed_token: FEED_TOKEN,
   available_slots: slots,
   next_available_slots: [{ trainer_id: T1, start_time: slots[0].start_time }],
@@ -113,6 +118,8 @@ function fixtures(uid, table) {
     case "trainer_services": return serviceRows
     case "purchases": return purchaseRows
     case "recipes": return []
+    case "cart_items": return client ? cartRows : []
+    case "trainer_boosts": return client ? [] : boostRows
     default: return []
   }
 }
@@ -170,6 +177,17 @@ http.createServer(async (req, res) => {
     log.push({ method: "RPC", table: url.pathname.split("/").pop(), body: JSON.parse(body || "{}") })
     return send(200, 1)
   }
+  // v16: servern (service role) markerar en boost som betald / återbetald.
+  if (url.pathname === "/rest/v1/rpc/mark_boost_paid" || url.pathname === "/rest/v1/rpc/mark_boost_refunded") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(401, { code: "42501", message: "permission denied" })
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "RPC", table: url.pathname.split("/").pop(), body: p })
+    if (url.pathname.endsWith("refunded")) return send(200, 1)
+    if (p.p_amount_sek !== null && p.p_amount_sek !== 199) return send(400, { code: "22023", message: "Beloppet stämmer inte" })
+    trainerRow.boosted_until = new Date(Date.now() + 7 * 86_400_000).toISOString()
+    boostRows[0].status = "paid"
+    return send(200, trainerRow.boosted_until)
+  }
   // "Glömt lösenordet?" / PT väljer lösenord.
   if (url.pathname === "/auth/v1/recover") {
     log.push({ method: "POST", table: "auth.recover", body: JSON.parse(body || "{}"), query: url.search })
@@ -215,6 +233,11 @@ http.createServer(async (req, res) => {
         total_sek: lines.reduce((a, x) => a + x.price_sek, 0),
         lines: lines.map((x) => ({ purchase_id: x.id, title: x.title, price_sek: x.price_sek, kind: x.kind })),
       })
+    }
+    if (m[1] && table === "create_boost_checkout") {
+      log.push({ method: "RPC", table, body: null })
+      if (uid !== T1) return send(403, { code: "42501", message: "Bara PT:er kan boosta sin profil" })
+      return send(200, { boost_id: BOOST, trainer_id: T1, price_sek: 199, duration_days: 7, boosted_until: trainerRow.boosted_until ?? null })
     }
     if (m[1] && table in rpc) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
     if (req.method === "GET") {

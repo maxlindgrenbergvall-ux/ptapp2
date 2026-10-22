@@ -13,6 +13,7 @@ import type {
   Attachment,
   AvailabilityRule,
   CalendarEvent,
+  CartItem,
   Client,
   CoachingRelationship,
   ClientStatus,
@@ -71,7 +72,14 @@ interface TrainerRow {
   offers_nutrition?: boolean
   profile?: { full_name: string } | null
   min_notice_minutes?: number | null
+  boosted_until?: string | null
   reviews?: ReviewRow[]
+}
+interface CartRow {
+  client_id: string
+  service_id: string
+  trainer_id: string
+  added_at: string
 }
 interface ReviewRow {
   id: string
@@ -311,9 +319,12 @@ const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   offersTraining: r.offers_training ?? true,
   offersNutrition: r.offers_nutrition ?? false,
   minNoticeMinutes: r.min_notice_minutes ?? undefined,
+  boostedUntil: r.boosted_until ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
+
+const toCart = (r: CartRow): CartItem => ({ clientId: r.client_id, serviceId: r.service_id, trainerId: r.trainer_id, addedAt: r.added_at })
 
 const toReview = (r: ReviewRow): Review => ({
   id: r.id,
@@ -689,18 +700,21 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         })),
         wearables: [],
         customFoods: [],
+        cart: [],
       },
     }
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
     sb.from("meal_checks").select("date, meal_id").eq("client_id", uid).gte("date", addDays(todayISO(), -30)),
     sb.from("wearable_connections").select("provider, status, connected_at, last_synced_at, last_error"),
     sb.from("food_products").select("*").eq("source", "custom").order("updated_at", { ascending: false }).limit(200),
+    // Varukorgen (RLS: bara min egen).
+    sb.from("cart_items").select("client_id, service_id, trainer_id, added_at").order("added_at"),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -731,6 +745,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       ...base,
       trainers: must<TrainerRow[]>(trainers, "tränare").map((t) => toTrainer(t)),
       clients: [self],
+      cart: must<CartRow[]>(cart, "varukorg").map(toCart),
       templates: [],
       availabilityRules: [],
       recipes: [],
@@ -1114,6 +1129,18 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     }
     case "deleteProgressEntry":
       return result(sb.from("progress_entries").delete().eq("id", action.id))
+    // Varukorgen: trainer_id sätts av databasen från tjänsten; samma tjänst två gånger ignoreras.
+    case "addCartItem":
+      return result(
+        sb
+          .from("cart_items")
+          .upsert(
+            { client_id: action.item.clientId, service_id: action.item.serviceId, trainer_id: action.item.trainerId, added_at: action.item.addedAt },
+            { onConflict: "client_id,service_id", ignoreDuplicates: true }
+          )
+      )
+    case "removeCartItems":
+      return result(sb.from("cart_items").delete().eq("client_id", action.clientId).in("service_id", action.serviceIds))
     case "upsertSleep": {
       const l = action.log
       return result(
@@ -1167,6 +1194,15 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
         exerciseId: row.exercise_id,
         name: p.eventType === "DELETE" ? null : (row.name ?? null),
       })
+    })
+    .on("postgres_changes", { event: "*", schema: "public", table: "cart_items" }, (p) => {
+      // Varukorgen ändrad på en annan enhet, eller tömd av databasen efter en betalning.
+      if (p.eventType === "DELETE") {
+        const old = p.old as Partial<CartRow>
+        if (old.client_id && old.service_id) dispatch({ type: "removeCartItems", clientId: old.client_id, serviceIds: [old.service_id] })
+      } else if (p.new && "service_id" in p.new) {
+        dispatch({ type: "addCartItem", item: toCart(p.new as CartRow) })
+      }
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "purchases" }, (p) => {
       if (p.eventType !== "DELETE" && p.new && "id" in p.new) {

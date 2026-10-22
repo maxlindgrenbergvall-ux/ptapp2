@@ -20,6 +20,7 @@ import { toast } from "sonner"
 
 import { PageHeader, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { AvatarPicker } from "@/components/avatar-picker"
+import { BoostCard } from "@/components/boost/boost"
 import { OffersEditor } from "@/components/offers/offers-editor"
 import { ServicesEditor } from "@/components/services/services-editor"
 import { Badge } from "@/components/ui/badge"
@@ -309,6 +310,7 @@ export function TrainerProfileEditor() {
               )}
             </CardContent>
           </Card>
+          <BoostCard />
           <Card className="gap-3">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
