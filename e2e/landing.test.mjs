@@ -43,8 +43,11 @@ check(res.status() === 200, "landningssidan svarar 200")
 check((await p.title()).startsWith("Coavira – Appen för träning & kost"), `sidtitel: ${await p.title()}`)
 check((await p.locator("h1").count()) === 1, "exakt en h1")
 const h1 = (await p.locator("h1").innerText()).replace(/\s+/g, " ")
-check(/Framtidens träning & kost\. ?Allt i en och samma plattform\./.test(h1), `rubriken: "${h1}"`)
-check((await p.locator("text=Sömlös coachning för").first().isVisible()), "underrubriken syns")
+check(/Träning och kost\. ?På dina villkor\./.test(h1), `rubriken: "${h1}"`)
+check((await p.locator("text=Koppla samman med din PT").first().isVisible()), "underrubriken syns")
+// Ingen säljretorik om betalningar eller tomma AI-fraser.
+const heroText = await p.locator("#hero-title").evaluate((el) => el.closest("section")?.innerText ?? "")
+check(!/betalningskrångel|framtidens|sömlös/i.test(heroText), "hero utan betalningskrångel/AI-fraser")
 const bg = await p.evaluate(() => getComputedStyle(document.querySelector(".landing")).backgroundColor)
 check(/rgb\(10, 13, 18\)|#0a0d12/i.test(bg), `alltid mörk bakgrund även i ljust systemtema (${bg})`)
 for (const id of ["funktioner", "mal", "kommunikation", "priser", "ladda-ned"]) {
@@ -60,6 +63,7 @@ check(!/\d[\d\s]*\+?\s*(nöjda\s)?(användare|kunder|klienter|PT:er) (använder|
 check(!/(★|⭐|4,\d av 5|betyg \d)/i.test(text), "inga påhittade betyg")
 check(!/(ladda ner|finns) (i|på) (App Store|Google Play)/i.test(text), "påstår inte att appen finns i butikerna")
 check(!/(provision|plattformsavgift|månadsavgift|abonnemang)\D{0,20}\d/i.test(text), "inga påhittade PT-avgifter")
+check(!/betalningskrångel|krångel med betalning/i.test(text), "ingen betalningskrångel-retorik")
 
 // Länkar
 const hrefs = await p.$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))

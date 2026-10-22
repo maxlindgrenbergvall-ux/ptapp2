@@ -4,9 +4,22 @@
  * Landningssidans meny: fast överst, genomskinlig högst upp och en glasbar
  * (suddig bakgrund, fin kant, lite lägre) när man scrollat. Markeringen
  * ("pillret") följer muspekaren/fokus och annars sektionen som syns i bild.
- * Mobil: menyknapp som fäller ut en glaspanel (stängs med Esc och vid klick).
+ * Mobil: menyknapp som fäller ut en tät panel (stängs med Esc och vid klick).
+ * Prestanda på telefon: ingen backdrop-blur (tät bakgrund i stället) och ingen
+ * fjädrande läsframstegslinje – den räknas bara om per scrollbild från md.
  */
-import { AnimatePresence, LayoutGroup, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, type Variants } from "framer-motion"
+import {
+  AnimatePresence,
+  LayoutGroup,
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+  useSpring,
+  type MotionValue,
+  type Variants,
+} from "framer-motion"
 import { ArrowDown, ArrowUpRight, BadgeCheck } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
@@ -19,6 +32,8 @@ import { BRAND } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
 const PANEL_ID = "landing-mobilmeny"
+/** Samma brytpunkt som Tailwinds md (768 px). */
+const WIDE_QUERY = "(min-width: 48rem)"
 /** Så långt (px) man scrollar innan menyn blir en glasbar. */
 const SCROLL_THRESHOLD = 24
 const PILL_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.8 } as const
@@ -68,6 +83,39 @@ function scrollToAnchor(e: React.MouseEvent<HTMLAnchorElement>, href: string, re
   focusTarget.focus({ preventScroll: true })
 }
 
+function subscribeWide(onChange: () => void) {
+  const mq = window.matchMedia(WIDE_QUERY)
+  mq.addEventListener("change", onChange)
+  return () => mq.removeEventListener("change", onChange)
+}
+
+/** Bred skärm (md+)? Falskt på servern och vid hydrering, så ingen glapp i markupen. */
+function useIsWide() {
+  return React.useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => false
+  )
+}
+
+/**
+ * Läsframsteg: tunn grön linje längs menyns underkant. Monteras bara från md,
+ * så att fjädern (useSpring) inte räknar om vid varje scrollbild på telefon.
+ */
+function ScrollProgress({ progress, visible, reduce }: { progress: MotionValue<number>; visible: boolean; reduce: boolean }) {
+  const smooth = useSpring(progress, { stiffness: 160, damping: 30, restDelta: 0.001 })
+  return (
+    <motion.div
+      aria-hidden
+      initial={false}
+      animate={{ opacity: visible ? 1 : 0 }}
+      transition={{ duration: 0.35, ease: EASE }}
+      style={{ scaleX: reduce ? progress : smooth }}
+      className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-px origin-left transform-gpu bg-gradient-to-r from-brand via-emerald-300 to-emerald-500 shadow-[0_0_12px_1px] shadow-brand/50 md:block"
+    />
+  )
+}
+
 /** Menysektionen (t.ex. "#priser") som ligger mitt i bild just nu, annars null. */
 function useActiveSection() {
   const [active, setActive] = React.useState<string | null>(null)
@@ -96,7 +144,8 @@ function useActiveSection() {
 /**
  * Glödande "Ladda ned appen" som dras en aning mot muspekaren (magnetisk) och
  * får ett ljussvep vid hovring. Scrollar till nedladdningssektionen med
- * App Store- och Google Play-brickorna.
+ * App Store- och Google Play-brickorna. Glöden pulserar med ren CSS (opacitet
+ * på GPU:n) och står still med "minska rörelse".
  */
 function StartCta({
   label = "Ladda ned appen",
@@ -134,12 +183,11 @@ function StartCta({
       }}
       className={cn("group/cta relative", className)}
     >
-      <motion.span
+      <span
         aria-hidden
-        className="pointer-events-none absolute -inset-1 rounded-full bg-brand/50 blur-lg"
-        initial={{ opacity: 0.45 }}
-        animate={reduce ? { opacity: 0.45 } : { opacity: [0.35, 0.75, 0.35] }}
-        transition={reduce ? { duration: 0 } : { duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+        // animate-pulse: opacitet 1 → 0,5 → 1. Längre period för lugnare puls.
+        style={{ animationDuration: "3.2s" }}
+        className="pointer-events-none absolute -inset-1 transform-gpu animate-pulse rounded-full bg-brand/40 blur-lg motion-reduce:animate-none motion-reduce:opacity-60"
       />
       <a
         href={LINKS.download}
@@ -189,7 +237,7 @@ function MenuIcon({ open }: { open: boolean }) {
 export function LandingNav() {
   const reduce = useReducedMotion()
   const { scrollY, scrollYProgress } = useScroll()
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 160, damping: 30, restDelta: 0.001 })
+  const wide = useIsWide()
   const [scrolled, setScrolled] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const [hovered, setHovered] = React.useState<string | null>(null)
@@ -198,7 +246,11 @@ export function LandingNav() {
   const headerRef = React.useRef<HTMLElement>(null)
   const skipRef = React.useRef<HTMLAnchorElement>(null)
 
-  useMotionValueEvent(scrollY, "change", (v) => setScrolled(v > SCROLL_THRESHOLD))
+  // Bara vid passage av tröskeln – inte en uppdatering per scrollbild.
+  useMotionValueEvent(scrollY, "change", (v) => {
+    const next = v > SCROLL_THRESHOLD
+    if (next !== scrolled) setScrolled(next)
+  })
 
   // Öppen mobilmeny: Esc stänger (fokus tillbaka till knappen), och den stängs om fönstret blir brett.
   React.useEffect(() => {
@@ -208,7 +260,7 @@ export function LandingNav() {
       setOpen(false)
       toggleRef.current?.focus()
     }
-    const mq = window.matchMedia("(min-width: 48rem)")
+    const mq = window.matchMedia(WIDE_QUERY)
     const onWide = (e: MediaQueryListEvent) => {
       if (e.matches) setOpen(false)
     }
@@ -271,35 +323,32 @@ export function LandingNav() {
           if (open && next instanceof Node && !e.currentTarget.contains(next)) setOpen(false)
         }}
       >
-        {/* Högst upp: mjuk toning för läsbarhet. Efter scroll: glasbar med kant. */}
+        {/*
+          Högst upp: mjuk toning för läsbarhet. Efter scroll: glasbar med kant – suddig bakgrund
+          bara från md, på telefon en nästan tät bakgrund (läsbar utan blur). Lagren ligger på
+          GPU:n (transform-gpu) eftersom de tonas vid scroll. Inte på <header>: en transform där
+          skulle göra den fasta mobilbakgrunden (fixed inset-0) bara lika stor som menyn.
+        */}
         <motion.div
           aria-hidden
           initial={false}
           animate={{ opacity: solid ? 0 : 1 }}
           transition={{ duration: 0.35, ease: EASE }}
-          className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+1.5rem)] bg-gradient-to-b from-background/70 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+1.5rem)] transform-gpu bg-gradient-to-b from-background/70 to-transparent"
         />
         <motion.div
           aria-hidden
           initial={false}
           animate={{ opacity: solid ? 1 : 0 }}
           transition={{ duration: 0.35, ease: EASE }}
-          className="pointer-events-none absolute inset-0 border-b border-white/10 bg-background/75 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.9)] backdrop-blur-xl backdrop-saturate-150"
+          className="pointer-events-none absolute inset-0 transform-gpu border-b border-white/10 bg-[#0a0d12]/90 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.9)] md:bg-background/75 md:backdrop-blur-xl md:backdrop-saturate-150"
         >
           <span className="absolute inset-x-0 top-0 h-px bg-white/[0.03]" />
         </motion.div>
-        {/* Läsframsteg: tunn grön linje längs underkanten. */}
-        <motion.div
-          aria-hidden
-          initial={false}
-          animate={{ opacity: scrolled ? 1 : 0 }}
-          transition={{ duration: 0.35, ease: EASE }}
-          style={{ scaleX: reduce ? scrollYProgress : smoothProgress }}
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-gradient-to-r from-brand via-emerald-300 to-emerald-500 shadow-[0_0_12px_1px] shadow-brand/50"
-        />
+        {wide && <ScrollProgress progress={scrollYProgress} visible={scrolled} reduce={Boolean(reduce)} />}
 
         <div className="relative px-4 sm:px-6">
-          <motion.div initial={false} animate={{ y: solid ? 0 : 8 }} transition={BAR_SPRING} className="mx-auto flex h-16 max-w-6xl items-center gap-3">
+          <motion.div initial={false} animate={{ y: solid ? 0 : 8 }} transition={BAR_SPRING} className="mx-auto flex h-16 max-w-6xl transform-gpu items-center gap-3">
             {/* Vänster: logga */}
             <motion.div {...enter(0.05)} className="flex flex-1 basis-0 items-center">
               <Link href="/" aria-label={`${BRAND.name} – startsidan`} className={cn("group/logo -m-1.5 flex items-center gap-2.5 rounded-xl p-1.5", FOCUS_RING)}>
