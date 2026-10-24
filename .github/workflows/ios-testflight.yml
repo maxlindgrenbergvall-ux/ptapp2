@@ -79,21 +79,19 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -version
-          # Signeras direkt för App Store (Apple Distribution) – ett utvecklarcertifikat
-          # skulle kräva en registrerad iPhone, och sådana finns inte på byggmaskinen.
+          # Arkivet byggs osignerat. Exportsteget signerar det för App Store (Apple
+          # Distribution) – arkivering med automatisk signering skulle kräva ett
+          # utvecklarcertifikat och en registrerad iPhone, som byggmaskinen saknar.
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             MARKETING_VERSION="${{ inputs.version || '1.0' }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             archive 2>&1 | tee "$RUNNER_TEMP/archive.log" || {
