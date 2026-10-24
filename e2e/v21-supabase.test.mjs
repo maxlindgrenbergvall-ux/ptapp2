@@ -136,6 +136,9 @@ check((await fetch(`${base}/api/revenuecat/sync`, { method: "POST" })).status ==
   check((await offer.locator("a[href='https://coavira.fit/terms']").count()) === 1 && (await offer.locator("a[href='https://coavira.fit/privacy']").count()) === 1,
     "iPhone: länkar till villkor (EULA) och integritetspolicy i köpvyn")
   check(await offer.locator("button:has-text('Återställ köp')").isVisible(), "iPhone: Återställ köp")
+  // App Store svarar inte (här: ingen riktig brygga) → tydligt besked i stället för grå knappar utan förklaring.
+  await offer.locator("[data-testid=store-unavailable]").waitFor({ timeout: 25_000 })
+  check(await offer.locator("[data-testid=store-plus-monthly]").isDisabled(), "iPhone: utan svar från App Store går det inte att köpa – och det förklaras")
   check((await p.locator("button:has-text('Skaffa Coavira Plus')").count()) === 0, "iPhone: ingen Stripe-knapp för Plus")
   await p.screenshot({ path: `${process.argv[2] ?? "e2e/screenshots"}/v21-ios-plus.png`, fullPage: true })
   const blocked = await p.request.post(`${base}/api/stripe/plus-checkout`)

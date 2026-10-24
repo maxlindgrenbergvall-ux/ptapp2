@@ -32,6 +32,27 @@ const FALLBACK_PLUS: StoreOption[] = [
   { id: PLUS_YEARLY, kind: "yearly", priceString: FALLBACK_PRICE[PLUS_YEARLY], title: "Coavira Plus" },
 ]
 const PERIOD = { monthly: "månad", yearly: "år", boost: "7 dagar" } as const
+/** Så länge väntar vi på App Store innan vi säger att produkterna inte går att hämta. */
+const LOAD_TIMEOUT_MS = 15_000
+
+type LoadState = "loading" | "ready" | "unavailable"
+
+/** Hämta från App Store med tidsgräns (ett plugin som aldrig svarar ska inte låsa vyn). */
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), LOAD_TIMEOUT_MS))])
+}
+
+/** Visas när App Store inte lämnar ut produkterna (t.ex. "Missing Metadata" eller inget aktivt avtal). */
+function Unavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <p className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground" role="status" data-testid="store-unavailable">
+      Köpet kan inte göras just nu – App Store svarar inte med priserna.{" "}
+      <button type="button" className="underline underline-offset-4" onClick={onRetry}>
+        Försök igen
+      </button>
+    </p>
+  )
+}
 
 function useStoreAction() {
   const { me, actions } = useAppData()
@@ -56,18 +77,23 @@ function useStoreAction() {
 export function StorePlusOffer({ isPlus, renews }: { isPlus: boolean; renews: boolean }) {
   const { me, pending, run, restore } = useStoreAction()
   const [options, setOptions] = React.useState<StoreOption[]>(FALLBACK_PLUS)
-  const [loaded, setLoaded] = React.useState(false)
+  const [state, setState] = React.useState<LoadState>("loading")
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
     let cancelled = false
-    loadPlusOptions(me.id)
-      .then((o) => !cancelled && o.length && setOptions(o))
-      .catch(() => {})
-      .finally(() => !cancelled && setLoaded(true))
+    withTimeout(loadPlusOptions(me.id))
+      .then((o) => {
+        if (cancelled) return
+        if (o.length) setOptions(o)
+        setState(o.length ? "ready" : "unavailable")
+      })
+      .catch(() => !cancelled && setState("unavailable"))
     return () => {
       cancelled = true
     }
-  }, [me.id])
+  }, [me.id, attempt])
+  const retry = () => (setState("loading"), setAttempt((n) => n + 1))
 
   return (
     <div className="space-y-3" data-testid="store-plus-offer">
@@ -83,18 +109,19 @@ export function StorePlusOffer({ isPlus, renews }: { isPlus: boolean; renews: bo
               size="lg"
               variant={o.kind === "yearly" ? "default" : "outline"}
               className="h-auto min-h-14 flex-col gap-0 py-2"
-              disabled={pending !== null || (!loaded && !o.pkg)}
+              disabled={pending !== null || !o.pkg}
               onClick={() => void run(o.id, () => buyOption(me.id, o), "Välkommen till Coavira Plus!")}
               data-testid={`store-plus-${o.kind}`}
             >
               <span className="flex items-center gap-2 font-semibold">
-                {pending === o.id ? <Loader2 className="animate-spin" /> : <Sparkles />} {o.priceString} / {PERIOD[o.kind]}
+                {pending === o.id || state === "loading" ? <Loader2 className="animate-spin" /> : <Sparkles />} {o.priceString} / {PERIOD[o.kind]}
               </span>
               <span className="text-xs font-normal opacity-80">{o.kind === "yearly" ? "Plus i ett år – lägsta priset" : "Plus varje månad"}</span>
             </Button>
           ))}
         </div>
       )}
+      {!renews && state === "unavailable" && <Unavailable onRetry={retry} />}
       <StoreFooter onRestore={restore} restoring={pending === "restore"}>
         {isPlus && renews
           ? "Din prenumeration förnyas automatiskt. Säg upp den senast 24 timmar före periodens slut under Hantera prenumeration."
@@ -107,28 +134,35 @@ export function StorePlusOffer({ isPlus, renews }: { isPlus: boolean; renews: bo
 export function StoreBoostOffer({ active, disabled }: { active: boolean; disabled?: boolean }) {
   const { me, pending, run, restore } = useStoreAction()
   const [option, setOption] = React.useState<StoreOption>({ id: BOOST_PRODUCT, kind: "boost", priceString: FALLBACK_PRICE[BOOST_PRODUCT], title: "PT Boost" })
-  const [loaded, setLoaded] = React.useState(false)
+  const [state, setState] = React.useState<LoadState>("loading")
+  const [attempt, setAttempt] = React.useState(0)
 
   React.useEffect(() => {
     let cancelled = false
-    loadBoostOption(me.id)
-      .then((o) => !cancelled && o && setOption(o))
-      .catch(() => {})
-      .finally(() => !cancelled && setLoaded(true))
+    withTimeout(loadBoostOption(me.id))
+      .then((o) => {
+        if (cancelled) return
+        if (o) setOption(o)
+        setState(o ? "ready" : "unavailable")
+      })
+      .catch(() => !cancelled && setState("unavailable"))
     return () => {
       cancelled = true
     }
-  }, [me.id])
+  }, [me.id, attempt])
+  const retry = () => (setState("loading"), setAttempt((n) => n + 1))
 
   return (
     <div className="space-y-3" data-testid="store-boost-offer">
       <Button
         className="w-full"
-        disabled={disabled || pending !== null || (!loaded && !option.product)}
+        disabled={disabled || pending !== null || !option.product}
         onClick={() => void run("boost", () => buyOption(me.id, option), "Din profil är boostad!")}
       >
-        {pending === "boost" ? <Loader2 className="animate-spin" /> : <Rocket />} {active ? "Förläng" : "Boosta i"} 7 dagar · {option.priceString}
+        {pending === "boost" || state === "loading" ? <Loader2 className="animate-spin" /> : <Rocket />} {active ? "Förläng" : "Boosta i"} 7 dagar ·{" "}
+        {option.priceString}
       </Button>
+      {state === "unavailable" && <Unavailable onRetry={retry} />}
       <StoreFooter onRestore={restore} restoring={pending === "restore"}>
         Engångsköp via App Store – förnyas inte automatiskt. En förlängning läggs efter din pågående boost.
       </StoreFooter>
