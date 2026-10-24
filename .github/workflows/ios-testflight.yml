@@ -77,7 +77,10 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          set -o pipefail
           xcodebuild -version
+          # Signeras direkt för App Store (Apple Distribution) – ett utvecklarcertifikat
+          # skulle kräva en registrerad iPhone, och sådana finns inte på byggmaskinen.
           xcodebuild \
             -project ios/App/App.xcodeproj \
             -scheme App \
@@ -90,9 +93,15 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             MARKETING_VERSION="${{ inputs.version || '1.0' }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            archive
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log" || {
+              # Felraderna som anteckningar på körningen (syns utan att öppna loggen).
+              grep -E "error:|error :|No profiles|provisioning profile|Signing|certificate|Cloud signing|not permitted|requires a development team" "$RUNNER_TEMP/archive.log" \
+                | sed 's/^[[:space:]]*//' | sort -u | head -25 | while IFS= read -r line; do echo "::error title=Arkivera::$line"; done
+              exit 1
+            }
 
       - name: Exportera och ladda upp till App Store Connect
         env:
@@ -112,6 +121,7 @@ jobs:
           </dict>
           </plist>
           PLIST
+          set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
@@ -119,7 +129,11 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/export.log" || {
+              grep -E "error|Error|ITMS-|failed|not permitted" "$RUNNER_TEMP/export.log" \
+                | sed 's/^[[:space:]]*//' | sort -u | head -25 | while IFS= read -r line; do echo "::error title=Ladda upp::$line"; done
+              exit 1
+            }
           echo "Uppladdad: version ${{ inputs.version || '1.0' }} (${{ github.run_number }}). Bygget syns i TestFlight efter Apples behandling (oftast 10–30 min)."
 
       - name: Städa nyckeln
