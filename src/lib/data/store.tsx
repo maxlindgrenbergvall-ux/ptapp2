@@ -43,6 +43,7 @@ import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { completeBlocker, verifyBlocker } from "@/lib/workout-rules"
 import { forgetPushToken } from "@/lib/native/push"
+import { logOutStore } from "@/lib/native/purchases"
 import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import type {
   AppData,
@@ -430,6 +431,22 @@ function createActions(ctx: {
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."
+      }
+    },
+    /**
+     * iPhone-appen, efter ett köp eller "Återställ köp" hos Apple: servern
+     * hämtar köpet från RevenueCat och uppdaterar Plus/Boost. Returnerar ett fel eller null.
+     */
+    syncStorePurchases: async (): Promise<string | null> => {
+      try {
+        const res = await fetch("/api/revenuecat/sync", { method: "POST" })
+        const body = (await res.json().catch(() => ({}))) as { error?: string; boostedUntil?: string | null }
+        if (!res.ok) return body.error ?? "Köpet kunde inte bekräftas just nu."
+        if (me.role === "trainer" && body.boostedUntil) ctx.dispatch({ type: "setTrainerBoost", trainerId: me.id, boostedUntil: body.boostedUntil })
+        await refreshAccount()
+        return null
+      } catch {
+        return "Ingen uppkoppling – köpet bekräftas när du är online igen."
       }
     },
     /** Klient, efter Stripe: är Plus betalt? */
@@ -1071,8 +1088,9 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
       return
     }
     engine.forget()
-    // Appen: enheten ska inte få fler push-notiser för kontot.
+    // Appen: enheten ska inte få fler push-notiser för kontot, och nästa konto får inte dess köp.
     await forgetPushToken().catch(() => {})
+    await logOutStore()
     await getSupabase().auth.signOut()
     window.location.replace("/logga-in")
   }, [engine])

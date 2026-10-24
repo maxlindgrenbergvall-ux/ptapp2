@@ -399,6 +399,9 @@ interface AccountRow {
   is_coavira_plus: boolean
   created_at?: string
   can_redeem?: boolean
+  /** v21 */
+  store_plus_renews?: boolean
+  store_plus_product?: string | null
 }
 interface ReferralRow {
   id: string
@@ -416,6 +419,8 @@ export const toAccount = (r: AccountRow): Account => ({
   plusLifetime: r.is_coavira_plus,
   createdAt: r.created_at,
   canRedeem: r.can_redeem ?? false,
+  storePlusRenews: r.store_plus_renews ?? false,
+  storePlusProduct: r.store_plus_product ?? undefined,
 })
 export const toReferral = (r: ReferralRow): Referral => ({
   id: r.id,

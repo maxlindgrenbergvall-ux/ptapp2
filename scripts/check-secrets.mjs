@@ -37,13 +37,15 @@ if (!fs.existsSync(staticDir)) {
   console.error("Hittar inte .next/static – bygg först (npm run build).")
   process.exit(2)
 }
-const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "FITBIT_CLIENT_SECRET", "STRAVA_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET"]
+const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_KEY", "REVENUECAT_WEBHOOK_SECRET", "FITBIT_CLIENT_SECRET", "STRAVA_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET"]
   .map((name) => ({ name, value: process.env[name]?.trim() }))
   .filter((v) => v.value && v.value.length >= 8)
 const patterns = [
   { name: "Stripe secret key", re: /\b[sr]k_(live|test)_[A-Za-z0-9]{10,}/ },
   { name: "Stripe webhook secret", re: /\bwhsec_[A-Za-z0-9]{10,}/ },
   { name: "Supabase secret key", re: /\bsb_secret_[A-Za-z0-9_-]{10,}/ },
+  // RevenueCats hemliga nycklar börjar med sk_ (den publika iOS-nyckeln appl_ får finnas i appen).
+  { name: "RevenueCat secret key", re: /\bsk_[A-Za-z0-9]{20,}/ },
 ]
 let files = 0
 const scan = (dir) =>

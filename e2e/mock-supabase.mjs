@@ -183,6 +183,12 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
   // v18: Plus och inbjudningar som från start, och Nova blir ny igen (ingen roll,
   // kan lösa in en kod) – så att v18-testet kan köras efter supabase-mode och om igen.
+  // v21: köp i appen ändrar Elins boost och Saras Plus – återställ för andra test.
+  if (url.pathname === "/__reset_v21") {
+    trainerRow.boosted_until = null
+    Object.assign(accounts[C1], { coavira_plus_until: null })
+    return send(200, {})
+  }
   if (url.pathname === "/__reset_v20") {
     users[RADERA.email] = RADERA
     byId[RADERA.id] = RADERA
@@ -304,6 +310,30 @@ http.createServer(async (req, res) => {
     }])
   }
   // ---- rest
+  // v21: köp i appen – servern (service role) läser rollen och skriver Plus/Boost från RevenueCat.
+  if (req.headers.authorization === `Bearer ${SERVICE_KEY}`) {
+    const rest = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
+    if (rest && !rest[1] && rest[2] === "profiles" && req.method === "GET") {
+      const id = (url.searchParams.get("id") ?? "").replace(/^eq\./, "")
+      const u = byId[id]
+      const row = u ? { role: u.app_metadata.role ?? null } : null
+      return (req.headers.accept ?? "").includes("vnd.pgrst.object") ? (row ? send(200, row) : send(406, { code: "PGRST116", message: "no rows" })) : send(200, row ? [row] : [])
+    }
+    if (rest?.[1] && ["apply_store_plus", "apply_store_boost", "revoke_store_boost"].includes(rest[2])) {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table: rest[2], body: p })
+      if (rest[2] === "apply_store_plus") {
+        if (accounts[p.p_user]) Object.assign(accounts[p.p_user], { coavira_plus_until: p.p_until })
+        return send(200, p.p_until)
+      }
+      if (rest[2] === "apply_store_boost") {
+        if (byId[p.p_user]?.app_metadata.role !== "trainer") return send(403, { code: "42501", message: "PT Boost gäller PT-konton" })
+        trainerRow.boosted_until = new Date(Date.now() + p.p_days * 86_400_000).toISOString()
+        return send(200, trainerRow.boosted_until)
+      }
+      return send(200, null)
+    }
+  }
   const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
   if (m) {
     if (!uid || !byId[uid]) return send(401, { code: "PGRST301", message: "JWT required" })

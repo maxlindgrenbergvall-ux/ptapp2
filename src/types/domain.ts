@@ -572,6 +572,10 @@ export interface Account {
   createdAt?: string
   /** Kan fortfarande lösa in en inbjudningskod (nytt konto, ingen kod använd). */
   canRedeem: boolean
+  /** Plus köpt i appen (App Store-prenumeration): förnyas den automatiskt? */
+  storePlusRenews?: boolean
+  /** Prenumerationens produkt, t.ex. coavira_plus_monthly. */
+  storePlusProduct?: string
 }
 
 export type ReferralType = "CLIENT_PLUS" | "PT_BOOST"

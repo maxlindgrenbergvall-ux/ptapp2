@@ -37,7 +37,8 @@ npm run dev                  # http://localhost:3000
    18. `supabase/migrations/20261031000000_v18_plus_referrals.sql`. Den lägger till Coavira Plus (`profiles.is_coavira_plus`, `coavira_plus_until`, `plus_plans`, `plus_purchases`), inbjudningskoder (`profiles.referral_code`) och inbjudningar (`referrals`, `redeem_referral`). Den döljer också andras kod och Plus-status med kolumnrättigheter på `profiles`.
    19. `supabase/migrations/20261101000000_v19_custom_exercises_pt_invites.sql`. Den lägger till egna övningar (`custom_exercises`), PT:ns koder till befintliga klienter (`pt_invites`, `create_pt_invite`, `redeem_pt_invite`), kundursprung på relationen (`coaching_relationships.acquisition_type`) och serviceavgiften 5 % / 10 % i `create_checkout`.
    20. `supabase/migrations/20261102000000_v20_launch_account_deletion.sql`. Den rättar kontoraderingen för konton som bjudit in någon (v18), avidentifierar omdömen och aviseringar när ett konto raderas och sparar när villkoren godkändes (`profiles.terms_accepted_at`).
-   21. `supabase/seed.sql`
+   21. `supabase/migrations/20261103000000_v21_store_purchases.sql`. Den lägger till köp i appen via App Store/RevenueCat (`profiles.store_plus_until`, `store_transactions`, `apply_store_plus`, `apply_store_boost`, `revoke_store_boost`) och sätter webbpriset för Coavira Plus till 49 kr / 30 dagar.
+   22. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -497,6 +498,42 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
    - Länk för kontoradering: `https://coavira.fit/support`. Användaren kan också radera i appen.
    - Hälsoappdeklarationen.
 
+## Nytt i v21: köp i iPhone-appen (App Store via RevenueCat)
+
+| Vad | Webben | iPhone-appen | Android-appen |
+|---|---|---|---|
+| PT-pass och kostcoaching | Stripe | Stripe | Stripe |
+| Coavira Plus | Stripe, 49 kr / 30 dagar | App Store-prenumeration, 49 kr/mån eller 499 kr/år | visas inte än (kräver Google Play Billing) |
+| PT Boost | Stripe, 199 kr / 7 dagar | App Store-engångsköp, 199 kr / 7 dagar | visas inte än |
+
+**Produkterna i App Store Connect och RevenueCat:**
+- `coavira_plus_monthly` och `coavira_plus_yearly`: prenumerationsgruppen "Coavira Plus", entitlement `plus` och offering `default`.
+- `coavira_pt_boost_7d`: icke-förnyande prenumeration.
+
+**Flödet:**
+1. Appen loggar in i RevenueCat med Supabase-id:t och köper hos Apple. Köpvyn i iPhone-appen innehåller det Apple kräver:
+   - pris från App Store
+   - att prenumerationen förnyas automatiskt och hur man säger upp
+   - länkar till villkor (EULA) och integritetspolicy
+   - *Återställ köp* och *Hantera prenumeration*
+2. Direkt efter köpet anropar appen `POST /api/revenuecat/sync`.
+3. RevenueCats webhook `POST /api/revenuecat/webhook` hanterar förnyelser, uppsägningar, byten och återbetalningar. Den skyddas av `REVENUECAT_WEBHOOK_SECRET` i Authorization-headern. Sandbox-köp från TestFlight och Apples granskning räknas också.
+4. Båda routes hämtar kundens köp från RevenueCat med `REVENUECAT_SECRET_KEY`, som bara finns på servern, och skriver resultatet med service role:
+   - **Plus från butiken** sparas för sig (`store_plus_until`) och skriver aldrig över Plus från inbjudningar eller webbköp.
+   - **Boost** räknas en gång per butikstransaktion (`store_transactions`).
+
+**Miljövariabler i Vercel** (bygg om efteråt):
+- `NEXT_PUBLIC_REVENUECAT_IOS_KEY` (`appl_…`, publik)
+- `REVENUECAT_SECRET_KEY` (`sk_…`)
+- `REVENUECAT_WEBHOOK_SECRET`
+
+**TestFlight utan Mac:** *Actions → "iOS → TestFlight" → Run workflow*.
+- Arbetsflödet arkiverar, signerar automatiskt med App Store Connect-nyckeln och laddar upp.
+- Hemligheter i GitHub: `ASC_KEY_ID`, `ASC_ISSUER_ID` och `ASC_KEY_P8`.
+- Team ID är `4MK2V6C8XZ`.
+- Byggnumret är körningens nummer.
+- Appen är iPhone-only i version 1.0.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -731,6 +768,8 @@ node e2e/v19-ovningar-ptkod.test.mjs # egna övningar (klient + PT), Bjud in exi
 node e2e/v19-supabase.test.mjs  # Supabase-läge: custom_exercises, create_pt_invite, redeem_pt_invite (Inställningar + välkomststeget), Stripe 5/10 %
 node e2e/v20-lansering.test.mjs # Radera mitt konto (klient/PT), obligatorisk bockruta, /privacy /terms, 404, inga digitala köp i iOS-appen
 node e2e/v20-supabase.test.mjs  # Supabase-läge: kontoradering via Auth admin-API + Storage, felvy när data inte kan laddas
+node e2e/mock-revenuecat.mjs &  # (krävs av v21) RevenueCats REST-API på :54600
+node e2e/v21-supabase.test.mjs  # Köp i appen: RevenueCat-webhook (Plus, Boost, återbetalning), synk, köpvyn i iPhone-appen
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

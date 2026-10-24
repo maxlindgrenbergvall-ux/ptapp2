@@ -23,7 +23,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { BRAND } from "@/lib/brand"
 import { useAppData } from "@/lib/data/store"
-import { useDigitalPurchasesAllowed } from "@/lib/native/use-digital-purchases"
+import { StorePlusOffer } from "@/components/plus/store-purchase"
+import { usePurchaseMode } from "@/lib/native/use-digital-purchases"
 import {
   isPlusActive,
   normalizeReferralCode,
@@ -317,7 +318,8 @@ export function PlusPage() {
   const { account, isPlus } = usePlus()
   const [pending, setPending] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
-  const canBuy = useDigitalPurchasesAllowed()
+  // Webben: Stripe. iPhone-appen: App Store-prenumeration. Android-appen: inte än.
+  const purchase = usePurchaseMode()
 
   // Tillbaka från Stripe: /klient/plus?plus=klar&session_id=cs_… eller ?plus=avbrutet.
   React.useEffect(() => {
@@ -401,8 +403,12 @@ export function PlusPage() {
               <Gift /> Bjud in en vän &amp; få 1 månad gratis
             </Link>
           </Button>
-          {/* iOS-appen: Plus säljs inte med Stripe (App Store 3.1.1) – inbjudan ger Plus gratis. */}
-          {canBuy && (
+          {purchase === "store" && (
+            <div className="sm:col-span-2">
+              <StorePlusOffer isPlus={isPlus} renews={Boolean(account?.storePlusRenews)} />
+            </div>
+          )}
+          {purchase === "stripe" && (
             <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending || confirming}>
               {pending || confirming ? <Loader2 className="animate-spin" /> : <Sparkles />} {isPlus ? "Förläng Coavira Plus" : "Skaffa Coavira Plus"}
             </Button>
@@ -433,7 +439,9 @@ export function PlusPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs text-muted-foreground">Plus förnyas inte automatiskt. Exporten av all din data (GDPR) är alltid gratis.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {purchase === "store" ? "Plus via App Store förnyas automatiskt tills du säger upp det." : "Plus förnyas inte automatiskt."} Exporten av all din data (GDPR) är alltid gratis.
+          </p>
         </div>
       </section>
     </div>

@@ -2,11 +2,11 @@
 
 import * as React from "react"
 
-import { digitalPurchasesAllowed } from "@/lib/native/app"
+import { purchaseMode, type PurchaseMode } from "@/lib/native/purchases"
 
 const noop = () => () => {}
 
-/** Se digitalPurchasesAllowed(). Servern renderar som webben (köp tillåtna). */
-export function useDigitalPurchasesAllowed() {
-  return React.useSyncExternalStore(noop, digitalPurchasesAllowed, () => true)
+/** Hur Plus och Boost köps här (se purchaseMode). Servern renderar som webben (Stripe). */
+export function usePurchaseMode(): PurchaseMode {
+  return React.useSyncExternalStore(noop, purchaseMode, () => "stripe")
 }

@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAppData } from "@/lib/data/store"
-import { useDigitalPurchasesAllowed } from "@/lib/native/use-digital-purchases"
+import { usePurchaseMode } from "@/lib/native/use-digital-purchases"
 import { isPlusActive, PLUS_FEATURE_LABEL, type PlusFeature } from "@/lib/plus"
 import { cn } from "@/lib/utils"
 
@@ -86,7 +86,7 @@ export function PlusBadge({ className }: { className?: string }) {
 export function UpgradeDialog({ open, onOpenChange, feature }: { open: boolean; onOpenChange: (open: boolean) => void; feature?: PlusFeature }) {
   const { mode, actions } = useAppData()
   const [pending, setPending] = React.useState(false)
-  const canBuy = useDigitalPurchasesAllowed()
+  const purchase = usePurchaseMode()
 
   const buy = async () => {
     setPending(true)
@@ -132,14 +132,22 @@ export function UpgradeDialog({ open, onOpenChange, feature }: { open: boolean; 
               <Gift /> Bjud in en vän &amp; få 1 månad gratis
             </Link>
           </Button>
-          {/* iOS-appen: Plus säljs inte med Stripe (App Store 3.1.1) – inbjudan ger Plus gratis. */}
-          {canBuy && (
+          {purchase === "stripe" && (
             <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending}>
               {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} Skaffa Coavira Plus
             </Button>
           )}
+          {/* iPhone-appen: köpvyn med App Store-prenumerationen (villkor, Återställ köp) finns på Plus-sidan. */}
+          {purchase === "store" && (
+            <Button asChild size="lg" variant="outline" onClick={() => onOpenChange(false)}>
+              <Link href="/klient/plus">
+                <Sparkles /> Skaffa Coavira Plus
+              </Link>
+            </Button>
+          )}
           <p className="text-center text-xs text-muted-foreground">
-            Dagens kostschema, bokning, dina pass och chatten är alltid gratis. Plus förnyas inte automatiskt.
+            Dagens kostschema, bokning, dina pass och chatten är alltid gratis.
+            {purchase === "store" ? " Plus via App Store förnyas automatiskt tills du säger upp det." : " Plus förnyas inte automatiskt."}
           </p>
         </div>
       </DialogContent>
