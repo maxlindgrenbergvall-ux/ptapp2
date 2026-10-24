@@ -81,5 +81,8 @@
 	<string>Coavira behöver åtkomst till dina bilder när du väljer profilbild eller skickar en bild i chatten.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- Bara standardkryptering (HTTPS/TLS): undantagen från exportdeklaration (slipper frågan vid varje uppladdning). -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

@@ -17,7 +17,10 @@ const FAQ = [
     a: `PT-konton skapas av ${BRAND.name} efter att dina certifikat granskats manuellt. Skicka en ansökan till ${BRAND.certificationEmail}.`,
   },
   { q: "Hur betalar jag?", a: "Med kort via Stripe, direkt i appen. Priset du ser är priset du betalar, och ett avbokat pass ger tillbaka passet." },
-  { q: "Hur raderar jag mitt konto och min data?", a: "I appen: tryck på Coavira-loggan → Min data och sekretess. Där kan du också ladda ned all din data." },
+  {
+    q: "Hur raderar jag mitt konto och min data?",
+    a: `I appen: tryck på Coavira-loggan → Inställningar → Radera mitt konto (finns också under Profilinställningar och Min data och sekretess). Kontot och all data raderas direkt. Har du inte tillgång till appen: mejla ${BRAND.supportEmail} från kontots e-postadress, så raderar vi kontot inom 30 dagar.`,
+  },
 ]
 
 /** Supportsidan (krävs av App Store och Google Play som "Support URL"). */

@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/brand"
 import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal"
 import { isSupabaseEnabled, PT_LOGIN_PATH, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
 
 const POINTS = [
@@ -75,9 +76,13 @@ export default function GetStarted() {
         )}
       </section>
       <footer className="pt-6 text-center text-xs text-muted-foreground">
-        <Link href="/integritet" className="underline-offset-4 hover:underline">
-          Integritet och hälsodata
-        </Link>
+        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:underline">
+          Integritetspolicy
+        </a>{" "}
+        ·{" "}
+        <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:underline">
+          Användarvillkor
+        </a>
       </footer>
     </main>
   )

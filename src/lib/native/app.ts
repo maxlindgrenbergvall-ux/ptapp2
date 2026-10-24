@@ -71,3 +71,16 @@ export function appUrlToPath(url: string, origin: string): string | null {
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return null
   return `${path}${u.search}`
 }
+
+/**
+ * Får digitala tjänster (Coavira Plus, PT Boost) köpas med Stripe här?
+ *
+ * Apple (App Review Guidelines 3.1.1) kräver Apples köpsystem för digitalt
+ * innehåll och digitala tjänster i iOS-appar. PT-pass och kostcoaching är
+ * tjänster som utförs av en person och får betalas med Stripe även i appen
+ * (3.1.3(e)). Därför visas köp av Plus och Boost inte i iOS-appen – på webben
+ * och i Android-appen fungerar de som vanligt.
+ */
+export function digitalPurchasesAllowed(): boolean {
+  return nativePlatform() !== "ios"
+}

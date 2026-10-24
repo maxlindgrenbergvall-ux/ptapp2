@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { BRAND } from "@/lib/brand"
 import { useAppData } from "@/lib/data/store"
+import { useDigitalPurchasesAllowed } from "@/lib/native/use-digital-purchases"
 import {
   isPlusActive,
   normalizeReferralCode,
@@ -316,6 +317,7 @@ export function PlusPage() {
   const { account, isPlus } = usePlus()
   const [pending, setPending] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
+  const canBuy = useDigitalPurchasesAllowed()
 
   // Tillbaka från Stripe: /klient/plus?plus=klar&session_id=cs_… eller ?plus=avbrutet.
   React.useEffect(() => {
@@ -399,9 +401,12 @@ export function PlusPage() {
               <Gift /> Bjud in en vän &amp; få 1 månad gratis
             </Link>
           </Button>
-          <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending || confirming}>
-            {pending || confirming ? <Loader2 className="animate-spin" /> : <Sparkles />} {isPlus ? "Förläng Coavira Plus" : "Skaffa Coavira Plus"}
-          </Button>
+          {/* iOS-appen: Plus säljs inte med Stripe (App Store 3.1.1) – inbjudan ger Plus gratis. */}
+          {canBuy && (
+            <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending || confirming}>
+              {pending || confirming ? <Loader2 className="animate-spin" /> : <Sparkles />} {isPlus ? "Förläng Coavira Plus" : "Skaffa Coavira Plus"}
+            </Button>
+          )}
         </CardContent>
       </Card>
 

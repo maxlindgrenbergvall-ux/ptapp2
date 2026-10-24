@@ -13,6 +13,11 @@ const LAUNCH_KEY = "coavira:launch-url-handled"
  *    Inloggning med Apple/Google kommer tillbaka hit med en engångskod som
  *    växlas mot en session på /auth/callback, i appens egen WebView.
  *  - Tryck på en push-notis öppnar sidan notisen gäller.
+ *  - Externa länkar (integritetspolicy, villkor, support, videor …) öppnas i
+ *    appens inbyggda webbläsare (SFSafariViewController / Custom Tabs), så att
+ *    appen och inloggningen ligger kvar under. Stripe Checkout öppnas däremot i
+ *    appens WebView (allowNavigation i capacitor.config.ts) och kommer tillbaka
+ *    till appen efter betalningen – samma session hela vägen.
  */
 export function NativeBridge() {
   React.useEffect(() => {
@@ -37,6 +42,15 @@ export function NativeBridge() {
       }
       const sub = await App.addListener("appUrlOpen", ({ url }) => void open(url))
       removers.push(() => void sub.remove())
+
+      const onClick = (e: MouseEvent) => {
+        const url = externalLink(e)
+        if (!url) return
+        e.preventDefault()
+        void Browser.open({ url, presentationStyle: "popover" })
+      }
+      document.addEventListener("click", onClick, true)
+      removers.push(() => document.removeEventListener("click", onClick, true))
       // Appen startades från en länk (kall start). Hanteras bara en gång – sidan
       // laddas om efter navigeringen och getLaunchUrl() ger då samma adress igen.
       const launch = await App.getLaunchUrl()
@@ -46,7 +60,9 @@ export function NativeBridge() {
       }
       if (cancelled) return
       removers.push(await handlePushTap())
-    })()
+    })().catch(() => {
+      // Ett plugin som saknas i den här app-versionen ska aldrig krascha webbappen.
+    })
 
     return () => {
       cancelled = true
@@ -54,6 +70,25 @@ export function NativeBridge() {
     }
   }, [])
   return null
+}
+
+/** Betalningen ska stanna i appens WebView (se capacitor.config.ts). */
+const IN_APP_HOSTS = /(^|\.)stripe\.com$/
+
+/** Adressen om klicket gäller en extern http(s)-länk, annars null (mailto:, tel:, interna länkar …). */
+function externalLink(e: MouseEvent): string | null {
+  if (e.defaultPrevented || e.button !== 0) return null
+  const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null
+  if (!a || a.hasAttribute("download")) return null
+  let url: URL
+  try {
+    url = new URL(a.href, window.location.href)
+  } catch {
+    return null
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null
+  if (url.origin === window.location.origin || IN_APP_HOSTS.test(url.hostname)) return null
+  return url.href
 }
 
 function readHandled() {

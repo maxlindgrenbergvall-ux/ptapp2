@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { boostSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
+import { isIosAppUserAgent } from "@/lib/site"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface BoostRpc {
@@ -20,6 +21,8 @@ interface BoostRpc {
  *     fram trainers.boosted_until med 7 dagar.
  */
 export async function POST(request: NextRequest) {
+  // Digitala tjänster säljs inte med Stripe i iOS-appen (App Store 3.1.1) – knappen visas inte heller där.
+  if (isIosAppUserAgent(request.headers.get("user-agent"))) return NextResponse.json({ error: "PT Boost kan inte köpas i iOS-appen." }, { status: 403 })
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ error: "Logga in för att köpa boost." }, { status: 401 })

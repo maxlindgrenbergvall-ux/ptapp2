@@ -4,7 +4,9 @@ import { BellRing, ChevronRight, LogOut, Palette, RotateCcw } from "lucide-react
 import Link from "next/link"
 
 import { appMenuLinks } from "@/components/app-menu"
+import { LegalLinksCard } from "@/components/legal-links"
 import { PushSettingsCard } from "@/components/native/push-settings"
+import { DeleteAccountCard } from "@/components/settings/delete-account"
 import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -79,6 +81,8 @@ export function SettingsPage() {
         </CardHeader>
       </Card>
 
+      <LegalLinksCard />
+
       {mode === "demo" ? (
         <Button variant="outline" onClick={actions.resetDemo}>
           <RotateCcw /> Återställ demodatan
@@ -88,6 +92,8 @@ export function SettingsPage() {
           <LogOut /> Logga ut
         </Button>
       )}
+
+      <DeleteAccountCard />
     </div>
   )
 }

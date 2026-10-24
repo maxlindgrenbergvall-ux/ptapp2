@@ -64,6 +64,13 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_SITE_URL: siteUrl,
     NEXT_PUBLIC_APP_URL: appUrl,
   },
+  // App Store, Google Play och appen länkar till coavira.fit/privacy och /terms.
+  async redirects() {
+    return [
+      { source: "/privacy", destination: "/integritet", permanent: true },
+      { source: "/terms", destination: "/villkor", permanent: true },
+    ];
+  },
   // Appens domän ska inte synas i sökmotorer – den publika sidan är coavira.fit.
   async headers() {
     if (new URL(appUrl).host === new URL(siteUrl).host) return [];

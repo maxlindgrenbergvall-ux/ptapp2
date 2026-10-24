@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BOOST_DAYS, BOOST_PRICE_SEK, boostDaysLeft, isBoosted } from "@/lib/boost"
 import { useAppData } from "@/lib/data/store"
+import { useDigitalPurchasesAllowed } from "@/lib/native/use-digital-purchases"
 import { formatSek } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +40,7 @@ export function BoostCard() {
   const trainer = data.trainers.find((t) => t.id === me.id)
   const [pending, setPending] = React.useState(false)
   const [confirming, setConfirming] = React.useState(false)
+  const canBuy = useDigitalPurchasesAllowed()
 
   // Tillbaka från Stripe: /pt/profil?boost=klar&session_id=cs_… eller ?boost=avbrutet.
   React.useEffect(() => {
@@ -121,6 +123,8 @@ export function BoostCard() {
           )}
         </ul>
         {!trainer.isPublished && <p className="text-sm text-muted-foreground">Publicera din profil först – boosten gäller profilen i PT-sökningen.</p>}
+        {/* iOS-appen: digitala tjänster säljs inte med Stripe (App Store 3.1.1). */}
+        {canBuy && (
         <Button className="w-full" onClick={() => void buy()} disabled={pending || confirming || !trainer.isPublished}>
           {pending || confirming ? <Loader2 className="animate-spin" /> : <Rocket />}
           {confirming
@@ -129,10 +133,13 @@ export function BoostCard() {
               ? `Förläng ${BOOST_DAYS} dagar · ${formatSek(BOOST_PRICE_SEK)}`
               : `Boosta i ${BOOST_DAYS} dagar · ${formatSek(BOOST_PRICE_SEK)}`}
         </Button>
+        )}
         <p className="text-xs text-muted-foreground">
-          {mode === "demo"
-            ? "Demoläge: betalningen simuleras."
-            : "Du betalar med kort via Stripe. En förlängning läggs efter din pågående boost."}{" "}
+          {!canBuy
+            ? "PT Boost kan inte köpas i iOS-appen."
+            : mode === "demo"
+              ? "Demoläge: betalningen simuleras."
+              : "Du betalar med kort via Stripe. En förlängning läggs efter din pågående boost."}{" "}
           Klienterna ser att utvalda PT:er är en betald placering.
         </p>
       </CardContent>

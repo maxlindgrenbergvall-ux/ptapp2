@@ -32,8 +32,11 @@ export const START_PATH = "/kom-igang"
 /** Coavira-appen (iOS/Android) lägger till "CoaviraApp" i user agent. */
 export const isAppUserAgent = (ua: string | null | undefined) => /\bCoaviraApp\b/.test(ua ?? "")
 
+/** Coavira-appen på iPhone/iPad: digitala tjänster säljs inte med Stripe där (App Store 3.1.1). */
+export const isIosAppUserAgent = (ua: string | null | undefined) => isAppUserAgent(ua) && /\b(iPhone|iPad|iPod)\b/.test(ua ?? "")
+
 /** Sidor som hör till landningsdomänen. Allt annat (inloggning, /klient, /pt …) är appen. */
-const LANDING_PAGES = ["/", "/support", "/integritet", "/villkor"]
+const LANDING_PAGES = ["/", "/support", "/integritet", "/villkor", "/privacy", "/terms"]
 /**
  * Fungerar på båda domänerna utan omdirigering:
  *  - /api/* (Stripe-webhooks och kalenderprenumerationer följer inte omdirigeringar),

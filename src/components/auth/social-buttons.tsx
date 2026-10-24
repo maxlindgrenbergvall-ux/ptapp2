@@ -27,7 +27,16 @@ export type SocialProvider = "apple" | "google"
  * (se NativeBridge). PKCE-nyckeln ligger kvar i appens WebView, så koden byts
  * mot en session där.
  */
-export function SocialButtons({ next, onError }: { next?: string; onError?: (message: string) => void }) {
+export function SocialButtons({
+  next,
+  onError,
+  disabled = false,
+}: {
+  next?: string
+  onError?: (message: string) => void
+  /** T.ex. tills villkoren godkänts vid registreringen. */
+  disabled?: boolean
+}) {
   const router = useRouter()
   const [pending, setPending] = React.useState<SocialProvider | null>(null)
 
@@ -76,7 +85,7 @@ export function SocialButtons({ next, onError }: { next?: string; onError?: (mes
       <Button
         type="button"
         size="lg"
-        disabled={pending !== null}
+        disabled={disabled || pending !== null}
         onClick={() => void start("apple")}
         // Apples riktlinjer: svart knapp i ljust läge, vit i mörkt.
         className="h-12 bg-black text-base text-white hover:bg-black/85 dark:bg-white dark:text-black dark:hover:bg-white/85"
@@ -88,7 +97,7 @@ export function SocialButtons({ next, onError }: { next?: string; onError?: (mes
         type="button"
         size="lg"
         variant="outline"
-        disabled={pending !== null}
+        disabled={disabled || pending !== null}
         onClick={() => void start("google")}
         className="h-12 bg-background text-base"
       >

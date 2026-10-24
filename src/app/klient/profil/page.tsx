@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { ClientProfileSettings } from "@/components/settings/client-profile"
+import { DeleteAccountCard } from "@/components/settings/delete-account"
 import { SettingsHeader } from "@/components/settings/settings-page"
 
 export const metadata: Metadata = { title: "Profilinställningar" }
@@ -12,6 +13,9 @@ export default function Page() {
         <SettingsHeader title="Profilinställningar" description="Dina uppgifter, intressen och mål – och dina PT:er." />
       </div>
       <ClientProfileSettings />
+      <div className="mx-auto max-w-2xl">
+        <DeleteAccountCard />
+      </div>
     </div>
   )
 }

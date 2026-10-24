@@ -8,6 +8,8 @@ import { toast } from "sonner"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { ConsentCheckbox } from "@/components/legal-links"
+import { PRIVACY_URL, TERMS_URL } from "@/lib/legal"
 import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,6 +41,9 @@ export function SignupForm() {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [sentTo, setSentTo] = React.useState<string | null>(null)
+  // Obligatorisk: användarvillkoren och behandlingen av hälsouppgifter.
+  const [consent, setConsent] = React.useState(false)
+  const [consentMissing, setConsentMissing] = React.useState(false)
 
   if (sentTo) {
     return (
@@ -61,6 +66,10 @@ export function SignupForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (!consent) {
+      setConsentMissing(true)
+      return setError("Du behöver godkänna användarvillkoren och behandlingen av dina hälsouppgifter för att skapa ett konto.")
+    }
     const normalized = normalizePhone(phone)
     if (!normalized) return setError("Ange ett giltigt telefonnummer, t.ex. 070-123 45 67.")
     if (password.length < MIN_PASSWORD) return setError(`Lösenordet måste vara minst ${MIN_PASSWORD} tecken.`)
@@ -77,8 +86,9 @@ export function SignupForm() {
       password,
       options: {
         emailRedirectTo: authCallbackUrl(DASHBOARD_PATH),
-        // Läses av databastriggern handle_new_user() som skapar profilen.
-        data: { phone: normalized },
+        // Läses av databastriggern handle_new_user() som skapar profilen. Samtycket
+        // sparas i databasen i välkomststeget (complete_onboarding), där rutan är förifylld.
+        data: { phone: normalized, terms_consent_at: new Date().toISOString() },
       },
     })
     setPending(false)
@@ -104,7 +114,16 @@ export function SignupForm() {
       }
     >
       <ReferralBanner />
-      <SocialButtons onError={setError} />
+      <ConsentCheckbox
+        id="signup-consent"
+        checked={consent}
+        invalid={consentMissing && !consent}
+        onCheckedChange={(v) => {
+          setConsent(v)
+          setConsentMissing(false)
+        }}
+      />
+      <SocialButtons onError={setError} disabled={!consent} />
       <OrDivider />
       <form onSubmit={submit} className="space-y-4" noValidate>
         <FormError message={error} />
@@ -168,11 +187,13 @@ export function SignupForm() {
           {pending ? "Skapar konto…" : "Registrera dig"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Genom att registrera dig godkänner du att vi behandlar dina uppgifter enligt vår{" "}
-          <Link href="/integritet" className="underline underline-offset-4">
-            integritetspolicy
-          </Link>
-          .
+          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+            Integritetspolicy
+          </a>{" "}
+          ·{" "}
+          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+            Användarvillkor
+          </a>
         </p>
       </form>
     </AuthCard>

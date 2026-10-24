@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { plusSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
+import { isIosAppUserAgent } from "@/lib/site"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface PlusRpc {
@@ -19,6 +20,8 @@ interface PlusRpc {
  *  3. Webhooken (checkout.session.completed) förlänger coavira_plus_until.
  */
 export async function POST(request: NextRequest) {
+  // Digitala tjänster säljs inte med Stripe i iOS-appen (App Store 3.1.1) – knappen visas inte heller där.
+  if (isIosAppUserAgent(request.headers.get("user-agent"))) return NextResponse.json({ error: "Coavira Plus kan inte köpas i iOS-appen." }, { status: 403 })
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ error: "Logga in för att skaffa Coavira Plus." }, { status: 401 })

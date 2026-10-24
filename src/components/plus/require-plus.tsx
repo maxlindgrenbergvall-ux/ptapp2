@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useAppData } from "@/lib/data/store"
+import { useDigitalPurchasesAllowed } from "@/lib/native/use-digital-purchases"
 import { isPlusActive, PLUS_FEATURE_LABEL, type PlusFeature } from "@/lib/plus"
 import { cn } from "@/lib/utils"
 
@@ -85,6 +86,7 @@ export function PlusBadge({ className }: { className?: string }) {
 export function UpgradeDialog({ open, onOpenChange, feature }: { open: boolean; onOpenChange: (open: boolean) => void; feature?: PlusFeature }) {
   const { mode, actions } = useAppData()
   const [pending, setPending] = React.useState(false)
+  const canBuy = useDigitalPurchasesAllowed()
 
   const buy = async () => {
     setPending(true)
@@ -130,9 +132,12 @@ export function UpgradeDialog({ open, onOpenChange, feature }: { open: boolean; 
               <Gift /> Bjud in en vän &amp; få 1 månad gratis
             </Link>
           </Button>
-          <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending}>
-            {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} Skaffa Coavira Plus
-          </Button>
+          {/* iOS-appen: Plus säljs inte med Stripe (App Store 3.1.1) – inbjudan ger Plus gratis. */}
+          {canBuy && (
+            <Button size="lg" variant="outline" onClick={() => void buy()} disabled={pending}>
+              {pending ? <Loader2 className="animate-spin" /> : <Sparkles />} Skaffa Coavira Plus
+            </Button>
+          )}
           <p className="text-center text-xs text-muted-foreground">
             Dagens kostschema, bokning, dina pass och chatten är alltid gratis. Plus förnyas inte automatiskt.
           </p>

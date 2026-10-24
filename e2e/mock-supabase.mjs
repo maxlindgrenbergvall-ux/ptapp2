@@ -19,7 +19,12 @@ const users = {
   "pt-google@test.se": { id: "11111111-0000-4000-8000-000000000009", email: "pt-google@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "PT Google" }, app_metadata: { role: "trainer" }, amr: [{ method: "oauth", timestamp: 1 }] },
   // v7: försökte registrera sig som PT via user_metadata – räknas inte.
   "fejk@test.se": { id: "77777777-0000-4000-8000-000000000002", email: "fejk@test.se", password: "hemligt123", user_metadata: { role: "trainer", name: "Fejk" }, app_metadata: {} },
+  // v20: klient som raderar sitt konto (Auth admin-API:t och Storage) och ett konto vars data inte går att ladda.
+  "radera@test.se": { id: "22222222-0000-4000-8000-00000000dead", email: "radera@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Rut Radera" }, app_metadata: { role: "client" } },
+  "trasig@test.se": { id: "22222222-0000-4000-8000-00000000beef", email: "trasig@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Trasig Data" }, app_metadata: { role: "client" } },
 }
+const RADERA = users["radera@test.se"]
+const TRASIG = "22222222-0000-4000-8000-00000000beef"
 const byId = Object.fromEntries(Object.values(users).map((u) => [u.id, u]))
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url")
@@ -178,6 +183,11 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
   // v18: Plus och inbjudningar som från start, och Nova blir ny igen (ingen roll,
   // kan lösa in en kod) – så att v18-testet kan köras efter supabase-mode och om igen.
+  if (url.pathname === "/__reset_v20") {
+    users[RADERA.email] = RADERA
+    byId[RADERA.id] = RADERA
+    return send(200, {})
+  }
   if (url.pathname === "/__reset_v18") {
     Object.assign(accounts[C1], { coavira_plus_until: null })
     plusRows[0].status = "pending"
@@ -206,6 +216,34 @@ http.createServer(async (req, res) => {
   const auth = req.headers.authorization?.split(" ")[1]
   let uid = null
   try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
+  // v20: kontoradering – servern (service role) listar och tar bort filer och raderar användaren.
+  if (url.pathname.startsWith("/storage/v1/object/list/")) {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(403, { message: "permission denied" })
+    const bucket = url.pathname.split("/").pop()
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "POST", table: `storage.list.${bucket}`, body: p })
+    // Profilbilden ligger i en fil, chattbilagorna i en undermapp per meddelande.
+    if (bucket === "avatars" && p.prefix === RADERA.id) return send(200, [{ name: "profil.jpg", id: "f1" }])
+    if (bucket === "chat-attachments" && p.prefix === RADERA.id) return send(200, [{ name: "msg-1", id: null }])
+    if (bucket === "chat-attachments" && p.prefix === `${RADERA.id}/msg-1`) return send(200, [{ name: "bild.png", id: "f2" }])
+    return send(200, [])
+  }
+  if (url.pathname.startsWith("/storage/v1/object/") && req.method === "DELETE") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(403, { message: "permission denied" })
+    const p = JSON.parse(body || "{}")
+    log.push({ method: "DELETE", table: `storage.remove.${url.pathname.split("/").pop()}`, body: p })
+    return send(200, (p.prefixes ?? []).map((name) => ({ name })))
+  }
+  if (url.pathname.startsWith("/auth/v1/admin/users/") && req.method === "DELETE") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(403, { msg: "not admin" })
+    const id = url.pathname.split("/").pop()
+    log.push({ method: "DELETE", table: "auth.admin.deleteUser", body: { id } })
+    const u = byId[id]
+    if (!u) return send(404, { msg: "User not found" })
+    delete byId[id]
+    delete users[u.email]
+    return send(200, {})
+  }
   if (url.pathname === "/auth/v1/user") return uid && byId[uid] ? send(200, userJson(byId[uid])) : send(401, { msg: "invalid JWT" })
   if (url.pathname === "/auth/v1/logout") return send(204)
   // v11: bekräftelselänk med token_hash (/auth/confirm → verifyOtp).
@@ -347,6 +385,8 @@ http.createServer(async (req, res) => {
       return send(200, { purchase_id: PLUS, user_id: uid, price_sek: 49, days: 30 })
     }
     if (m[1] && table in rpc) { log.push({ method: "RPC", table, body: body ? JSON.parse(body) : null }); return send(200, rpc[table]) }
+    // v20: ett konto vars data inte går att läsa – appen ska visa ett felmeddelande, inte en blank sida.
+    if (uid === TRASIG && table === "profiles") return send(403, { code: "42501", message: "permission denied for table profiles" })
     if (req.method === "GET") {
       const rows = fixtures(uid, table)
       if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) return send(200, rows[0])

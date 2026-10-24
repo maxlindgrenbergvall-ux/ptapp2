@@ -36,7 +36,8 @@ npm run dev                  # http://localhost:3000
    17. `supabase/migrations/20261030000000_v17_quantity_service_fee.sql`. Den lägger till antal enstaka pass (varukorg och köp), serviceavgiften 7 % (`checkout_fees`, `service_fee_sek`) och härdar RLS-hjälpfunktionerna inför öppen registrering.
    18. `supabase/migrations/20261031000000_v18_plus_referrals.sql`. Den lägger till Coavira Plus (`profiles.is_coavira_plus`, `coavira_plus_until`, `plus_plans`, `plus_purchases`), inbjudningskoder (`profiles.referral_code`) och inbjudningar (`referrals`, `redeem_referral`). Den döljer också andras kod och Plus-status med kolumnrättigheter på `profiles`.
    19. `supabase/migrations/20261101000000_v19_custom_exercises_pt_invites.sql`. Den lägger till egna övningar (`custom_exercises`), PT:ns koder till befintliga klienter (`pt_invites`, `create_pt_invite`, `redeem_pt_invite`), kundursprung på relationen (`coaching_relationships.acquisition_type`) och serviceavgiften 5 % / 10 % i `create_checkout`.
-   20. `supabase/seed.sql`
+   20. `supabase/migrations/20261102000000_v20_launch_account_deletion.sql`. Den rättar kontoraderingen för konton som bjudit in någon (v18), avidentifierar omdömen och aviseringar när ett konto raderas och sparar när villkoren godkändes (`profiles.terms_accepted_at`).
+   21. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -451,6 +452,51 @@ Avgiften räknas på deltotalen och avrundas till hela kronor. Den sparas i `che
 
 Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10 %)* före Stripe Checkout, och för befintliga klienter raden "Befintlig klient: 5 % i stället för 10 %". Samma regel finns i `src/lib/payments/fees.ts` och kontrolleras igen innan Stripe-sessionen skapas.
 
+## Nytt i v20: lansering i App Store och Google Play
+
+**Kontoradering (Apple 5.1.1(v), Google Play, GDPR art. 17).** *Radera mitt konto* finns i *Inställningar*, i *Profilinställningar* och under *Min data och sekretess*, för både klienter och PT:er. Användaren bekräftar genom att skriva RADERA. Sedan sker detta:
+1. `POST /api/account/delete` identifierar användaren med sessionen, aldrig med ett id från webbläsaren.
+2. Servern tar bort användarens filer i Storage: profilbild, chattbilagor och övningsvideor.
+3. Kontot raderas med Supabase Auth admin-API:t (`auth.admin.deleteUser`). Det kräver `SUPABASE_SERVICE_ROLE_KEY`, som bara finns på servern.
+4. Databasen raderar resten via `on delete cascade`.
+   - Det andra behåller avidentifieras: omdömen visas som "Tidigare klient" och aviseringar som "Raderat konto".
+   - Utan service role används `delete_my_account()`. Det raderar samma data, men filerna ligger kvar.
+- **Fel som rättats:** sedan v18 gick det inte att radera ett konto som hade bjudit in en vän. `rls_v20.test.sql` raderar nu konton av alla slag: klient med köp och varukorg, befintlig klient med egna övningar, PT med tjänster, koder och boost, samt inbjudare.
+
+**Samtycke och villkor:**
+- Registreringen och välkomststeget har en obligatorisk bockruta: "Jag godkänner användarvillkoren och behandlingen av mina hälsouppgifter för träningsuppföljning i enlighet med Integritetspolicyn."
+- Apple och Google på registreringssidan är låsta tills rutan är ikryssad.
+- Välkomststeget gäller alla inloggningssätt. Där sparas `health_data_consent_at` och `terms_accepted_at`.
+- Länkar till `https://coavira.fit/privacy` och `https://coavira.fit/terms` finns i registreringen, på Kom igång och under Inställningar. Adresserna leder till `/integritet` och `/villkor`. Använd dem i App Store Connect och Google Play Console.
+
+**Fel och nätverk:**
+- `error.tsx` (rot, klient, PT), `global-error.tsx` och `not-found.tsx` visar ett tydligt felmeddelande i stället för en blank sida.
+- Utan uppkoppling visar felvyn "Ingen uppkoppling" och försöker igen automatiskt när nätet är tillbaka. Datalagret hade redan offlinekö och cache.
+
+**Köp i iOS-appen (App Store 3.1.1):**
+- Coavira Plus och PT Boost är digitala tjänster. De säljs inte med Stripe i iOS-appen: knapparna visas inte, och servern nekar köpen.
+- Plus via inbjudan fungerar som vanligt.
+- PT-pass och kostcoaching utförs av en person och betalas med Stripe även i iOS-appen (3.1.3(e)).
+- På webben och i Android-appen fungerar alla köp som förut.
+
+**Native:**
+- Externa länkar öppnas i appens inbyggda webbläsare (SFSafariViewController / Custom Tabs).
+- Stripe Checkout öppnas i appens WebView och kommer tillbaka till appen med samma session.
+- iOS har fått `ITSAppUsesNonExemptEncryption = false` och integritetsmanifestet `PrivacyInfo.xcprivacy` (ingen spårning).
+
+**Checklista före inlämning:**
+1. Kör migrationerna 18–20 i Supabase.
+2. Kontrollera *Redirect URLs* i Supabase (se ovan): `com.coavira.app://**` måste finnas.
+3. Sätt `SUPABASE_SERVICE_ROLE_KEY` i Vercel, annars ligger filer kvar efter kontoradering. Sätt `APPLE_TEAM_ID` för Universal Links.
+4. App Store Connect:
+   - *App Privacy* ska stämma med `PrivacyInfo.xcprivacy`: hälsa och träning, namn, e-post, telefon, foton, innehåll och köphistorik, kopplat till kontot och ingen spårning.
+   - Ange länkarna till integritetspolicyn och villkoren.
+   - Ange ett demokonto för granskningen (klient och PT).
+5. Google Play Console:
+   - *Data safety* motsvarande.
+   - Länk för kontoradering: `https://coavira.fit/support`. Användaren kan också radera i appen.
+   - Hälsoappdeklarationen.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -683,6 +729,8 @@ node e2e/v18-plus-referral.test.mjs # Plus-lås, uppgraderingsrutan, inbjudnings
 node e2e/v18-supabase.test.mjs  # Supabase-läge: my_account, referrals, inlösen i välkomststeget, Plus via Stripe, webhook
 node e2e/v19-ovningar-ptkod.test.mjs # egna övningar (klient + PT), Bjud in existerande klient, kod i Inställningar, avgift 5/10 %
 node e2e/v19-supabase.test.mjs  # Supabase-läge: custom_exercises, create_pt_invite, redeem_pt_invite (Inställningar + välkomststeget), Stripe 5/10 %
+node e2e/v20-lansering.test.mjs # Radera mitt konto (klient/PT), obligatorisk bockruta, /privacy /terms, 404, inga digitala köp i iOS-appen
+node e2e/v20-supabase.test.mjs  # Supabase-läge: kontoradering via Auth admin-API + Storage, felvy när data inte kan laddas
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

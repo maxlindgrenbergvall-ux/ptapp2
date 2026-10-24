@@ -274,6 +274,7 @@ check(await fresh.locator("text=Fortsätt med Apple").isVisible() && await fresh
 check((await fresh.locator("text=Jag är PT").count()) === 0, "startsidan har inget PT/klient-val")
 await fresh.click("text=Registrera dig")
 await fresh.fill("#email", "demo@test.se"); await fresh.fill("#phone", "0701234567"); await fresh.fill("#password", "hemligt123")
+await fresh.click("#signup-consent") // v20: obligatorisk bockruta för villkor och hälsouppgifter
 await fresh.click('button[type=submit]')
 await fresh.waitForURL(base + "/valkommen")
 check((await fresh.locator("text=Jag är PT >> visible=true").count()) === 0, "välkomststeget har inget PT-val (v7)")

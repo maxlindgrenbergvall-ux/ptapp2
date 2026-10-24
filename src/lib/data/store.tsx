@@ -15,6 +15,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { BrandMark } from "@/components/brand"
+import { ErrorFallback } from "@/components/error-fallback"
 import { extendBoost } from "@/lib/boost"
 import { BRAND } from "@/lib/brand"
 import { MAX_CART_ITEMS } from "@/lib/cart"
@@ -73,6 +74,7 @@ import type {
   WorkoutTemplate,
 } from "@/types/domain"
 import { START_PATH } from "@/lib/site"
+import { DELETE_CONFIRM_WORD } from "@/lib/account"
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "error"
 export interface SyncState {
@@ -856,8 +858,10 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
             signOut: async () => {
               window.location.replace(START_PATH)
             },
+            // Demoläget har inga riktiga konton: demodatan börjar om, som efter en radering.
             deleteAccount: async () => {
-              toast.info("Kontoradering finns bara när Supabase är kopplat.")
+              window.localStorage.removeItem(DEMO_KEY)
+              window.location.replace("/konto-raderat")
             },
           }
         : null,
@@ -1074,13 +1078,26 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
   }, [engine])
 
   const deleteAccount = React.useCallback(async () => {
-    const { error: rpcError } = await getSupabase().rpc("delete_my_account")
-    if (rpcError) {
-      toast.error("Kontot kunde inte raderas", { description: rpcError.message })
+    // Servern raderar filer och konto (Supabase Auth admin-API:t) – se /api/account/delete.
+    let error: string | null = null
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: DELETE_CONFIRM_WORD }),
+      })
+      if (!res.ok) error = ((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Försök igen om en stund."
+    } catch {
+      error = "Ingen uppkoppling – försök igen när du är online."
+    }
+    if (error) {
+      toast.error("Kontot kunde inte raderas", { description: error })
       return
     }
     engine.forget()
-    await getSupabase().auth.signOut()
+    // Appen: enheten ska inte få fler push-notiser (token raderades med kontot).
+    await forgetPushToken().catch(() => {})
+    await getSupabase().auth.signOut({ scope: "local" }).catch(() => {})
     window.location.replace("/konto-raderat")
   }, [engine])
 
@@ -1135,13 +1152,5 @@ function LoadingScreen() {
 }
 
 function ErrorScreen({ message }: { message: string }) {
-  return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-3 p-6 text-center">
-      <p className="font-medium">Något gick fel</p>
-      <p className="max-w-sm text-sm text-muted-foreground">{message}</p>
-      <button className="text-sm underline underline-offset-4" onClick={() => window.location.reload()}>
-        Försök igen
-      </button>
-    </div>
-  )
+  return <ErrorFallback message={message} fullScreen />
 }

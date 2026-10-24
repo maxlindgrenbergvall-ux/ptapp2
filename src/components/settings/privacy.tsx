@@ -1,23 +1,13 @@
 "use client"
 
-import { Download, ShieldCheck, Trash2 } from "lucide-react"
+import { Download, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { RequirePlus } from "@/components/plus/require-plus"
+import { DeleteAccountCard } from "@/components/settings/delete-account"
 import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
@@ -25,7 +15,7 @@ import { toCsv } from "@/lib/plus"
 
 /** Min data och sekretess: ladda ner all data (GDPR art. 20) eller radera kontot (art. 17). */
 export function PrivacySettings() {
-  const { data, me, mode, deleteAccount } = useAppData()
+  const { data, me } = useAppData()
 
   const exportData = () => {
     // Dataportabilitet: allt om användaren i maskinläsbart format.
@@ -133,62 +123,7 @@ export function PrivacySettings() {
           </Card>
         </RequirePlus>
       )}
-      <Card className="border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base">Radera kontot</CardTitle>
-          <CardDescription>Allt raderas permanent och kan inte återställas.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {mode === "supabase" ? (
-            <DeleteAccountDialog onConfirm={deleteAccount} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Demoläge: kontoradering finns när appen är kopplad till Supabase.</p>
-          )}
-        </CardContent>
-      </Card>
+      <DeleteAccountCard showExportLink={false} />
     </div>
   )
 }
-
-function DeleteAccountDialog({ onConfirm }: { onConfirm: () => Promise<void> }) {
-  const [open, setOpen] = React.useState(false)
-  const [text, setText] = React.useState("")
-  const [pending, setPending] = React.useState(false)
-  const CONFIRM = "RADERA"
-  return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), setText(""))}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="text-destructive hover:text-destructive">
-          <Trash2 /> Radera mitt konto
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Radera kontot permanent?</DialogTitle>
-          <DialogDescription>
-            All din data raderas direkt och kan inte återställas: pass, loggar, vikt, kost, meddelanden och bokningar.
-            Ladda gärna ner din data först.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="confirm-delete">Skriv {CONFIRM} för att bekräfta</Label>
-          <Input id="confirm-delete" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" />
-        </div>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            disabled={text !== CONFIRM || pending}
-            onClick={async () => {
-              setPending(true)
-              await onConfirm()
-              setPending(false)
-            }}
-          >
-            {pending ? "Raderar…" : "Radera allt"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-

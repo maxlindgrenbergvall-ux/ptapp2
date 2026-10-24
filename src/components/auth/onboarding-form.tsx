@@ -7,7 +7,6 @@ import * as React from "react"
 
 import { AuthCard, FormError } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,6 +14,7 @@ import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
 import { forgetReferral, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS, storedReferral } from "@/lib/plus"
 import { formatPtInviteInput } from "@/components/pt/pt-invite-redeem"
+import { ConsentCheckbox } from "@/components/legal-links"
 import { EXISTING_CLIENT_FEE_PERCENT } from "@/lib/payments/fees"
 import { forgetPtInvite, normalizePtInviteCode, PT_INVITE_CODE, storedPtInvite } from "@/lib/pt-invites"
 import { getSupabase } from "@/lib/supabase/client"
@@ -60,7 +60,7 @@ export function OnboardingForm() {
           window.location.replace("/logga-in")
           return
         }
-        const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; phone?: string }
+        const meta = (user.user_metadata ?? {}) as { full_name?: string; name?: string; phone?: string; terms_consent_at?: string }
         // Redan klar (t.ex. bakåtknappen) eller admin-skapad PT: gå hem.
         const existing = roleFromClaims(user)
         if (existing) {
@@ -68,6 +68,8 @@ export function OnboardingForm() {
           return
         }
         setReferral(storedReferral() ?? "")
+        // Godkänt vid registreringen med e-post: rutan är förifylld (kan avmarkeras).
+        if (meta.terms_consent_at) setConsent(true)
         setPtCode(storedPtInvite() ?? "")
         setName((meta.full_name ?? meta.name ?? "").slice(0, 120))
         setPhone(meta.phone ?? user.phone ?? "")
@@ -81,7 +83,7 @@ export function OnboardingForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
+    if (!consent) return setError("Du behöver godkänna användarvillkoren och behandlingen av dina hälsouppgifter för att använda Coavira.")
     const code = normalizeReferralCode(referral)
     if (code && !REFERRAL_CODE.test(code)) return setError("Vänkoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
     const pt = ptCode.trim() ? normalizePtInviteCode(ptCode) : ""
@@ -254,16 +256,10 @@ export function OnboardingForm() {
           </div>
         )}
 
-        <div className="flex items-start gap-3 rounded-lg border p-3">
-            <Checkbox id="consent" checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" />
-            <Label htmlFor="consent" className="text-sm leading-snug font-normal">
-              Jag samtycker till att Coavira behandlar mina hälsouppgifter (träning, vikt och kost) så att min PT kan coacha mig. Jag kan när som helst
-              radera mitt konto och all data.{" "}
-              <Link href="/integritet" target="_blank" className="underline underline-offset-4">
-                Läs mer
-              </Link>
-            </Label>
-          </div>
+        <div className="space-y-1.5">
+          <ConsentCheckbox id="consent" checked={consent} onCheckedChange={setConsent} />
+          <p className="text-xs text-muted-foreground">Du kan när som helst ladda ner eller radera ditt konto och all data under Inställningar.</p>
+        </div>
 
         <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
           {pending ? "Sparar…" : "Kom igång"}
