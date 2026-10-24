@@ -2,8 +2,8 @@
  * Varukorgen: tjänster från en eller flera PT:er. Kassan (Stripe) tar en PT
  * åt gången och högst MAX_CHECKOUT_LINES tjänster, så varukorgen grupperas per PT.
  */
-import { checkoutTotals, type CheckoutTotals } from "@/lib/payments/fees"
-import type { AppData, ID, Trainer, TrainerService } from "@/types/domain"
+import { acquisitionOf, checkoutTotals, feePercentFor, type CheckoutTotals } from "@/lib/payments/fees"
+import type { AcquisitionType, AppData, ID, Trainer, TrainerService } from "@/types/domain"
 
 export const MAX_CART_ITEMS = 20
 /** Samma gräns som create_checkout() i databasen. */
@@ -19,6 +19,8 @@ export interface CartLine {
 export interface CartGroup extends CheckoutTotals {
   trainer: Trainer
   lines: CartLine[]
+  /** EXISTING_CLIENT (PT:ns kod) ger 5 % serviceavgift, annars 10 %. */
+  acquisition: AcquisitionType
 }
 
 /**
@@ -36,8 +38,11 @@ export function cartGroups(data: AppData, clientId: ID): CartGroup[] {
     group.lines.push({ service, quantity, lineSek: service.priceSek * quantity })
     groups.set(trainer.id, group)
   }
-  // Deltotal, serviceavgift (7 %) och totalt per PT – en kassa per PT.
-  return [...groups.values()].map((g) => ({ ...g, ...checkoutTotals(g.lines.reduce((sum, l) => sum + l.lineSek, 0)) }))
+  // Deltotal, serviceavgift (5 % eller 10 %) och totalt per PT – en kassa per PT.
+  return [...groups.values()].map((g) => {
+    const acquisition = acquisitionOf(data, clientId, g.trainer.id)
+    return { ...g, acquisition, ...checkoutTotals(g.lines.reduce((sum, l) => sum + l.lineSek, 0), feePercentFor(acquisition)) }
+  })
 }
 
 /** Antal (giltiga) tjänster i varukorgen. */

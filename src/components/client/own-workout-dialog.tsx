@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { AddCustomExerciseButton, CustomBadge } from "@/components/exercises/custom-exercise-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
+import { workoutExerciseFor } from "@/lib/exercises/custom"
 import { cn } from "@/lib/utils"
 import type { WorkoutExercise } from "@/types/domain"
 
@@ -30,9 +32,11 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
   const [items, setItems] = React.useState<WorkoutExercise[]>([])
 
   const query = q.trim().toLowerCase()
+  // Egna övningar först, sedan övningsbanken.
   const matches = data.exercises
     .filter((e) => !items.some((i) => i.exerciseId === e.id))
     .filter((e) => !query || e.name.toLowerCase().includes(query) || e.muscleGroup.includes(query))
+    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
     .slice(0, 6)
 
   const update = (idx: number, patch: Partial<WorkoutExercise>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
@@ -121,16 +125,28 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
                     type="button"
                     className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60"
                     onClick={() => {
-                      setItems([...items, { id: crypto.randomUUID(), exerciseId: e.id, sets: 3, reps: "10", restSec: 90 }])
+                      setItems([...items, workoutExerciseFor(e, crypto.randomUUID())])
                       setQ("")
                     }}
                   >
                     <span className="truncate">{e.name}</span>
+                    {e.custom && <CustomBadge className="ml-auto" />}
                     <Plus className="size-4 shrink-0 text-muted-foreground" />
                   </button>
                 </li>
               ))}
+              {matches.length === 0 && <li className="px-3 py-3 text-center text-sm text-muted-foreground">Ingen övning hittades.</li>}
             </ul>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed px-3 py-2">
+              <span className="text-xs text-muted-foreground">Saknas övningen i biblioteket?</span>
+              <AddCustomExerciseButton
+                initialName={q}
+                onCreated={(e) => {
+                  setItems((prev) => [...prev, workoutExerciseFor(e, crypto.randomUUID())])
+                  setQ("")
+                }}
+              />
+            </div>
           </div>
 
           <DialogFooter>

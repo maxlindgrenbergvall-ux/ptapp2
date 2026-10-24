@@ -22,12 +22,13 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`${p.url()} console: ${m.text()}`))
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).data)
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data)
 const cartCount = async () => Number((await p.locator("[data-testid=cart-count]").innerText().catch(() => "0")).trim() || 0)
 const sek = (n) => `${n.toLocaleString("sv-SE").replace(/ /g, " ")} kr`
 const norm = (s) => s.replace(/\s+/g, " ").trim()
-// Serviceavgift 7 %, hela kronor (som databasen och src/lib/payments/fees.ts).
-const fee = (subtotal) => Math.floor((subtotal * 7 + 50) / 100)
+// Serviceavgift 10 % för plattformsklienter (Sara hittade David och den andra PT:n i appen), hela kronor
+// (som databasen och src/lib/payments/fees.ts).
+const fee = (subtotal) => Math.floor((subtotal * 10 + 50) / 100)
 
 // ------------------------------------------------- 1. Hitta PT: utvald först ---
 await p.goto(base + "/klient/hitta")
@@ -84,9 +85,9 @@ check(await cart.locator("text=du betalar en PT i taget").isVisible(), "förklar
 const davidGroup = cart.locator("section[aria-label='Varukorg hos David Ek']")
 const davidTotal = davidServices[0].priceSek + davidServices[1].priceSek
 check(norm(await davidGroup.locator("[data-testid=cart-total-subtotal]").innerText()) === sek(davidTotal), `deltotal per PT (${sek(davidTotal)})`)
-check(norm(await davidGroup.locator("[data-testid=cart-total-fee]").innerText()) === sek(fee(davidTotal)), `serviceavgift 7 % (${sek(fee(davidTotal))})`)
+check(norm(await davidGroup.locator("[data-testid=cart-total-fee]").innerText()) === sek(fee(davidTotal)), `serviceavgift 10 % (${sek(fee(davidTotal))})`)
 check(norm(await davidGroup.locator("[data-testid=cart-total]").innerText()) === sek(davidTotal + fee(davidTotal)), `totalt att betala (${sek(davidTotal + fee(davidTotal))})`)
-check(/Serviceavgift \(7 %\)/.test(await davidGroup.innerText()) && /Totalt att betala/.test(await davidGroup.innerText()), "avgiften redovisas som egen rad")
+check(/Serviceavgift \(10 %\)/.test(await davidGroup.innerText()) && /Totalt att betala/.test(await davidGroup.innerText()), "avgiften redovisas som egen rad")
 
 // v17: antal enstaka pass direkt i varukorgen.
 const single = davidServices.find((x) => x.kind === "single")
@@ -139,11 +140,11 @@ await cart.locator("button[aria-label='Stäng varukorgen']").click()
 // Tom varukorg.
 // (Köpet hos David ovan tas också bort: en PT man redan tränar med rekommenderas inte i klockan.)
 await p.evaluate(() => {
-  const s = JSON.parse(localStorage["coavira:demo:v4"])
+  const s = JSON.parse(localStorage["coavira:demo:v5"])
   s.data.cart = []
   s.data.purchases = s.data.purchases.filter((x) => x.trainerId !== "t6")
   s.data.relationships = s.data.relationships.filter((r) => r.trainerId !== "t6")
-  localStorage["coavira:demo:v4"] = JSON.stringify(s)
+  localStorage["coavira:demo:v5"] = JSON.stringify(s)
 })
 await p.reload()
 await p.click('button[aria-label^="Varukorg"]')

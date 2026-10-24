@@ -19,6 +19,8 @@ import { extendBoost } from "@/lib/boost"
 import { BRAND } from "@/lib/brand"
 import { MAX_CART_ITEMS } from "@/lib/cart"
 import { extendPlus, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS } from "@/lib/plus"
+import type { CustomExerciseInput } from "@/lib/exercises/custom"
+import { normalizePtInviteCode, PT_INVITE_CODE, PT_INVITE_DAYS, randomInviteCode } from "@/lib/pt-invites"
 import { canChooseQuantity, clampQuantity } from "@/lib/payments/fees"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
 import { backoffMs, Outbox } from "@/lib/data/outbox"
@@ -47,6 +49,8 @@ import type {
   AvailabilityRule,
   CalendarEvent,
   EventStatus,
+  Exercise,
+  PtInvite,
   SessionMode,
   Slot,
   TrainerOffer,
@@ -76,14 +80,14 @@ export interface SyncState {
   pending: number
 }
 
-// Ny nyckel när demodatan ändrar form (v4: egna pass, kopplade program och klarmarkering) – demon börjar om med färsk data.
+// Ny nyckel när demodatan ändrar form (v5: kundursprung och PT:ns koder till befintliga klienter) – demon börjar om med färsk data.
 /** En rad i kassan: tjänst och antal (antal > 1 bara för enstaka pass). */
 export interface CheckoutItem {
   serviceId: ID
   quantity: number
 }
 
-const DEMO_KEY = "coavira:demo:v4"
+const DEMO_KEY = "coavira:demo:v5"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
 const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
 
@@ -447,6 +451,112 @@ function createActions(ctx: {
       } catch {
         return "pending"
       }
+    },
+    /**
+     * Klient eller PT: lägg till en egen övning (saknas i övningsbanken). Den
+     * syns direkt i övningslistorna och kan läggas i passet med sina förslag.
+     */
+    addCustomExercise: (input: CustomExerciseInput): { exercise?: Exercise; error?: string } => {
+      const name = input.name.trim().replace(/\s+/g, " ")
+      if (!name) return { error: "Ange övningens namn." }
+      if (name.length > 80) return { error: "Namnet får vara högst 80 tecken." }
+      const taken = getData().exercises.some((e) => e.custom?.ownerId === me.id && e.name.toLowerCase() === name.toLowerCase())
+      if (taken) return { error: `Du har redan en egen övning som heter "${name}".` }
+      if (input.defaultWeight !== undefined && !(input.defaultWeight >= 0 && input.defaultWeight <= 1000)) return { error: "Vikten ska vara 0–1000." }
+      const exercise: Exercise = {
+        id: `cx-${newId()}`,
+        name,
+        muscleGroup: input.muscleGroup ?? "helkropp",
+        equipment: "",
+        custom: {
+          ownerId: me.id,
+          defaultWeight: input.defaultWeight,
+          weightUnit: input.weightUnit,
+          defaultSets: Math.min(20, Math.max(1, Math.round(input.defaultSets))),
+          defaultReps: input.defaultReps.trim().slice(0, 12) || "10",
+          createdAt: now(),
+        },
+      }
+      commit({ type: "addCustomExercise", exercise })
+      return { exercise }
+    },
+    deleteCustomExercise: (exerciseId: ID) => {
+      const x = getData().exercises.find((e) => e.id === exerciseId)
+      if (x?.custom?.ownerId === me.id) commit({ type: "deleteCustomExercise", exerciseId })
+    },
+    /** PT: skapa en engångskod till en befintlig klient (bara verifierade PT:er). */
+    createPtInvite: async (label?: string): Promise<{ invite?: PtInvite; error?: string }> => {
+      const data = getData()
+      if (ctx.mode === "demo") {
+        const trainer = data.trainers.find((t) => t.id === me.id)
+        if (!trainer?.certifications?.length) return { error: "Bara verifierade PT:er kan bjuda in klienter." }
+        const invite: PtInvite = {
+          id: newId(),
+          trainerId: me.id,
+          code: randomInviteCode(),
+          label: label?.trim().slice(0, 60) || undefined,
+          isUsed: false,
+          expiresAt: new Date(Date.now() + PT_INVITE_DAYS * 86_400_000).toISOString(),
+          createdAt: now(),
+        }
+        ctx.dispatch({ type: "setPtInvites", invites: [invite, ...data.ptInvites] })
+        return { invite }
+      }
+      const { toPtInvite } = await import("@/lib/data/supabase-source")
+      const { data: row, error } = await getSupabase().rpc("create_pt_invite", { p_label: label?.trim() || null })
+      if (error || !row) return { error: error?.message ?? "Koden kunde inte skapas." }
+      const invite = toPtInvite({ ...(row as Parameters<typeof toPtInvite>[0]), is_used: false }, me.id)
+      ctx.dispatch({ type: "setPtInvites", invites: [invite, ...getData().ptInvites] })
+      return { invite }
+    },
+    /** PT: ta bort en oanvänd kod. */
+    deletePtInvite: async (id: ID): Promise<string | null> => {
+      if (ctx.mode === "supabase") {
+        const { error } = await getSupabase().from("pt_invites").delete().eq("id", id).eq("is_used", false)
+        if (error) return error.message
+      }
+      ctx.dispatch({ type: "setPtInvites", invites: getData().ptInvites.filter((i) => i.id !== id || i.isUsed) })
+      return null
+    },
+    /**
+     * Klient: lös in PT:ns kod. Klienten kopplas direkt till PT:n som befintlig
+     * klient (EXISTING_CLIENT) och betalar 5 % serviceavgift hos hen i stället för 10 %.
+     */
+    redeemPtInvite: async (raw: string): Promise<{ error: string | null; trainerName?: string }> => {
+      const code = normalizePtInviteCode(raw)
+      if (!PT_INVITE_CODE.test(code)) return { error: "Koden ser ut så här: EX-8FK29A." }
+      const data = getData()
+      if (ctx.mode === "demo") {
+        const invite = data.ptInvites.find((i) => i.code === code)
+        if (!invite || invite.isUsed) return { error: "Koden finns inte eller har redan använts" }
+        if (Date.parse(invite.expiresAt) <= Date.now()) return { error: "Koden har gått ut – be din PT om en ny" }
+        const existing = data.relationships.find((r) => r.clientId === me.id && r.trainerId === invite.trainerId)
+        if (existing?.acquisition === "EXISTING_CLIENT") return { error: "Du är redan kopplad till PT:n som befintlig klient" }
+        if (data.purchases.some((p) => p.clientId === me.id && p.trainerId === invite.trainerId && (p.status === "paid" || p.status === "refunded"))) {
+          return { error: "Du har redan köpt hos PT:n via Coavira – koden gäller klienter som PT:n hade innan" }
+        }
+        ctx.dispatch({
+          type: "linkTrainer",
+          relationship: { trainerId: invite.trainerId, clientId: me.id, status: "active", goal: existing?.goal ?? "", startDate: existing?.startDate ?? todayISO(), acquisition: "EXISTING_CLIENT" },
+        })
+        ctx.dispatch({ type: "setPtInvites", invites: data.ptInvites.map((i) => (i.id === invite.id ? { ...i, isUsed: true, usedBy: me.id, usedAt: now() } : i)) })
+        return { error: null, trainerName: data.trainers.find((t) => t.id === invite.trainerId)?.name }
+      }
+      const sb = getSupabase()
+      const { data: res, error } = await sb.rpc("redeem_pt_invite", { p_code: code })
+      if (error) return { error: error.message }
+      const r = res as { ok: boolean; error?: string; trainer_id?: string; trainer_name?: string }
+      if (!r.ok || !r.trainer_id) return { error: r.error ?? "Koden kunde inte lösas in." }
+      // Hämta PT:n (syns för klienten nu när relationen finns) och visa kopplingen direkt.
+      const { toTrainer, TRAINER_SELECT } = await import("@/lib/data/supabase-source")
+      const { data: row } = await sb.from("trainers").select(TRAINER_SELECT).eq("id", r.trainer_id).maybeSingle()
+      const existing = getData().relationships.find((x) => x.clientId === me.id && x.trainerId === r.trainer_id)
+      ctx.dispatch({
+        type: "linkTrainer",
+        relationship: { trainerId: r.trainer_id, clientId: me.id, status: "active", goal: existing?.goal ?? "", startDate: existing?.startDate ?? todayISO(), acquisition: "EXISTING_CLIENT" },
+        trainer: row ? toTrainer(row as Parameters<typeof toTrainer>[0], r.trainer_name) : undefined,
+      })
+      return { error: null, trainerName: r.trainer_name }
     },
     toggleMeal: (clientId: ID, date: ISODate, mealId: ID) => {
       const checked = !getData().mealChecks.some((m) => m.clientId === clientId && m.date === date && m.mealId === mealId)

@@ -5,6 +5,7 @@ import Link from "next/link"
 import * as React from "react"
 
 import { RequestsPanel } from "@/components/calendar/requests-panel"
+import { ExistingClientBadge, InviteExistingClientButton, PtInvitesCard } from "@/components/pt/pt-invites"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { ClientStatusBadge, PageHeader, PersonAvatar, StatTile } from "@/components/common"
 import { formatSek } from "@/lib/money"
@@ -75,6 +76,7 @@ export default function PtOverviewPage() {
       <PageHeader
         title="Översikt"
         description={`${firstName(me.name) ? `Hej ${firstName(me.name)}! ` : ""}Så här ser det ut idag, ${formatShort(today)}`}
+        actions={<InviteExistingClientButton />}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -143,7 +145,12 @@ export default function PtOverviewPage() {
                       >
                         <PersonAvatar name={client.name} src={client.avatarUrl} className="size-8" />
                         <div className="min-w-0">
-                          <div className="font-medium">{client.name}</div>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            {client.name}
+                            {data.relationships.some((r) => r.clientId === client.id && r.trainerId === me.id && r.acquisition === "EXISTING_CLIENT") && (
+                              <ExistingClientBadge />
+                            )}
+                          </div>
                           <div className="max-w-56 truncate text-xs text-muted-foreground">{client.goal}</div>
                         </div>
                       </Link>
@@ -185,6 +192,7 @@ export default function PtOverviewPage() {
         </Card>
 
         <div className="space-y-6">
+          <PtInvitesCard />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

@@ -35,7 +35,8 @@ npm run dev                  # http://localhost:3000
    16. `supabase/migrations/20261029000000_v16_cart_boost.sql`. Den lägger till varukorgen (`cart_items`, `abandoned_carts`, `mark_cart_reminded`) och PT Boost (`trainer_boosts`, `trainers.boosted_until`, `create_boost_checkout`, `mark_boost_paid`, `mark_boost_refunded`).
    17. `supabase/migrations/20261030000000_v17_quantity_service_fee.sql`. Den lägger till antal enstaka pass (varukorg och köp), serviceavgiften 7 % (`checkout_fees`, `service_fee_sek`) och härdar RLS-hjälpfunktionerna inför öppen registrering.
    18. `supabase/migrations/20261031000000_v18_plus_referrals.sql`. Den lägger till Coavira Plus (`profiles.is_coavira_plus`, `coavira_plus_until`, `plus_plans`, `plus_purchases`), inbjudningskoder (`profiles.referral_code`) och inbjudningar (`referrals`, `redeem_referral`). Den döljer också andras kod och Plus-status med kolumnrättigheter på `profiles`.
-   19. `supabase/seed.sql`
+   19. `supabase/migrations/20261101000000_v19_custom_exercises_pt_invites.sql`. Den lägger till egna övningar (`custom_exercises`), PT:ns koder till befintliga klienter (`pt_invites`, `create_pt_invite`, `redeem_pt_invite`), kundursprung på relationen (`coaching_relationships.acquisition_type`) och serviceavgiften 5 % / 10 % i `create_checkout`.
+   20. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -358,7 +359,7 @@ npm run dev                  # http://localhost:3000
 
 **Antal enstaka pass:** i varukorgen väljer klienten antal (1–20) med − och + för enstaka pass. Radpriset är styckpris × antal. Paket och kostcoaching är alltid 1 st. Antalet sparas i `cart_items.quantity`. Ett köp av 3 × enstaka pass ger 3 pass att boka (`purchases.quantity`, `sessions`, `price_sek`).
 
-**Serviceavgift 7 %:**
+**Serviceavgift 7 %** (ersatt i v19 av 5 % / 10 % efter kundursprung, se nedan):
 - Avgiften räknas på deltotalen per kassa och avrundas till hela kronor (950 kr → 67 kr). Varukorgen och köpdialogen visar *Deltotal*, *Serviceavgift (7 %)* och *Totalt att betala*.
 - Databasen bestämmer beloppet: `create_checkout(p_service_ids, p_quantities)` räknar ut avgiften med `service_fee_sek()` och sparar den i `checkout_fees`. Klienten ser sina egna avgifter; PT:er ser dem inte.
 - Stripe: `/api/checkout` skickar tjänsterna (styckpris × antal) och avgiften som en egen rad, "Serviceavgift (7 %)". Avgiften kontrolleras mot samma regel i `src/lib/payments/fees.ts` innan sessionen skapas.
@@ -410,6 +411,45 @@ Exporten av *all* egen data under Min data och sekretess (JSON) är alltid grati
   - Klientkoder gäller bara klienter och PT-koder bara PT:er.
   - En inbjudare får högst 12 belöningar per år. Fler inbjudningar räknas, men ger ingen ny belöning.
 - **RLS:** användare läser bara sina egna inbjudningar (som inbjudare eller inbjuden) och sin egen kod och Plus-status (`my_account()`). Ingen kan skriva i `referrals`. PT:er ser inte klienternas kod eller Plus.
+
+## Nytt i v19: egna övningar, PT:ns koder och serviceavgift 5 % / 10 %
+
+**Egna övningar.** Saknas en övning i övningsbanken kan klienter (under *Logga eget pass*) och PT:er (i passbyggaren) välja *Lägg till egen övning*:
+- Varje övning har namn, startvikt/standardvikt i kg eller lbs, set, reps och muskelgrupp.
+- Övningen sparas i `custom_exercises`, kopplad till användaren (`user_id`), och läggs direkt i passet med sina förslag. Pass loggas i kg, så lbs räknas om och avrundas till 0,5 kg.
+- Övningen syns sedan i alla övningslistor med märket *Egen* och visas i passvyn som övriga övningar.
+- **RLS:** ägaren läser och ändrar sina övningar. PT:n och klienten som ägaren tränar med kan läsa dem, eftersom övningen kan finnas i ett tilldelat pass eller i klientens egna pass. Ingen annan ser dem.
+- Begränsningar: samma namn kan bara finnas en gång per användare, och varje användare kan ha högst 300 egna övningar.
+
+**PT:ns koder till befintliga klienter.**
+1. *Bjud in existerande klient* finns i PT:ns översikt (klientlistan). Knappen skapar en engångskod, t.ex. `EX-8FK29A`, med `create_pt_invite()`.
+   - Bara godkända PT:er kan skapa koder, det vill säga PT-konton med certifikat verifierade av Coavira.
+   - En PT kan ha högst 50 oanvända koder.
+2. PT:n kopierar koden eller länken `coavira.fit/ref/EX-8FK29A` och skickar den i sin egen kanal.
+3. Klienten anger koden på ett av två ställen:
+   - i välkomststeget efter registreringen, i fältet *Har du en inbjudningskod från din PT?*, som fylls i automatiskt från länken;
+   - under *Inställningar*.
+4. `redeem_pt_invite()` kopplar klienten direkt till PT:n med en aktiv relation och `acquisition_type = 'EXISTING_CLIENT'`, och koden förbrukas.
+
+Klienter som hittar och bokar en PT i appen får `PLATFORM_CLIENT`, vilket är standard för alla relationer, även de som fanns innan v19.
+
+**Säkerhet för koderna:**
+- Klienter kan aldrig läsa `pt_invites`. PT:er ser bara sina egna koder och kan inte skriva i tabellen.
+- Koderna skapas med kryptografisk slump, gäller i 30 dagar och kan bara användas en gång.
+- Högst 10 felaktiga försök per klient och timme.
+- En klient som redan köpt hos PT:n i appen kan inte bli befintlig klient i efterhand.
+- Bara databasen kan sätta `acquisition_type`, och Coavira kan rätta det:
+  ```sql
+  select admin_set_acquisition('klient@example.com', 'pt@example.com', 'EXISTING_CLIENT');
+  ```
+
+**Serviceavgift 5 % / 10 %:** `create_checkout()` väljer procentsatsen efter relationen:
+- 5 % för `EXISTING_CLIENT`
+- 10 % för `PLATFORM_CLIENT`
+
+Avgiften räknas på deltotalen och avrundas till hela kronor. Den sparas i `checkout_fees.fee_percent`.
+
+Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10 %)* före Stripe Checkout, och för befintliga klienter raden "Befintlig klient: 5 % i stället för 10 %". Samma regel finns i `src/lib/payments/fees.ts` och kontrolleras igen innan Stripe-sessionen skapas.
 
 ## Landningssidan (/)
 
@@ -641,6 +681,8 @@ node e2e/v16-varukorg-boost.test.mjs # varukorg (flera PT:er, mersälj, kassa pe
 node e2e/v16-supabase.test.mjs  # Supabase-läge: cart_items (+ antal), kassa med antal och serviceavgift, Boost via Stripe, webhook
 node e2e/v18-plus-referral.test.mjs # Plus-lås, uppgraderingsrutan, inbjudningsvyn (klient/PT), inlösen, /ref/KOD
 node e2e/v18-supabase.test.mjs  # Supabase-läge: my_account, referrals, inlösen i välkomststeget, Plus via Stripe, webhook
+node e2e/v19-ovningar-ptkod.test.mjs # egna övningar (klient + PT), Bjud in existerande klient, kod i Inställningar, avgift 5/10 %
+node e2e/v19-supabase.test.mjs  # Supabase-läge: custom_exercises, create_pt_invite, redeem_pt_invite (Inställningar + välkomststeget), Stripe 5/10 %
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

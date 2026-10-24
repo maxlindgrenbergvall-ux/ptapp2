@@ -172,11 +172,11 @@ const old = await page({ width: 390, height: 844 })
 await old.goto(`${base}/klient`)
 await old.waitForSelector("text=Dagens kost")
 await old.evaluate(() => {
-  const s = JSON.parse(localStorage["coavira:demo:v4"])
+  const s = JSON.parse(localStorage["coavira:demo:v5"])
   for (const k of ["foodEntries", "waterLogs", "sleepLogs", "wearables"]) delete s.data[k]
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- fältet ska bort, som i v1-data
   s.data.trainers = s.data.trainers.map(({ coachingMode, certifications, ...t }) => ({ ...t, offersRemote: coachingMode !== "onsite" }))
-  localStorage["coavira:demo:v4"] = JSON.stringify(s)
+  localStorage["coavira:demo:v5"] = JSON.stringify(s)
 })
 for (const path of ["/klient", "/klient/framsteg", "/klient/chatt", "/pt/klienter/c1", "/pt/profil"]) {
   await old.goto(`${base}${path}`)

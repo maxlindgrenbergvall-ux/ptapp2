@@ -73,7 +73,7 @@ async function login(email) {
   const del = log.find((e) => e.table === "cart_items" && e.method === "DELETE")
   check(Boolean(del) && del.query.includes(`client_id=eq.${C1}`) && del.query.includes(`service_id=in.`) && del.query.includes(S_SINGLE), "borttagen tjänst raderas ur cart_items")
 
-  // v17: kassan med antal och serviceavgift (7 %) – Stripe får tjänsten × 2 och avgiften som egen rad.
+  // v17: kassan med antal och serviceavgift (v19: 10 % för plattformsklienter) – Stripe får tjänsten × 2 och avgiften som egen rad.
   const co = await p.request.post(`${base}/api/checkout`, { data: { items: [{ serviceId: S_SINGLE, quantity: 2 }] } })
   check(co.ok() && /pay\/cs_test_1/.test((await co.json()).url ?? ""), "kassan med 2 enstaka pass startar")
   log = await getLog()
@@ -81,7 +81,7 @@ async function login(email) {
   check(JSON.stringify(rpcCo?.body) === JSON.stringify({ p_service_ids: [S_SINGLE], p_quantities: [2] }), "databasen får tjänst och antal (inga priser från webbläsaren)")
   const form = (await (await fetch(`${stripe}/__log`)).json()).filter((e) => e.method === "POST").at(-1)?.form ?? {}
   check(form["line_items[0][quantity]"] === "2" && form["line_items[0][price_data][unit_amount]"] === "80000", "Stripe: 2 × 800 kr")
-  check(form["line_items[1][price_data][unit_amount]"] === "11200" && form["line_items[1][quantity]"] === "1", "Stripe: serviceavgift 7 % av 1 600 kr = 112 kr")
+  check(form["line_items[1][price_data][unit_amount]"] === "16000" && form["line_items[1][quantity]"] === "1", "Stripe: serviceavgift 10 % av 1 600 kr = 160 kr")
   const bad = await p.request.post(`${base}/api/checkout`, { data: { items: [] } })
   check(bad.status() === 400, "tom kassa avvisas")
 

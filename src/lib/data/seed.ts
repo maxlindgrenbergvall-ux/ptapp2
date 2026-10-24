@@ -6,6 +6,7 @@ import { addDays, todayISO } from "@/lib/date"
 import exerciseLibrary from "@/lib/exercise-library.json"
 import { sessionBalance } from "@/lib/services/balance"
 import type {
+  AcquisitionType,
   AppData,
   AppNotification,
   AvailabilityRule,
@@ -764,6 +765,7 @@ export function createSeedData(today = todayISO()): AppData {
       c1: { referralCode: "SARA7KQ2", plusUntil: `${addDays(today, 18)}T21:00:00.000Z`, plusLifetime: false, canRedeem: false },
       t1: { referralCode: "PT7EKN4S", plusLifetime: false, canRedeem: false },
     },
+    ptInvites: [],
     referrals: [
       {
         id: "ref-1",
@@ -817,9 +819,25 @@ export function createSeedData(today = todayISO()): AppData {
   })
 
   // Relationer: varje klient med sin PT, och Sara även med Ahmed (Hyrox).
+  // Sara var Elins klient innan Coavira och kopplades med Elins kod (EXISTING_CLIENT: 5 % avgift);
+  // övriga hittade sin PT i appen (PLATFORM_CLIENT: 10 %).
   data.relationships = [
-    ...data.clients.map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
-    { trainerId: "t2", clientId: "c1", status: "active" as const, goal: "Hyrox under 1:30", startDate: addDays(today, -21) },
+    ...data.clients.map((c) => ({
+      trainerId: c.trainerId!,
+      clientId: c.id,
+      status: c.status,
+      goal: c.goal,
+      startDate: c.startDate,
+      acquisition: (c.id === "c1" ? "EXISTING_CLIENT" : "PLATFORM_CLIENT") as AcquisitionType,
+    })),
+    { trainerId: "t2", clientId: "c1", status: "active" as const, goal: "Hyrox under 1:30", startDate: addDays(today, -21), acquisition: "PLATFORM_CLIENT" as const },
+  ]
+  // Elins koder till befintliga klienter: Saras (använd) och en oanvänd.
+  data.ptInvites = [
+    { id: "pti-1", trainerId: "t1", code: "EX-SARA7Q", label: "Sara", isUsed: true, usedBy: "c1", usedAt: `${addDays(today, -40)}T09:00:00.000Z`, expiresAt: `${addDays(today, -10)}T09:00:00.000Z`, createdAt: `${addDays(today, -40)}T08:00:00.000Z` },
+    { id: "pti-2", trainerId: "t1", code: "EX-8FK29A", label: "Kalle (gymmet)", isUsed: false, expiresAt: `${addDays(today, 25)}T09:00:00.000Z`, createdAt: `${addDays(today, -5)}T08:00:00.000Z` },
+    // Demo: David har gett Sara en kod (hon tränade med honom förut) – lös in den under Inställningar.
+    { id: "pti-3", trainerId: "t6", code: "EX-DAVK42", label: "Sara", isUsed: false, expiresAt: `${addDays(today, 20)}T09:00:00.000Z`, createdAt: `${addDays(today, -2)}T08:00:00.000Z` },
   ]
   data.messages = data.messages.map((m) => ({ ...m, trainerId: m.trainerId ?? "t1" }))
   data.purchases = makePurchases(data, today)

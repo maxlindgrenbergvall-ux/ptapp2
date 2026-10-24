@@ -27,12 +27,12 @@ const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`${p.url()} console: ${m.text()}`))
 p.on("dialog", (d) => void d.accept())
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).data)
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data)
 const patchDemo = (fn) =>
   p.evaluate((src) => {
-    const s = JSON.parse(localStorage["coavira:demo:v4"])
+    const s = JSON.parse(localStorage["coavira:demo:v5"])
     s.data = new Function("d", `return (${src})(d)`)(s.data)
-    localStorage["coavira:demo:v4"] = JSON.stringify(s)
+    localStorage["coavira:demo:v5"] = JSON.stringify(s)
   }, fn.toString())
 const overlayGone = () => p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
 
@@ -71,7 +71,7 @@ await p.waitForURL(base + "/klient")
 const own = (await demo()).workouts.find((w) => w.name === "Eget benpass")
 check(own?.byClient === true && own.status === "completed", "eget pass sparat och avslutat")
 const balanceOk = await p.evaluate(() => {
-  const d = JSON.parse(localStorage["coavira:demo:v4"]).data
+  const d = JSON.parse(localStorage["coavira:demo:v5"]).data
   return !d.workouts.some((w) => w.byClient && w.trainerId)
 })
 check(balanceOk, "egna pass har ingen PT (räknas inte som betalda pass)")

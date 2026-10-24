@@ -10,6 +10,8 @@
 import type {
   Account,
   AppData,
+  Exercise,
+  PtInvite,
   CartItem,
   Referral,
   AppNotification,
@@ -96,6 +98,9 @@ export type PersistableAction =
   | { type: "removeCartItems"; clientId: ID; serviceIds: ID[] }
   /** Klient: ändra antalet enstaka pass i varukorgen. */
   | { type: "setCartQuantity"; clientId: ID; serviceId: ID; quantity: number }
+  /** Klient eller PT: egen övning (custom_exercises). Syns direkt i övningslistorna. */
+  | { type: "addCustomExercise"; exercise: Exercise }
+  | { type: "deleteCustomExercise"; exerciseId: ID }
 
 export type ClientProfilePatch = Partial<Pick<Client, "name" | "interests" | "focus" | "avatarUrl">>
 
@@ -137,6 +142,10 @@ export type LocalAction =
   | { type: "setCart"; cart: CartItem[] }
   /** Kod och Coavira Plus (från my_account() eller demoläget). */
   | { type: "setAccount"; userId: ID; account: Account }
+  /** PT:ns koder till befintliga klienter (efter skapande, borttagning eller omladdning). */
+  | { type: "setPtInvites"; invites: PtInvite[] }
+  /** Klient: kopplad till en PT med PT:ns kod (EXISTING_CLIENT). */
+  | { type: "linkTrainer"; relationship: CoachingRelationship; trainer?: Trainer }
   /** Inbjudningar (efter inlösen eller omladdning). */
   | { type: "setReferrals"; referrals: Referral[] }
 
@@ -551,6 +560,27 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       }
     case "setAccount":
       return { ...data, accounts: { ...data.accounts, [action.userId]: action.account } }
+    case "addCustomExercise":
+      return { ...data, exercises: upsertBy(data.exercises, action.exercise, (e) => e.id === action.exercise.id) }
+    case "deleteCustomExercise":
+      return { ...data, exercises: data.exercises.filter((e) => !(e.id === action.exerciseId && e.custom)) }
+    case "setPtInvites":
+      return { ...data, ptInvites: action.invites }
+    case "linkTrainer": {
+      const rel = action.relationship
+      const trainers = action.trainer ? upsertBy(data.trainers, action.trainer, (t) => t.id === action.trainer!.id) : data.trainers
+      return {
+        ...data,
+        trainers,
+        relationships: upsertBy(data.relationships, rel, (r) => r.clientId === rel.clientId && r.trainerId === rel.trainerId),
+        // Klientens huvud-PT om hen inte redan har en.
+        clients: data.clients.map((c) =>
+          c.id === rel.clientId && (!c.trainerId || c.status === "pending")
+            ? { ...c, trainerId: rel.trainerId, status: "active", startDate: rel.startDate }
+            : c
+        ),
+      }
+    }
     case "setReferrals":
       return { ...data, referrals: action.referrals }
     case "setTrainerBoost":
@@ -638,6 +668,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
     cart: list(d.cart),
     accounts: d.accounts && typeof d.accounts === "object" && !Array.isArray(d.accounts) ? (d.accounts as Record<ID, Account>) : {},
     referrals: list(d.referrals),
+    ptInvites: list(d.ptInvites),
   }
 }
 

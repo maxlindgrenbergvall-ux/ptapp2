@@ -5,7 +5,7 @@
  * Klienten samlar tjänster från en eller flera PT:er och betalar en PT i taget
  * (kassan i Stripe gäller en PT och högst fem tjänster).
  */
-import { CreditCard, Loader2, Minus, Plus, Salad, ShoppingBag, Trash2, X } from "lucide-react"
+import { BadgePercent, CreditCard, Loader2, Minus, Plus, Salad, ShoppingBag, Trash2, X } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -16,7 +16,7 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHe
 import { cartCount, cartGroups, MAX_CHECKOUT_LINES, type CartGroup } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
-import { canChooseQuantity, MAX_QUANTITY, SERVICE_FEE_PERCENT } from "@/lib/payments/fees"
+import { canChooseQuantity, EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
 
@@ -113,7 +113,7 @@ function CartContents({ onNavigate }: { onNavigate: () => void }) {
 function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: () => void }) {
   const { data, me, mode, actions } = useAppData()
   const [pending, setPending] = React.useState(false)
-  const { trainer, lines, subtotalSek, serviceFeeSek, totalSek } = group
+  const { trainer, lines, subtotalSek, feePercent, serviceFeeSek, totalSek } = group
   const name = firstName(trainer.name)
   const tooMany = lines.length > MAX_CHECKOUT_LINES
 
@@ -189,7 +189,7 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
         )}
       </ul>
       <div className="space-y-2 border-t p-3">
-        <CheckoutSummary subtotalSek={subtotalSek} serviceFeeSek={serviceFeeSek} totalSek={totalSek} testId="cart-total" />
+        <CheckoutSummary subtotalSek={subtotalSek} feePercent={feePercent} serviceFeeSek={serviceFeeSek} totalSek={totalSek} testId="cart-total" />
         {tooMany && <p className="text-xs text-destructive">Högst {MAX_CHECKOUT_LINES} tjänster per köp – ta bort några.</p>}
         <Button className="w-full" onClick={() => void pay()} disabled={pending || tooMany}>
           {pending ? <Loader2 className="animate-spin" /> : <CreditCard />} Till kassan · {formatSek(totalSek)}
@@ -234,8 +234,25 @@ function QuantityStepper({ title, value, onChange, disabled }: { title: string; 
   )
 }
 
-/** Deltotal, serviceavgift (7 %) och totalt att betala – samma uppställning i varukorgen och i köpdialogen. */
-export function CheckoutSummary({ subtotalSek, serviceFeeSek, totalSek, testId }: { subtotalSek: number; serviceFeeSek: number; totalSek: number; testId?: string }) {
+/**
+ * Deltotal, serviceavgift och totalt att betala – samma uppställning i
+ * varukorgen och i köpdialogen. Avgiften är 5 % för PT:ns befintliga klienter
+ * (inlöst kod från PT:n) och 10 % för klienter som hittat PT:n i appen.
+ */
+export function CheckoutSummary({
+  subtotalSek,
+  feePercent,
+  serviceFeeSek,
+  totalSek,
+  testId,
+}: {
+  subtotalSek: number
+  feePercent: number
+  serviceFeeSek: number
+  totalSek: number
+  testId?: string
+}) {
+  const existing = feePercent === EXISTING_CLIENT_FEE_PERCENT
   return (
     <dl className="space-y-1 text-sm">
       <div className="flex items-center justify-between text-muted-foreground">
@@ -245,11 +262,17 @@ export function CheckoutSummary({ subtotalSek, serviceFeeSek, totalSek, testId }
         </dd>
       </div>
       <div className="flex items-center justify-between text-muted-foreground">
-        <dt>Serviceavgift ({SERVICE_FEE_PERCENT} %)</dt>
+        <dt data-testid={testId ? `${testId}-fee-label` : undefined}>Serviceavgift ({feePercent} %)</dt>
         <dd className="tabular" data-testid={testId ? `${testId}-fee` : undefined}>
           {formatSek(serviceFeeSek)}
         </dd>
       </div>
+      {existing && (
+        <p className="flex items-center gap-1.5 rounded-md bg-emerald-600/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400" data-testid={testId ? `${testId}-existing` : undefined}>
+          <BadgePercent className="size-3.5 shrink-0" aria-hidden />
+          Befintlig klient: {EXISTING_CLIENT_FEE_PERCENT} % i stället för {PLATFORM_FEE_PERCENT} %
+        </p>
+      )}
       <div className="flex items-center justify-between border-t pt-1.5 font-semibold">
         <dt>Totalt att betala</dt>
         <dd className="tabular" data-testid={testId}>

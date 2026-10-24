@@ -2,7 +2,7 @@ import "server-only"
 
 import Stripe from "stripe"
 
-import { MAX_QUANTITY, SERVICE_FEE_PERCENT, serviceFeeSek } from "@/lib/payments/fees"
+import { EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT, serviceFeeSek } from "@/lib/payments/fees"
 
 /**
  * Stripe via det officiella SDK:t. Hemliga nycklar finns bara på servern:
@@ -44,7 +44,8 @@ export interface CheckoutLine {
 
 /**
  * Parametrarna till Checkout Session: tjänsterna (styckpris × antal) och en
- * egen rad för serviceavgiften (7 %). Avgiften räknas ut i databasen
+ * egen rad för serviceavgiften (5 % för befintliga klienter, 10 % för
+ * plattformsklienter). Avgiften räknas ut i databasen
  * (create_checkout) och kontrolleras här mot samma regel, så att Stripe aldrig
  * tar betalt för ett annat belopp än det klienten såg och databasen förväntar sig.
  */
@@ -56,8 +57,13 @@ export function checkoutSessionParams(input: {
   lines: CheckoutLine[]
   /** Serviceavgift i hela kronor (från databasen). */
   serviceFeeSek: number
+  /** Procentsatsen databasen valde (5 eller 10). */
+  feePercent: number
   origin: string
 }): Stripe.Checkout.SessionCreateParams {
+  if (input.feePercent !== EXISTING_CLIENT_FEE_PERCENT && input.feePercent !== PLATFORM_FEE_PERCENT) {
+    throw new Error(`Okänd serviceavgift (${input.feePercent} %)`)
+  }
   if (!input.lines.length) throw new Error("Kassan är tom")
   const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = input.lines.map((l) => {
     const unitAmount = Math.round(Number(l.unitPriceSek) * 100)
@@ -69,8 +75,9 @@ export function checkoutSessionParams(input: {
     }
   })
   const subtotalSek = input.lines.reduce((sum, l) => sum + l.unitPriceSek * l.quantity, 0)
-  if (input.serviceFeeSek !== serviceFeeSek(subtotalSek)) {
-    throw new Error(`Serviceavgiften stämmer inte (${input.serviceFeeSek} kr, väntade ${serviceFeeSek(subtotalSek)} kr)`)
+  const expectedFee = serviceFeeSek(subtotalSek, input.feePercent)
+  if (input.serviceFeeSek !== expectedFee) {
+    throw new Error(`Serviceavgiften stämmer inte (${input.serviceFeeSek} kr, väntade ${expectedFee} kr)`)
   }
   if (input.serviceFeeSek > 0) {
     line_items.push({
@@ -78,7 +85,13 @@ export function checkoutSessionParams(input: {
       price_data: {
         currency: "sek",
         unit_amount: input.serviceFeeSek * 100,
-        product_data: { name: `Serviceavgift (${SERVICE_FEE_PERCENT} %)`, description: "Coaviras avgift för betalning, bokning och support." },
+        product_data: {
+          name: `Serviceavgift (${input.feePercent} %)`,
+          description:
+            input.feePercent === EXISTING_CLIENT_FEE_PERCENT
+              ? "Coaviras avgift för betalning, bokning och support – lägre avgift för PT:ns befintliga klienter."
+              : "Coaviras avgift för betalning, bokning och support.",
+        },
       },
     })
   }
@@ -88,6 +101,7 @@ export function checkoutSessionParams(input: {
     trainer_id: input.trainerId,
     subtotal_sek: String(subtotalSek),
     service_fee_sek: String(input.serviceFeeSek),
+    fee_percent: String(input.feePercent),
   }
   return {
     mode: "payment",

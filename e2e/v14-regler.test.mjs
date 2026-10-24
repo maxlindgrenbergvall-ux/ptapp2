@@ -23,12 +23,12 @@ const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`${p.url()} console: ${m.text()}`))
 p.on("dialog", (d) => void d.accept())
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).data)
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data)
 const patchDemo = (fn) =>
   p.evaluate((src) => {
-    const s = JSON.parse(localStorage["coavira:demo:v4"])
+    const s = JSON.parse(localStorage["coavira:demo:v5"])
     s.data = new Function("d", `return (${src})(d)`)(s.data)
-    localStorage["coavira:demo:v4"] = JSON.stringify(s)
+    localStorage["coavira:demo:v5"] = JSON.stringify(s)
   }, fn.toString())
 const localToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 

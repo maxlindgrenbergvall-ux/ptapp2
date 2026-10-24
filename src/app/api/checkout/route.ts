@@ -7,6 +7,7 @@ interface CheckoutRpc {
   checkout_id: string
   trainer_id: string
   subtotal_sek: number
+  fee_percent: number
   service_fee_sek: number
   total_sek: number
   lines: { purchase_id: string; title: string; unit_price_sek: number; quantity: number; price_sek: number; kind: string }[]
@@ -15,7 +16,8 @@ interface CheckoutRpc {
 /**
  * Klient: starta en betalning.
  *  1. create_checkout() i databasen (som klienten, med RLS) skapar obetalda köp
- *     och räknar ut serviceavgiften (7 %). Priserna hämtas där – webbläsaren
+ *     och räknar ut serviceavgiften: 5 % för PT:ns befintliga klienter (kod från
+ *     PT:n), annars 10 %. Priserna hämtas där – webbläsaren
  *     skickar bara vilka tjänster och hur många enstaka pass som valts.
  *  2. En Stripe Checkout-session skapas med samma rader, antal och avgift.
  *  3. Klienten skickas till Stripe. Webhooken markerar köpet som betalt
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
       email: auth.user.email,
       lines: checkout.lines.map((l) => ({ title: l.title, unitPriceSek: l.unit_price_sek, quantity: l.quantity })),
       serviceFeeSek: checkout.service_fee_sek,
+      feePercent: Number(checkout.fee_percent),
       origin: request.nextUrl.origin,
     })
     const session = await getStripe().checkout.sessions.create(params, { idempotencyKey: `checkout-${checkout.checkout_id}` })

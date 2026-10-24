@@ -5,6 +5,7 @@ import Link from "next/link"
 
 import { appMenuLinks } from "@/components/app-menu"
 import { PushSettingsCard } from "@/components/native/push-settings"
+import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -46,6 +47,8 @@ export function SettingsPage() {
           </li>
         ))}
       </ul>
+
+      {me.role === "client" && <PtInviteRedeemCard />}
 
       {me.role === "client" && (
         <Card className="gap-3">

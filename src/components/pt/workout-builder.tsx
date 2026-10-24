@@ -23,6 +23,7 @@ import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
 
 import { EmptyState, PageHeader } from "@/components/common"
+import { AddCustomExerciseButton, CustomBadge, MUSCLE_GROUPS } from "@/components/exercises/custom-exercise-dialog"
 import { VideoEmbed } from "@/components/video-embed"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { sessionBalance } from "@/lib/services/balance"
 import { useAppData } from "@/lib/data/store"
+import { workoutExerciseFor } from "@/lib/exercises/custom"
 import { formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { ACCEPT, safeName, uploadFile } from "@/lib/storage"
 import { cn } from "@/lib/utils"
@@ -52,7 +54,6 @@ import { SECTION_LABEL, sectionOf, sortBySection, WORKOUT_SECTIONS } from "@/lib
 import { parseVideo } from "@/lib/video"
 import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutSection, WorkoutTemplate } from "@/types/domain"
 
-const MUSCLE_GROUPS: MuscleGroup[] = ["ben", "bröst", "rygg", "axlar", "armar", "bål", "helkropp", "kondition"]
 
 export function WorkoutBuilder() {
   const { data, actions, me } = useAppData()
@@ -90,15 +91,11 @@ export function WorkoutBuilder() {
   }
 
   const addExercise = (exercise: Exercise) => {
-    if (!draft) return
-    const entry: WorkoutExercise = {
-      id: actions.newId(),
-      exerciseId: exercise.id,
-      sets: 3,
-      reps: exercise.muscleGroup === "kondition" ? "500 m" : "10",
-      restSec: 90,
-    }
-    setDraft({ ...draft, exercises: [...draft.exercises, entry] })
+    // Egna övningar har förslag på set, reps och startvikt.
+    const entry: WorkoutExercise = exercise.custom
+      ? workoutExerciseFor(exercise, actions.newId())
+      : { id: actions.newId(), exerciseId: exercise.id, sets: 3, reps: exercise.muscleGroup === "kondition" ? "500 m" : "10", restSec: 90 }
+    setDraft((d) => (d ? { ...d, exercises: [...d.exercises, entry] } : d))
   }
 
   return (
@@ -377,11 +374,14 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
   const { data } = useAppData()
   const [q, setQ] = React.useState("")
   const [group, setGroup] = React.useState<MuscleGroup | null>(null)
-  const results = data.exercises.filter(
-    (e) =>
-      (!group || e.muscleGroup === group) &&
-      (e.name.toLowerCase().includes(q.trim().toLowerCase()) || e.equipment.toLowerCase().includes(q.trim().toLowerCase()))
-  )
+  // Egna övningar först, sedan övningsbanken.
+  const results = data.exercises
+    .filter(
+      (e) =>
+        (!group || e.muscleGroup === group) &&
+        (e.name.toLowerCase().includes(q.trim().toLowerCase()) || e.equipment.toLowerCase().includes(q.trim().toLowerCase()))
+    )
+    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
 
   const list = (
     <ul className="space-y-1 pr-3">
@@ -394,7 +394,7 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
           >
             <Plus className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate">{e.name}</span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">{e.equipment}</span>
+            {e.custom ? <CustomBadge className="ml-auto" /> : <span className="ml-auto shrink-0 text-xs text-muted-foreground">{e.equipment}</span>}
           </button>
         </li>
       ))}
@@ -405,7 +405,10 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
   return (
     <Card className={cn("gap-3", compact && "border-dashed shadow-none")}>
       <CardHeader className="gap-3">
-        <CardTitle className="text-base">Övningsbank</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">Övningsbank</CardTitle>
+          <AddCustomExerciseButton initialName={q} onCreated={(e) => !disabled && onAdd(e)} variant="ghost" />
+        </div>
         <div className="relative">
           <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning eller utrustning" className="pl-8" aria-label="Sök övning" />

@@ -24,13 +24,13 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, pe
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
 p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && errors.push(`${p.url()} console: ${m.text()}`))
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]).data)
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data)
 /** Ändra demodatan och ladda om. */
 const patch = async (fn) => {
   await p.evaluate((src) => {
-    const s = JSON.parse(localStorage["coavira:demo:v4"])
+    const s = JSON.parse(localStorage["coavira:demo:v5"])
     new Function("d", src)(s.data)
-    localStorage["coavira:demo:v4"] = JSON.stringify(s)
+    localStorage["coavira:demo:v5"] = JSON.stringify(s)
   }, fn)
   await p.reload()
 }

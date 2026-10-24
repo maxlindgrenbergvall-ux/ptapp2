@@ -93,6 +93,26 @@ export interface CoachingRelationship {
   status: ClientStatus | "ended"
   goal: string
   startDate: ISODate
+  /** Hur klienten kom till PT:n – styr serviceavgiften (saknas = PLATFORM_CLIENT). */
+  acquisition?: AcquisitionType
+}
+
+/** EXISTING_CLIENT: kopplad med PT:ns kod (5 % avgift). PLATFORM_CLIENT: hittade PT:n i appen (10 %). */
+export type AcquisitionType = "EXISTING_CLIENT" | "PLATFORM_CLIENT"
+
+/** PT:ns engångskod till en befintlig klient (pt_invites). */
+export interface PtInvite {
+  id: ID
+  trainerId: ID
+  /** EX-XXXXXX */
+  code: string
+  /** PT:ns anteckning, t.ex. klientens förnamn. */
+  label?: string
+  isUsed: boolean
+  usedBy?: ID
+  usedAt?: string
+  expiresAt: string
+  createdAt: string
 }
 
 export interface WeightEntry {
@@ -146,6 +166,21 @@ export interface Exercise {
   muscleGroup: MuscleGroup
   equipment: string
   videoUrl?: string
+  /** Egen övning (custom_exercises) – saknas för övningsbanken. */
+  custom?: CustomExerciseInfo
+}
+
+export type WeightUnit = "kg" | "lbs"
+
+/** Egen övning: vem som lagt till den och förslagen när den läggs i ett pass. */
+export interface CustomExerciseInfo {
+  ownerId: ID
+  /** Startvikt / standardvikt i `weightUnit`. */
+  defaultWeight?: number
+  weightUnit: WeightUnit
+  defaultSets: number
+  defaultReps: string
+  createdAt: string
 }
 
 /** Del av passet: uppvärmning, huvudpass (standard) eller nedvarvning. */
@@ -523,6 +558,8 @@ export interface AppData {
   accounts: Record<ID, Account>
   /** Inbjudningar där jag bjudit in eller blivit inbjuden. */
   referrals: Referral[]
+  /** PT:ns koder till befintliga klienter (PT: egna; demo: alla). */
+  ptInvites: PtInvite[]
 }
 
 /** Inloggad användares kod och Coavira Plus (my_account() i databasen). */

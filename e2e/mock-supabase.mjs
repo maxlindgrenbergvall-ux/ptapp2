@@ -100,6 +100,17 @@ const referralRows = [
   { id: "eeeeeeee-0000-4000-8000-000000000001", referrer_id: C1, referred_id: "22222222-0000-4000-8000-000000000009", type: "CLIENT_PLUS", status: "COMPLETED", code: "SARA7KQ2", referrer_rewarded: true, created_at: `${TODAY}T06:00:00Z`, completed_at: `${TODAY}T06:00:00Z` },
 ]
 const plusRows = [{ id: PLUS, user_id: C1, price_sek: 49, days: 30, status: "pending", stripe_session_id: "cs_plus_1", created_at: `${TODAY}T09:00:00Z` }]
+// v19: kundursprung per klient hos Elin och Elins koder till befintliga klienter.
+const acquisition = { [C1]: "PLATFORM_CLIENT" }
+const inviteRows = [
+  { id: "ffffffff-0000-4000-8000-000000000001", pt_id: T1, code: "EX-KALLE2", label: "Kalle", is_used: false, used_by: null, used_at: null, expires_at: new Date(Date.now() + 20 * 86_400_000).toISOString(), created_at: `${TODAY}T06:00:00Z` },
+]
+const resetV19 = () => {
+  acquisition[C1] = "PLATFORM_CLIENT"
+  delete acquisition[N1]
+  const kalle = inviteRows.find((i) => i.code === "EX-KALLE2")
+  inviteRows.splice(0, inviteRows.length, Object.assign(kalle, { is_used: false, used_by: null, used_at: null }))
+}
 const plus30 = (from) => new Date(Math.max(Date.now(), from ? Date.parse(from) : 0) + 30 * 86_400_000).toISOString()
 const rpc = {
   attach_boost_session: null,
@@ -128,7 +139,7 @@ function fixtures(uid, table) {
     case "nutrition_plans": return []
     case "trainers": return [trainerRow]
     case "coaching_relationships":
-      return [{ trainer_id: T1, client_id: C1, status: "active", goal: "Bli stark", started_at: TODAY, created_at: `${TODAY}T08:00:00Z`, client: { full_name: "Sara Test" } }]
+      return [{ trainer_id: T1, client_id: C1, status: "active", goal: "Bli stark", started_at: TODAY, created_at: `${TODAY}T08:00:00Z`, acquisition_type: acquisition[C1], client: { full_name: "Sara Test" } }]
     case "weight_entries": return client ? [] : []
     case "meal_checks": return []
     case "workout_templates": return []
@@ -137,6 +148,7 @@ function fixtures(uid, table) {
     case "recipes": return []
     case "cart_items": return client ? cartRows : []
     case "trainer_boosts": return client ? [] : boostRows
+    case "pt_invites": return uid === T1 ? inviteRows : []
     case "referrals": return referralRows.filter((r) => r.referrer_id === uid || r.referred_id === uid)
     case "plus_purchases": return plusRows.filter((r) => r.user_id === uid)
     default: return []
@@ -174,6 +186,7 @@ http.createServer(async (req, res) => {
     nova.app_metadata = {}
     Object.assign(accounts[N1], { coavira_plus_until: null, referred: false, can_redeem: true })
     referralRows.splice(1)
+    resetV19()
     return send(200, {})
   }
 
@@ -268,15 +281,17 @@ http.createServer(async (req, res) => {
     if (m[1] && table === "create_checkout") {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
-      // v17: antal (enstaka pass) och serviceavgift 7 % (som service_fee_sek i databasen).
+      // v17: antal (enstaka pass). v19: serviceavgift 5 % för befintliga klienter, annars 10 % (som create_checkout).
       const lines = p.p_service_ids.map((id, i) => ({ s: serviceRows.find((x) => x.id === id), qty: p.p_quantities?.[i] ?? 1 })).filter((l) => l.s)
       const subtotal = lines.reduce((a, l) => a + l.s.price_sek * l.qty, 0)
-      const fee = Math.floor((subtotal * 7 + 50) / 100)
+      const pct = acquisition[uid] === "EXISTING_CLIENT" ? 5 : 10
+      const fee = Math.floor((subtotal * pct + 50) / 100)
       return send(200, {
         checkout_id: CO_NEW,
         trainer_id: T1,
+        acquisition_type: acquisition[uid] ?? "PLATFORM_CLIENT",
         subtotal_sek: subtotal,
-        fee_percent: 7,
+        fee_percent: pct,
         service_fee_sek: fee,
         total_sek: subtotal + fee,
         lines: lines.map(({ s: x, qty }) => ({ purchase_id: x.id, title: x.title, kind: x.kind, quantity: qty, unit_price_sek: x.price_sek, price_sek: x.price_sek * qty })),
@@ -286,6 +301,26 @@ http.createServer(async (req, res) => {
       log.push({ method: "RPC", table, body: null })
       if (uid !== T1) return send(403, { code: "42501", message: "Bara PT:er kan boosta sin profil" })
       return send(200, { boost_id: BOOST, trainer_id: T1, price_sek: 199, duration_days: 7, boosted_until: trainerRow.boosted_until ?? null })
+    }
+    if (m[1] && table === "create_pt_invite") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      if (uid !== T1) return send(403, { code: "42501", message: "Bara verifierade PT:er kan bjuda in klienter" })
+      const row = { id: "ffffffff-0000-4000-8000-000000000002", pt_id: T1, code: "EX-NYKD23", label: p.p_label ?? null, is_used: false, used_by: null, used_at: null, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(), created_at: new Date().toISOString() }
+      inviteRows.unshift(row)
+      return send(200, { id: row.id, code: row.code, label: row.label, expires_at: row.expires_at, created_at: row.created_at })
+    }
+    if (m[1] && table === "redeem_pt_invite") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      if (byId[uid].app_metadata.role !== "client") return send(200, { ok: false, error: "Bara klientkonton kan använda en inbjudningskod från en PT" })
+      const inv = inviteRows.find((i) => i.code === p.p_code)
+      if (!inv || inv.is_used) return send(200, { ok: false, error: "Koden finns inte eller har redan använts" })
+      if (acquisition[uid] === "EXISTING_CLIENT") return send(200, { ok: false, error: "Du är redan kopplad till PT:n som befintlig klient" })
+      if (purchaseRows.some((x) => x.client_id === uid && x.status === "paid")) return send(200, { ok: false, error: "Du har redan köpt hos PT:n via Coavira – koden gäller klienter som PT:n hade innan" })
+      Object.assign(inv, { is_used: true, used_by: uid, used_at: new Date().toISOString() })
+      acquisition[uid] = "EXISTING_CLIENT"
+      return send(200, { ok: true, trainer_id: T1, trainer_name: "Elin Test", acquisition_type: "EXISTING_CLIENT" })
     }
     if (m[1] && table === "my_account") { log.push({ method: "RPC", table, body: null }); return send(200, account(uid)) }
     if (m[1] && table === "redeem_referral") {

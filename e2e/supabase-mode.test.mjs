@@ -16,6 +16,8 @@ const fail = (m) => { console.log("FAIL", m); process.exitCode = 1 }
 const check = (cond, m) => (cond ? ok(m) : fail(m))
 const getLog = async () => (await fetch(`${mock}/__log`)).json()
 await fetch(`${mock}/__reset`)
+// Nova (ny@test.se) ny igen om v18/v19-testerna körts före (mocken behåller sitt tillstånd).
+await fetch(`${mock}/__reset_v18`)
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const p = await ctx.newPage()
@@ -335,8 +337,8 @@ ok("klienten skickas till Stripe Checkout")
 const stripeLog = await (await fetch("http://localhost:54500/__log")).json()
 const created = stripeLog.find((e) => e.method === "POST")?.form ?? {}
 check(created["line_items[0][price_data][unit_amount]"] === "80000" && created["line_items[0][price_data][currency]"] === "sek", "Stripe får priset från databasen (800 kr = 80000 öre)")
-check(created["line_items[1][price_data][unit_amount]"] === "5600" && created["line_items[1][price_data][product_data][name]"] === "Serviceavgift (7 %)", "Stripe får serviceavgiften som egen rad (7 % = 56 kr)")
-check(created["metadata[subtotal_sek]"] === "800" && created["metadata[service_fee_sek]"] === "56", "deltotal och avgift i Stripe-metadata")
+check(created["line_items[1][price_data][unit_amount]"] === "8000" && created["line_items[1][price_data][product_data][name]"] === "Serviceavgift (10 %)", "Stripe får serviceavgiften som egen rad (plattformsklient: 10 % = 80 kr)")
+check(created["metadata[subtotal_sek]"] === "800" && created["metadata[service_fee_sek]"] === "80" && created["metadata[fee_percent]"] === "10", "deltotal och avgift i Stripe-metadata")
 check(created.client_reference_id === "aaaaaaaa-0000-4000-8000-000000000002" && created["metadata[checkout_id]"] === created.client_reference_id, "kassan kopplas till Stripe-sessionen")
 check((created.success_url ?? "").startsWith(`${base}/klient/kop?session_id=`), "Stripe skickar tillbaka till /klient/kop")
 log = await getLog()
@@ -348,7 +350,7 @@ await v.goto(`${base}/klient/kop?session_id=cs_test_1`)
 await v.waitForSelector("text=Tack! Betalningen är klar")
 log = await getLog()
 const paid = log.find((e) => e.table === "mark_checkout_paid")
-check(paid?.body.p_checkout === "aaaaaaaa-0000-4000-8000-000000000002" && paid.body.p_amount_sek === 856, "servern bekräftar betalningen hos Stripe och markerar kassan betald (800 kr + 7 % serviceavgift)")
+check(paid?.body.p_checkout === "aaaaaaaa-0000-4000-8000-000000000002" && paid.body.p_amount_sek === 880, "servern bekräftar betalningen hos Stripe och markerar kassan betald (800 kr + 10 % serviceavgift)")
 await v.waitForURL(`${base}/klient`)
 
 // 16. v12: intressen i profilen och Lämna PT
@@ -381,7 +383,7 @@ await c5.close()
 
 // Webhook: bara signerade anrop från Stripe godtas.
 const { createHmac } = await import("node:crypto")
-const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_test_1", payment_status: "paid", amount_total: 85600, client_reference_id: "aaaaaaaa-0000-4000-8000-000000000002", payment_intent: "pi_test_1", metadata: { checkout_id: "aaaaaaaa-0000-4000-8000-000000000002" } } } })
+const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_test_1", payment_status: "paid", amount_total: 88000, client_reference_id: "aaaaaaaa-0000-4000-8000-000000000002", payment_intent: "pi_test_1", metadata: { checkout_id: "aaaaaaaa-0000-4000-8000-000000000002" } } } })
 const t = Math.floor(Date.now() / 1000)
 const sig = createHmac("sha256", "whsec_test").update(`${t}.${payload}`).digest("hex")
 const badSig = await fetch(`${base}/api/stripe/webhook`, { method: "POST", body: payload, headers: { "stripe-signature": `t=${t},v1=${"0".repeat(64)}` } })

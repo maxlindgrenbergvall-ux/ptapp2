@@ -19,13 +19,13 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, acceptDownloads: true })
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
-const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v4"]))
+const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]))
 const setName = (kind, id, name) =>
   p.evaluate(
     ([kind, id, name]) => {
-      const s = JSON.parse(localStorage["coavira:demo:v4"])
+      const s = JSON.parse(localStorage["coavira:demo:v5"])
       s.data[kind] = s.data[kind].map((x) => (x.id === id ? { ...x, name } : x))
-      localStorage["coavira:demo:v4"] = JSON.stringify(s)
+      localStorage["coavira:demo:v5"] = JSON.stringify(s)
     },
     [kind, id, name]
   )

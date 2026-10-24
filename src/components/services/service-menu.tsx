@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { isInCart } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
-import { checkoutTotals } from "@/lib/payments/fees"
+import { acquisitionOf, checkoutTotals, feePercentFor } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
@@ -122,8 +122,9 @@ function CheckoutDialog({
   }
 
   const lines = service ? [service, ...(addNutrition && nutrition ? [nutrition] : [])] : []
-  // Deltotal + serviceavgift (7 %) – samma regel som databasen och Stripe.
-  const { subtotalSek, serviceFeeSek, totalSek: total } = checkoutTotals(lines.reduce((sum, s) => sum + s.priceSek, 0))
+  // Deltotal + serviceavgift (5 % för PT:ns befintliga klienter, annars 10 %) – samma regel som databasen och Stripe.
+  const feePercent = feePercentFor(acquisitionOf(data, me.id, trainer.id))
+  const { subtotalSek, serviceFeeSek, totalSek: total } = checkoutTotals(lines.reduce((sum, s) => sum + s.priceSek, 0), feePercent)
 
   const pay = async () => {
     setPending(true)
@@ -191,7 +192,7 @@ function CheckoutDialog({
                 </li>
               ))}
               <li className="p-3">
-                <CheckoutSummary subtotalSek={subtotalSek} serviceFeeSek={serviceFeeSek} totalSek={total} testId="checkout-total" />
+                <CheckoutSummary subtotalSek={subtotalSek} feePercent={feePercent} serviceFeeSek={serviceFeeSek} totalSek={total} testId="checkout-total" />
               </li>
             </ul>
             {offerNutrition && nutrition && !addNutrition && (

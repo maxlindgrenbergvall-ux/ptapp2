@@ -8,6 +8,9 @@ import type { PersistResult } from "@/lib/data/outbox"
 import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
+  AcquisitionType,
+  PtInvite,
+  WeightUnit,
   Account,
   AppData,
   AppNotification,
@@ -98,6 +101,8 @@ interface RelationshipRow {
   goal: string
   started_at: string | null
   created_at: string
+  /** v19 – saknas i äldre databaser. */
+  acquisition_type?: AcquisitionType | null
   client?: { full_name: string; interests?: string[] | null; focus?: string | null; avatar_url?: string | null } | null
 }
 interface WorkoutRow {
@@ -308,7 +313,59 @@ interface RuleRow {
 
 // ------------------------------------------------------------ mappning ---
 
-const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
+export interface CustomExerciseRow {
+  id: string
+  user_id: string
+  name: string
+  default_weight: number | string | null
+  weight_unit: WeightUnit
+  default_sets: number
+  default_reps: string
+  muscle_group: Exercise["muscleGroup"]
+  created_at: string
+}
+/** Egen övning → samma form som övningsbanken (syns i alla övningslistor). */
+export const toCustomExercise = (r: CustomExerciseRow): Exercise => ({
+  id: r.id,
+  name: r.name,
+  muscleGroup: r.muscle_group,
+  equipment: "",
+  custom: {
+    ownerId: r.user_id,
+    defaultWeight: r.default_weight === null ? undefined : Number(r.default_weight),
+    weightUnit: r.weight_unit,
+    defaultSets: r.default_sets,
+    defaultReps: r.default_reps,
+    createdAt: r.created_at,
+  },
+})
+
+export interface PtInviteRow {
+  id: string
+  pt_id?: string
+  code: string
+  label: string | null
+  is_used?: boolean
+  used_by?: string | null
+  used_at?: string | null
+  expires_at: string
+  created_at: string
+}
+export const toPtInvite = (r: PtInviteRow, trainerId: string): PtInvite => ({
+  id: r.id,
+  trainerId: r.pt_id ?? trainerId,
+  code: r.code,
+  label: r.label ?? undefined,
+  isUsed: r.is_used ?? false,
+  usedBy: r.used_by ?? undefined,
+  usedAt: r.used_at ?? undefined,
+  expiresAt: r.expires_at,
+  createdAt: r.created_at,
+})
+
+export const TRAINER_SELECT = "*, profile:profiles!trainers_id_fkey(full_name), reviews(id, author_name, rating, text, created_at)"
+
+export const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   id: r.id,
   name: r.profile?.full_name ?? nameFallback,
   city: r.city,
@@ -648,13 +705,14 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email }
   const since = addDays(todayISO(), -HISTORY_DAYS)
 
-  const trainerSelect =
-    "*, profile:profiles!trainers_id_fkey(full_name), reviews(id, author_name, rating, text, created_at)"
+  const trainerSelect = TRAINER_SELECT
 
   // Gemensamt för båda rollerna (RLS avgör vad som syns).
   const trackerSince = addDays(todayISO(), -60)
-  const [exercises, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases, progress, account, referrals] = await Promise.all([
+  const [exercises, custom, workouts, messages, events, plans, food, water, sleep, aliases, notifications, offers, services, purchases, progress, account, referrals] = await Promise.all([
     sb.from("exercises").select("id, name, muscle_group, equipment, video_url").order("name"),
+    // Egna övningar: mina och de jag tränar med (RLS).
+    sb.from("custom_exercises").select("*").order("name").limit(1000),
     sb.from("scheduled_workouts").select("*, set_logs(*)").gte("date", since).order("date"),
     sb.from("messages").select("*").order("sent_at"),
     // Kalendern: 90 dagar bakåt och allt framåt (RLS: PT:ns egna / klientens egna).
@@ -688,7 +746,10 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     exercises: must<{ id: string; name: string; muscle_group: Exercise["muscleGroup"]; equipment: string; video_url: string | null }[]>(
       exercises,
       "övningar"
-    ).map((e) => ({ id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, videoUrl: e.video_url ?? undefined })),
+    )
+      .map((e): Exercise => ({ id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, videoUrl: e.video_url ?? undefined }))
+      // Äldre databaser (före v19) saknar custom_exercises.
+      .concat(custom.error ? [] : ((custom.data ?? []) as CustomExerciseRow[]).map(toCustomExercise)),
     workouts: must<WorkoutRow[]>(workouts, "pass").map(toWorkout),
     messages: must<MessageRow[]>(messages, "meddelanden").map(toMessage),
     events: must<EventRow[]>(events, "kalender").map(toEvent),
@@ -705,10 +766,11 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     // Äldre databaser (före v18) saknar my_account/referrals – då utan Plus och inbjudningar.
     accounts: account.error || !account.data ? {} : { [uid]: toAccount(account.data as AccountRow) },
     referrals: referrals.error ? [] : ((referrals.data ?? []) as ReferralRow[]).map(toReferral),
+    ptInvites: [] as PtInvite[],
   }
 
   if (me.role === "trainer") {
-    const [self, rels, weights, templates, rules, recipes, ptMeals] = await Promise.all([
+    const [self, rels, weights, templates, rules, recipes, ptMeals, invites] = await Promise.all([
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
@@ -721,9 +783,12 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       sb.from("recipes").select("*").eq("trainer_id", uid).order("name"),
       // Klienternas avbockade måltider – PT:n ser samma "Dagens kost" som klienten (RLS).
       sb.from("meal_checks").select("client_id, date, meal_id").gte("date", addDays(todayISO(), -30)),
+      // PT:ns koder till befintliga klienter (RLS: bara egna).
+      sb.from("pt_invites").select("*").order("created_at", { ascending: false }).limit(200),
     ])
+    const relRowsPt = must<RelationshipRow[]>(rels, "klienter")
     const weightRows = must<{ client_id: string; date: string; kg: number | string }[]>(weights, "vikt")
-    const clients: Client[] = must<RelationshipRow[]>(rels, "klienter").map((r) => ({
+    const clients: Client[] = relRowsPt.map((r) => ({
       id: r.client_id,
       name: r.client?.full_name ?? "Okänd",
       trainerId: uid,
@@ -744,7 +809,15 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
         availabilityRules: must<RuleRow[]>(rules, "tillgänglighet").map(toRule),
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
-        relationships: clients.map((c) => ({ trainerId: uid, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
+        relationships: clients.map((c) => ({
+          trainerId: uid,
+          clientId: c.id,
+          status: c.status,
+          goal: c.goal,
+          startDate: c.startDate,
+          acquisition: relRowsPt.find((r) => r.client_id === c.id)?.acquisition_type ?? "PLATFORM_CLIENT",
+        })),
+        ptInvites: invites.error ? [] : ((invites.data ?? []) as PtInviteRow[]).map((r) => toPtInvite(r, uid)),
         mealChecks: must<{ client_id: string; date: string; meal_id: string }[]>(ptMeals, "måltider").map((m) => ({
           clientId: m.client_id,
           date: m.date,
@@ -790,6 +863,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     status: r.status,
     goal: r.goal,
     startDate: r.started_at ?? r.created_at.slice(0, 10),
+    acquisition: r.acquisition_type ?? "PLATFORM_CLIENT",
   }))
   return {
     me,
@@ -1200,6 +1274,23 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     case "removeCartItems":
       return result(sb.from("cart_items").delete().eq("client_id", action.clientId).in("service_id", action.serviceIds))
     // Bara antalet får ändras (kolumnbehörighet i databasen).
+    case "addCustomExercise": {
+      const x = action.exercise
+      return result(
+        sb.from("custom_exercises").insert({
+          id: x.id,
+          user_id: me.id,
+          name: x.name.trim().slice(0, 80),
+          default_weight: x.custom?.defaultWeight ?? null,
+          weight_unit: x.custom?.weightUnit ?? "kg",
+          default_sets: x.custom?.defaultSets ?? 3,
+          default_reps: x.custom?.defaultReps ?? "10",
+          muscle_group: x.muscleGroup,
+        })
+      )
+    }
+    case "deleteCustomExercise":
+      return result(sb.from("custom_exercises").delete().eq("id", action.exerciseId).eq("user_id", me.id))
     case "setCartQuantity":
       return result(
         sb.from("cart_items").update({ quantity: action.quantity }).eq("client_id", action.clientId).eq("service_id", action.serviceId)

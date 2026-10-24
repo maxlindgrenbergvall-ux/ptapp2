@@ -14,6 +14,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
 import { forgetReferral, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS, storedReferral } from "@/lib/plus"
+import { formatPtInviteInput } from "@/components/pt/pt-invite-redeem"
+import { EXISTING_CLIENT_FEE_PERCENT } from "@/lib/payments/fees"
+import { forgetPtInvite, normalizePtInviteCode, PT_INVITE_CODE, storedPtInvite } from "@/lib/pt-invites"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 import { START_PATH } from "@/lib/site"
@@ -38,6 +41,8 @@ export function OnboardingForm() {
   const [focus, setFocus] = React.useState("")
   // Inbjudningskod (valfri): förifylls från inbjudningslänken (/ref/KOD).
   const [referral, setReferral] = React.useState("")
+  // PT:ns kod till en befintlig klient (valfri): förifylls från PT:ns länk (/ref/EX-…).
+  const [ptCode, setPtCode] = React.useState("")
   const [loading, setLoading] = React.useState(isSupabaseEnabled)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -63,6 +68,7 @@ export function OnboardingForm() {
           return
         }
         setReferral(storedReferral() ?? "")
+        setPtCode(storedPtInvite() ?? "")
         setName((meta.full_name ?? meta.name ?? "").slice(0, 120))
         setPhone(meta.phone ?? user.phone ?? "")
         setLoading(false)
@@ -77,7 +83,9 @@ export function OnboardingForm() {
     setError(null)
     if (!consent) return setError("Du behöver godkänna behandlingen av hälsouppgifter för att kunna träna med en PT i Coavira.")
     const code = normalizeReferralCode(referral)
-    if (code && !REFERRAL_CODE.test(code)) return setError("Inbjudningskoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
+    if (code && !REFERRAL_CODE.test(code)) return setError("Vänkoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
+    const pt = ptCode.trim() ? normalizePtInviteCode(ptCode) : ""
+    if (pt && !PT_INVITE_CODE.test(pt)) return setError("PT:ns kod ser ut så här: EX-8FK29A. Lämna fältet tomt om du saknar kod.")
 
     if (!isSupabaseEnabled) {
       // Demoläge: gå till klientdemon. Namn/telefon finns redan i demodatan.
@@ -107,6 +115,18 @@ export function OnboardingForm() {
     }
     // Ny JWT med rollen i user_metadata, sedan hel sidladdning (proxy.ts läser cookien).
     await sb.auth.refreshSession()
+    if (pt) {
+      // Kopplar klienten direkt till PT:n som befintlig klient (5 % serviceavgift).
+      const { data: res, error: ptError } = await sb.rpc("redeem_pt_invite", { p_code: pt })
+      const r = res as { ok?: boolean; error?: string } | null
+      if (ptError || !r?.ok) {
+        setPending(false)
+        setPtCode("")
+        forgetPtInvite()
+        return setError(`${ptError?.message ?? r?.error ?? "PT:ns kod kunde inte användas."} Kontot är skapat – tryck på Kom igång för att fortsätta utan kod.`)
+      }
+      forgetPtInvite()
+    }
     if (code) {
       // Belöningarna (1 månad Plus till båda) delas ut av databasen.
       const { error: refError } = await sb.rpc("redeem_referral", { p_code: code })
@@ -202,7 +222,25 @@ export function OnboardingForm() {
 
         {isSupabaseEnabled && (
           <div className="space-y-2">
-            <Label htmlFor="referral">Inbjudningskod (valfritt)</Label>
+            <Label htmlFor="pt-code">Har du en inbjudningskod från din PT?</Label>
+            <Input
+              id="pt-code"
+              value={ptCode}
+              onChange={(e) => setPtCode(formatPtInviteInput(e.target.value))}
+              placeholder="EX-8FK29A (valfritt)"
+              autoComplete="off"
+              autoCapitalize="characters"
+              className="h-11 font-mono tracking-widest uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              Tränar du redan med en PT? Med PT:ns kod kopplas ni ihop direkt och du betalar {EXISTING_CLIENT_FEE_PERCENT} % serviceavgift.
+            </p>
+          </div>
+        )}
+
+        {isSupabaseEnabled && (
+          <div className="space-y-2">
+            <Label htmlFor="referral">Kod från en vän (valfritt)</Label>
             <Input
               id="referral"
               value={referral}
