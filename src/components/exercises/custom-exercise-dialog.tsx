@@ -95,7 +95,7 @@ export function CustomExerciseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md" data-testid="custom-exercise-dialog">
+      <DialogContent className="sm:max-w-md" data-testid="custom-exercise-dialog">
         <form onSubmit={submit} className="space-y-4" noValidate>
           <DialogHeader>
             <DialogTitle>Lägg till egen övning</DialogTitle>

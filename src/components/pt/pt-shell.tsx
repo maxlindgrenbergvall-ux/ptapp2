@@ -39,10 +39,12 @@ export function PtShell({ children }: { children: React.ReactNode }) {
                 <Menu />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
+            <SheetContent side="left" className="w-64 gap-0 p-0">
               <SheetHeader className="sr-only">
                 <SheetTitle>Meny</SheetTitle>
               </SheetHeader>
+              {/* Plats för stängknappen (44 px) ovanför menyn. */}
+              <div className="h-14 shrink-0" aria-hidden />
               <SidebarContent onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>

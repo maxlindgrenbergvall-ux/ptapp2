@@ -148,7 +148,7 @@ function CheckoutDialog({
 
   return (
     <Dialog open={service !== null} onOpenChange={(o) => !o && !pending && onClose()}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         {service && step === "upsell" && nutrition ? (
           <div className="space-y-4" data-testid="nutrition-upsell">
             <DialogHeader className="items-center text-center">

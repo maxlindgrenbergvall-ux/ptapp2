@@ -74,7 +74,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
                 <MacroInline value={e} />
               </div>
               <span className="shrink-0 tabular">{e.kcal} kcal</span>
-              <button className="shrink-0 rounded p-1 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={() => actions.deleteFoodEntry(e.id)}>
+              <button className="touch-target shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={() => actions.deleteFoodEntry(e.id)}>
                 <X className="size-3.5" />
               </button>
             </li>

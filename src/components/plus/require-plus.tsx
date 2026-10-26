@@ -107,7 +107,7 @@ export function UpgradeDialog({ open, onOpenChange, feature }: { open: boolean; 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         overlayClassName="bg-background/30 backdrop-blur-md"
-        className="overflow-hidden border-white/20 bg-background/75 shadow-2xl backdrop-blur-md sm:max-w-md"
+        className="overflow-x-hidden border-white/20 bg-background/75 shadow-2xl backdrop-blur-md sm:max-w-md"
         data-testid="upgrade-dialog"
       >
         <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 size-64 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_35%,transparent),transparent)]" />

@@ -46,7 +46,7 @@ export function CalendarSyncButton({ className }: { className?: string }) {
           <CalendarSync /> Synka kalender
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarSync className="size-5 text-primary" /> Synka kalender

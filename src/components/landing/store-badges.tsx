@@ -74,7 +74,7 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
           type="button"
           onClick={onClose}
           aria-label="Stäng"
-          className={cn("absolute top-3 right-3 z-10 flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground", FOCUS)}
+          className={cn("absolute top-3 right-3 z-10 flex size-11 items-center justify-center rounded-full bg-white/[0.08] text-foreground backdrop-blur-sm transition-colors hover:bg-white/[0.14]", FOCUS)}
         >
           <X className="size-5" aria-hidden />
         </button>

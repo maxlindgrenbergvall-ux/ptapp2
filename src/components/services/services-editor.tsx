@@ -76,7 +76,7 @@ export function ServicesEditor() {
       </Button>
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           {editing !== null && (
             <ServiceForm key={editing === "new" ? "new" : editing.id} service={editing === "new" ? undefined : editing} onDone={() => setEditing(null)} />
           )}

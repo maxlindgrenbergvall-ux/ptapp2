@@ -214,7 +214,7 @@ function BookingDialog({ trainer }: { trainer: Trainer }) {
           <CalendarDays /> Boka
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         {sent ? (
           <div className="space-y-4 text-center">
             <DialogHeader className="items-center">

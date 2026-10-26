@@ -619,7 +619,7 @@ function VerifyDialog({
   const blocker = verifyBlocker(data, workout)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Klarmarkera passet</DialogTitle>
           <DialogDescription>

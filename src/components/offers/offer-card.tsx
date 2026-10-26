@@ -67,7 +67,7 @@ export function OfferCard({
           type="button"
           onClick={onDismiss}
           aria-label={`Dölj erbjudandet ${offer.title}`}
-          className="absolute top-2 right-2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="touch-target absolute top-1.5 right-1.5 rounded-full bg-muted/80 p-1.5 text-muted-foreground backdrop-blur-sm hover:bg-muted hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>

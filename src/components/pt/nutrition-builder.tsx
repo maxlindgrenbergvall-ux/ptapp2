@@ -398,7 +398,7 @@ function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: Me
               </span>
               <span className="w-16 text-right text-muted-foreground tabular">{item.kcal} kcal</span>
               <button
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="touch-target rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label={`Ta bort ${item.name}`}
                 onClick={() => onChange(items.filter((_, i) => i !== idx))}
               >
@@ -515,7 +515,7 @@ function RecipeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <form
           className="space-y-4"
           onSubmit={(e) => {

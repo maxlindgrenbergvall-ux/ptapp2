@@ -71,7 +71,7 @@ export function OffersEditor() {
       {specialties.length === 0 && <p className="text-xs text-muted-foreground">Välj minst en inriktning och spara profilen först.</p>}
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           {editing !== null && (
             <OfferForm
               key={editing === "new" ? "new" : editing.id}

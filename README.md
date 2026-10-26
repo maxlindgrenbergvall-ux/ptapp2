@@ -638,6 +638,7 @@ Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Ac
   - **iOS:** kräver APNs-nyckel och Push-capability i Apple-kontot (certifikatfasen). `AppDelegate` vidarebefordrar redan enhetens token.
   - **Utskick** (Firebase Cloud Messaging från servern, t.ex. när en avisering skapas) görs i ett senare steg.
 - **App Links / Universal Links (förberett):** `/.well-known/assetlinks.json` (miljövariabeln `ANDROID_APP_SHA256`) och `/.well-known/apple-app-site-association` (`APPLE_TEAM_ID`) svarar 404 tills värdena finns.
+- **Stängknappar (v23):** dialoger och sidopaneler (`components/ui/dialog.tsx`, `sheet.tsx`) håller sig inom safe area; alla kryss är minst 44 × 44 px, runda och med bakgrund (`components/ui/close-button.tsx`). Små dölj-/ta bort-kryss i listor får 44 px träffyta med `touch-target` (globals.css).
 - **Helskärm och safe area:** `viewport-fit=cover`; sidhuvuden, bottenmeny, samtalsvy och inloggningssidor lägger till `--safe-top`/`--safe-bottom` (från `env(safe-area-inset-*)` och Capacitors `--safe-area-inset-*` på Android). Android kör kant till kant (`EdgeToEdge`). På webben är marginalerna 0.
 - **Betalning (v22):** Stripe Checkout öppnas i appen med `@capacitor/browser` (`src/lib/native/checkout.ts`): en Safari-vy med **Klar**, så att man alltid kan avbryta. Appens WebView lämnar aldrig appen.
   - Från appen (user agent `CoaviraApp`) sätter servern `success_url`/`cancel_url` till `/app-retur/<sida>` (`src/lib/app-return.ts`). Sidan skickar vidare till `com.coavira.app://<sida>`; `NativeBridge` (`appUrlOpen`) stänger vyn och öppnar kvittot/sidan i appen.
@@ -776,6 +777,7 @@ node e2e/mock-revenuecat.mjs &  # (krävs av v21) RevenueCats REST-API på :5460
 node e2e/v21-supabase.test.mjs  # Köp i appen: RevenueCat-webhook (Plus, Boost, återbetalning), synk, köpvyn i iPhone-appen
 node e2e/v22-app-checkout.test.mjs # (demo) Vilotimer −15/+15 s, /app-retur, djuplänk från Stripe stänger webbläsarvyn
 node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.open med Klar, knappen släpper när vyn stängs
+node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

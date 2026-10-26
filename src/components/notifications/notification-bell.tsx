@@ -167,7 +167,7 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="relative z-10 size-7 shrink-0"
+                          className="touch-target z-10 size-8 shrink-0 rounded-full"
                           aria-label={`Dölj ${f.trainer.name}`}
                           onClick={() => {
                             interests.dismiss(f.id)

@@ -178,7 +178,7 @@ export function ChatThread({
                 <PendingThumb file={f} />
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
                 <span className="shrink-0 text-muted-foreground">{formatBytes(f.size)}</span>
-                <button type="button" className="rounded p-0.5 hover:bg-background" aria-label={`Ta bort ${f.name}`} onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}>
+                <button type="button" className="touch-target rounded-full p-1 hover:bg-background" aria-label={`Ta bort ${f.name}`} onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}>
                   <X className="size-3.5" />
                 </button>
               </li>

@@ -44,7 +44,7 @@ export function EventFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         {open && <EventForm key={event?.id ?? initialStart?.toISOString()} event={event} initialStart={initialStart} onDone={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>

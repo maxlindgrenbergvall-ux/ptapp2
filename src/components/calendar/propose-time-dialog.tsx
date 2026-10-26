@@ -35,7 +35,7 @@ export function ProposeTimeDialog({
 
   return (
     <Dialog open={Boolean(event)} onOpenChange={close}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Föreslå en ny tid</DialogTitle>
           <DialogDescription>

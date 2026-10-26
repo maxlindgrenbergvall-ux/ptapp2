@@ -12,10 +12,12 @@ import { toast } from "sonner"
 
 import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
+import { CLOSE_BUTTON } from "@/components/ui/close-button"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cartCount, cartGroups, MAX_CHECKOUT_LINES, type CartGroup } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
+import { cn } from "@/lib/utils"
 import { canChooseQuantity, EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
@@ -78,9 +80,9 @@ function CartContents({ onNavigate }: { onNavigate: () => void }) {
           </SheetDescription>
         </div>
         <SheetClose asChild>
-          <Button variant="ghost" size="icon" className="-mt-1 -mr-2 shrink-0" aria-label="Stäng varukorgen">
+          <button type="button" className={cn("-mt-1.5 -mr-1.5", CLOSE_BUTTON)} aria-label="Stäng varukorgen">
             <X />
-          </Button>
+          </button>
         </SheetClose>
       </SheetHeader>
 

@@ -320,3 +320,20 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/*
+ * Små ikonknappar (t.ex. dölj-kryss i listor): träffytan utökas till minst
+ * 44 × 44 px (Apples riktlinje) utan att knappen tar mer plats i layouten.
+ */
+@utility touch-target {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}

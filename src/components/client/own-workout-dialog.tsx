@@ -65,7 +65,7 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
           <Plus /> Logga eget pass
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={submit} className="space-y-4" noValidate>
           <DialogHeader>
             <DialogTitle>Eget pass</DialogTitle>

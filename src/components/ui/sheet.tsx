@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { XIcon } from "lucide-react"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
+import { CLOSE_BUTTON } from "@/components/ui/close-button"
+
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
@@ -48,11 +50,19 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  style,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  // Safe area: innehållet börjar under statusfältet/notchen och slutar ovanför
+  // hemindikatorn. Inline-stil, så att panelens egna p-0/p-4 inte tar bort den.
+  const safe: React.CSSProperties = {
+    ...(side !== "bottom" ? { paddingTop: "var(--safe-top)" } : {}),
+    ...(side !== "top" ? { paddingBottom: "var(--safe-bottom)" } : {}),
+    ...style,
+  }
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -70,13 +80,16 @@ function SheetContent({
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           className
         )}
+        style={safe}
         {...props}
       >
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">
-            <XIcon className="size-4" />
-            <span className="sr-only">Close</span>
+          <SheetPrimitive.Close
+            aria-label="Stäng"
+            className={cn("absolute right-2.5 z-10", side === "bottom" ? "top-2.5" : "top-[calc(var(--safe-top)+0.625rem)]", CLOSE_BUTTON)}
+          >
+            <XIcon />
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>

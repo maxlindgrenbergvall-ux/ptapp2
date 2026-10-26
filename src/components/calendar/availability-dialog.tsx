@@ -43,7 +43,7 @@ export function AvailabilityDialog({ open, onOpenChange }: { open: boolean; onOp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="size-5 text-primary" /> Tillgänglighet
