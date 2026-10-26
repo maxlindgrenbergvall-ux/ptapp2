@@ -1,4 +1,4 @@
-// Butiksbilder till App Store (iPhone 6,9": 1320×2868) i landningssidans stil.
+// Butiksbilder till App Store (iPhone 6,9": 1320×2868, iPhone Duo: 5244×2950) i landningssidans stil.
 //
 //   npm run build && npm start   (utan Supabase-variabler = demoläge)
 //   node scripts/store-screenshots.mjs
@@ -7,7 +7,9 @@
 // 2. Fotograferar landningssidans telefoner
 //    och kort (samma grafik som coavira.fit) → mobile/store/ios/raw/landing-*.png
 // 3. Sätter ihop butiksbilderna med rubriker → mobile/store/ios/01-….png
+// 4. Liggande bilder för iPhone Duo (5244×2950) → mobile/store/ios/duo/01-….png
 // Typsnitt och stilar hämtas från sajten, så bilderna matchar landningssidan.
+// REUSE_RAW=1 hoppar över steg 1–2 och använder bilderna i raw/.
 import fs from "node:fs"
 import { chromium } from "playwright"
 
@@ -17,8 +19,10 @@ const raw = `${out}/raw`
 fs.mkdirSync(raw, { recursive: true })
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
 
+const reuse = process.env.REUSE_RAW === "1"
+
 // ------------------------------------------------------------ 1. appen ---
-{
+if (!reuse) {
   const ctx = await browser.newContext({
     viewport: { width: 440, height: 956 },
     deviceScaleFactor: 3,
@@ -51,9 +55,7 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 }
 
 // --------------------------------------------------- 2. landningssidan ---
-let siteCss = []
-let bodyClass = ""
-{
+if (!reuse) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 3, reducedMotion: "reduce" })
   const p = await ctx.newPage()
   await p.goto(base + "/")
@@ -64,8 +66,6 @@ let bodyClass = ""
   }
   await p.waitForTimeout(1500)
   await p.addStyleTag({ content: "[data-sonner-toaster]{display:none!important}" })
-  siteCss = await p.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.href))
-  bodyClass = await p.evaluate(() => `${document.documentElement.className} ${document.body.className}`)
 
   /** Kortet som innehåller rubriken (h3) – samma bentokort som på sajten. */
   const card = (title) =>
@@ -215,6 +215,8 @@ const css = `
 
 const page = await (await browser.newContext({ viewport: { width: 440, height: 956 }, deviceScaleFactor: 3 })).newPage()
 await page.goto(base + "/integritet") // samma ursprung som sajtens stilar och typsnitt
+const siteCss = await page.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].map((l) => l.href))
+const bodyClass = await page.evaluate(() => `${document.documentElement.className} ${document.body.className}`)
 for (const s of slides) {
   await page.setContent(
     `<!doctype html><html lang="sv" class="${bodyClass}"><head><meta charset="utf-8">
@@ -235,6 +237,81 @@ for (const s of slides) {
   await page.waitForTimeout(300)
   await page.screenshot({ path: `${out}/${s.file}.png` })
   console.log("butiksbild", s.file)
+}
+
+// ------------------------------------------- 4. iPhone Duo (liggande) ---
+// 5244 × 2950: ritas i en 1311 × 737,5-yta (text till vänster, bilder till höger) och förstoras ×4.
+const duo = [
+  { ...slides[0], body:
+      at(appPhone("app-1-idag"), { left: 985, top: 130, width: 260, rotate: 5, z: 1 }) +
+      at(pic("landing-hero-phone", "glow"), { left: 730, top: 55, width: 300, z: 2 }) },
+  { ...slides[1], body:
+      at(card("landing-sync", 520, 761), { left: 640, top: 110, width: 520, rotate: -1.5 }) +
+      at(appPhone("app-1-idag"), { left: 1010, top: 170, width: 250, rotate: 3, z: 2 }) },
+  { ...slides[2], body:
+      at(card("landing-food", 180, 371), { left: 780, top: 52, width: 180, rotate: -1.5 }) +
+      at(appPhone("app-1-idag"), { left: 1000, top: 150, width: 260, rotate: 3, z: 2 }) },
+  { ...slides[3], body:
+      at(card("landing-calendar", 560, 761), { left: 620, top: 90, width: 560, rotate: 1.5 }) +
+      at(appPhone("app-4-kalender"), { left: 1000, top: 250, width: 250, rotate: -3, z: 2 }) },
+  { ...slides[4], body:
+      at(appPhone("app-2-framsteg"), { left: 985, top: 140, width: 260, rotate: 5, z: 1 }) +
+      at(pic("landing-progress-phone", "glow"), { left: 720, top: 70, width: 310, z: 2 }) },
+  { ...slides[5], body:
+      at(appPhone("app-5-chatt"), { left: 985, top: 140, width: 260, rotate: 5, z: 1 }) +
+      at(pic("landing-chat-phone", "glow"), { left: 730, top: 60, width: 300, z: 2 }) },
+  { ...slides[6], body:
+      at(appPhone("app-3-hitta-pt"), { left: 720, top: 90, width: 290, rotate: -2 }) +
+      at(card("landing-verified", 240, 371), { left: 990, top: 200, width: 240, rotate: 4, z: 2 }) },
+]
+const duoCss = `
+  html{zoom:2}
+  html,body{margin:0;width:1311px;height:737.5px;overflow:hidden;background:#07090b}
+  body{font-family:var(--font-geist-sans),ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#fff}
+  .page{position:relative;width:1311px;height:737.5px;overflow:hidden;background:#07090b}
+  .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(ellipse at 30% 45%,#000 20%,transparent 70%)}
+  .glow1{position:absolute;top:-260px;left:-160px;width:760px;height:760px;border-radius:50%;background:radial-gradient(closest-side,rgba(172,237,55,.26),transparent)}
+  .glow2{position:absolute;bottom:-260px;right:-120px;width:680px;height:680px;border-radius:50%;background:radial-gradient(closest-side,rgba(52,211,153,.18),transparent)}
+  .head{position:absolute;left:84px;top:0;bottom:0;width:520px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+  .chip{display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(172,237,55,.32);background:rgba(172,237,55,.10);color:#c8f55a;border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .dot{width:7px;height:7px;border-radius:50%;background:#aced37;box-shadow:0 0 10px #aced37}
+  h1{margin:24px 0 0;font-size:70px;line-height:1.02;font-weight:700;letter-spacing:-.03em}
+  .lime{background:linear-gradient(90deg,#d4f75e,#8be37a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin:22px 0 0;max-width:440px;font-size:21px;line-height:1.4;color:rgba(255,255,255,.72)}
+  .stage{position:absolute;inset:0}
+  .asset{position:absolute}
+  .asset img{display:block;width:100%}
+  .card{background:#11161a;box-shadow:0 30px 80px -10px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+  .glow{filter:drop-shadow(0 40px 70px rgba(172,237,55,.22))}
+  .frame{border-radius:46px;border:1px solid rgba(255,255,255,.16);background:#05070a;padding:9px;box-shadow:0 40px 100px -20px rgba(172,237,55,.35),0 30px 60px -10px rgba(0,0,0,.6)}
+  .screen{position:relative;overflow:hidden;border-radius:38px;background:#fff}
+  .screen img{display:block;width:100%;aspect-ratio:1320/2300;object-fit:cover;object-position:top}
+  .island{position:absolute;left:50%;top:9px;width:86px;height:24px;transform:translateX(-50%);border-radius:999px;background:#000}
+`
+fs.mkdirSync(`${out}/duo`, { recursive: true })
+// Viewporten har heltalsmått (2622 × 1475, ×2) och sidan zoomas ×2.
+const wide = await (await browser.newContext({ viewport: { width: 2622, height: 1475 }, deviceScaleFactor: 2 })).newPage()
+await wide.goto(base + "/integritet")
+for (const s of duo) {
+  await wide.setContent(
+    `<!doctype html><html lang="sv" class="${bodyClass}"><head><meta charset="utf-8">
+    ${siteCss.map((h) => `<link rel="stylesheet" href="${h}">`).join("")}
+    <style>${duoCss}</style></head>
+    <body class="${bodyClass}"><div class="page">
+      <div class="grid"></div><div class="glow1"></div><div class="glow2"></div>
+      <div class="stage">${s.body}</div>
+      <div class="head">
+        <span class="chip"><span class="dot"></span>${s.eyebrow}</span>
+        <h1>${s.title}</h1>
+        <p class="sub">${s.sub}</p>
+      </div>
+    </div></body></html>`,
+    { waitUntil: "load" }
+  )
+  await wide.evaluate(() => document.fonts.ready)
+  await wide.waitForTimeout(300)
+  await wide.screenshot({ path: `${out}/duo/${s.file}.png` })
+  console.log("duo", s.file)
 }
 
 await browser.close()
