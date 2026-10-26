@@ -43,6 +43,7 @@ import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { completeBlocker, verifyBlocker } from "@/lib/workout-rules"
 import { forgetPushToken } from "@/lib/native/push"
+import { openCheckout } from "@/lib/native/checkout"
 import { logOutStore } from "@/lib/native/purchases"
 import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import type {
@@ -315,7 +316,7 @@ function createActions(ctx: {
         })
         const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
         if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
-        window.location.assign(body.url)
+        await openCheckout(body.url)
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."
@@ -362,7 +363,7 @@ function createActions(ctx: {
         const res = await fetch("/api/stripe/boost-checkout", { method: "POST" })
         const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
         if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
-        window.location.assign(body.url)
+        await openCheckout(body.url)
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."
@@ -427,7 +428,7 @@ function createActions(ctx: {
         const res = await fetch("/api/stripe/plus-checkout", { method: "POST" })
         const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
         if (!res.ok || !body.url) return body.error ?? "Betalningen kunde inte startas. Försök igen."
-        window.location.assign(body.url)
+        if ((await openCheckout(body.url)) === "closed") await refreshAccount()
         return null
       } catch {
         return "Ingen uppkoppling – försök igen."

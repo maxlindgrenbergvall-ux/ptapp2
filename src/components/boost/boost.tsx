@@ -18,6 +18,7 @@ import { StoreBoostOffer } from "@/components/plus/store-purchase"
 import { usePurchaseMode } from "@/lib/native/use-digital-purchases"
 import { formatSek } from "@/lib/money"
 import { cn } from "@/lib/utils"
+import { isNativeApp } from "@/lib/native/app"
 
 /** Märket på utvalda PT:er (Hitta PT, profilen, rekommendationer). */
 export function BoostedBadge({ className }: { className?: string }) {
@@ -98,7 +99,9 @@ export function BoostCard() {
         description: "Demoläge: betalningen simuleras och inga pengar dras.",
       })
     }
-    // Med Supabase skickas PT:n vidare till Stripe.
+    // Med Supabase skickas PT:n vidare till Stripe. I appen sker betalningen i
+    // webbläsarvyn – när den stängs slutar knappen snurra.
+    if (mode !== "demo" && isNativeApp()) setPending(false)
   }
 
   return (

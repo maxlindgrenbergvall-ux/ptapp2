@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { returnBase } from "@/lib/app-return"
 import { boostSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { isIosAppUserAgent } from "@/lib/site"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -41,7 +42,8 @@ export async function POST(request: NextRequest) {
       priceSek: boost.price_sek,
       durationDays: boost.duration_days,
       email: auth.user.email,
-      origin: request.nextUrl.origin,
+      // Från appen: retur via /app-retur, som lämnar över till appen (betalningen sker i webbläsarvyn).
+      origin: returnBase(request.nextUrl.origin, request.headers.get("user-agent")),
     })
     const session = await getStripe().checkout.sessions.create(params, { idempotencyKey: `boost-${boost.boost_id}` })
     await supabase.rpc("attach_boost_session", { p_boost: boost.boost_id, p_session: session.id })

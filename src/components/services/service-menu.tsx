@@ -14,6 +14,7 @@ import { acquisitionOf, checkoutTotals, feePercentFor } from "@/lib/payments/fee
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
+import { isNativeApp } from "@/lib/native/app"
 import { SERVICE_KIND_LABEL, type Trainer, type TrainerService } from "@/types/domain"
 
 /**
@@ -141,7 +142,8 @@ function CheckoutDialog({
       onClose()
       onPurchased?.()
     }
-    // Med Supabase skickas klienten vidare till Stripe.
+    // Appen: betalningen sker i webbläsarvyn – när den stängs (Klar eller efter betalningen) slutar knappen snurra.
+    if (mode !== "demo" && isNativeApp()) setPending(false)
   }
 
   return (

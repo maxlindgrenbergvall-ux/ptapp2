@@ -10,8 +10,9 @@ import { Capacitor } from "@capacitor/core"
 
 import { safeNext } from "@/lib/auth-redirect"
 
-/** Appens egna URL-schema (iOS CFBundleURLSchemes, Android intent-filter). */
-export const APP_SCHEME = "com.coavira.app"
+import { APP_SCHEME } from "@/lib/app-return"
+
+export { APP_SCHEME }
 
 export type NativePlatform = "ios" | "android"
 

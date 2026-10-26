@@ -13,11 +13,11 @@ const LAUNCH_KEY = "coavira:launch-url-handled"
  *    Inloggning med Apple/Google kommer tillbaka hit med en engångskod som
  *    växlas mot en session på /auth/callback, i appens egen WebView.
  *  - Tryck på en push-notis öppnar sidan notisen gäller.
- *  - Externa länkar (integritetspolicy, villkor, support, videor …) öppnas i
- *    appens inbyggda webbläsare (SFSafariViewController / Custom Tabs), så att
- *    appen och inloggningen ligger kvar under. Stripe Checkout öppnas däremot i
- *    appens WebView (allowNavigation i capacitor.config.ts) och kommer tillbaka
- *    till appen efter betalningen – samma session hela vägen.
+ *  - Externa länkar (integritetspolicy, villkor, support, videor, Stripe …)
+ *    öppnas i appens inbyggda webbläsare (SFSafariViewController / Custom Tabs),
+ *    så att appen och inloggningen ligger kvar under. Stripe Checkout öppnas där
+ *    av openCheckout (src/lib/native/checkout.ts) och kommer tillbaka hit via
+ *    com.coavira.app://… (src/app/app-retur).
  */
 export function NativeBridge() {
   React.useEffect(() => {
@@ -36,8 +36,8 @@ export function NativeBridge() {
       const open = async (url: string) => {
         const path = appUrlToPath(url, window.location.origin)
         if (!path) return
-        // Inloggningsfönstret (systemwebbläsaren) stängs när appen tar över.
-        if (path.startsWith("/auth/")) await Browser.close().catch(() => {})
+        // Webbläsarvyn (inloggning eller Stripe Checkout) stängs när appen tar över.
+        await Browser.close().catch(() => {})
         window.location.assign(path)
       }
       const sub = await App.addListener("appUrlOpen", ({ url }) => void open(url))
@@ -72,9 +72,6 @@ export function NativeBridge() {
   return null
 }
 
-/** Betalningen ska stanna i appens WebView (se capacitor.config.ts). */
-const IN_APP_HOSTS = /(^|\.)stripe\.com$/
-
 /** Adressen om klicket gäller en extern http(s)-länk, annars null (mailto:, tel:, interna länkar …). */
 function externalLink(e: MouseEvent): string | null {
   if (e.defaultPrevented || e.button !== 0) return null
@@ -87,7 +84,7 @@ function externalLink(e: MouseEvent): string | null {
     return null
   }
   if (url.protocol !== "https:" && url.protocol !== "http:") return null
-  if (url.origin === window.location.origin || IN_APP_HOSTS.test(url.hostname)) return null
+  if (url.origin === window.location.origin) return null
   return url.href
 }
 

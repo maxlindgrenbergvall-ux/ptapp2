@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { returnBase } from "@/lib/app-return"
 import { checkoutSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest) {
       lines: checkout.lines.map((l) => ({ title: l.title, unitPriceSek: l.unit_price_sek, quantity: l.quantity })),
       serviceFeeSek: checkout.service_fee_sek,
       feePercent: Number(checkout.fee_percent),
-      origin: request.nextUrl.origin,
+      // Från appen: retur via /app-retur, som lämnar över till appen (betalningen sker i webbläsarvyn).
+      origin: returnBase(request.nextUrl.origin, request.headers.get("user-agent")),
     })
     const session = await getStripe().checkout.sessions.create(params, { idempotencyKey: `checkout-${checkout.checkout_id}` })
     await supabase.rpc("attach_checkout_session", { p_checkout: checkout.checkout_id, p_session: session.id })

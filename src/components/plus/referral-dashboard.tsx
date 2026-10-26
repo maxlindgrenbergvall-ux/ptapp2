@@ -35,6 +35,7 @@ import {
   referralLink,
 } from "@/lib/plus"
 import { cn } from "@/lib/utils"
+import { isNativeApp } from "@/lib/native/app"
 import type { Referral } from "@/types/domain"
 
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" })
@@ -368,6 +369,8 @@ export function PlusPage() {
       setPending(false)
       toast.success(isPlus ? "Plus är förlängt med 30 dagar" : "Coavira Plus är aktiverat", { description: "Demoläge: betalningen simuleras." })
     }
+    // Appen: betalningen sker i webbläsarvyn – när den stängs (Klar eller efter betalningen) slutar knappen snurra.
+    if (mode !== "demo" && isNativeApp()) setPending(false)
   }
 
   const days = plusDaysLeft(account)

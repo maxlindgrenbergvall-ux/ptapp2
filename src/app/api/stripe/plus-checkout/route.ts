@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { returnBase } from "@/lib/app-return"
 import { plusSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { isIosAppUserAgent } from "@/lib/site"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -40,7 +41,8 @@ export async function POST(request: NextRequest) {
       priceSek: plus.price_sek,
       days: plus.days,
       email: auth.user.email,
-      origin: request.nextUrl.origin,
+      // Från appen: retur via /app-retur, som lämnar över till appen (betalningen sker i webbläsarvyn).
+      origin: returnBase(request.nextUrl.origin, request.headers.get("user-agent")),
     })
     const session = await getStripe().checkout.sessions.create(params, { idempotencyKey: `plus-${plus.purchase_id}` })
     await supabase.rpc("attach_plus_session", { p_purchase: plus.purchase_id, p_session: session.id })

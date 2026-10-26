@@ -26,6 +26,7 @@ export default function robots(): MetadataRoute.Robots {
           "/glomt-losenord",
           "/nytt-losenord",
           "/konto-raderat",
+          "/app-retur/",
         ],
       },
     ],

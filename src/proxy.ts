@@ -118,5 +118,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // robots.txt och sitemap.xml går aldrig genom proxyn: sökmotorer ska alltid få
+  // 200 direkt – ingen omdirigering, sessionsförnyelse eller inloggningsspärr.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots\\.txt$|sitemap\\.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 }

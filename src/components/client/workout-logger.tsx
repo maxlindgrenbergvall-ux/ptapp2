@@ -511,6 +511,12 @@ function RestTimer({
 
   const mm = Math.floor(left / 60)
   const ss = String(left % 60).padStart(2, "0")
+  /** ±15 s. Under 15 s kvar avslutar "-15 s" vilan (0:00) – aldrig negativ tid. */
+  const adjust = (deltaMs: number) => {
+    const at = Date.now()
+    onChange({ ...rest, endsAt: Math.max(at, Math.max(rest.endsAt, at) + deltaMs) })
+    setNow(at)
+  }
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg p-3 pb-[max(0.75rem,var(--safe-bottom))]">
@@ -530,9 +536,14 @@ function RestTimer({
           </div>
         </div>
         {!finished && (
-          <Button variant="secondary" size="sm" onClick={() => onChange({ ...rest, endsAt: rest.endsAt + 15_000 })}>
-            +15 s
-          </Button>
+          <>
+            <Button variant="secondary" size="sm" onClick={() => adjust(-15_000)} aria-label="15 sekunder kortare vila">
+              −15 s
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => adjust(15_000)} aria-label="15 sekunder längre vila">
+              +15 s
+            </Button>
+          </>
         )}
         <Button variant={finished ? "secondary" : "ghost"} size="sm" onClick={() => onChange(null)}>
           {finished ? "Kör!" : "Hoppa över"}

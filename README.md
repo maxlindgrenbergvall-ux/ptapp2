@@ -482,7 +482,7 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Native:**
 - Externa länkar öppnas i appens inbyggda webbläsare (SFSafariViewController / Custom Tabs).
-- Stripe Checkout öppnas i appens WebView och kommer tillbaka till appen med samma session.
+- Stripe Checkout öppnas i webbläsarvyn (SFSafariViewController/Custom Tabs) med Klar-knapp och kommer tillbaka till appen via `/app-retur` → `com.coavira.app://…` (se Betalning nedan).
 - iOS har fått `ITSAppUsesNonExemptEncryption = false` och integritetsmanifestet `PrivacyInfo.xcprivacy` (ingen spårning).
 
 **Checklista före inlämning:**
@@ -639,7 +639,11 @@ Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Ac
   - **Utskick** (Firebase Cloud Messaging från servern, t.ex. när en avisering skapas) görs i ett senare steg.
 - **App Links / Universal Links (förberett):** `/.well-known/assetlinks.json` (miljövariabeln `ANDROID_APP_SHA256`) och `/.well-known/apple-app-site-association` (`APPLE_TEAM_ID`) svarar 404 tills värdena finns.
 - **Helskärm och safe area:** `viewport-fit=cover`; sidhuvuden, bottenmeny, samtalsvy och inloggningssidor lägger till `--safe-top`/`--safe-bottom` (från `env(safe-area-inset-*)` och Capacitors `--safe-area-inset-*` på Android). Android kör kant till kant (`EdgeToEdge`). På webben är marginalerna 0.
-- **Betalning:** Stripe Checkout öppnas i appen (`allowNavigation`), så att man kommer tillbaka till appen efter köpet. Andra externa länkar (bilagor, Google Kalender) öppnas i systemets webbläsare.
+- **Betalning (v22):** Stripe Checkout öppnas i appen med `@capacitor/browser` (`src/lib/native/checkout.ts`): en Safari-vy med **Klar**, så att man alltid kan avbryta. Appens WebView lämnar aldrig appen.
+  - Från appen (user agent `CoaviraApp`) sätter servern `success_url`/`cancel_url` till `/app-retur/<sida>` (`src/lib/app-return.ts`). Sidan skickar vidare till `com.coavira.app://<sida>`; `NativeBridge` (`appUrlOpen`) stänger vyn och öppnar kvittot/sidan i appen.
+  - Stänger man vyn själv (`browserFinished`) slutar knappen snurra. Betalda köp registreras ändå av webhooken.
+  - Stripe kräver https-adresser, därför går returen via `/app-retur` i stället för direkt till URL-schemat. Schemat `com.coavira.app` finns redan i appen, så inget nytt bygge krävs. `allowNavigation` för Stripe är borttaget ur `capacitor.config.ts` och försvinner vid nästa bygge.
+  - Andra externa länkar (bilagor, Google Kalender) öppnas också i webbläsarvyn.
 - **Kamera, mikrofon och filer:** streckkodsscanner, videosamtal och bilduppladdning använder WebView:ns kamera/filväljare med behörigheterna från steg 2.
 - **Kända begränsningar:** anslutning av Strava/Garmin och `.ics`-nedladdning går via webbläsaren och fungerar bäst på webben tills de får egna appflöden.
 
@@ -770,6 +774,8 @@ node e2e/v20-lansering.test.mjs # Radera mitt konto (klient/PT), obligatorisk bo
 node e2e/v20-supabase.test.mjs  # Supabase-läge: kontoradering via Auth admin-API + Storage, felvy när data inte kan laddas
 node e2e/mock-revenuecat.mjs &  # (krävs av v21) RevenueCats REST-API på :54600
 node e2e/v21-supabase.test.mjs  # Köp i appen: RevenueCat-webhook (Plus, Boost, återbetalning), synk, köpvyn i iPhone-appen
+node e2e/v22-app-checkout.test.mjs # (demo) Vilotimer −15/+15 s, /app-retur, djuplänk från Stripe stänger webbläsarvyn
+node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.open med Klar, knappen släpper när vyn stängs
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

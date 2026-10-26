@@ -42,10 +42,9 @@ const config: CapacitorConfig = {
     // Klartext (http) bara mot en lokal utvecklingsserver, aldrig i produktion.
     cleartext: isLocal,
     errorPath: "offline.html",
-    // Stripe Checkout öppnas i appen (inte i Safari/Chrome), så att man kommer
-    // tillbaka till appen efter betalningen. Allt annat externt öppnas i
-    // systemets webbläsare.
-    allowNavigation: ["checkout.stripe.com", "*.stripe.com"],
+    // Ingen extern navigering i WebView: Stripe Checkout och andra externa sidor
+    // öppnas i webbläsarvyn (@capacitor/browser) med Klar-knapp, och betalningen
+    // kommer tillbaka via com.coavira.app:// (src/lib/native/checkout.ts).
   },
   plugins: {
     // Kant till kant: webbappen får rätt safe-area-värden (viewport-fit=cover).

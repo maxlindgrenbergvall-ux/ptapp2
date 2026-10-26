@@ -19,6 +19,7 @@ import { formatSek } from "@/lib/money"
 import { canChooseQuantity, EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
 import { firstName } from "@/lib/names"
 import { activeServices, hasNutritionAccess, serviceSummary } from "@/lib/services/balance"
+import { isNativeApp } from "@/lib/native/app"
 
 const OPEN_CART = "coavira:open-cart"
 /** Öppnar varukorgen (t.ex. från "Visa varukorg" i en notis). */
@@ -134,6 +135,8 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
       setPending(false)
       toast.success("Betalningen är klar", { description: `${name} har fått dig som klient.` })
     }
+    // Appen: betalningen sker i webbläsarvyn – när den stängs (Klar eller efter betalningen) slutar knappen snurra.
+    if (mode !== "demo" && isNativeApp()) setPending(false)
     // Med Supabase skickas klienten vidare till Stripe (varukorgen töms när betalningen är klar).
   }
 
