@@ -128,6 +128,14 @@ const appPhone = (name) => `
 const at = (html, { left = 0, top = 0, width, rotate = 0, z = 1, cls = "" }) =>
   `<div class="asset ${cls}" style="left:${left}px;top:${top}px;width:${width}px;transform:rotate(${rotate}deg);z-index:${z}">${html}</div>`
 const pic = (name, cls = "") => `<img class="${cls}" src="${img(name)}" />`
+/**
+ * Landningssidans telefon (rundade hörn 2.75rem). Skuggan från sajten klipps bort – den
+ * slutar tvärt vid bildkanten och syns som en ruta mot en ljus telefon bakom.
+ */
+const sitePhone = (name, width) => {
+  const siteWidth = fs.readFileSync(`${raw}/${name}.png`).readUInt32BE(16) / 3
+  return `<div class="glow"><img style="clip-path:inset(0 round ${(44 * width) / siteWidth}px)" src="${img(name)}" /></div>`
+}
 /** Landningssidans kort är glas (halvgenomskinliga) – här får de en fast mörk botten. Hörnen skalas med kortet. */
 const card = (name, width, siteWidth) => `<img class="card" style="border-radius:${(24 * width) / siteWidth}px" src="${img(name)}" />`
 
@@ -137,7 +145,9 @@ const slides = [
     eyebrow: "Appen för dig och din PT",
     title: `Träning och kost.<br><span class="lime">På dina villkor.</span>`,
     sub: "Pass, kostschema, bokning och chatt med din PT – i en app.",
-    body: at(pic("landing-hero-phone", "glow"), { left: 64, top: 0, width: 312 }),
+    body:
+      at(appPhone("app-1-idag"), { left: 186, top: 70, width: 228, rotate: 5, z: 1 }) +
+      at(sitePhone("landing-hero-phone", 290), { left: 22, top: 0, width: 290, z: 2 }),
   },
   {
     file: "02-din-plan",
@@ -169,14 +179,14 @@ const slides = [
     eyebrow: "Framsteg efter dina mål",
     title: `Se dina<br><span class="lime">resultat.</span>`,
     sub: "1RM, vikt och mätpunkter räknas fram från dina pass.",
-    body: at(pic("landing-progress-phone", "glow"), { left: 62, top: 0, width: 316 }),
+    body: at(sitePhone("landing-progress-phone", 316), { left: 62, top: 0, width: 316 }),
   },
   {
     file: "06-chatt",
     eyebrow: "Chatt & samtal",
     title: `Din coach.<br><span class="lime">Ett tryck bort.</span>`,
     sub: "Chatta, skicka teknikvideor och videoring din PT i appen.",
-    body: at(pic("landing-chat-phone", "glow"), { left: 64, top: 0, width: 312 }),
+    body: at(sitePhone("landing-chat-phone", 312), { left: 64, top: 0, width: 312 }),
   },
   {
     file: "07-hitta-pt",
@@ -244,7 +254,7 @@ for (const s of slides) {
 const duo = [
   { ...slides[0], body:
       at(appPhone("app-1-idag"), { left: 985, top: 130, width: 260, rotate: 5, z: 1 }) +
-      at(pic("landing-hero-phone", "glow"), { left: 730, top: 55, width: 300, z: 2 }) },
+      at(sitePhone("landing-hero-phone", 300), { left: 730, top: 55, width: 300, z: 2 }) },
   { ...slides[1], body:
       at(card("landing-sync", 520, 761), { left: 640, top: 110, width: 520, rotate: -1.5 }) +
       at(appPhone("app-1-idag"), { left: 1010, top: 170, width: 250, rotate: 3, z: 2 }) },
@@ -256,10 +266,10 @@ const duo = [
       at(appPhone("app-4-kalender"), { left: 1000, top: 250, width: 250, rotate: -3, z: 2 }) },
   { ...slides[4], body:
       at(appPhone("app-2-framsteg"), { left: 985, top: 140, width: 260, rotate: 5, z: 1 }) +
-      at(pic("landing-progress-phone", "glow"), { left: 720, top: 70, width: 310, z: 2 }) },
+      at(sitePhone("landing-progress-phone", 310), { left: 720, top: 70, width: 310, z: 2 }) },
   { ...slides[5], body:
       at(appPhone("app-5-chatt"), { left: 985, top: 140, width: 260, rotate: 5, z: 1 }) +
-      at(pic("landing-chat-phone", "glow"), { left: 730, top: 60, width: 300, z: 2 }) },
+      at(sitePhone("landing-chat-phone", 300), { left: 730, top: 60, width: 300, z: 2 }) },
   { ...slides[6], body:
       at(appPhone("app-3-hitta-pt"), { left: 720, top: 90, width: 290, rotate: -2 }) +
       at(card("landing-verified", 240, 371), { left: 990, top: 200, width: 240, rotate: 4, z: 2 }) },
