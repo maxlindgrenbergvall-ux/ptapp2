@@ -9,6 +9,21 @@
 -- Skriv e-post och lösenord under App Review Information i App Store Connect.
 -- ============================================================================
 
+-- Kontroll: migrationerna v18–v21 måste vara körda först.
+do $$
+declare
+  missing text := concat_ws(', ',
+    case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'referral_code') then 'v18' end,
+    case when not exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'custom_exercises') then 'v19' end,
+    case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'terms_accepted_at') then 'v20' end,
+    case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'store_plus_until') then 'v21' end);
+begin
+  if missing <> '' then
+    raise exception 'Kör först migrationerna i supabase/migrations: %', missing;
+  end if;
+end;
+$$;
+
 -- --------------------------------------------------------- PT-kontot ---
 -- Verifierad och publicerad PT med tjänster, så att granskaren kan köpa PT Boost
 -- och klienten kan hitta PT:n i "Hitta PT".
