@@ -54,7 +54,11 @@ Felet "File dimensions are invalid" betyder att bilderna dras till fel storlek:
 - Rutan **iPhone 6.9"** (via **View All Sizes in Media Manager**) tar 1320 × 2868 (`mobile/store/ios/`) eller 1290 × 2796 (`mobile/store/ios/1290x2796/`).
 
 ### Previews and Screenshots → iPhone Duo
-Liggande bilder i 5244 × 2950, i samma ordning: `mobile/store/ios/duo/01-start.png` … `07-hitta-pt.png`.
+Liggande bilder, i samma ordning (`01-start.png` … `07-hitta-pt.png`):
+- 5244 × 2950: `mobile/store/ios/duo/`
+- 3840 × 1646: `mobile/store/ios/duo-3840x1646/`
+
+Ladda upp en av storlekarna.
 
 Bilderna skapas om med `node scripts/store-screenshots.mjs` (demoläget måste köra på `localhost:3000`; `REUSE_RAW=1` återanvänder råbilderna). Råbilderna från appen och landningssidan ligger i `mobile/store/ios/raw/`.
 

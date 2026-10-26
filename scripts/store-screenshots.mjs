@@ -1,4 +1,4 @@
-// Butiksbilder till App Store (iPhone 6,9": 1320×2868, iPhone Duo: 5244×2950) i landningssidans stil.
+// Butiksbilder till App Store (iPhone 6,9": 1320×2868, iPhone Duo: 5244×2950 och 3840×1646) i landningssidans stil.
 //
 //   npm run build && npm start   (utan Supabase-variabler = demoläge)
 //   node scripts/store-screenshots.mjs
@@ -7,7 +7,7 @@
 // 2. Fotograferar landningssidans telefoner
 //    och kort (samma grafik som coavira.fit) → mobile/store/ios/raw/landing-*.png
 // 3. Sätter ihop butiksbilderna med rubriker → mobile/store/ios/01-….png
-// 4. Liggande bilder för iPhone Duo (5244×2950) → mobile/store/ios/duo/01-….png
+// 4. Liggande bilder för iPhone Duo (5244×2950 och 3840×1646) → mobile/store/ios/duo*/01-….png
 // Typsnitt och stilar hämtas från sajten, så bilderna matchar landningssidan.
 // REUSE_RAW=1 hoppar över steg 1–2 och använder bilderna i raw/.
 import fs from "node:fs"
@@ -250,7 +250,10 @@ for (const s of slides) {
 }
 
 // ------------------------------------------- 4. iPhone Duo (liggande) ---
-// 5244 × 2950: ritas i en 1311 × 737,5-yta (text till vänster, bilder till höger) och förstoras ×4.
+// Duo tar två format. Båda ritas i en liten yta (text till vänster, bilder till höger)
+// och förstoras med zoom, så att viewporten får heltalsmått:
+//   5244 × 2950: 1311 × 737,5 × 4  → mobile/store/ios/duo/
+//   3840 × 1646: 1280 × 548,7 × 3  → mobile/store/ios/duo-3840x1646/
 const duo = [
   { ...slides[0], body:
       at(appPhone("app-1-idag"), { left: 985, top: 130, width: 260, rotate: 5, z: 1 }) +
@@ -274,20 +277,44 @@ const duo = [
       at(appPhone("app-3-hitta-pt"), { left: 720, top: 90, width: 290, rotate: -2 }) +
       at(card("landing-verified", 240, 371), { left: 990, top: 200, width: 240, rotate: 4, z: 2 }) },
 ]
-const duoCss = `
-  html{zoom:2}
-  html,body{margin:0;width:1311px;height:737.5px;overflow:hidden;background:#07090b}
+const wideSlides = [
+  { ...slides[0], body:
+      at(appPhone("app-1-idag"), { left: 985, top: 110, width: 210, rotate: 5, z: 1 }) +
+      at(sitePhone("landing-hero-phone", 230), { left: 770, top: 30, width: 230, z: 2 }) },
+  { ...slides[1], body:
+      at(card("landing-sync", 440, 761), { left: 650, top: 70, width: 440, rotate: -1.5 }) +
+      at(appPhone("app-1-idag"), { left: 1010, top: 120, width: 210, rotate: 3, z: 2 }) },
+  { ...slides[2], body:
+      at(card("landing-food", 140, 371), { left: 800, top: 30, width: 140, rotate: -1.5 }) +
+      at(appPhone("app-1-idag"), { left: 975, top: 110, width: 210, rotate: 3, z: 2 }) },
+  { ...slides[3], body:
+      at(card("landing-calendar", 470, 761), { left: 640, top: 70, width: 470, rotate: 1.5 }) +
+      at(appPhone("app-4-kalender"), { left: 1020, top: 165, width: 200, rotate: -3, z: 2 }) },
+  { ...slides[4], body:
+      at(appPhone("app-2-framsteg"), { left: 985, top: 115, width: 210, rotate: 5, z: 1 }) +
+      at(sitePhone("landing-progress-phone", 235), { left: 765, top: 40, width: 235, z: 2 }) },
+  { ...slides[5], body:
+      at(appPhone("app-5-chatt"), { left: 985, top: 115, width: 210, rotate: 5, z: 1 }) +
+      at(sitePhone("landing-chat-phone", 230), { left: 770, top: 38, width: 230, z: 2 }) },
+  { ...slides[6], body:
+      at(appPhone("app-3-hitta-pt"), { left: 760, top: 70, width: 230, rotate: -2 }) +
+      at(card("landing-verified", 200, 371), { left: 1010, top: 150, width: 200, rotate: 4, z: 2 }) },
+]
+
+const landscapeCss = ({ w, h, zoom, headLeft, h1, sub, chip }) => `
+  html{zoom:${zoom}}
+  html,body{margin:0;width:${w}px;height:${h}px;overflow:hidden;background:#07090b}
   body{font-family:var(--font-geist-sans),ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#fff}
-  .page{position:relative;width:1311px;height:737.5px;overflow:hidden;background:#07090b}
+  .page{position:relative;width:${w}px;height:${h}px;overflow:hidden;background:#07090b}
   .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(ellipse at 30% 45%,#000 20%,transparent 70%)}
   .glow1{position:absolute;top:-260px;left:-160px;width:760px;height:760px;border-radius:50%;background:radial-gradient(closest-side,rgba(172,237,55,.26),transparent)}
   .glow2{position:absolute;bottom:-260px;right:-120px;width:680px;height:680px;border-radius:50%;background:radial-gradient(closest-side,rgba(52,211,153,.18),transparent)}
-  .head{position:absolute;left:84px;top:0;bottom:0;width:520px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-  .chip{display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(172,237,55,.32);background:rgba(172,237,55,.10);color:#c8f55a;border-radius:999px;padding:7px 15px;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+  .head{position:absolute;left:${headLeft}px;top:0;bottom:0;width:520px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+  .chip{display:inline-flex;align-items:center;gap:9px;border:1px solid rgba(172,237,55,.32);background:rgba(172,237,55,.10);color:#c8f55a;border-radius:999px;padding:7px 15px;font-size:${chip}px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
   .dot{width:7px;height:7px;border-radius:50%;background:#aced37;box-shadow:0 0 10px #aced37}
-  h1{margin:24px 0 0;font-size:70px;line-height:1.02;font-weight:700;letter-spacing:-.03em}
+  h1{margin:${h1 * 0.34}px 0 0;font-size:${h1}px;line-height:1.02;font-weight:700;letter-spacing:-.03em}
   .lime{background:linear-gradient(90deg,#d4f75e,#8be37a);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{margin:22px 0 0;max-width:440px;font-size:21px;line-height:1.4;color:rgba(255,255,255,.72)}
+  .sub{margin:${sub}px 0 0;max-width:440px;font-size:${sub}px;line-height:1.4;color:rgba(255,255,255,.72)}
   .stage{position:absolute;inset:0}
   .asset{position:absolute}
   .asset img{display:block;width:100%}
@@ -298,30 +325,35 @@ const duoCss = `
   .screen img{display:block;width:100%;aspect-ratio:1320/2300;object-fit:cover;object-position:top}
   .island{position:absolute;left:50%;top:9px;width:86px;height:24px;transform:translateX(-50%);border-radius:999px;background:#000}
 `
-fs.mkdirSync(`${out}/duo`, { recursive: true })
-// Viewporten har heltalsmått (2622 × 1475, ×2) och sidan zoomas ×2.
-const wide = await (await browser.newContext({ viewport: { width: 2622, height: 1475 }, deviceScaleFactor: 2 })).newPage()
-await wide.goto(base + "/integritet")
-for (const s of duo) {
-  await wide.setContent(
-    `<!doctype html><html lang="sv" class="${bodyClass}"><head><meta charset="utf-8">
-    ${siteCss.map((h) => `<link rel="stylesheet" href="${h}">`).join("")}
-    <style>${duoCss}</style></head>
-    <body class="${bodyClass}"><div class="page">
-      <div class="grid"></div><div class="glow1"></div><div class="glow2"></div>
-      <div class="stage">${s.body}</div>
-      <div class="head">
-        <span class="chip"><span class="dot"></span>${s.eyebrow}</span>
-        <h1>${s.title}</h1>
-        <p class="sub">${s.sub}</p>
-      </div>
-    </div></body></html>`,
-    { waitUntil: "load" }
-  )
-  await wide.evaluate(() => document.fonts.ready)
-  await wide.waitForTimeout(300)
-  await wide.screenshot({ path: `${out}/duo/${s.file}.png` })
-  console.log("duo", s.file)
+
+/** Liggande bilder: viewport × deviceScaleFactor = exakt butiksmått. */
+const renderLandscape = async (dir, list, { viewport, scale, ...look }) => {
+  fs.mkdirSync(`${out}/${dir}`, { recursive: true })
+  const wide = await (await browser.newContext({ viewport, deviceScaleFactor: scale })).newPage()
+  await wide.goto(base + "/integritet")
+  for (const s of list) {
+    await wide.setContent(
+      `<!doctype html><html lang="sv" class="${bodyClass}"><head><meta charset="utf-8">
+      ${siteCss.map((h) => `<link rel="stylesheet" href="${h}">`).join("")}
+      <style>${landscapeCss(look)}</style></head>
+      <body class="${bodyClass}"><div class="page">
+        <div class="grid"></div><div class="glow1"></div><div class="glow2"></div>
+        <div class="stage">${s.body}</div>
+        <div class="head">
+          <span class="chip"><span class="dot"></span>${s.eyebrow}</span>
+          <h1>${s.title}</h1>
+          <p class="sub">${s.sub}</p>
+        </div>
+      </div></body></html>`,
+      { waitUntil: "load" }
+    )
+    await wide.evaluate(() => document.fonts.ready)
+    await wide.waitForTimeout(300)
+    await wide.screenshot({ path: `${out}/${dir}/${s.file}.png` })
+    console.log(dir, s.file)
+  }
 }
+await renderLandscape("duo", duo, { viewport: { width: 2622, height: 1475 }, scale: 2, w: 1311, h: 737.5, zoom: 2, headLeft: 84, h1: 70, sub: 21, chip: 13 })
+await renderLandscape("duo-3840x1646", wideSlides, { viewport: { width: 1920, height: 823 }, scale: 2, w: 1280, h: 548.67, zoom: 1.5, headLeft: 72, h1: 60, sub: 18, chip: 12 })
 
 await browser.close()
