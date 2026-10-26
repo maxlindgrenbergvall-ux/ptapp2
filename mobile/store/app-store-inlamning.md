@@ -49,6 +49,8 @@ Ladda upp i ordning (1320 × 2868, i landningssidans stil):
 6. `06-chatt.png`
 7. `07-hitta-pt.png`
 
+Ger App Store Connect felet "File dimensions are invalid": hämta filerna direkt från GitHub (inte från en förhandsvisning) och kontrollera att de dras till **iPhone 6.9" Display**. Reserv i 1290 × 2796: `mobile/store/ios/1290x2796/`.
+
 Bilderna skapas om med `node scripts/store-screenshots.mjs` (demoläget måste köra på `localhost:3000`). Råbilderna från appen och landningssidan ligger i `mobile/store/ios/raw/`.
 
 ### Promotional Text (170 tecken)
