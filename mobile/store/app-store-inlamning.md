@@ -40,7 +40,16 @@ How to test: log in with the client demo account (see App Review Information) �
 ## Steg 4 – Versionssidan "1.0 Prepare for Submission"
 
 ### Previews and Screenshots → iPhone 6.9"
-Ladda upp i ordning: `mobile/store/ios/1-idag.png` … `5-chatt.png`.
+Ladda upp i ordning (1320 × 2868, i landningssidans stil):
+1. `mobile/store/ios/01-start.png`
+2. `02-din-plan.png`
+3. `03-kost.png`
+4. `04-boka.png`
+5. `05-framsteg.png`
+6. `06-chatt.png`
+7. `07-hitta-pt.png`
+
+Bilderna skapas om med `node scripts/store-screenshots.mjs` (demoläget måste köra på `localhost:3000`). Råbilderna från appen och landningssidan ligger i `mobile/store/ios/raw/`.
 
 ### Promotional Text (170 tecken)
 ```
