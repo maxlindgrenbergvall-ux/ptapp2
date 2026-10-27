@@ -13,6 +13,7 @@ import { SyncIndicator } from "@/components/sync-indicator"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAppData } from "@/lib/data/store"
+import { PT_ONBOARDING_PATH } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
 
 const NAV = [
@@ -26,6 +27,10 @@ const NAV = [
 
 export function PtShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
+  const pathname = usePathname()
+  // Den obligatoriska onboardingen (v22) visas utan portalens meny: PT:n kan inte
+  // navigera vidare förrän profilen och utbetalningarna är klara.
+  if (pathname.startsWith(PT_ONBOARDING_PATH)) return <>{children}</>
   return (
     <div className="flex min-h-svh">
       <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r bg-sidebar pt-[var(--safe-top)] lg:block">

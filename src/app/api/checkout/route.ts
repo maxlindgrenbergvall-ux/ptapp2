@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { returnBase } from "@/lib/app-return"
 import { checkoutSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
+import { createSupabaseAdmin } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface CheckoutRpc {
@@ -21,6 +22,9 @@ interface CheckoutRpc {
  *     PT:n), annars 10 %. Priserna hämtas där – webbläsaren
  *     skickar bara vilka tjänster och hur många enstaka pass som valts.
  *  2. En Stripe Checkout-session skapas med samma rader, antal och avgift.
+ *     Betalningen delas med Stripe Connect: PT:n får tjänsternas pris direkt
+ *     till sitt konto, Coavira serviceavgiften (application_fee_amount).
+ *     Databasen släpper bara igenom PT:er vars konto tar emot betalningar.
  *  3. Klienten skickas till Stripe. Webhooken markerar köpet som betalt
  *     (beloppet måste vara deltotal + serviceavgift).
  *
@@ -45,6 +49,18 @@ export async function POST(request: NextRequest) {
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Kunde inte skapa kassan." }, { status: 400 })
   const checkout = data as CheckoutRpc
 
+  // PT:ns Stripe-konto (privat tabell, bara servern). Undantagna demokonton saknar konto.
+  const { data: payout, error: payoutError } = await createSupabaseAdmin()
+    .from("trainer_payout_accounts")
+    .select("stripe_account_id, charges_enabled, exempt")
+    .eq("trainer_id", checkout.trainer_id)
+    .maybeSingle()
+  const account = payout as { stripe_account_id: string | null; charges_enabled: boolean; exempt: boolean } | null
+  if (payoutError || !account || (!account.exempt && !(account.stripe_account_id && account.charges_enabled))) {
+    if (payoutError) console.error("trainer_payout_accounts", payoutError)
+    return NextResponse.json({ error: "PT:n kan inte ta emot betalningar just nu – försök igen senare." }, { status: 409 })
+  }
+
   try {
     const params = checkoutSessionParams({
       checkoutId: checkout.checkout_id,
@@ -54,6 +70,7 @@ export async function POST(request: NextRequest) {
       lines: checkout.lines.map((l) => ({ title: l.title, unitPriceSek: l.unit_price_sek, quantity: l.quantity })),
       serviceFeeSek: checkout.service_fee_sek,
       feePercent: Number(checkout.fee_percent),
+      destinationAccount: account.exempt ? null : account.stripe_account_id,
       // Från appen: retur via /app-retur, som lämnar över till appen (betalningen sker i webbläsarvyn).
       origin: returnBase(request.nextUrl.origin, request.headers.get("user-agent")),
     })

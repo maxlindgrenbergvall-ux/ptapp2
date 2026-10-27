@@ -110,6 +110,7 @@ export type EventPatch = Partial<Pick<CalendarEvent, "title" | "start" | "end" |
 export type TrainerProfilePatch = Partial<
   Pick<
     Trainer,
+    | "name"
     | "city"
     | "specialties"
     | "bio"

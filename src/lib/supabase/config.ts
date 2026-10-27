@@ -40,5 +40,16 @@ export function roleFromClaims(user: RoleSource | null | undefined): UserRole | 
   return user?.user_metadata?.role === "client" ? "client" : null
 }
 
+/** Obligatorisk PT-onboarding: färdig profil och utbetalningar via Stripe (v22). */
+export const PT_ONBOARDING_PATH = "/pt/onboarding"
+
+/**
+ * Har PT:n gjort klart onboardingen? Läses ur app_metadata.pt_ready, som bara
+ * databasen sätter (sync_pt_ready) – användaren kan inte ändra det.
+ */
+export function ptReadyFromClaims(user: Pick<RoleSource, "app_metadata"> | null | undefined): boolean {
+  return user?.app_metadata?.pt_ready === true
+}
+
 /** Startsidan för en inloggad användare. */
 export const homeFor = (role: UserRole | null) => (role ? HOME_FOR_ROLE[role] : ONBOARDING_PATH)

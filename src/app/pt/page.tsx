@@ -3,6 +3,7 @@
 import { Activity, AlertCircle, CalendarClock, CalendarDays, ChevronRight, MessageSquare, Users, ShoppingBag } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
+import { toast } from "sonner"
 
 import { RequestsPanel } from "@/components/calendar/requests-panel"
 import { ExistingClientBadge, InviteExistingClientButton, PtInvitesCard } from "@/components/pt/pt-invites"
@@ -25,6 +26,15 @@ type Filter = "all" | ClientStatus
 
 export default function PtOverviewPage() {
   const { data, me } = useAppData()
+  // Direkt efter onboardingen (v22): /pt?valkommen=1.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("valkommen") !== "1") return
+    toast.success(`Välkommen till Coavira, ${firstName(me.name)}!`, {
+      description: "Profilen och utbetalningarna är klara. Publicera profilen under Min profil när du lagt in dina tjänster.",
+      duration: 8000,
+    })
+    window.history.replaceState(null, "", window.location.pathname)
+  }, [me.name])
   const [query, setQuery] = React.useState("")
   const [filter, setFilter] = React.useState<Filter>("all")
   const today = todayISO()

@@ -9,14 +9,15 @@
 -- Skriv e-post och lösenord under App Review Information i App Store Connect.
 -- ============================================================================
 
--- Kontroll: migrationerna v18–v21 måste vara körda först.
+-- Kontroll: migrationerna v18–v22 måste vara körda först.
 do $$
 declare
   missing text := concat_ws(', ',
     case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'referral_code') then 'v18' end,
     case when not exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'custom_exercises') then 'v19' end,
     case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'terms_accepted_at') then 'v20' end,
-    case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'store_plus_until') then 'v21' end);
+    case when not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'store_plus_until') then 'v21' end,
+    case when not exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'trainer_payout_accounts') then 'v22' end);
 begin
   if missing <> '' then
     raise exception 'Kör först migrationerna i supabase/migrations: %', missing;
@@ -38,7 +39,9 @@ set city = 'Stockholm',
     price_per_session = 650,
     coaching_mode = 'both',
     offers_training = true,
-    offers_nutrition = true
+    offers_nutrition = true,
+    -- Profilbild krävs för en färdig PT-profil (v22).
+    avatar_url = coalesce(nullif(t.avatar_url, ''), 'https://coavira.fit/apple-icon')
 from auth.users u
 where u.id = t.id and lower(u.email) = 'review-pt@coavira.fit';
 
@@ -53,6 +56,11 @@ cross join (values
 ) as s(kind, title, description, sessions, nutrition, weeks, price)
 where lower(u.email) = 'review-pt@coavira.fit'
   and not exists (select 1 from trainer_services x where x.trainer_id = u.id);
+
+-- Demokontot kan inte koppla ett riktigt bankkonto i Stripe: onboardingen räknas
+-- som klar (v22), så att granskaren kommer in i PT-portalen. Köp hos demo-PT:n
+-- går till Coavira utan delning.
+select admin_mark_pt_onboarded('review-pt@coavira.fit');
 
 update trainers t set is_published = true
 from auth.users u

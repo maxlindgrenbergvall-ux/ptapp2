@@ -8,6 +8,7 @@ import { EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT, servic
  * Stripe via det officiella SDK:t. Hemliga nycklar finns bara på servern:
  *   STRIPE_SECRET_KEY      sk_live_… / sk_test_…
  *   STRIPE_WEBHOOK_SECRET  whsec_… (Stripe → Developers → Webhooks)
+ *   STRIPE_CONNECT_WEBHOOK_SECRET  whsec_… (webhooken för anslutna konton, account.updated)
  * STRIPE_API_BASE kan pekas om till en mock i tester.
  *
  * SDK:t tar emot parametrarna som vanliga typade objekt (line_items som array,
@@ -59,6 +60,12 @@ export function checkoutSessionParams(input: {
   serviceFeeSek: number
   /** Procentsatsen databasen valde (5 eller 10). */
   feePercent: number
+  /**
+   * PT:ns Stripe Connect-konto (acct_…). Betalningen delas automatiskt: PT:n får
+   * tjänsternas pris och Coavira serviceavgiften (application_fee_amount).
+   * null bara för undantagna demokonton – då går hela beloppet till Coavira.
+   */
+  destinationAccount: string | null
   origin: string
 }): Stripe.Checkout.SessionCreateParams {
   if (input.feePercent !== EXISTING_CLIENT_FEE_PERCENT && input.feePercent !== PLATFORM_FEE_PERCENT) {
@@ -111,7 +118,16 @@ export function checkoutSessionParams(input: {
     ...(input.email ? { customer_email: input.email } : {}),
     client_reference_id: input.checkoutId,
     metadata,
-    payment_intent_data: { metadata: { checkout_id: input.checkoutId } },
+    payment_intent_data: {
+      metadata: { checkout_id: input.checkoutId, trainer_id: input.trainerId },
+      ...(input.destinationAccount
+        ? {
+            // Destination charge: Coavira tar betalt, PT:n får resten direkt till sitt konto.
+            application_fee_amount: input.serviceFeeSek * 100,
+            transfer_data: { destination: input.destinationAccount },
+          }
+        : {}),
+    },
     success_url: `${input.origin}/klient/kop?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${input.origin}/klient/hitta/${input.trainerId}?kop=avbrutet`,
   }
@@ -214,11 +230,51 @@ export function describeStripeError(e: unknown): { message: string; log: Record<
 }
 
 /** Verifierar Stripe-Signature (HMAC-SHA256, högst 5 minuter gammal) och returnerar händelsen. */
-export function parseWebhookEvent(payload: string, signature: string | null, secret: string): Stripe.Event | null {
-  if (!signature || !secret) return null
-  try {
-    return Stripe.webhooks.constructEvent(payload, signature, secret, 300)
-  } catch {
-    return null
+export function parseWebhookEvent(payload: string, signature: string | null, ...secrets: string[]): Stripe.Event | null {
+  if (!signature) return null
+  // Plattformens och Connect-webhookens hemligheter (samma endpoint kan ta emot båda).
+  for (const secret of secrets) {
+    if (!secret) continue
+    try {
+      return Stripe.webhooks.constructEvent(payload, signature, secret, 300)
+    } catch {}
+  }
+  return null
+}
+
+// ================================================================ Connect ===
+
+/** Ett Stripe Connect-konto (motsvarar Express): Stripe sköter KYC och PT:ns instrumentpanel, Coavira betalar avgifterna. */
+export function connectAccountParams(input: { trainerId: string; email?: string }): Stripe.AccountCreateParams {
+  return {
+    country: "SE",
+    ...(input.email ? { email: input.email } : {}),
+    controller: {
+      fees: { payer: "application" },
+      losses: { payments: "application" },
+      requirement_collection: "stripe",
+      stripe_dashboard: { type: "express" },
+    },
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+    business_profile: { product_description: "Personlig träning och kostcoaching via Coavira" },
+    default_currency: "sek",
+    metadata: { trainer_id: input.trainerId },
+  }
+}
+
+export interface ConnectAccountState {
+  detailsSubmitted: boolean
+  chargesEnabled: boolean
+  payoutsEnabled: boolean
+  /** Uppgifter som Stripe kräver nu (requirements.currently_due). */
+  due: string[]
+}
+
+export function connectAccountState(account: Stripe.Account): ConnectAccountState {
+  return {
+    detailsSubmitted: Boolean(account.details_submitted),
+    chargesEnabled: Boolean(account.charges_enabled),
+    payoutsEnabled: Boolean(account.payouts_enabled),
+    due: (account.requirements?.currently_due ?? []).slice(0, 100),
   }
 }

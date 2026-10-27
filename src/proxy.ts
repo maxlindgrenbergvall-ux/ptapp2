@@ -4,10 +4,13 @@ import { NextResponse, type NextRequest } from "next/server"
 import { DASHBOARD_PATH } from "@/lib/auth-redirect"
 import { hostRoute, START_PATH } from "@/lib/site"
 import {
+  HOME_FOR_ROLE,
   homeFor,
   isSupabaseEnabled,
   ONBOARDING_PATH,
   PT_LOGIN_PATH,
+  PT_ONBOARDING_PATH,
+  ptReadyFromClaims,
   roleFromClaims,
   SUPABASE_KEY,
   SUPABASE_URL,
@@ -113,6 +116,14 @@ export async function proxy(request: NextRequest) {
   }
   if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH || path === DASHBOARD_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)
+  // PT-onboarding (v22): färdig profil och utbetalningar via Stripe innan resten
+  // av PT-portalen öppnas. Spärren står i JWT:n (app_metadata.pt_ready), som
+  // databasen håller aktuell – inget extra databasanrop här.
+  if (role === "trainer" && path.startsWith(HOME_FOR_ROLE.trainer)) {
+    const ready = ptReadyFromClaims(claims as { app_metadata?: Record<string, unknown> })
+    const onOnboarding = path === PT_ONBOARDING_PATH || path.startsWith(`${PT_ONBOARDING_PATH}/`)
+    if (!ready && !onOnboarding) return redirect(PT_ONBOARDING_PATH)
+  }
 
   return response
 }

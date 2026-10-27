@@ -343,7 +343,7 @@ await v.click('[role=dialog] button:has-text("Betala")')
 await v.waitForURL("http://localhost:54500/pay/cs_test_1")
 ok("klienten skickas till Stripe Checkout")
 const stripeLog = await (await fetch("http://localhost:54500/__log")).json()
-const created = stripeLog.find((e) => e.method === "POST")?.form ?? {}
+const created = stripeLog.filter((e) => e.method === "POST" && e.path === "/v1/checkout/sessions").at(-1)?.form ?? {}
 check(created["line_items[0][price_data][unit_amount]"] === "80000" && created["line_items[0][price_data][currency]"] === "sek", "Stripe får priset från databasen (800 kr = 80000 öre)")
 check(created["line_items[1][price_data][unit_amount]"] === "8000" && created["line_items[1][price_data][product_data][name]"] === "Serviceavgift (10 %)", "Stripe får serviceavgiften som egen rad (plattformsklient: 10 % = 80 kr)")
 check(created["metadata[subtotal_sek]"] === "800" && created["metadata[service_fee_sek]"] === "80" && created["metadata[fee_percent]"] === "10", "deltotal och avgift i Stripe-metadata")

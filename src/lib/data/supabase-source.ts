@@ -1139,7 +1139,14 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.isPublished !== undefined) row.is_published = p.isPublished
       if (p.offersTraining !== undefined) row.offers_training = p.offersTraining
       if (p.offersNutrition !== undefined) row.offers_nutrition = p.offersNutrition
-      return result(sb.from("trainers").update(row).eq("id", action.trainerId))
+      // Namnet ligger i profiles (samma för alla roller).
+      if (p.name === undefined) return result(sb.from("trainers").update(row).eq("id", action.trainerId))
+      const name = p.name
+      return (async () => {
+        const named = await result(sb.from("profiles").update({ full_name: name }).eq("id", action.trainerId))
+        if (!named.ok || Object.keys(row).length === 0) return named
+        return result(sb.from("trainers").update(row).eq("id", action.trainerId))
+      })()
     }
     case "addFoodEntry": {
       const e = action.entry

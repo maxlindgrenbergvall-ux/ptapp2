@@ -38,7 +38,8 @@ npm run dev                  # http://localhost:3000
    19. `supabase/migrations/20261101000000_v19_custom_exercises_pt_invites.sql`. Den lägger till egna övningar (`custom_exercises`), PT:ns koder till befintliga klienter (`pt_invites`, `create_pt_invite`, `redeem_pt_invite`), kundursprung på relationen (`coaching_relationships.acquisition_type`) och serviceavgiften 5 % / 10 % i `create_checkout`.
    20. `supabase/migrations/20261102000000_v20_launch_account_deletion.sql`. Den rättar kontoraderingen för konton som bjudit in någon (v18), avidentifierar omdömen och aviseringar när ett konto raderas och sparar när villkoren godkändes (`profiles.terms_accepted_at`).
    21. `supabase/migrations/20261103000000_v21_store_purchases.sql`. Den lägger till köp i appen via App Store/RevenueCat (`profiles.store_plus_until`, `store_transactions`, `apply_store_plus`, `apply_store_boost`, `revoke_store_boost`) och sätter webbpriset för Coavira Plus till 49 kr / 30 dagar.
-   22. `supabase/seed.sql`
+   22. `supabase/migrations/20261104000000_v22_stripe_connect.sql`. Den lägger till Stripe Connect och den obligatoriska PT-onboardingen (`trainers.stripe_onboarding_complete`, den privata tabellen `trainer_payout_accounts`, `apply_stripe_account`, `admin_mark_pt_onboarded`). **Publicerade PT-profiler döljs tills PT:n kopplat Stripe och visas sedan automatiskt igen.**
+   23. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -59,11 +60,12 @@ npm run dev                  # http://localhost:3000
    - Kör `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/create-trainer.mjs pt@exempel.se "Namn" [telefon]` lokalt. Det skapar ett bekräftat konto **utan lösenord** med `app_metadata.role = "trainer"`.
    - I Dashboard: välj **Authentication → Add user** (e-post, *Auto Confirm*, valfritt engångslösenord som aldrig delas) och kör sedan `select admin_make_trainer('pt@exempel.se', 'Namn', '070…');` i SQL Editor.
 
-   Säg till PT:n att gå till `/logga-in/pt` och trycka på **Välj lösenord** (*Glömt lösenordet?*). Hen anger sin e-post, öppnar länken i mejlet och väljer ett eget lösenord. Därefter loggar PT:n in med e-post och lösenord, fyller i **Min profil** och publicerar. PT-konton kan **inte** logga in med Apple eller Google.
+   Säg till PT:n att gå till `/logga-in/pt` och trycka på **Välj lösenord** (*Glömt lösenordet?*). Hen anger sin e-post, öppnar länken i mejlet och väljer ett eget lösenord. Därefter loggar PT:n in med e-post och lösenord och går igenom den obligatoriska onboardingen (`/pt/onboarding`, v22): profil och utbetalningar via Stripe. Sedan lägger PT:n in tjänster under **Min profil** och publicerar. PT-konton kan **inte** logga in med Apple eller Google.
 8. **Betalning (Stripe)**, krävs för att klienter ska kunna köpa pass:
    - Sätt serverhemligheterna `STRIPE_SECRET_KEY` (sk_live_… eller sk_test_…), `STRIPE_WEBHOOK_SECRET` (whsec_…) och `SUPABASE_SERVICE_ROLE_KEY` i Vercel. Ingen av dem får ha prefixet `NEXT_PUBLIC_`.
    - I Stripe, under **Developers → Webhooks**, lägg till `https://<domän>/api/stripe/webhook` med händelserna `checkout.session.completed`, `checkout.session.async_payment_succeeded` och `charge.refunded`.
    - Samma webhook hanterar PT Boost (`metadata.kind = "boost"`); inga extra händelser behövs.
+   - **Stripe Connect (v22):** aktivera Connect i Stripe (*Connect → Get started*, plattform/marknadsplats, Sverige). Lägg till samma endpoint en gång till under **Developers → Webhooks → Add endpoint → "Events on Connected accounts"** med händelsen `account.updated`, och sätt dess hemlighet som `STRIPE_CONNECT_WEBHOOK_SECRET` i Vercel.
    - Utan Stripe-nycklar visar kassan "Kortbetalning är inte aktiverad än". En betalning utanför appen (t.ex. Swish) kan registreras manuellt i SQL Editor med `select mark_checkout_paid('<checkout_id>', null, null, null);`.
    - Verifierade certifikat läggs in av admin: `select admin_set_certifications('pt@exempel.se', array['Licensierad PT']);`.
 9. Valfritt:
@@ -534,6 +536,35 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 - Byggnumret är körningens nummer.
 - Appen är iPhone-only i version 1.0.
 
+## Nytt i v22: Stripe Connect och obligatorisk PT-onboarding
+
+**Onboardingen (`/pt/onboarding`).** En PT kommer inte åt resten av PT-portalen förrän båda stegen är klara:
+1. **Profil:** namn, profilbild, minst en inriktning och en presentation på minst 40 tecken.
+2. **Utbetalningar:** *Koppla bankkonto för utbetalningar* skapar ett Stripe Connect-konto (Express, Sverige) och skickar PT:n till Stripes onboarding. Stripe skickar tillbaka till `/pt/onboarding/callback`, som hämtar kontots status från Stripe. Godkänt (`details_submitted` och `charges_enabled`) → portalen öppnas med ett välkomstmeddelande.
+
+**Spärren:**
+- `proxy.ts` omdirigerar en PT till `/pt/onboarding` så länge `app_metadata.pt_ready` inte är `true`.
+- Databasen håller värdet aktuellt (`sync_pt_ready`, triggrar på profilen och utbetalningarna), så proxyn behöver inget extra databasanrop.
+- Callbacken förnyar sessionen, så att den nya JWT:n släpper in PT:n direkt.
+- PT Boost kräver en publicerad profil och kan därför inte köpas före onboardingen.
+
+**Betalningen delas automatiskt** (destination charge):
+
+| Del | Mottagare |
+|---|---|
+| Tjänsternas pris | PT:ns Stripe-konto (`transfer_data.destination`) |
+| Serviceavgiften, 5 % eller 10 % | Coavira (`application_fee_amount`) |
+| Stripes avgifter | Coavira (kontot har `controller.fees.payer = application`) |
+
+**Synlighet:**
+- En profil kan bara publiceras med godkända utbetalningar.
+- Tjänster går bara att köpa när PT:ns konto tar emot kort.
+- Stänger Stripe av kortbetalningar (`account.updated`) döljs profilen och visas igen när det är rättat. Portalen låses inte.
+
+**Återbetalningar** görs i Stripe-panelen. Välj **Reverse transfer** (och vid behov *Refund application fee*), så att pengarna tas tillbaka från PT:ns konto.
+
+**Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -778,6 +809,8 @@ node e2e/v21-supabase.test.mjs  # Köp i appen: RevenueCat-webhook (Plus, Boost,
 node e2e/v22-app-checkout.test.mjs # (demo) Vilotimer −15/+15 s, /app-retur, djuplänk från Stripe stänger webbläsarvyn
 node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.open med Klar, knappen släpper när vyn stängs
 node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
+node e2e/connect-onboarding-demo.test.mjs # (demo) PT-onboardingen med simulerad Stripe-koppling
+node e2e/connect-onboarding.test.mjs # Supabase-läge: onboardingspärren, profil + Stripe Connect, callback, delad betalning, account.updated
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```

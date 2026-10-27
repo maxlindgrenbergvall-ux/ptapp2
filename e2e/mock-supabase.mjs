@@ -9,10 +9,13 @@ const T1 = "11111111-0000-4000-8000-000000000001"
 const C1 = "22222222-0000-4000-8000-000000000001"
 const W1 = "33333333-0000-4000-8000-000000000001"
 const N1 = "77777777-0000-4000-8000-000000000001"
+// v22: ny PT som inte gjort klart onboardingen (profil + Stripe Connect).
+const T2 = "11111111-0000-4000-8000-000000000002"
 
 const users = {
   "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" }, app_metadata: { role: "client" } },
-  "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer" } },
+  "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer", pt_ready: true } },
+  "nypt@test.se": { id: T2, email: "nypt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Nils Ny" }, app_metadata: { role: "trainer", pt_ready: false } },
   // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
   "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" }, app_metadata: {} },
   // v8: PT-konto vars session (simulerat) kommer från Google – ska loggas ut.
@@ -127,6 +130,37 @@ const rpc = {
 }
 const SERVICE_KEY = "service-test"
 
+// v22: Stripe Connect. Elin har ett godkänt konto; Nils (T2) börjar från noll.
+const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [] })
+const payouts = {}
+let t2 = t2Row()
+function resetV22() {
+  t2 = t2Row()
+  byId[T2].user_metadata.full_name = "Nils Ny"
+  byId[T2].app_metadata.pt_ready = false
+  for (const k of Object.keys(payouts)) delete payouts[k]
+  payouts[T1] = { trainer_id: T1, stripe_account_id: "acct_1ElinTest", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
+}
+resetV22()
+// Elins profil räknas som färdig (fixturen har kort bio och ingen bild av andra skäl).
+const profileComplete = (id) => {
+  if (id === T1) return true
+  const r = t2
+  return (byId[id].user_metadata.full_name ?? "").trim().length >= 2 && (r.bio ?? "").trim().length >= 40 && (r.specialties ?? []).length >= 1 && Boolean(r.avatar_url)
+}
+const syncReady = (id) => {
+  byId[id].app_metadata.pt_ready = Boolean(profileComplete(id) && payouts[id]?.complete)
+  return byId[id].app_metadata.pt_ready
+}
+const payoutStatus = (id) => {
+  const a = payouts[id]
+  return {
+    profile_complete: profileComplete(id), stripe_onboarding_complete: Boolean(a?.complete), connected: Boolean(a?.stripe_account_id),
+    details_submitted: Boolean(a?.details_submitted), charges_enabled: Boolean(a?.charges_enabled), payouts_enabled: Boolean(a?.payouts_enabled),
+    requirements_due: a?.requirements_due?.length ?? 0, exempt: Boolean(a?.exempt), pt_ready: Boolean(profileComplete(id) && a?.complete),
+  }
+}
+
 function fixtures(uid, table) {
   const client = uid === C1
   switch (table) {
@@ -142,7 +176,7 @@ function fixtures(uid, table) {
     case "trainer_offers": return offerRows
     case "availability_rules": return client ? [] : [{ id: "r1", trainer_id: T1, weekday: 1, date: null, start_local: "08:00:00", end_local: "10:00:00", slot_minutes: 60 }]
     case "nutrition_plans": return []
-    case "trainers": return [trainerRow]
+    case "trainers": return uid === T2 ? [t2] : [trainerRow]
     case "coaching_relationships":
       return [{ trainer_id: T1, client_id: C1, status: "active", goal: "Bli stark", started_at: TODAY, created_at: `${TODAY}T08:00:00Z`, acquisition_type: acquisition[C1], client: { full_name: "Sara Test" } }]
     case "weight_entries": return client ? [] : []
@@ -189,6 +223,7 @@ http.createServer(async (req, res) => {
     Object.assign(accounts[C1], { coavira_plus_until: null })
     return send(200, {})
   }
+  if (url.pathname === "/__reset_v22") { resetV22(); return send(200, {}) }
   if (url.pathname === "/__reset_v20") {
     users[RADERA.email] = RADERA
     byId[RADERA.id] = RADERA
@@ -319,6 +354,30 @@ http.createServer(async (req, res) => {
       const row = u ? { role: u.app_metadata.role ?? null } : null
       return (req.headers.accept ?? "").includes("vnd.pgrst.object") ? (row ? send(200, row) : send(406, { code: "PGRST116", message: "no rows" })) : send(200, row ? [row] : [])
     }
+    // v22: Stripe Connect – utbetalningskonton (bara servern).
+    if (rest && !rest[1] && rest[2] === "trainer_payout_accounts" && req.method === "GET") {
+      const id = (url.searchParams.get("trainer_id") ?? "").replace(/^eq\./, "")
+      log.push({ method: "GET", table: "trainer_payout_accounts", query: url.search })
+      const a = payouts[id]
+      const row = a ? { stripe_account_id: a.stripe_account_id, charges_enabled: a.charges_enabled, exempt: a.exempt } : null
+      return (req.headers.accept ?? "").includes("vnd.pgrst.object") ? (row ? send(200, row) : send(406, { code: "PGRST116", message: "no rows" })) : send(200, row ? [row] : [])
+    }
+    if (rest?.[1] && rest[2] === "attach_stripe_account") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table: rest[2], body: p })
+      if (byId[p.p_trainer]?.app_metadata.role !== "trainer") return send(403, { code: "42501", message: "Bara PT-konton tar emot utbetalningar" })
+      payouts[p.p_trainer] ??= { trainer_id: p.p_trainer, stripe_account_id: p.p_account, details_submitted: false, charges_enabled: false, payouts_enabled: false, requirements_due: [], exempt: false, complete: false }
+      return send(200, payouts[p.p_trainer].stripe_account_id)
+    }
+    if (rest?.[1] && rest[2] === "apply_stripe_account") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table: rest[2], body: p })
+      const a = Object.values(payouts).find((x) => x.stripe_account_id === p.p_account)
+      if (!a) return send(200, null)
+      Object.assign(a, { details_submitted: p.p_details, charges_enabled: p.p_charges, payouts_enabled: p.p_payouts, requirements_due: p.p_due ?? [] })
+      a.complete ||= Boolean(p.p_details && p.p_charges)
+      return send(200, { trainer_id: a.trainer_id, complete: a.complete, pt_ready: syncReady(a.trainer_id) })
+    }
     if (rest?.[1] && ["apply_store_plus", "apply_store_boost", "revoke_store_boost"].includes(rest[2])) {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table: rest[2], body: p })
@@ -390,6 +449,7 @@ http.createServer(async (req, res) => {
       acquisition[uid] = "EXISTING_CLIENT"
       return send(200, { ok: true, trainer_id: T1, trainer_name: "Elin Test", acquisition_type: "EXISTING_CLIENT" })
     }
+    if (m[1] && table === "my_payout_status") return send(200, byId[uid].app_metadata.role === "trainer" ? payoutStatus(uid) : null)
     if (m[1] && table === "my_account") { log.push({ method: "RPC", table, body: null }); return send(200, account(uid)) }
     if (m[1] && table === "redeem_referral") {
       const p = JSON.parse(body || "{}")
@@ -429,6 +489,13 @@ http.createServer(async (req, res) => {
       return send(403, { code: "42501", message: 'new row violates row-level security policy for table "messages"', details: null, hint: null })
     }
     log.push(entry)
+    // v22: Nils profil (onboardingens steg 1) – som databasens triggrar.
+    if (uid === T2 && req.method === "PATCH" && table === "trainers") { Object.assign(t2, entry.body); syncReady(T2) }
+    if (uid === T2 && req.method === "PATCH" && table === "profiles" && entry.body?.full_name !== undefined) {
+      byId[T2].user_metadata.full_name = entry.body.full_name
+      t2.profile = { full_name: entry.body.full_name }
+      syncReady(T2)
+    }
     return send(req.method === "POST" ? 201 : 204, req.method === "POST" ? [] : undefined)
   }
   if (url.pathname.startsWith("/realtime/")) return send(404, {})

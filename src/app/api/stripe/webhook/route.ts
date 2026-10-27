@@ -1,7 +1,7 @@
 import type Stripe from "stripe"
 import { NextResponse, type NextRequest } from "next/server"
 
-import { parseWebhookEvent } from "@/lib/payments/stripe"
+import { connectAccountState, parseWebhookEvent } from "@/lib/payments/stripe"
 import { createSupabaseAdmin } from "@/lib/supabase/admin"
 
 const intentId = (v: string | { id: string } | null) => (typeof v === "string" ? v : (v?.id ?? null))
@@ -18,10 +18,21 @@ const intentId = (v: string | { id: string } | null) => (typeof v === "string" ?
  * PT Boost (metadata.kind = "boost"): mark_boost_paid() flyttar fram
  * trainers.boosted_until med boost_duration_days (7) – räknat från nu, eller
  * från slutet av en pågående boost.
+ *
+ * Stripe Connect: lägg till samma endpoint under "Connected accounts" med
+ * händelsen account.updated (hemligheten i STRIPE_CONNECT_WEBHOOK_SECRET).
+ * apply_stripe_account() håller PT:ns utbetalningsstatus aktuell: onboardingen
+ * blir klar när Stripe godkänt kontot, och profilen döljs i Hitta PT om Stripe
+ * stänger av kortbetalningar (och visas igen när det är rättat).
  */
 export async function POST(request: NextRequest) {
   const payload = await request.text()
-  const event = parseWebhookEvent(payload, request.headers.get("stripe-signature"), process.env.STRIPE_WEBHOOK_SECRET ?? "")
+  const event = parseWebhookEvent(
+    payload,
+    request.headers.get("stripe-signature"),
+    process.env.STRIPE_WEBHOOK_SECRET ?? "",
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET ?? ""
+  )
   if (!event) return NextResponse.json({ error: "Ogiltig signatur" }, { status: 400 })
   const admin = createSupabaseAdmin()
 
@@ -68,6 +79,21 @@ export async function POST(request: NextRequest) {
     // 500 → Stripe försöker igen senare.
     if (error) {
       console.error("mark_checkout_paid", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+  } else if (event.type === "account.updated") {
+    const account = event.data.object as Stripe.Account
+    const state = connectAccountState(account)
+    const { error } = await admin.rpc("apply_stripe_account", {
+      p_account: account.id,
+      p_details: state.detailsSubmitted,
+      p_charges: state.chargesEnabled,
+      p_payouts: state.payoutsEnabled,
+      p_due: state.due,
+    })
+    // Okända konton (t.ex. från en annan plattform/testmiljö) ger null – inget fel.
+    if (error) {
+      console.error("apply_stripe_account", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
   } else if (event.type === "charge.refunded") {
