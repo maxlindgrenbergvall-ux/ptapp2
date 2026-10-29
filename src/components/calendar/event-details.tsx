@@ -10,6 +10,7 @@ import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { confirmDialog } from "@/components/ui/confirm"
 import { formatDayLong, formatDayShort, formatTimeRange } from "@/lib/calendar/time"
 import { useAppData } from "@/lib/data/store"
 import { formatDay } from "@/lib/date"
@@ -159,8 +160,8 @@ export function EventDetailsDialog({
               <Button
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
-                onClick={() => {
-                  if (!window.confirm(`Dra tillbaka förslaget? ${client?.name ?? "Klienten"} aviseras.`)) return
+                onClick={async () => {
+                  if (!(await confirmDialog({ title: "Dra tillbaka förslaget?", description: `${client?.name ?? "Klienten"} aviseras.`, confirmLabel: "Dra tillbaka", cancelLabel: "Behåll", destructive: true }))) return
                   actions.setEventStatus(ev.id, "cancelled")
                   toast("Förslaget är tillbakadraget")
                   close()
@@ -180,8 +181,8 @@ export function EventDetailsDialog({
               <Button
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
-                onClick={() => {
-                  if (!window.confirm(client ? `Avboka passet med ${client.name}? Klienten ser avbokningen direkt.` : "Avboka passet?")) return
+                onClick={async () => {
+                  if (!(await confirmDialog({ title: client ? `Avboka passet med ${client.name}?` : "Avboka passet?", description: client ? "Klienten ser avbokningen direkt." : undefined, confirmLabel: "Avboka", cancelLabel: "Behåll", destructive: true }))) return
                   actions.setEventStatus(ev.id, "cancelled")
                   toast("Passet är avbokat")
                   close()

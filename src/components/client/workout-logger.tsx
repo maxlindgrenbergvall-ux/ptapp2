@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmDialog } from "@/components/ui/confirm"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
@@ -128,8 +129,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               variant="ghost"
               size="icon"
               aria-label="Ta bort passet"
-              onClick={() => {
-                if (!window.confirm(`Ta bort "${workout.name}"?`)) return
+              onClick={async () => {
+                if (!(await confirmDialog({ title: `Ta bort "${workout.name}"?`, confirmLabel: "Ta bort", destructive: true }))) return
                 actions.deleteOwnWorkout(workout.id)
                 toast("Passet är borttaget")
                 router.push(home)
@@ -404,18 +405,21 @@ function SetRow({
     else setDraft(next)
   }
 
+  // Ökar vid varje avbockning: bocken "poppar" (bara när den bockas av, inte vid sidladdning).
+  const [pop, setPop] = React.useState(0)
   const toggle = () => {
     if (isDone) {
       onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg, reps: values.reps, done: false })
       return
     }
     onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg, reps: values.reps, done: true })
+    setPop((n) => n + 1)
     navigator.vibrate?.(15)
     onDone()
   }
 
   return (
-    <li className={cn("grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 rounded-xl p-1 transition-colors", isDone && "bg-brand/15")}>
+    <li className={cn("grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 rounded-xl p-1 transition-colors duration-300", isDone && "bg-brand/15")}>
       <span className="text-center text-sm font-semibold tabular">{setIndex + 1}</span>
       {usesWeight ? (
         <Stepper value={values.kg} step={2.5} unit="kg" disabled={readOnly} onChange={(kg) => change({ kg })} label={`Vikt set ${setIndex + 1}`} />
@@ -433,7 +437,7 @@ function SetRow({
           isDone ? "border-brand bg-brand text-brand-foreground" : "border-muted-foreground/30 text-muted-foreground hover:border-foreground"
         )}
       >
-        <Check className="size-6" strokeWidth={3} />
+        <Check key={pop} className={cn("size-6", pop > 0 && isDone && "animate-pop")} strokeWidth={3} />
       </button>
     </li>
   )

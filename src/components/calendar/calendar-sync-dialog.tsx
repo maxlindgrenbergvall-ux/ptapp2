@@ -1,12 +1,14 @@
 "use client"
 
-import { CalendarSync, Check, Copy, Download, ExternalLink, Loader2, RefreshCw, ShieldAlert } from "lucide-react"
+import { CalendarSync, Check, Copy, Download, ExternalLink, RefreshCw, ShieldAlert } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { confirmDialog } from "@/components/ui/confirm"
 import { BRAND } from "@/lib/brand"
 import { buildIcs, icsTitle, subscribeLinks, type IcsEvent } from "@/lib/calendar/ics"
 import { useAppData } from "@/lib/data/store"
@@ -59,8 +61,13 @@ export function CalendarSyncButton({ className }: { className?: string }) {
         {mode === "supabase" ? (
           <section className="space-y-3" aria-label="Prenumerera">
             {state.status === "loading" || state.status === "idle" ? (
-              <div className="flex justify-center py-6">
-                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              <div className="space-y-3" aria-busy="true">
+                <span className="sr-only">Skapar kalenderlänken…</span>
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Skeleton className="h-9 rounded-lg" />
+                  <Skeleton className="h-9 rounded-lg" />
+                </div>
               </div>
             ) : state.status === "error" || !links ? (
               <p className="rounded-lg bg-muted p-3 text-sm">
@@ -127,8 +134,8 @@ export function CalendarSyncButton({ className }: { className?: string }) {
                     <button
                       type="button"
                       className="underline underline-offset-4 hover:text-foreground"
-                      onClick={() => {
-                        if (!window.confirm("Skapa en ny länk? Den gamla slutar fungera och måste tas bort i kalenderappen.")) return
+                      onClick={async () => {
+                        if (!(await confirmDialog({ title: "Skapa en ny länk?", description: "Den gamla slutar fungera och måste tas bort i kalenderappen.", confirmLabel: "Skapa ny länk" }))) return
                         void load(true).then(() => toast.success("Ny kalenderlänk skapad"))
                       }}
                     >

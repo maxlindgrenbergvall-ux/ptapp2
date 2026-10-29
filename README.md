@@ -669,6 +669,13 @@ Native-apparna finns i `ios/` och `android/` (Capacitor 8) och byggs i GitHub Ac
   - **iOS:** kräver APNs-nyckel och Push-capability i Apple-kontot (certifikatfasen). `AppDelegate` vidarebefordrar redan enhetens token.
   - **Utskick** (Firebase Cloud Messaging från servern, t.ex. när en avisering skapas) görs i ett senare steg.
 - **App Links / Universal Links (förberett):** `/.well-known/assetlinks.json` (miljövariabeln `ANDROID_APP_SHA256`) och `/.well-known/apple-app-site-association` (`APPLE_TEAM_ID`) svarar 404 tills värdena finns.
+- **Utseende och rörelse:**
+  - **Designsystemet** i `components/ui`: kort med `rounded-2xl` och mjuk skugga (`shadow-card`, mörkare i mörkt läge), knappar som trycks ner (`active:scale-95`), glaseffekt på sidhuvud, bottenmeny, menyer och notiser.
+  - **Appbakgrund:** `.app-backdrop` med mjuka färgfält i stället för platt vitt eller svart.
+  - **Sidbyten** tonar in via `app/klient/template.tsx` och `app/pt/template.tsx`. Aktiv flik markeras med en "pill" som växer in.
+  - **Laddning:** skeleton loaders (`components/ui/skeleton.tsx`, `components/app-skeleton.tsx`) i stället för spinnrar när data hämtas.
+  - **Bekräftelser** visas i appens egen dialog (`confirmDialog` i `components/ui/confirm.tsx`) i stället för `window.confirm`.
+  - Allt följer *Minska rörelse*.
 - **Stängknappar (v23):** dialoger och sidopaneler (`components/ui/dialog.tsx`, `sheet.tsx`) håller sig inom safe area; alla kryss är minst 44 × 44 px, runda och med bakgrund (`components/ui/close-button.tsx`). Små dölj-/ta bort-kryss i listor får 44 px träffyta med `touch-target` (globals.css).
 - **Helskärm och safe area:** `viewport-fit=cover`; sidhuvuden, bottenmeny, samtalsvy och inloggningssidor lägger till `--safe-top`/`--safe-bottom` (från `env(safe-area-inset-*)` och Capacitors `--safe-area-inset-*` på Android). Android kör kant till kant (`EdgeToEdge`). På webben är marginalerna 0.
 - **Betalning (v22):** Stripe Checkout öppnas i appen med `@capacitor/browser` (`src/lib/native/checkout.ts`): en Safari-vy med **Klar**, så att man alltid kan avbryta. Appens WebView lämnar aldrig appen.

@@ -8,6 +8,7 @@ import { FoodPicker } from "@/components/nutrition/food-picker"
 import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { confirmDialog } from "@/components/ui/confirm"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatShort, todayISO } from "@/lib/date"
 import { kcalFromMacros } from "@/lib/foods"
@@ -477,7 +478,7 @@ export function WearablesCard() {
   }
 
   const disconnect = async (provider: WearableProvider) => {
-    if (!window.confirm(`Koppla från ${PROVIDER_LABEL[provider]}? Redan synkad sömn ligger kvar.`)) return
+    if (!(await confirmDialog({ title: `Koppla från ${PROVIDER_LABEL[provider]}?`, description: "Redan synkad sömn ligger kvar.", confirmLabel: "Koppla från" }))) return
     setBusy(provider)
     try {
       if (mode === "supabase") {

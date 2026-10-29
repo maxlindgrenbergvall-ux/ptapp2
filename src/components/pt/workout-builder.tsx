@@ -44,6 +44,7 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmDialog } from "@/components/ui/confirm"
 import { sessionBalance } from "@/lib/services/balance"
 import { useAppData } from "@/lib/data/store"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
@@ -63,14 +64,14 @@ export function WorkoutBuilder() {
   const saved = templates.find((t) => t.id === draft?.id)
   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved)
 
-  const select = (tpl: WorkoutTemplate) => {
-    if (dirty && !window.confirm("Du har osparade ändringar. Byta mall ändå?")) return
+  const select = async (tpl: WorkoutTemplate) => {
+    if (dirty && !(await confirmDialog({ title: "Byta mall?", description: "Du har osparade ändringar som försvinner.", confirmLabel: "Byt ändå" }))) return
     setSelectedId(tpl.id)
     setDraft(tpl)
   }
 
-  const createNew = () => {
-    if (dirty && !window.confirm("Du har osparade ändringar. Skapa ny mall ändå?")) return
+  const createNew = async () => {
+    if (dirty && !(await confirmDialog({ title: "Skapa en ny mall?", description: "Du har osparade ändringar som försvinner.", confirmLabel: "Skapa ny" }))) return
     const tpl: WorkoutTemplate = {
       id: actions.newId(),
       trainerId: me.id,
@@ -164,8 +165,8 @@ export function WorkoutBuilder() {
                       variant="ghost"
                       size="icon"
                       aria-label="Ta bort mall"
-                      onClick={() => {
-                        if (!window.confirm(`Ta bort "${saved.name}"? Redan schemalagda pass påverkas inte.`)) return
+                      onClick={async () => {
+                        if (!(await confirmDialog({ title: `Ta bort "${saved.name}"?`, description: "Redan schemalagda pass påverkas inte.", confirmLabel: "Ta bort", destructive: true }))) return
                         actions.deleteTemplate(saved.id)
                         const next = templates.find((t) => t.id !== saved.id) ?? null
                         setSelectedId(next?.id ?? null)

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmDialog } from "@/components/ui/confirm"
 import { useAppData } from "@/lib/data/store"
 import { formatSek } from "@/lib/money"
 import { activeServices, serviceSummary } from "@/lib/services/balance"
@@ -59,8 +60,8 @@ export function ServicesEditor() {
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Ta bort ${x.title}`}
-                onClick={() => {
-                  if (!window.confirm(`Ta bort "${x.title}"? Redan sålda pass påverkas inte.`)) return
+                onClick={async () => {
+                  if (!(await confirmDialog({ title: `Ta bort "${x.title}"?`, description: "Redan sålda pass påverkas inte.", confirmLabel: "Ta bort", destructive: true }))) return
                   actions.deleteService(x.id)
                   toast("Tjänsten är borttagen")
                 }}

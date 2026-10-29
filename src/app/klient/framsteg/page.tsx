@@ -142,7 +142,7 @@ export default function ProgressPage() {
 /** Genomförda pass med set och volym. */
 function WorkoutList({ workouts }: { workouts: ScheduledWorkout[] }) {
   return (
-    <ul className="divide-y rounded-xl border bg-card">
+    <ul className="divide-y rounded-2xl border border-border/70 bg-card shadow-card">
       {workouts.map((w) => (
         <li key={w.id}>
           <Link href={`/klient/pass/${w.id}`} className="flex items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/60">
@@ -181,7 +181,7 @@ function ExerciseList({ workouts }: { workouts: ScheduledWorkout[] }) {
     <section className="space-y-2">
       <h2 className="font-semibold">Övningar</h2>
       <p className="text-xs text-muted-foreground">Tryck på en övning för att se vad du lyft varje gång.</p>
-      <ul className="divide-y rounded-xl border bg-card">
+      <ul className="divide-y rounded-2xl border border-border/70 bg-card shadow-card">
         {rows.map(({ exercise, sessions }) => {
           const last = sessions[0]
           return (

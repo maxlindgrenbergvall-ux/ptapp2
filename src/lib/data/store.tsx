@@ -14,10 +14,10 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { BrandMark } from "@/components/brand"
+import { AppSkeleton } from "@/components/app-skeleton"
 import { ErrorFallback } from "@/components/error-fallback"
+import { confirmDialog } from "@/components/ui/confirm"
 import { extendBoost } from "@/lib/boost"
-import { BRAND } from "@/lib/brand"
 import { MAX_CART_ITEMS } from "@/lib/cart"
 import { extendPlus, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS } from "@/lib/plus"
 import type { CustomExerciseInput } from "@/lib/exercises/custom"
@@ -886,7 +886,7 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
     [data, me, actions]
   )
 
-  if (!value) return <LoadingScreen />
+  if (!value) return <AppSkeleton role={role} />
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
 
@@ -1085,7 +1085,15 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
 
   const signOut = React.useCallback(async () => {
     const pending = engine.pending
-    if (pending > 0 && !window.confirm(`${pending} ändringar är inte synkade än och försvinner om du loggar ut. Logga ut ändå?`)) {
+    if (
+      pending > 0 &&
+      !(await confirmDialog({
+        title: "Logga ut ändå?",
+        description: `${pending} ändringar är inte synkade än och försvinner om du loggar ut.`,
+        confirmLabel: "Logga ut",
+        destructive: true,
+      }))
+    ) {
       return
     }
     engine.forget()
@@ -1126,7 +1134,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
   )
 
   if (error) return <ErrorScreen message={error} />
-  if (!value) return <LoadingScreen />
+  if (!value) return <AppSkeleton role={role} />
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
 
@@ -1158,16 +1166,6 @@ export function useAppData() {
   const ctx = React.useContext(DataContext)
   if (!ctx) throw new Error("useAppData måste användas inom <AppDataProvider>")
   return ctx
-}
-
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-4" aria-busy="true">
-      <BrandMark size="lg" className="animate-pulse" />
-      <span className="text-sm font-semibold tracking-tight">{BRAND.name}</span>
-      <span className="sr-only">Laddar…</span>
-    </div>
-  )
 }
 
 function ErrorScreen({ message }: { message: string }) {

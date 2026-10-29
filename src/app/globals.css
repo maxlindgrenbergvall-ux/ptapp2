@@ -56,6 +56,10 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  /* Kort: hårfin skugga nära kanten + mjuk, bred skugga under (mörkare i mörkt läge). */
+  --shadow-card: var(--card-shadow);
+  --shadow-float: var(--float-shadow);
 }
 
 /*
@@ -106,6 +110,11 @@
   --macro-fat: #e87ba4;
   --water: #2a78d6;
   --radius: 0.75rem;
+  --card-shadow: 0 1px 2px oklch(0.2 0.03 150 / 0.05), 0 8px 24px -14px oklch(0.2 0.03 150 / 0.18);
+  --float-shadow: 0 12px 40px -12px oklch(0.2 0.03 150 / 0.3);
+  /* Appens bakgrund: djup med mjuka färgfält i stället för platt vitt. */
+  --glow-1: oklch(0.87 0.21 128 / 0.16);
+  --glow-2: oklch(0.6 0.13 160 / 0.1);
   --brand: oklch(0.87 0.21 128);
   --brand-foreground: oklch(0.2 0.05 130);
   --success: oklch(0.58 0.15 150);
@@ -127,6 +136,10 @@
      * och komponenter, och vitare text. Ger högre läsbarhet utan hård svart/vit kontrast.
      */
     --background: oklch(0.205 0.01 160);
+    --card-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 10px 30px -14px oklch(0 0 0 / 0.55);
+    --float-shadow: 0 16px 48px -12px oklch(0 0 0 / 0.6);
+    --glow-1: oklch(0.87 0.21 128 / 0.09);
+    --glow-2: oklch(0.55 0.12 175 / 0.12);
     --foreground: oklch(0.97 0.006 130);
     --card: oklch(0.255 0.012 160);
     --card-foreground: oklch(0.97 0.006 130);
@@ -295,6 +308,16 @@
     @apply bg-background text-foreground;
     /* Mobil: ingen grå blink vid tryck (knapparna har egen tryckeffekt). */
     -webkit-tap-highlight-color: transparent;
+    /* Native-känsla: ingen "gummiband"-studs som drar med hela sidan eller laddar om den. */
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
   /* Snabbare tryck på mobil (ingen dubbeltryckszoom på knappar och länkar). */
   a,
@@ -336,4 +359,75 @@
     height: max(100%, 44px);
     transform: translate(-50%, -50%);
   }
+}
+
+/*
+ * Appens bakgrund (klient- och PT-vyerna): fast lager bakom innehållet med mjuka
+ * färgfält. Ligger i ett eget fixerat element (background-attachment: fixed
+ * fungerar inte i iOS) och påverkar aldrig scrollningen.
+ */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 0% -10%, var(--glow-1), transparent 60%),
+    radial-gradient(50rem 36rem at 110% 0%, var(--glow-2), transparent 60%),
+    var(--background);
+}
+
+/* Skeleton: pulserande block med ett mjukt ljussvep medan data hämtas. */
+@keyframes skeleton-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@utility skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--muted);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.45), transparent);
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+  @media (prefers-color-scheme: dark) {
+    &::after {
+      background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.07), transparent);
+    }
+  }
+}
+
+/* Sidbyte i appen: snabb, diskret intoning (bara opacity och en liten förflyttning). */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+}
+@utility page-enter {
+  animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Liten "pop" när något bockas av eller blir klart. */
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@utility animate-pop {
+  animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }

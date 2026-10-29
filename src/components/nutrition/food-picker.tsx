@@ -8,6 +8,7 @@ import { BarcodeScanner } from "@/components/nutrition/barcode-scanner"
 import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Label } from "@/components/ui/label"
 import { forGrams, isValidBarcode, searchLibrary, searchProducts } from "@/lib/food-search"
 import { POPULAR_BRANDS } from "@/lib/swedish-brands"
@@ -152,7 +153,7 @@ export function FoodPicker({
         <div
           id="food-picker-results"
           role="listbox"
-          className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-xl border bg-popover p-1 shadow-xl"
+          className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-1 shadow-xl"
           onMouseDown={(e) => e.preventDefault()}
         >
           {!q && (
@@ -185,9 +186,18 @@ export function FoodPicker({
               onPick={pick}
               status={
                 online.status === "loading" ? (
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="size-3 animate-spin" /> Söker…
-                  </span>
+                  <div className="-mx-2.5 space-y-1" aria-busy="true">
+                    <span className="sr-only">Söker…</span>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-center gap-3 px-2.5 py-1.5" aria-hidden>
+                        <Skeleton className="size-8 shrink-0 rounded-md" />
+                        <div className="flex-1 space-y-1.5">
+                          <Skeleton className="h-3 w-3/5" />
+                          <Skeleton className="h-2.5 w-2/5" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : online.status === "error" ? (
                   <span className="flex items-center gap-1.5">
                     <WifiOff className="size-3" /> Kunde inte söka märkesvaror just nu
@@ -373,7 +383,7 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
 
   return (
     <form
-      className="space-y-3 rounded-xl border bg-card p-3"
+      className="space-y-3 rounded-2xl border border-border/70 bg-card shadow-card p-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (g <= 0 || g > 5000) return toast.error(`Ange en mängd mellan 1 och 5000 ${base}`)
@@ -477,7 +487,7 @@ function CustomProductForm({
   const n = (v: string) => Math.max(0, Number(v.replace(",", ".")) || 0)
   return (
     <form
-      className="space-y-3 rounded-xl border bg-card p-3"
+      className="space-y-3 rounded-2xl border border-border/70 bg-card shadow-card p-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (!f.name.trim()) return toast.error("Ange produktens namn")

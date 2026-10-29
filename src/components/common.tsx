@@ -99,12 +99,12 @@ export function StatTile({
   icon?: React.ComponentType<{ className?: string }>
 }) {
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-card">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         {label}
         {Icon && <Icon className="size-4" />}
       </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight tabular">{value}</div>
+      <div className="mt-2 text-2xl font-bold tracking-tight tabular">{value}</div>
       {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
     </div>
   )
@@ -122,7 +122,7 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-balance sm:text-3xl">{title}</h1>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
@@ -132,8 +132,10 @@ export function PageHeader({
 
 export function EmptyState({ icon: Icon, title, text }: { icon: React.ComponentType<{ className?: string }>; title: string; text?: string }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center">
-      <Icon className="size-6 text-muted-foreground" />
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-card/40 p-8 text-center">
+      <span className="mb-1 flex size-12 items-center justify-center rounded-full bg-muted">
+        <Icon className="size-5 text-muted-foreground" />
+      </span>
       <p className="font-medium">{title}</p>
       {text && <p className="max-w-sm text-sm text-muted-foreground">{text}</p>}
     </div>

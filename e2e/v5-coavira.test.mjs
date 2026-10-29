@@ -223,6 +223,10 @@ const accepted = p.locator("li", { hasText: "15:00–16:00" }).filter({ hasText:
 check((await accepted.count()) === 1, "accepterad tid är bekräftad i klientens kalender")
 // Avboka ett bekräftat pass → PT:n aviseras.
 await p.locator("li", { hasText: "Teknik knäböj" }).filter({ hasText: "Bekräftat" }).first().locator('button:has-text("Avboka")').click()
+// Appens egen bekräftelse (inte webbläsarens ruta).
+await p.waitForSelector("[data-testid=confirm-dialog]")
+check(await p.locator("[data-testid=confirm-dialog]").getByText("Avboka passet?").isVisible(), "avbokningen bekräftas i appens egen dialog")
+await p.getByTestId("confirm-ok").click()
 await p.waitForSelector("text=Passet är avbokat")
 
 await p.setViewportSize({ width: 1440, height: 900 })

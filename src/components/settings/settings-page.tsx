@@ -33,7 +33,7 @@ export function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <SettingsHeader title="Inställningar" description={me.email ? `Inloggad som ${me.email}` : undefined} />
-      <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+      <ul className="divide-y overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card">
         {links.map(({ href, label, hint, icon: Icon }) => (
           <li key={href}>
             <Link href={href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60">

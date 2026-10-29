@@ -249,7 +249,7 @@ export function TimeGridView({
       </div>
 
       {/* Tidsrutnät */}
-      <div ref={scrollRef} className="max-h-[68vh] overflow-y-auto">
+      <div ref={scrollRef} className="max-h-[68vh] overflow-y-auto overscroll-contain">
         <div className="relative grid" style={{ gridTemplateColumns: `3.5rem repeat(${dayCount}, minmax(0, 1fr))` }}>
           <div>
             {hours.map((h) => (

@@ -34,8 +34,8 @@ export default function PtMessagesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Meddelanden" description="En tråd per klient. Feedback på pass hamnar också här." />
-      <Card className="grid h-[calc(100svh-12rem)] min-h-[28rem] gap-0 overflow-hidden py-0 md:grid-cols-[280px_1fr]">
-        <ul className={cn("overflow-y-auto border-r", active && "hidden md:block")}>
+      <Card className="grid h-[calc(100svh-12rem-var(--safe-top)-var(--safe-bottom))] min-h-[28rem] gap-0 overflow-hidden py-0 md:grid-cols-[280px_1fr]">
+        <ul className={cn("overflow-y-auto overscroll-contain border-r", active && "hidden md:block")}>
           {threads.map(({ client, last, unread }) => (
             <li key={client.id}>
               <button

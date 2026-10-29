@@ -1,11 +1,11 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { daysWithSlots } from "@/lib/calendar/slots"
 import { formatTimeRange, localISODate } from "@/lib/calendar/time"
 import { useTrainerSlots } from "@/lib/calendar/use-slots"
@@ -38,9 +38,25 @@ export function SlotPicker({
 
   if (status === "loading") {
     return (
-      <div className="flex h-72 items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className="space-y-4" aria-busy="true">
         <span className="sr-only">Hämtar lediga tider…</span>
+        <div className="space-y-3 rounded-xl border p-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="size-7 rounded-full" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="size-7 rounded-full" />
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 35 }, (_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-full" />
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-20 rounded-full" />
+          ))}
+        </div>
       </div>
     )
   }

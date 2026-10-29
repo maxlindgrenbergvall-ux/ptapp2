@@ -98,7 +98,7 @@ export function ChatThread({
 
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
-      <div className="flex-1 overflow-y-auto p-4" aria-live="polite">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4" aria-live="polite">
         {messages.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">Inga meddelanden än. Säg hej!</p>
         )}

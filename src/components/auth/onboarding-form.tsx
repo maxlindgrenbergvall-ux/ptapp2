@@ -1,12 +1,12 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
 import { AuthCard, FormError } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -146,8 +146,12 @@ export function OnboardingForm() {
   if (loading) {
     return (
       <AuthCard title="Välkommen till Coavira">
-        <div className="flex justify-center py-8">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <div className="space-y-4" aria-busy="true">
+          <span className="sr-only">Laddar…</span>
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-11 w-full rounded-xl" />
         </div>
       </AuthCard>
     )

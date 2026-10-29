@@ -17,10 +17,11 @@ export function AuthCard({
 }) {
   return (
     <main className="mx-auto flex min-h-svh max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+1.5rem)] pb-[calc(var(--safe-bottom)+1.5rem)]">
+      <div className="app-backdrop" aria-hidden />
       <header className="flex items-center justify-between">
         <BrandLogo />
       </header>
-      <div className="flex flex-1 flex-col justify-center gap-6 py-10">
+      <div className="page-enter flex flex-1 flex-col justify-center gap-6 py-10">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
@@ -35,7 +36,7 @@ export function AuthCard({
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <p role="alert" className="animate-in rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive fade-in-0 slide-in-from-top-1">
       {message}
     </p>
   )

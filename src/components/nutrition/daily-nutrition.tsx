@@ -47,13 +47,15 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
   const locked = !trainerView && nutritionTrainers.length === 0
 
   const checked = new Set(data.mealChecks.filter((m) => m.clientId === clientId && m.date === date).map((m) => m.mealId))
+  // Måltiden som just bockades av "poppar" (inte de som redan var avbockade när sidan laddades).
+  const [pop, setPop] = React.useState<{ id: string; n: number }>({ id: "", n: 0 })
   const extras = data.foodEntries.filter((e) => e.clientId === clientId && e.date === date)
   const eaten = sumMacros([...(plan?.meals ?? []).filter((m) => checked.has(m.id)).flatMap((m) => m.items), ...extras])
   const targets = plan?.targets
   const planOwner = plan ? data.trainers.find((t) => t.id === plan.trainerId)?.name : undefined
 
   return (
-    <div className="space-y-5 rounded-xl border bg-card p-5" data-testid="daily-nutrition">
+    <div className="space-y-5 rounded-2xl border border-border/70 bg-card shadow-card p-5" data-testid="daily-nutrition">
       {trainerView && (
         <div className="flex items-center justify-between gap-2">
           <Button variant="ghost" size="icon-sm" aria-label="Föregående dag" onClick={() => setDate(addDays(date, -1))}>
@@ -102,9 +104,11 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
             const row = (
               <>
                 <span
+                  key={pop.id === m.id ? `pop-${pop.n}` : "still"}
                   className={cn(
-                    "flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                    isChecked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+                    "flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-200",
+                    isChecked ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
+                    isChecked && pop.id === m.id && "animate-pop"
                   )}
                 >
                   {isChecked && <Check className="size-4" strokeWidth={3} />}
@@ -130,9 +134,12 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
                   </div>
                 ) : (
                   <button
-                    onClick={() => actions.toggleMeal(clientId, date, m.id)}
+                    onClick={() => {
+                      if (!isChecked) setPop((p) => ({ id: m.id, n: p.n + 1 }))
+                      actions.toggleMeal(clientId, date, m.id)
+                    }}
                     aria-pressed={isChecked}
-                    className="flex w-full items-center gap-3 py-3 text-left"
+                    className="flex w-full items-center gap-3 rounded-lg py-3 text-left transition-transform active:scale-[0.99]"
                   >
                     {row}
                   </button>
@@ -205,7 +212,7 @@ function NutritionLock({ clientId, trainers }: { clientId: ID; trainers: Trainer
       {suggested && (
         <Link
           href={`/klient/hitta/${suggested.trainer.id}`}
-          className="flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:bg-muted/60"
+          className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card shadow-card p-3 transition-colors hover:bg-muted/60"
           data-testid="nutrition-recommended"
         >
           <PersonAvatar name={suggested.trainer.name} src={suggested.trainer.avatarUrl} className="size-10" />

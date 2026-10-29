@@ -55,7 +55,7 @@ export function ServiceMenu({
     <>
       <ul className={cn("grid gap-2 sm:grid-cols-2", className)} aria-label={`Tjänster hos ${firstName(trainer.name)}`}>
         {services.map((s) => (
-          <li key={s.id} className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+          <li key={s.id} className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card shadow-card p-3">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 {s.kind === "nutrition" ? <Salad className="size-4" /> : <Dumbbell className="size-4" />}

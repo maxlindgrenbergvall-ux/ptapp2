@@ -38,8 +38,8 @@ export default function ClientChatPage() {
 
   const pending = client.trainerId === trainer.id && client.status === "pending"
   return (
-    // Fyller ytan mellan header (3.5rem) och bottenmeny (4rem).
-    <div className="-mx-4 -mt-4 -mb-24 flex h-[calc(100svh-7.5rem)] flex-col">
+    // Fyller ytan mellan sidhuvud (3.5rem + statusfält) och bottenmeny (4rem + hemindikator) – bara chatten scrollar.
+    <div className="-mx-4 -mt-4 -mb-[calc(6rem+var(--safe-bottom))] flex h-[calc(100svh-7.5rem-var(--safe-top)-var(--safe-bottom))] flex-col">
       {trainers.length > 1 && (
         <div role="tablist" aria-label="Välj PT" className="flex gap-2 overflow-x-auto border-b px-4 py-2">
           {trainers.map((t) => (

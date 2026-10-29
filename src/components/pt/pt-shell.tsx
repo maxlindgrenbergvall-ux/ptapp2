@@ -30,14 +30,22 @@ export function PtShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   // Den obligatoriska onboardingen (v22) visas utan portalens meny: PT:n kan inte
   // navigera vidare förrän profilen och utbetalningarna är klara.
-  if (pathname.startsWith(PT_ONBOARDING_PATH)) return <>{children}</>
+  if (pathname.startsWith(PT_ONBOARDING_PATH)) {
+    return (
+      <>
+        <div className="app-backdrop" aria-hidden />
+        {children}
+      </>
+    )
+  }
   return (
     <div className="flex min-h-svh">
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r bg-sidebar pt-[var(--safe-top)] lg:block">
+      <div className="app-backdrop" aria-hidden />
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 border-r border-sidebar-border/70 bg-sidebar/70 pt-[var(--safe-top)] backdrop-blur-xl lg:block">
         <SidebarContent />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center pt-[var(--safe-top)] gap-2 border-b bg-background/80 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center gap-2 border-b border-border/60 bg-background/70 px-4 pt-[var(--safe-top)] backdrop-blur-xl backdrop-saturate-150 lg:hidden">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Öppna meny">
@@ -92,12 +100,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-[background-color,color,transform] duration-150 active:scale-[0.98]",
                 active
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                  ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-xs"
                   : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
               )}
             >
+              {active && <span className="absolute inset-y-2 left-0 w-1 animate-in rounded-full bg-primary fade-in-0 zoom-in-50" aria-hidden />}
               <Icon className="size-4" />
               {label}
               {href === "/pt/kalender" && pendingRequests > 0 && (

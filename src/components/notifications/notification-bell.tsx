@@ -111,7 +111,7 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {groups.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 Inga aviseringar än. Här hamnar avbokningar, ombokningar och bekräftelser.

@@ -13,6 +13,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmDialog } from "@/components/ui/confirm"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
 import { MAX_DISCOUNT_PERCENT, mentionsFree } from "@/lib/offers/policy"
@@ -52,8 +53,8 @@ export function OffersEditor() {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Ta bort ${o.title}`}
-                  onClick={() => {
-                    if (!window.confirm(`Ta bort "${o.title}"?`)) return
+                  onClick={async () => {
+                    if (!(await confirmDialog({ title: `Ta bort "${o.title}"?`, confirmLabel: "Ta bort", destructive: true }))) return
                     actions.deleteOffer(o.id)
                     toast("Erbjudandet är borttaget")
                   }}

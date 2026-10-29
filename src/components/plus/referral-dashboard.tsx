@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import { PlusBadge, usePlus } from "@/components/plus/require-plus"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { BRAND } from "@/lib/brand"
@@ -165,9 +166,14 @@ function InviteCard({ code, trainer }: { code?: string; trainer: boolean }) {
             </div>
           </>
         ) : (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> Hämtar din kod …
-          </p>
+          <div className="space-y-3" aria-busy="true">
+            <span className="sr-only">Hämtar din kod …</span>
+            <Skeleton className="h-14 w-full rounded-xl" />
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-32 rounded-lg" />
+              <Skeleton className="h-9 w-32 rounded-lg" />
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -176,7 +182,7 @@ function InviteCard({ code, trainer }: { code?: string; trainer: boolean }) {
 
 function Stat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div className={cn("rounded-xl border bg-card px-3 py-3 text-center", highlight && "border-brand/50 bg-brand/5")}>
+    <div className={cn("rounded-2xl border border-border/70 bg-card shadow-card px-3 py-3 text-center", highlight && "border-brand/50 bg-brand/5")}>
       <div className="text-2xl font-bold tabular-nums">{value}</div>
       <div className="text-xs text-muted-foreground">{label}</div>
     </div>
@@ -285,7 +291,7 @@ function ReferralList({ referrals, trainer }: { referrals: Referral[]; trainer: 
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-semibold text-muted-foreground">Dina inbjudningar</h2>
-      <ul className="divide-y overflow-hidden rounded-xl border bg-card" data-testid="referral-list">
+      <ul className="divide-y overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card" data-testid="referral-list">
         {referrals.map((r, i) => (
           <li key={r.id} className="flex items-center gap-3 px-4 py-3 text-sm">
             {r.status === "COMPLETED" ? <CheckCircle2 className="size-4 text-emerald-600" aria-hidden /> : <Hourglass className="size-4 text-amber-600" aria-hidden />}
@@ -433,7 +439,7 @@ export function PlusPage() {
             ))}
           </ul>
         </div>
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-2xl border border-border/70 bg-card shadow-card p-4">
           <h2 className="mb-2 font-semibold">Alltid gratis</h2>
           <ul className="space-y-2 text-sm">
             {free.map((f) => (

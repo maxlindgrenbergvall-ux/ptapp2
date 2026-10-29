@@ -26,6 +26,7 @@ import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
 import { PersonAvatar } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { confirmDialog } from "@/components/ui/confirm"
 import {
   addDays,
   formatDayLong,
@@ -501,13 +502,14 @@ function EventCard({ event, onPropose }: { event: CalendarEvent; onPropose: (e: 
             size="sm"
             variant="ghost"
             className="text-destructive hover:text-destructive"
-            onClick={() => {
+            onClick={async () => {
               const q = needsAnswer
                 ? `Tacka nej till tiden? ${first} aviseras.`
                 : event.status === "pending"
                   ? "Dra tillbaka bokningsförfrågan?"
                   : `Avboka passet? ${first} aviseras direkt.`
-              if (!window.confirm(q)) return
+              const label = needsAnswer ? "Tacka nej" : event.status === "pending" ? "Dra tillbaka" : "Avboka"
+              if (!(await confirmDialog({ title: q, confirmLabel: label, cancelLabel: "Behåll", destructive: true }))) return
               actions.setEventStatus(event.id, "cancelled")
               toast(needsAnswer ? "Du tackade nej" : event.status === "pending" ? "Förfrågan återkallad" : "Passet är avbokat")
             }}

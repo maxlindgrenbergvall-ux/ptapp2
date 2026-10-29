@@ -101,7 +101,7 @@ function MetricCard({ clientId, metric, onLog }: { clientId: ID; metric: MetricD
   const delta = latest && first && series.length > 1 ? latest.value - first.value : 0
   const improving = metric.lowerIsBetter ? delta < 0 : delta > 0
   return (
-    <div className="flex flex-col gap-2 rounded-xl border bg-card p-3" data-testid={`metric-${metric.key}`}>
+    <div className="flex flex-col gap-2 rounded-2xl border border-border/70 bg-card shadow-card p-3" data-testid={`metric-${metric.key}`}>
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs text-muted-foreground">{metric.label}</p>
         {onLog && (

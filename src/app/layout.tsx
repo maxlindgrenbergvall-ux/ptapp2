@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { CookieBanner } from "@/components/cookie-banner"
 import { GoogleAnalytics } from "@/components/google-analytics"
 import { NativeBridge } from "@/components/native/native-bridge"
+import { ConfirmHost } from "@/components/ui/confirm"
 import { Toaster } from "@/components/ui/sonner"
 import { BRAND } from "@/lib/brand"
 import { SITE_URL } from "@/lib/site"
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans">
         {children}
         <Toaster position="top-center" mobileOffset={{ top: "calc(var(--safe-top) + 16px)" }} />
+        <ConfirmHost />
         <NativeBridge />
         {/* Bara på coavira.fit: cookie-rutan, och GA4 först när coavira_cookie_consent = "granted". */}
         <CookieBanner />

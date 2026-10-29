@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { confirmDialog } from "@/components/ui/confirm"
 import { useAppData } from "@/lib/data/store"
 import { kcalFromMacros } from "@/lib/foods"
 import { amountOf, itemFromFood, setAmount, switchUnit, unitOptions } from "@/lib/nutrition/meal-items"
@@ -65,8 +66,8 @@ export function NutritionBuilder() {
   const comparable = (p?: NutritionPlan) => (p ? JSON.stringify({ ...p, active: undefined }) : "")
   const dirty = comparable(plan) !== comparable(existing)
 
-  const switchClient = (id: string) => {
-    if (dirty && !window.confirm("Du har osparade ändringar. Byta klient ändå?")) return
+  const switchClient = async (id: string) => {
+    if (dirty && !(await confirmDialog({ title: "Byta klient?", description: "Du har osparade ändringar som försvinner.", confirmLabel: "Byt ändå" }))) return
     setClientId(id)
     setPlan(mine(id) ?? emptyPlan(id, me.id, actions.newId))
   }
@@ -468,8 +469,8 @@ function RecipeLibrary({ recipes }: { recipes: Recipe[] }) {
             <button
               className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
               aria-label={`Ta bort recept ${r.name}`}
-              onClick={() => {
-                if (!window.confirm(`Ta bort receptet "${r.name}"?`)) return
+              onClick={async () => {
+                if (!(await confirmDialog({ title: `Ta bort receptet "${r.name}"?`, confirmLabel: "Ta bort", destructive: true }))) return
                 actions.deleteRecipe(r.id)
               }}
             >

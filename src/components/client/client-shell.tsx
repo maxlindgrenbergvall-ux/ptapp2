@@ -33,9 +33,10 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const focusMode = pathname.startsWith("/klient/pass/")
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x">
+    <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x md:border-border/60">
+      <div className="app-backdrop" aria-hidden />
       {!focusMode && (
-        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center pt-[var(--safe-top)] justify-between border-b bg-background/80 px-4 backdrop-blur">
+        <header className="sticky top-0 z-20 flex h-[calc(3.5rem+var(--safe-top))] items-center justify-between border-b border-border/60 bg-background/70 px-4 pt-[var(--safe-top)] backdrop-blur-xl backdrop-saturate-150">
           <AppMenu />
           <div className="flex items-center gap-1">
             <CartButton />
@@ -48,11 +49,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           <SyncIndicator />
         </div>
       )}
-      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-24")}>{children}</main>
+      {/* Luft under innehållet för bottenmenyn (4rem) + hemindikatorn. */}
+      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{children}</main>
       {!focusMode && (
         <nav
           aria-label="Huvudmeny"
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t bg-background/95 pb-[var(--safe-bottom)] backdrop-blur md:border-x"
+          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t border-border/60 bg-background/75 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 md:border-x"
         >
           {NAV.map(({ href, label, icon: Icon, exact }) => {
             const active = exact ? pathname === href : pathname.startsWith(href)
@@ -62,11 +64,19 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] transition-colors",
-                  active ? "font-medium text-foreground" : "text-muted-foreground"
+                  "group relative flex h-16 flex-col items-center justify-center gap-1 text-[11px] transition-colors active:scale-95 motion-reduce:active:scale-100",
+                  active ? "font-semibold text-foreground" : "text-muted-foreground"
                 )}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                {/* Aktiv flik: en mjuk "pill" som tonar och växer in bakom ikonen. */}
+                <span
+                  className={cn(
+                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200",
+                    active ? "animate-in fade-in-0 zoom-in-75 bg-primary/12 text-primary duration-300" : "group-hover:bg-muted/70"
+                  )}
+                >
+                  <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                </span>
                 {label}
                 {href === "/klient/kalender" && pendingCount > 0 && (
                   <span

@@ -54,7 +54,7 @@ export function OfferCard({
     </>
   )
   return (
-    <div className={cn("relative rounded-xl border bg-card", compact ? "p-2.5 text-sm" : "p-3")}>
+    <div className={cn("relative rounded-2xl border border-border/70 bg-card shadow-card", compact ? "p-2.5 text-sm" : "p-3")}>
       {trainer && onOpen !== undefined ? (
         <Link href={`/klient/hitta/${trainer.id}`} onClick={onOpen} className="block rounded-lg pr-6 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
           {body}
