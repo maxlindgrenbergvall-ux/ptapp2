@@ -69,17 +69,28 @@ check(await p.locator("text=Välkommen till Coavira, Nils!").isVisible(), "perso
 
 // --------------------------------------------------------- steg 1: profil ---
 const save = p.getByRole("button", { name: "Spara och fortsätt" })
+// Databasen saknar v22 (my_payout_status finns inte): tydligt besked i stället för "kontrollera uppkopplingen".
+async function fillProfile() {
+  await p.getByRole("button", { name: "Länk" }).click()
+  await p.locator('input[placeholder^="https"]').fill("https://cdn.test/nils.jpg")
+  await p.locator('input[placeholder^="https"]').press("Enter")
+  await p.getByRole("button", { name: "Hyrox" }).click()
+}
 check(await save.isDisabled(), "steg 1: knappen är låst tills profilen är färdig")
 check(/profilbild/.test(await p.locator("[data-testid=onboarding-missing]").innerText()), "steg 1: visar vad som saknas")
-await p.getByRole("button", { name: "Länk" }).click()
-await p.locator('input[placeholder^="https"]').fill("https://cdn.test/nils.jpg")
-await p.locator('input[placeholder^="https"]').press("Enter")
-await p.getByRole("button", { name: "Hyrox" }).click()
+await fillProfile()
 await p.fill("#onb-bio", "Kort")
 check(await save.isDisabled(), "steg 1: presentationen måste vara minst 40 tecken")
 await p.fill("#onb-bio", "Jag coachar Hyrox-atleter och nybörjare med fokus på teknik och hållbar progression.")
 await p.fill("#onb-name", "Nils Nyström")
 check(await save.isEnabled(), "steg 1: färdig profil kan sparas")
+await p.route("**/rest/v1/rpc/my_payout_status", (r) =>
+  r.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST202", message: "Could not find the function public.my_payout_status without parameters in the schema cache" }) })
+)
+await save.click()
+await p.waitForSelector("text=Databasen är inte uppdaterad")
+ok("databas utan v22: tydligt besked om migrationen (inte \"kontrollera uppkopplingen\")")
+await p.unroute("**/rest/v1/rpc/my_payout_status")
 await p.screenshot({ path: `${out}/v22-onboarding-steg1.png`, fullPage: true })
 await save.click()
 await p.waitForSelector("[data-testid=onboarding-payouts]")
@@ -173,6 +184,15 @@ await ctx.close()
   check(again.ok(), "kort aktiva igen: kassan öppen")
   const bad = await fetch(`${base}/api/stripe/webhook`, { method: "POST", body: "{}", headers: { "stripe-signature": "t=1,v1=00" } })
   check(bad.status === 400, "webhook med fel signatur avvisas")
+  await c.close()
+}
+
+// PT vars token saknar pt_ready (databasen före v22) låses inte ute.
+{
+  const { ctx: c, p: g } = await login("gammalpt@test.se", "/logga-in/pt")
+  await g.waitForURL(/\/pt$/)
+  await g.goto(base + "/pt/kalender")
+  check(new URL(g.url()).pathname === "/pt/kalender", "databas före v22 (inget pt_ready): PT-portalen är öppen som förut")
   await c.close()
 }
 

@@ -86,25 +86,35 @@ export function PtOnboarding() {
   const saveProfile = async () => {
     if (!profileDone) return
     setSaving(true)
-    actions.updateTrainerProfile({
-      name: form.name.trim(),
-      avatarUrl: form.avatarUrl,
-      specialties: form.specialties,
-      bio: form.bio.trim(),
-    })
+    const patch = { name: form.name.trim(), avatarUrl: form.avatarUrl, specialties: form.specialties, bio: form.bio.trim() }
     if (mode === "supabase") {
-      // Ändringen sparas i bakgrunden – vänta tills databasen räknar profilen som klar.
-      let done = false
-      for (let i = 0; i < 20 && !done; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 300 : 500))
-        done = Boolean((await loadStatus())?.profile_complete)
-      }
-      if (!done) {
+      // Sparas direkt (inte via bakgrundskön), så att steg 2 vet att databasen har profilen
+      // och PT:n får det riktiga felet om något går fel.
+      const error = await saveProfileNow(me.id, patch)
+      if (error) {
         setSaving(false)
-        toast.error("Profilen kunde inte sparas just nu. Kontrollera uppkopplingen och försök igen.")
+        toast.error("Profilen kunde inte sparas", { description: error })
+        return
+      }
+      const { data: s, error: statusError } = await getSupabase().rpc("my_payout_status")
+      if (statusError || !s) {
+        setSaving(false)
+        toast.error("Profilen är sparad, men utbetalningssteget kan inte startas", {
+          description: isMissingFunction(statusError)
+            ? "Databasen är inte uppdaterad: kör migrationen v22 (supabase/migrations/…_v22_stripe_connect.sql) i Supabase."
+            : (statusError?.message ?? "Försök igen om en stund."),
+        })
+        return
+      }
+      setStatus(s as PayoutStatus)
+      if (!(s as PayoutStatus).profile_complete) {
+        setSaving(false)
+        toast.error("Profilen är inte komplett enligt databasen", { description: "Kontrollera namn, profilbild, inriktning och presentation och spara igen." })
         return
       }
     }
+    // Uppdatera appens lokala data (i Supabase-läget skrivs samma värden igen – ofarligt).
+    actions.updateTrainerProfile(patch)
     setSaving(false)
     setStep(2)
   }
@@ -335,4 +345,27 @@ function Point({ icon: Icon, title, children }: { icon: React.ComponentType<{ cl
       </span>
     </li>
   )
+}
+
+/** Sparar steg 1 direkt i databasen. Returnerar ett läsbart fel eller null. */
+async function saveProfileNow(
+  userId: string,
+  p: { name: string; avatarUrl: string; specialties: Specialty[]; bio: string }
+): Promise<string | null> {
+  const sb = getSupabase()
+  try {
+    const [named, profile] = await Promise.all([
+      sb.from("profiles").update({ full_name: p.name }).eq("id", userId),
+      sb.from("trainers").update({ avatar_url: p.avatarUrl || null, specialties: p.specialties, bio: p.bio }).eq("id", userId),
+    ])
+    const error = named.error ?? profile.error
+    return error ? error.message : null
+  } catch {
+    return "Ingen uppkoppling – försök igen."
+  }
+}
+
+/** Funktionen finns inte i databasen (migrationen är inte körd). */
+function isMissingFunction(error: { code?: string; message?: string } | null): boolean {
+  return Boolean(error && (error.code === "PGRST202" || error.code === "42883" || /could not find the function|does not exist/i.test(error.message ?? "")))
 }

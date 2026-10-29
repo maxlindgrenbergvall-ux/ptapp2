@@ -44,11 +44,14 @@ export function roleFromClaims(user: RoleSource | null | undefined): UserRole | 
 export const PT_ONBOARDING_PATH = "/pt/onboarding"
 
 /**
- * Har PT:n gjort klart onboardingen? Läses ur app_metadata.pt_ready, som bara
- * databasen sätter (sync_pt_ready) – användaren kan inte ändra det.
+ * Måste PT:n göra klart onboardingen? Bara när databasen uttryckligen satt
+ * app_metadata.pt_ready = false (sync_pt_ready, v22). Saknas värdet är databasen
+ * inte uppgraderad till v22 än (eller token utfärdades före uppgraderingen) –
+ * då släpps PT:n in som förut i stället för att låsas ute. Användaren kan inte
+ * ändra app_metadata.
  */
-export function ptReadyFromClaims(user: Pick<RoleSource, "app_metadata"> | null | undefined): boolean {
-  return user?.app_metadata?.pt_ready === true
+export function ptOnboardingRequired(user: Pick<RoleSource, "app_metadata"> | null | undefined): boolean {
+  return user?.app_metadata?.pt_ready === false
 }
 
 /** Startsidan för en inloggad användare. */

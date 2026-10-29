@@ -15,6 +15,8 @@ const T2 = "11111111-0000-4000-8000-000000000002"
 const users = {
   "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" }, app_metadata: { role: "client" } },
   "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer", pt_ready: true } },
+  // v22: PT vars token saknar pt_ready (databasen före v22) – ska släppas in som förut.
+  "gammalpt@test.se": { id: "11111111-0000-4000-8000-000000000003", email: "gammalpt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Greta Gammal" }, app_metadata: { role: "trainer" } },
   "nypt@test.se": { id: T2, email: "nypt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Nils Ny" }, app_metadata: { role: "trainer", pt_ready: false } },
   // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
   "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" }, app_metadata: {} },

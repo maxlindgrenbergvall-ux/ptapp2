@@ -10,7 +10,7 @@ import {
   ONBOARDING_PATH,
   PT_LOGIN_PATH,
   PT_ONBOARDING_PATH,
-  ptReadyFromClaims,
+  ptOnboardingRequired,
   roleFromClaims,
   SUPABASE_KEY,
   SUPABASE_URL,
@@ -120,9 +120,9 @@ export async function proxy(request: NextRequest) {
   // av PT-portalen öppnas. Spärren står i JWT:n (app_metadata.pt_ready), som
   // databasen håller aktuell – inget extra databasanrop här.
   if (role === "trainer" && path.startsWith(HOME_FOR_ROLE.trainer)) {
-    const ready = ptReadyFromClaims(claims as { app_metadata?: Record<string, unknown> })
+    const required = ptOnboardingRequired(claims as { app_metadata?: Record<string, unknown> })
     const onOnboarding = path === PT_ONBOARDING_PATH || path.startsWith(`${PT_ONBOARDING_PATH}/`)
-    if (!ready && !onOnboarding) return redirect(PT_ONBOARDING_PATH)
+    if (required && !onOnboarding) return redirect(PT_ONBOARDING_PATH)
   }
 
   return response
