@@ -26,6 +26,29 @@ const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
 const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 
+/** Webhooks anropas av Stripe, RevenueCat och Fitbit – de verifieras med signatur i stället. */
+const WEBHOOKS = ["/api/stripe/webhook", "/api/revenuecat/webhook", "/api/wearables/fitbit/webhook"]
+
+/**
+ * CSRF-skydd för API:t utöver SameSite=Lax-cookien: skrivande anrop
+ * (POST/PUT/PATCH/DELETE) måste komma från samma ursprung. Webbläsare skickar
+ * alltid Origin vid sådana anrop; mobilappen laddar webbappen från dess egen
+ * domän och räknas därför som samma ursprung. Anrop utan Origin (servrar,
+ * curl) har ingen cookie från en annan sajt och släpps igenom.
+ */
+function isCrossSiteApiWrite(request: NextRequest): boolean {
+  const { pathname } = request.nextUrl
+  if (!pathname.startsWith("/api/") || WEBHOOKS.includes(pathname)) return false
+  if (request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS") return false
+  const origin = request.headers.get("origin")
+  if (!origin) return false
+  try {
+    return new URL(origin).host !== (request.headers.get("host") ?? request.nextUrl.host)
+  } catch {
+    return true
+  }
+}
+
 /**
  * Förnyar Supabase-sessionen och skyddar app-routes.
  *
@@ -33,6 +56,8 @@ const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-loseno
  * databasen, så en manipulerad roll i användarens metadata ger ingen data.
  */
 export async function proxy(request: NextRequest) {
+  if (isCrossSiteApiWrite(request)) return NextResponse.json({ error: "Otillåtet ursprung" }, { status: 403 })
+
   // coavira.fit = landningssidan, APP_URL (ptapp2.vercel.app) = appen. Se hostRoute.
   const route = hostRoute({
     host: request.headers.get("host") ?? request.nextUrl.host,

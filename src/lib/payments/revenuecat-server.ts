@@ -45,6 +45,19 @@ export async function fetchSubscriber(appUserId: string): Promise<RcSubscriber> 
   return body.subscriber ?? {}
 }
 
+/**
+ * Radera kunden hos RevenueCat (GDPR art. 17). Själva köpen finns kvar hos
+ * Apple/Google, som är säljare; en aktiv prenumeration sägs upp i butiken.
+ */
+export async function deleteSubscriber(appUserId: string): Promise<void> {
+  const res = await fetch(`${API_BASE()}/v1/subscribers/${encodeURIComponent(appUserId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${process.env.REVENUECAT_SECRET_KEY}` },
+    cache: "no-store",
+  })
+  if (!res.ok && res.status !== 404) throw new Error(`RevenueCat svarade ${res.status}`)
+}
+
 /** Plus-prenumerationen: senaste slutdatum bland ej återbetalda Plus-produkter. */
 export function plusFromSubscriber(sub: RcSubscriber): { until: string | null; renews: boolean; product: string | null } {
   let best: { until: string; renews: boolean; product: string } | null = null

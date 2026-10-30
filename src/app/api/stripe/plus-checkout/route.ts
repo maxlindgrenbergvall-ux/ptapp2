@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { returnBase } from "@/lib/app-return"
 import { plusSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { isIosAppUserAgent } from "@/lib/site"
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ error: "Logga in för att skaffa Coavira Plus." }, { status: 401 })
+  if (await rateLimited(`plus-checkout:${auth.user.id}`, 10, 60)) return tooManyRequests(60)
   if (!isStripeEnabled()) {
     return NextResponse.json({ error: "Kortbetalning är inte aktiverad än. Kontakta Coavira." }, { status: 503 })
   }

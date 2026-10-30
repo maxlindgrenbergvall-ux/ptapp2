@@ -350,6 +350,8 @@ http.createServer(async (req, res) => {
   // v21: köp i appen – servern (service role) läser rollen och skriver Plus/Boost från RevenueCat.
   if (req.headers.authorization === `Bearer ${SERVICE_KEY}`) {
     const rest = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
+    // v23: rate limiting – testerna stoppas aldrig.
+    if (rest && rest[1] && rest[2] === "hit_rate_limit") return send(200, true)
     if (rest && !rest[1] && rest[2] === "profiles" && req.method === "GET") {
       const id = (url.searchParams.get("id") ?? "").replace(/^eq\./, "")
       const u = byId[id]

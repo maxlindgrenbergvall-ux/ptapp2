@@ -1,6 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server"
 
 import { cacheProducts, searchCache } from "@/lib/food-cache"
+import { clientIp, rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { rankProducts, searchOff } from "@/lib/openfoodfacts"
 import type { FoodProduct } from "@/types/domain"
 
@@ -15,6 +16,8 @@ const CACHE_IS_ENOUGH = 12
 export async function GET(request: NextRequest) {
   const q = (request.nextUrl.searchParams.get("q") ?? "").trim().slice(0, 80)
   if (q.length < 2) return NextResponse.json({ products: [] })
+  // Öppen rutt (även före inloggning): begränsa per IP så att den inte blir en fri proxy mot Open Food Facts.
+  if (await rateLimited(`food-search:${clientIp(request)}`, 60, 60)) return tooManyRequests(60)
 
   const cached = await searchCache(q)
   const off = cached.length >= CACHE_IS_ENOUGH ? [] : await searchOff(q)

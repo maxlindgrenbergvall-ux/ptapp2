@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { returnBase } from "@/lib/app-return"
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
+import { checkoutBody, checkoutItems } from "@/lib/validation"
 import { checkoutSessionParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseAdmin } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -31,13 +33,14 @@ interface CheckoutRpc {
  * Body: { items: [{ serviceId, quantity }] } (äldre appar: { serviceIds }).
  */
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => null)) as { items?: unknown; serviceIds?: unknown } | null
-  const items = parseItems(body)
-  if (!items.length) return NextResponse.json({ error: "Välj minst en tjänst." }, { status: 400 })
-
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ error: "Logga in för att köpa." }, { status: 401 })
+  if (await rateLimited(`checkout:${auth.user.id}`, 10, 60)) return tooManyRequests(60)
+
+  const parsed = checkoutBody.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: "Välj 1–5 tjänster." }, { status: 400 })
+  const items = checkoutItems(parsed.data)
   if (!isStripeEnabled()) {
     return NextResponse.json({ error: "Kortbetalning är inte aktiverad än. Kontakta Coavira." }, { status: 503 })
   }
@@ -84,21 +87,4 @@ export async function POST(request: NextRequest) {
     console.error("stripe checkout", { checkoutId: checkout.checkout_id, ...log })
     return NextResponse.json({ error: `Betalningen kunde inte startas: ${message}` }, { status: 502 })
   }
-}
-
-/** Högst 5 tjänster; antal är heltal 1–20 (databasen kontrollerar igen). */
-function parseItems(body: { items?: unknown; serviceIds?: unknown } | null): { serviceId: string; quantity: number }[] {
-  if (Array.isArray(body?.items)) {
-    return body.items
-      .filter((x): x is { serviceId: string; quantity?: unknown } => typeof x === "object" && x !== null && typeof (x as { serviceId?: unknown }).serviceId === "string")
-      .slice(0, 5)
-      .map((x) => ({ serviceId: x.serviceId, quantity: typeof x.quantity === "number" && Number.isInteger(x.quantity) ? x.quantity : 1 }))
-  }
-  if (Array.isArray(body?.serviceIds)) {
-    return body.serviceIds
-      .filter((x): x is string => typeof x === "string")
-      .slice(0, 5)
-      .map((serviceId) => ({ serviceId, quantity: 1 }))
-  }
-  return []
 }

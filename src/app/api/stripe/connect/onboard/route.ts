@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { returnBase } from "@/lib/app-return"
 import { connectAccountParams, describeStripeError, getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseAdmin } from "@/lib/supabase/admin"
@@ -23,6 +24,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ error: "Logga in igen." }, { status: 401 })
+  if (await rateLimited(`connect-onboard:${auth.user.id}`, 10, 600)) return tooManyRequests(600)
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", auth.user.id).single()
   if ((profile as { role?: string } | null)?.role !== "trainer") {
     return NextResponse.json({ error: "Utbetalningar gäller PT-konton." }, { status: 403 })

@@ -39,7 +39,8 @@ npm run dev                  # http://localhost:3000
    20. `supabase/migrations/20261102000000_v20_launch_account_deletion.sql`. Den rättar kontoraderingen för konton som bjudit in någon (v18), avidentifierar omdömen och aviseringar när ett konto raderas och sparar när villkoren godkändes (`profiles.terms_accepted_at`).
    21. `supabase/migrations/20261103000000_v21_store_purchases.sql`. Den lägger till köp i appen via App Store/RevenueCat (`profiles.store_plus_until`, `store_transactions`, `apply_store_plus`, `apply_store_boost`, `revoke_store_boost`) och sätter webbpriset för Coavira Plus till 49 kr / 30 dagar.
    22. `supabase/migrations/20261104000000_v22_stripe_connect.sql`. Den lägger till Stripe Connect och den obligatoriska PT-onboardingen (`trainers.stripe_onboarding_complete`, den privata tabellen `trainer_payout_accounts`, `apply_stripe_account`, `admin_mark_pt_onboarded`). **Publicerade PT-profiler döljs tills PT:n kopplat Stripe och visas sedan automatiskt igen.**
-   23. `supabase/seed.sql`
+   23. `supabase/migrations/20261105000000_v23_security_hardening.sql`. Säkerhetsgranskningen: hälsodata kräver samtycke även via API:t, relationsfrågorna svarar bara parterna, TRUNCATE m.fl. tas bort för anon/authenticated och tabellen `rate_limits` med `hit_rate_limit()` (bara servern).
+   24. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -69,7 +70,7 @@ npm run dev                  # http://localhost:3000
    - Utan Stripe-nycklar visar kassan "Kortbetalning är inte aktiverad än". En betalning utanför appen (t.ex. Swish) kan registreras manuellt i SQL Editor med `select mark_checkout_paid('<checkout_id>', null, null, null);`.
    - Verifierade certifikat läggs in av admin: `select admin_set_certifications('pt@exempel.se', array['Licensierad PT']);`.
 9. Valfritt:
-   - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet, så att flödet ändå går att testa.
+   - **Wearables:** sätt `SUPABASE_SERVICE_ROLE_KEY` som serverhemlighet i Vercel. Lägg också till `FITBIT_CLIENT_ID` och `FITBIT_CLIENT_SECRET` från dev.fitbit.com, med callback `https://<domän>/api/wearables/fitbit/callback`. Utan Fitbit-nycklar kopplas en mock-enhet i utveckling (eller med `WEARABLES_MOCK=1`). I produktion skapas aldrig falsk data; då visas att källan inte är aktiverad än.
    - **Samtal:** under *Realtime → Settings*, stäng av *Allow public access*, så att bara privata kanaler med RLS används. Behöver ni fungera bakom strikta brandväggar eller på vissa mobilnät, ange en TURN-server i `NEXT_PUBLIC_ICE_SERVERS`.
 
 ### Flödet
@@ -565,6 +566,17 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v23: säkerhetsgranskning
+
+- **Samtycke för hälsodata även via API:t** (GDPR art. 9): restriktiva policies (`has_health_consent`) på vikt, sömn, vatten, mätpunkter, mat, måltider, pass och kostscheman. Tidigare kunde ett konto utan valt kontotyp och samtycke skriva hälsodata direkt mot Supabase. Radering fungerar alltid.
+- `has_call_access` / `has_nutrition_access` svarar bara parterna själva.
+- `TRUNCATE`, `TRIGGER` och `REFERENCES` borttagna för `anon`/`authenticated` (TRUNCATE går förbi RLS).
+- **Rate limiting** (`src/lib/rate-limit.ts`, räknare i databasen via `hit_rate_limit`): kassor 10/min, Stripe Connect 10/10 min, kontoradering 5/h, livsmedelssök 60/min per IP, synk av köp och wearables. 429 med `Retry-After`.
+- **zod-validering** av alla POST-bodies (`src/lib/validation.ts`): kassan, kontoradering och RevenueCat-webhooken.
+- **CSRF**: `proxy.ts` avvisar skrivande `/api/*`-anrop med ett främmande `Origin` (403). Webhooks undantas; de verifieras med signatur.
+- **Kontoradering** tar nu även bort PT:ns Stripe Connect-konto och kunden hos RevenueCat (bästa försök, loggas vid fel).
+- Mock-wearables bara utanför produktion.
+
 ## Landningssidan (/)
 
 Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Google Play) och har inga inloggnings-, registrerings- eller portallänkar. Appen och webbportalen ligger på `ptapp2.vercel.app` och börjar på `/kom-igang` (se "Domäner" nedan).
@@ -760,8 +772,11 @@ Gymmen har ofta dålig täckning, så loggen ska aldrig vänta på nätet:
   En check constraint gör att det inte går att skapa ett klientkonto utan samtycke.
 - **Ingen beteendeprofil på servern:** intressen för personliga erbjudanden räknas fram och sparas bara på klientens enhet. De kan stängas av, och de raderas vid utloggning. Aviseringar innehåller tider och namn, men aldrig hälsodata.
 - **Dataportabilitet** (art. 20): klienten kan exportera all sin data som JSON.
-- **Radering** (art. 17): *Radera mitt konto* anropar `delete_my_account()`. Allt
-  raderas sedan via kaskad.
+- **Samtycket gäller även API:t** (v23): hälsodata kan bara sparas för en klient med samtycke, oavsett om anropet kommer från appen eller direkt mot Supabase.
+- **Radering** (art. 17): *Radera mitt konto* (`POST /api/account/delete`) tar bort filerna i Storage, PT:ns Stripe Connect-konto och kunden hos RevenueCat, och raderar sedan användaren med `auth.admin.deleteUser`. Allt i databasen raderas via kaskad.
+- **Filer**: chattbilagor och övningsvideor ligger i privata buckets med RLS och visas via signerade länkar. Profilbilder ligger i en publik bucket, men utan listning.
+- **API:t**: zod-validering, rate limiting och Origin-kontroll (se v23). Hemliga nycklar finns bara i serverkod (`server-only`); `scripts/check-secrets.mjs` kontrollerar byggd webbläsarkod.
+- **Mobilappen** laddar webbappen från dess egen domän. Sessionen är en cookie i appens egen WKWebView/WebView-lagring (iOS Data Protection/Android-sandlåda), och lokal data rensas vid utloggning.
 - `proxy.ts` styr bara navigeringen. Åtkomstkontrollen ligger i databasen, så en
   manipulerad roll i användarens metadata ger ingen data.
 

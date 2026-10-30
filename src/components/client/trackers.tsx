@@ -424,6 +424,7 @@ export function WearablesCard() {
       nekad: () => toast("Anslutningen avbröts"),
       fel: () => toast.error("Anslutningen misslyckades. Försök igen."),
       "kraver-app": () => toast("Den här källan kräver mobilappen"),
+      "ej-aktiverad": () => toast("Den här källan är inte aktiverad än"),
     }
     messages[status]?.()
     url.searchParams.delete("wearable")

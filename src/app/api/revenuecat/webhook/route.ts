@@ -2,19 +2,10 @@ import { timingSafeEqual } from "node:crypto"
 
 import { NextResponse, type NextRequest } from "next/server"
 
+import { revenueCatWebhookBody } from "@/lib/validation"
 import { BOOST_PRODUCT } from "@/lib/payments/store-products"
 import { isAppUserId, isRevenueCatEnabled, refundStoreBoost, syncStoreCustomer } from "@/lib/payments/revenuecat-server"
 
-interface RcEvent {
-  id?: string
-  type?: string
-  app_user_id?: string
-  original_app_user_id?: string
-  aliases?: string[]
-  product_id?: string
-  transaction_id?: string
-  environment?: string
-}
 
 /**
  * RevenueCat → Coavira: köp, förnyelser, uppsägningar och återbetalningar i
@@ -31,9 +22,9 @@ export async function POST(request: NextRequest) {
   if (!secret || !(safeEqual(header, secret) || safeEqual(header, `Bearer ${secret}`))) {
     return NextResponse.json({ error: "Obehörig" }, { status: 401 })
   }
-  const body = (await request.json().catch(() => null)) as { event?: RcEvent } | null
-  const event = body?.event
-  if (!event?.type) return NextResponse.json({ error: "Ingen händelse" }, { status: 400 })
+  const parsed = revenueCatWebhookBody.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return NextResponse.json({ error: "Ingen händelse" }, { status: 400 })
+  const event = parsed.data.event
   if (event.type === "TEST") return NextResponse.json({ received: true })
   if (!isRevenueCatEnabled()) return NextResponse.json({ error: "RevenueCat är inte konfigurerat på servern" }, { status: 503 })
 

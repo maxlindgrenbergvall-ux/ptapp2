@@ -57,6 +57,9 @@ check((await fetch(`${base}/api/account/delete`, { method: "POST", body: JSON.st
   check(log.some((e) => e.table === "storage.remove.chat-attachments" && e.body.prefixes?.includes(`${RADERA}/msg-1/bild.png`)), "chattbilagor i undermappar tas bort")
   check(log.findIndex((e) => e.table.startsWith("storage.remove")) < log.findIndex((e) => e.table === "auth.admin.deleteUser"), "filerna tas bort före kontot")
   check(!log.some((e) => e.table === "delete_my_account"), "webbläsaren anropar inte databasen direkt")
+  // Bara när RevenueCat-mocken körs (REVENUECAT_API_BASE=http://localhost:54600).
+  const rc = await fetch("http://localhost:54600/__log").then((r) => r.json()).catch(() => null)
+  if (rc) check(rc.some((e) => e.method === "DELETE" && e.id === RADERA), "kunden raderas även hos RevenueCat (v23)")
 
   // Kontot finns inte längre: inloggning nekas.
   await p.goto(`${base}/logga-in`)

@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server"
 
 import { cacheProducts, cachedByBarcode } from "@/lib/food-cache"
+import { clientIp, rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { isValidBarcode } from "@/lib/food-search"
 import { barcodeVariants, lookupBarcode } from "@/lib/openfoodfacts"
 
@@ -10,11 +11,12 @@ import { barcodeVariants, lookupBarcode } from "@/lib/openfoodfacts"
  * 200: produkt · 404: finns inte/saknar näringsvärden · 400: ogiltig kod · 502: OFF svarar inte.
  * (Egna produkter med streckkod matchas redan i appen innan anropet.)
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ code: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ code: string }> }) {
   const code = (await ctx.params).code.replace(/\D/g, "")
   if (!isValidBarcode(code)) {
     return NextResponse.json({ error: "Ogiltig streckkod" }, { status: 400 })
   }
+  if (await rateLimited(`food-barcode:${clientIp(request)}`, 60, 60)) return tooManyRequests(60)
 
   const product = await lookupBarcode(code)
   if (product === "error" || product === null) {

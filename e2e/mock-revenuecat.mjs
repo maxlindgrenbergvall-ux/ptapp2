@@ -24,5 +24,13 @@ http.createServer(async (req, res) => {
     log.push({ method: "GET", id })
     return send(200, { subscriber: subscribers[id] ?? { subscriptions: {}, non_subscriptions: {}, entitlements: {} } })
   }
+  // v23: kontoradering tar bort kunden.
+  if (m && req.method === "DELETE") {
+    if (req.headers.authorization !== "Bearer sk_test_rc") return send(401, { message: "Invalid API key" })
+    const id = decodeURIComponent(m[1])
+    log.push({ method: "DELETE", id })
+    delete subscribers[id]
+    return send(200, { app_user_id: id, deleted: true })
+  }
   send(404, { message: `mock: ${req.method} ${url.pathname}` })
 }).listen(54600, () => console.log("mock revenuecat on :54600"))

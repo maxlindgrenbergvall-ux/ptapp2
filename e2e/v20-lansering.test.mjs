@@ -76,6 +76,7 @@ check(await p.locator("[data-testid=delete-account-card] button:has-text('Radera
 await p.goto(base + "/klient/profil")
 check(await p.locator("[data-testid=delete-account-card] button:has-text('Radera mitt konto')").first().isVisible(), "Profilinställningar: Radera mitt konto (klient)")
 await p.goto(base + "/klient/sekretess")
+await p.locator("[data-testid=delete-account-card]").waitFor({ timeout: 10_000 }).catch(() => {})
 check(await p.locator("[data-testid=delete-account-card]").isVisible(), "Min data och sekretess: Radera mitt konto")
 
 await p.goto(base + "/pt/installningar")

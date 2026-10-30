@@ -5,7 +5,9 @@ import { parseProvider, requireClient, STATE_COOKIE } from "@/lib/wearables/rout
 
 /**
  * Startar OAuth hos leverantören. Utan API-nycklar (FITBIT_CLIENT_ID m.fl.)
- * kopplas en mock-enhet direkt, så att flödet går att testa från början till slut.
+ * kopplas en mock-enhet direkt i utveckling (eller med WEARABLES_MOCK=1), så att
+ * flödet går att testa från början till slut. I produktion skapas aldrig falsk
+ * hälsodata – då svarar vi att källan inte är aktiverad än.
  */
 export async function GET(request: NextRequest, ctx: { params: Promise<{ provider: string }> }) {
   const provider = parseProvider((await ctx.params).provider)
@@ -24,6 +26,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ provide
 
   const adapter = adapterFor(provider)
   if (!adapter.configured) {
+    if (process.env.NODE_ENV === "production" && process.env.WEARABLES_MOCK !== "1") {
+      back.searchParams.set("wearable", "ej-aktiverad")
+      return NextResponse.redirect(back)
+    }
     await saveConnection(auth.userId, provider, await adapter.exchangeCode("", ""))
     await syncSleep(auth.userId, provider, 14)
     back.searchParams.set("wearable", "ansluten-demo")
