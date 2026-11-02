@@ -612,8 +612,8 @@ const START_ITEMS: MealItem[] = DEMO_FOODS.flatMap(({ name, amount, unit }) => {
 
 /** Exempelmål för dagen (mockup). */
 const TARGETS = { kcal: 2100, protein: 140, carbs: 230, fat: 70 } as const
-const STEP: Record<MealUnit, number> = { g: 10, st: 1, dl: 0.5, ml: 50, msk: 1, tsk: 1 }
-const MAX: Record<MealUnit, number> = { g: 400, st: 6, dl: 5, ml: 500, msk: 6, tsk: 6 }
+const STEP: Record<MealUnit, number> = { g: 10, st: 1, dl: 0.5, ml: 50, msk: 1, tsk: 1, krm: 1 }
+const MAX: Record<MealUnit, number> = { g: 400, st: 6, dl: 5, ml: 500, msk: 6, tsk: 6, krm: 6 }
 const KIND_HINT: Record<FoodKind, string> = {
   liquid: "Vätska · dl eller ml",
   oil: "Olja · msk, tsk, ml eller dl",

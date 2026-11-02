@@ -48,6 +48,3 @@ export const revenueCatWebhookBody = z.object({
     environment: z.string().max(32).nullish(),
   }),
 })
-
-/** Receptimport: { url } – en webbadress (kontrolleras vidare innan den hämtas). */
-export const recipeImportBody = z.object({ url: z.string().trim().min(8).max(2000) })

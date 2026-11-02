@@ -8,7 +8,7 @@ export const RECIPE_GOALS: RecipeGoal[] = ["high_protein", "weight_loss", "pre_w
 
 export const GOAL_INFO: Record<RecipeGoal, { label: string; hint: string }> = {
   high_protein: { label: "Högt protein", hint: "Muskeltillväxt: minst 25 g protein eller 30 % av energin per portion" },
-  weight_loss: { label: "Kalorisnålt", hint: "Viktnedgång: högst 450 kcal per portion" },
+  weight_loss: { label: "Kalorisnålt", hint: "Viktnedgång: högst 450 kcal per portion och minst 25 % av energin från protein (mättar)" },
   pre_workout: { label: "Före passet", hint: "Energi: kolhydratrikt (minst halva energin), lite fett" },
   post_workout: { label: "Efter passet", hint: "Återhämtning: minst 20 g protein och 30 g kolhydrater" },
   quick_easy: { label: "Snabbt & enkelt", hint: "Klart på 20 minuter eller mindre" },
@@ -31,7 +31,7 @@ export function suggestGoals(perServing: MacroTotals, totalMinutes?: number): Re
   const goals: RecipeGoal[] = []
   const p = perServing
   if (p.protein >= 25 || (p.protein >= 15 && share(p, "protein") >= 0.3)) goals.push("high_protein")
-  if (p.kcal > 0 && p.kcal <= 450) goals.push("weight_loss")
+  if (p.kcal > 0 && p.kcal <= 450 && share(p, "protein") >= 0.25) goals.push("weight_loss")
   if (p.carbs >= 30 && share(p, "carbs") >= 0.5 && share(p, "fat") <= 0.25) goals.push("pre_workout")
   if (p.protein >= 20 && p.carbs >= 30 && share(p, "fat") <= 0.3) goals.push("post_workout")
   if (totalMinutes !== undefined && totalMinutes > 0 && totalMinutes <= 20) goals.push("quick_easy")

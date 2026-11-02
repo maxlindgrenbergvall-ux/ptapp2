@@ -42,7 +42,8 @@ npm run dev                  # http://localhost:3000
    23. `supabase/migrations/20261105000000_v23_security_hardening.sql`. Säkerhetsgranskningen: hälsodata kräver samtycke även via API:t, relationsfrågorna svarar bara parterna, TRUNCATE m.fl. tas bort för anon/authenticated och tabellen `rate_limits` med `hit_rate_limit()` (bara servern).
    24. `supabase/migrations/20261106000000_v24_training_recipes.sql`. Engelska övningsnamn (Romanian Deadlift, Bench Press …), klienten får ändra ordningen på övningar i PT:ns pass, `edit_completed_workout()` för att redigera genomförda pass, låsta set efter PT:ns klarmarkering och klientens recept (`client_recipes`, `servings`).
    25. `supabase/migrations/20261107000000_v25_recipe_import_favorites.sql`. Receptimport och favoriter: nya fält på `client_recipes` (`goal_types`, `image_url`, `source_url`, `steps`, `total_minutes`, `nutrition`, `macros_source`), tabellen `user_favorite_recipes` (RLS: `auth.uid() = user_id`) och måltid/recept på `food_entries` (`meal_type`, `recipe_id`).
-   26. `supabase/seed.sql`
+   26. `supabase/migrations/20261108000000_v26_recipe_library.sql`. Coaviras färdiga receptbibliotek (`library_recipes`, 40 recept med makron, bilder, tid, metriska ingredienser och steg – läsbart för inloggade, ingen kan skriva), favoriter för både biblioteks- och egna recept och `food_entries.library_recipe_id`. Kan köras om.
+   27. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -568,16 +569,20 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
-## Nytt i v25: recept från webben, träningsmål, favoriter och kostdagbok
+## Nytt i v26: färdigt receptbibliotek (ingen webbskrapning)
 
-- **Hämta från webben** (`POST /api/recipes/import`): servern läser receptet ur sidans JSON-LD (schema.org/Recipe, även i `@graph`/HowToSection) eller HTML-microdata (`itemprop`) som reserv. Logik i `src/lib/recipes/` (`extract.ts`, `units.ts`, `estimate.ts`, `import.ts`).
-- **Metriska mått:** amerikanska mått räknas om innan receptet sparas – oz/lb → gram, cups/tbsp/tsp/fl oz/pint/quart → ml/dl för vätskor och gram för fasta ingredienser (densitet per ingrediens), "1 (14.5 oz) can" → 411 g. I instruktionerna blir °F → °C och inch → cm. Svenska mått (dl, msk, tsk, krm) behålls.
-- **Makron per portion krävs:** sidans näringsvärden (kcal, protein, kolhydrater, fett) i första hand, annars uträknade ur ingredienserna mot livsmedelsbasen (engelska namn översätts). Går det inte – minst 70 % av ingrediensvikten måste kunna matchas – hämtas receptet inte (422).
-- **Säker hämtning (SSRF):** bara http(s) på standardportar, inga interna/privata adresser (kontrolleras efter DNS-uppslag och vid varje omdirigering), max 4 omdirigeringar, 10 s och 3 MB. Kräver inloggning och har rate limiting (10 per 10 min). Bilden länkas från källan (kopieras inte) och källan visas i receptet. `RECIPE_IMPORT_TEST_ORIGIN` släpper igenom låtsassajten i e2e (ignoreras i Vercels produktion).
-- **Träningsmål:** Högt protein, Kalorisnålt, Före passet, Efter passet och Snabbt & enkelt (≤ 20 min) föreslås automatiskt utifrån makrona (`src/lib/recipes/goals.ts`) och kan ändras. Snabbfilter i receptlistan.
-- **Detaljvy** `/klient/recept/[id]`: stor bild, tid, makron per portion som badges, ingredienser i gram/dl som skalas med antalet portioner och numrerade steg.
-- **Favoriter:** stjärnan på korten och i detaljvyn (optimistiskt), filtret *Mina favoriter*.
-- **Logga i kostdagboken:** välj datum, måltid (frukost/lunch/middag/mellanmål) och portioner (0,5–20). Makrona räknas om och sparas i `food_entries`; toasten länkar till dagen i kostdagboken (`/klient?datum=…#dagens-kost`), där posten visas under sin måltid.
+- **Inga externa anrop:** importen från webben (v25) är borttagen – ingen API-route, ingen skrapning. Alla recept kommer från Supabase (`library_recipes`) eller appen själv.
+- **40 träningsanpassade recept** med färdiga makron per portion (kcal, protein, kolhydrater, fett), bild, tillagningstid, metriska mått (g/dl/msk/tsk/krm/st) och steg. Källan är `src/lib/recipes/library-source.ts`, där varje ingrediens pekar på livsmedelsbasen så att makrona räknas ur samma näringsvärden som resten av appen. `node scripts/gen-recipe-library.mjs` skriver `src/lib/recipes/library.json`, bilderna i `public/recipes/` och seed-SQL:en i v26-migrationen.
+- **Flikar per träningsmål:** Högt protein (31), Kalorisnålt (17), Före passet (13), Efter passet (20), Snabbt & enkelt (24, ≤ 20 min). Ett recept kan ligga i flera flikar (`src/lib/recipes/goals.ts`).
+- **Bilder:** illustrerade rättbilder (SVG) som följer med appen och fungerar offline i mobilappen. Byt mot foton genom att lägga en bild i `public/recipes/` och ändra `imageUrl` i generatorn (eller `image_url` i databasen).
+- **Pop-up:** ett tryck på ett recept öppnar det som en panel (bottenpanel på mobilen) med stor bild, makrobadges, skalbara ingredienser, numrerade steg, favoritstjärna och *Logga i kostdagboken* (datum, måltid, portioner → `food_entries`). Panelen stängs efter loggningen så att länken i bekräftelsen syns.
+- **Skapa eget recept från scratch:** namn, kategori (minst en), portioner, tid, ingredienser i gram/dl (fritt eller från livsmedelsbasen), steg och makron per portion – egna värden eller uträknade ur ingredienserna. Sparas i `client_recipes`.
+- Snabbfilter *Mina favoriter* och *Mina egna*, plus sök på namn och ingrediens. Demoläget läser biblioteket ur `library.json`; med Supabase används tabellen (och JSON-filen om v26 inte är körd än).
+
+## Nytt i v25: recept, favoriter och kostdagbok
+
+- Favoriter (`user_favorite_recipes`, RLS `auth.uid() = user_id`), träningsmålskategorier och *Logga i kostdagboken* med datum, måltid (`food_entries.meal_type`) och portioner. Dagens kost kan bläddras och djuplänkas (`/klient?datum=…#dagens-kost`).
+- *(Importen av recept från webben som infördes i v25 är borttagen i v26.)*
 
 ## Nytt i v24: loggning, recept och framsteg för alla
 

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" role="img" aria-label="Proteinshake med banan och havre">
+<defs><radialGradient id="bg" cx="30%" cy="20%" r="90%"><stop offset="0" stop-color="#f7d9c4"/><stop offset="1" stop-color="#e9a77d"/></radialGradient>
+<clipPath id="plate"><circle cx="400" cy="305" r="210"/></clipPath></defs>
+<rect width="800" height="600" fill="url(#bg)"/>
+<circle cx="75" cy="505" r="4.3" fill="#fff" opacity=".35"/><circle cx="451" cy="287" r="3.7" fill="#fff" opacity=".35"/><circle cx="318" cy="127" r="3.5" fill="#fff" opacity=".35"/><circle cx="575" cy="534" r="5.8" fill="#fff" opacity=".35"/><circle cx="383" cy="507" r="4.1" fill="#fff" opacity=".35"/><circle cx="425" cy="585" r="4.7" fill="#fff" opacity=".35"/><circle cx="413" cy="401" r="4.7" fill="#fff" opacity=".35"/><circle cx="99" cy="386" r="5.9" fill="#fff" opacity=".35"/><circle cx="31" cy="221" r="5.7" fill="#fff" opacity=".35"/><circle cx="419" cy="30" r="4.6" fill="#fff" opacity=".35"/><circle cx="20" cy="402" r="2.5" fill="#fff" opacity=".35"/><circle cx="653" cy="306" r="3.8" fill="#fff" opacity=".35"/><circle cx="109" cy="365" r="4.6" fill="#fff" opacity=".35"/><circle cx="580" cy="294" r="4.4" fill="#fff" opacity=".35"/>
+<path d="M80 600 L140 470 L180 600z" fill="#fff" opacity=".18"/>
+
+<g ><path d="M300 130 h200 l-22 330 a24 24 0 0 1 -24 22 h-108 a24 24 0 0 1 -24 -22z" fill="#ffffff" opacity=".55" stroke="#fff" stroke-width="6"/>
+<path d="M310 190 h180 l-18 268 a18 18 0 0 1 -18 16 h-108 a18 18 0 0 1 -18 -16z" fill="#e9d7b9"/>
+<rect x="420" y="80" width="16" height="200" rx="8" fill="#5cb85c" transform="rotate(14 428 180)"/>
+<circle cx="360" cy="200" r="14" fill="#fff" opacity=".35"/></g>
+
+</svg>

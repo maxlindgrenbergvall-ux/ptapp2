@@ -329,6 +329,7 @@ const AMOUNTS: Record<MealUnit, number[]> = {
   st: [1, 2, 3],
   msk: [1, 2],
   tsk: [1, 2],
+  krm: [1, 2],
 }
 
 /**

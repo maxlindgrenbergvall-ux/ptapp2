@@ -189,6 +189,7 @@ interface FoodRow {
   /** v25 */
   meal_type?: MealType | null
   recipe_id?: string | null
+  library_recipe_id?: string | null
 }
 export interface ProductRow {
   id: string
@@ -563,6 +564,7 @@ export const toFood = (r: FoodRow): FoodEntry => ({
   productId: r.product_id ?? undefined,
   meal: r.meal_type ?? undefined,
   recipeId: r.recipe_id ?? undefined,
+  libraryRecipeId: r.library_recipe_id ?? undefined,
 })
 
 export const toProduct = (r: ProductRow): FoodProduct => ({
@@ -1203,6 +1205,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           // v25: bara när de finns, så att loggning fungerar även före migrationen.
           ...(e.meal ? { meal_type: e.meal } : {}),
           ...(e.recipeId ? { recipe_id: e.recipeId } : {}),
+          ...(e.libraryRecipeId ? { library_recipe_id: e.libraryRecipeId } : {}),
         })
       )
     }

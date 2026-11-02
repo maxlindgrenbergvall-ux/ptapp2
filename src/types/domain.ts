@@ -258,9 +258,9 @@ export interface ScheduledWorkout {
  * deciliter, matsked (15 ml) och tesked (5 ml). Styck och köksmått räknas om
  * till gram (MealItem.grams) med styckvikt respektive densitet.
  */
-export type MealUnit = "g" | "st" | "ml" | "dl" | "msk" | "tsk"
+export type MealUnit = "g" | "st" | "ml" | "dl" | "msk" | "tsk" | "krm"
 
-export const MEAL_UNIT_LABEL: Record<MealUnit, string> = { g: "g", st: "st", ml: "ml", dl: "dl", msk: "msk", tsk: "tsk" }
+export const MEAL_UNIT_LABEL: Record<MealUnit, string> = { g: "g", st: "st", ml: "ml", dl: "dl", msk: "msk", tsk: "tsk", krm: "krm" }
 
 export interface MealItem {
   name: string
@@ -309,8 +309,10 @@ export interface Recipe {
   totalMinutes?: number
   /** Makron PER PORTION från källan. Saknas = räknas ur ingredienserna. */
   nutrition?: MacroTotals
-  /** Var makrona kommer ifrån: egna ingredienser, källan eller uppskattade ur ingredienserna. */
+  /** Var makrona kommer ifrån: egna ingredienser/egna värden, källan (äldre import) eller uppskattade. */
   macrosSource?: "manual" | "site" | "estimated"
+  /** Coaviras färdiga receptbibliotek (v26) – kan inte ändras av användaren. */
+  library?: boolean
 }
 
 /** Träningsmål för recept (v25). */
@@ -409,8 +411,10 @@ export interface FoodEntry {
   productId?: ID
   /** Måltid (frukost, lunch, middag, mellanmål) – v25. */
   meal?: MealType
-  /** Recept som loggats (v25). */
+  /** Eget recept som loggats (v25). */
   recipeId?: ID
+  /** Recept ur Coaviras bibliotek som loggats (v26). */
+  libraryRecipeId?: ID
 }
 
 /** Näringsvärden per 100 g. */

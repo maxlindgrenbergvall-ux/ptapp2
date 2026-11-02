@@ -33,7 +33,18 @@ const fmt = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 2 
  * räknas om för portionerna och sparas som en post i kostdagboken (food_entries,
  * med måltid och koppling till receptet).
  */
-export function LogRecipeDialog({ recipe, open, onOpenChange }: { recipe: Recipe; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function LogRecipeDialog({
+  recipe,
+  open,
+  onOpenChange,
+  onLogged,
+}: {
+  recipe: Recipe
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** Efter loggningen (t.ex. stäng receptets pop-up så att toastens länk syns). */
+  onLogged?: () => void
+}) {
   const { actions } = useAppData()
   const router = useRouter()
   const today = todayISO()
@@ -58,9 +69,11 @@ export function LogRecipeDialog({ recipe, open, onOpenChange }: { recipe: Recipe
       ...total,
       ...(grams > 0 && grams <= 5000 ? { grams } : {}),
       meal,
-      recipeId: recipe.id,
+      // Biblioteksrecept och egna recept kopplas i var sin kolumn.
+      ...(recipe.library ? { libraryRecipeId: recipe.id } : { recipeId: recipe.id }),
     })
     onOpenChange(false)
+    onLogged?.()
     toast.success(`${MEAL_LABEL[meal]}: ${recipe.name} är loggat`, {
       description: `${total.kcal} kcal ${date === today ? "idag" : formatDay(date).toLowerCase()}.`,
       action: { label: "Visa kostdagboken", onClick: () => router.push(`/klient?datum=${date}#dagens-kost`) },

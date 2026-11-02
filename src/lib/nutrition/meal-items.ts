@@ -45,11 +45,11 @@ const PIECES: [RegExp, number][] = [
 ]
 
 /** Milliliter per volymenhet. */
-export const VOLUME_ML = { ml: 1, dl: 100, msk: 15, tsk: 5 } as const
+export const VOLUME_ML = { ml: 1, dl: 100, msk: 15, tsk: 5, krm: 1 } as const
 export type VolumeUnit = keyof typeof VOLUME_ML
-export const isVolume = (u: MealUnit | undefined): u is VolumeUnit => u === "ml" || u === "dl" || u === "msk" || u === "tsk"
+export const isVolume = (u: MealUnit | undefined): u is VolumeUnit => u === "ml" || u === "dl" || u === "msk" || u === "tsk" || u === "krm"
 /** Steg vid avrundning: hela ml, annars kvarts mått (¼ dl, ½ tsk). */
-const volumeStep = (u: VolumeUnit) => (u === "ml" ? 1 : 0.25)
+const volumeStep = (u: VolumeUnit) => (u === "ml" || u === "krm" ? 1 : 0.25)
 
 // ------------------------------------------------------ logiska enheter ---
 
