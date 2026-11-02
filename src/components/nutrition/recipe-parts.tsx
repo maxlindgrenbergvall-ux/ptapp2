@@ -67,7 +67,32 @@ const FALLBACK: Record<RecipeGoal | "none", { icon: React.ComponentType<{ classN
  * dras aldrig ut. Saknas fotot – eller går det inte att ladda – visas en
  * minimalistisk gradient med en ikon för receptets träningsmål.
  */
-export function RecipeImage({ recipe, className }: { recipe: Pick<Recipe, "imageUrl" | "name" | "goalTypes">; className?: string }) {
+const PEXELS = /^https:\/\/images\.pexels\.com\/photos\/(\d+)\//
+
+/** Pexels levererar fotot i den bredd vi ber om – miniatyrer laddar en liten fil. */
+function sized(url: string, width: number) {
+  if (!PEXELS.test(url)) return url
+  const u = new URL(url)
+  u.searchParams.set("w", String(width))
+  return u.toString()
+}
+
+/** Länk till fotot på Pexels (för fotokrediten), eller null för andra källor. */
+export function photoSource(url: string | undefined): { label: string; href: string } | null {
+  const id = url?.match(PEXELS)?.[1]
+  return id ? { label: "Foto: Pexels", href: `https://www.pexels.com/photo/${id}/` } : null
+}
+
+export function RecipeImage({
+  recipe,
+  className,
+  size = "hero",
+}: {
+  recipe: Pick<Recipe, "imageUrl" | "name" | "goalTypes">
+  className?: string
+  /** "thumb" = liten miniatyr i listan, "hero" = stor bild i receptet. */
+  size?: "thumb" | "hero"
+}) {
   const [state, setState] = React.useState<"loading" | "ok" | "failed">("loading")
   const fallback = FALLBACK[recipe.goalTypes?.[0] ?? "none"]
   const Icon = fallback.icon
@@ -81,7 +106,8 @@ export function RecipeImage({ recipe, className }: { recipe: Pick<Recipe, "image
       {recipe.imageUrl && state !== "failed" && (
         // eslint-disable-next-line @next/next/no-img-element -- foto från Supabase Storage (publik bucket)
         <img
-          src={recipe.imageUrl}
+          src={sized(recipe.imageUrl, size === "thumb" ? 200 : 1200)}
+          srcSet={size === "thumb" ? `${sized(recipe.imageUrl, 200)} 1x, ${sized(recipe.imageUrl, 320)} 2x` : undefined}
           alt={recipe.name}
           loading="lazy"
           decoding="async"

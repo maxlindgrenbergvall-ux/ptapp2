@@ -66,6 +66,32 @@ for (const width of [320, 390]) {
   await ctx.close()
 }
 
+// ---------------------------------------------- riktiga matfoton (v28) ---
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const p = await ctx.newPage()
+  await p.goto(base + "/klient/recept")
+  const card = p.locator("[data-testid=recipe-card]", { hasText: "Kycklingbowl med jasminris" })
+  await card.locator("img").waitFor()
+  const src = await card.locator("img").getAttribute("src")
+  check(/images\.pexels\.com\/photos\/1860208\/.*w=200/.test(src ?? ""), "kycklingbowlen visar sitt foto (liten fil i listan)")
+  await p.waitForFunction(() => [...document.querySelectorAll("[data-testid=recipe-card] img")].filter((i) => i.complete && i.naturalWidth > 0).length >= 5, null, { timeout: 20000 }).catch(() => {})
+  const loaded = await p.locator("[data-testid=recipe-card] img").evaluateAll((imgs) => imgs.filter((i) => i.complete && i.naturalWidth > 0).length)
+  check(loaded >= 5, `matfotona laddas (${loaded} synliga)`)
+  check((await p.locator("[data-testid=recipe-card] img").count()) >= 34, "34 recept har riktiga foton")
+  await card.locator("button").first().click()
+  const hero = p.locator("[data-testid=recipe-sheet] img").first()
+  await hero.waitFor()
+  check(/w=1200/.test((await hero.getAttribute("src")) ?? ""), "pop-upen laddar fotot i hög upplösning")
+  check(await p.locator('[data-testid=recipe-sheet] a:has-text("Foto: Pexels")').isVisible(), "fotokredit med länk till Pexels")
+  await p.waitForTimeout(800)
+  await p.screenshot({ path: `${out}/v28-popup-foto.png` })
+  await p.keyboard.press("Escape")
+  await p.waitForTimeout(400)
+  await p.screenshot({ path: `${out}/v28-lista-foto.png` })
+  await ctx.close()
+}
+
 // ------------------------------------------------- foton och reservbild ---
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 const p = await ctx.newPage()

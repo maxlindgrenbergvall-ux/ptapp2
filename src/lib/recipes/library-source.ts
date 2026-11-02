@@ -13,6 +13,13 @@
  */
 import type { RecipeGoal } from "@/types/domain"
 
+/**
+ * Foto från Pexels (fri licens, även kommersiellt). Varje foto är granskat för
+ * att visa just den rätten; rätter utan ett tillräckligt likt foto har inget
+ * och visar en neutral reservbild.
+ */
+const pexels = (id: number) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1200`
+
 export type LibraryUnit = "g" | "dl" | "ml" | "msk" | "tsk" | "krm" | "st"
 /** [livsmedel (eller "*krydda"), mängd, enhet = "g"] */
 export type LibraryIngredient = [string, number, LibraryUnit?]
@@ -34,6 +41,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   // ------------------------------------------------ High protein / muskler ---
   {
     slug: "kycklingbowl-jasminris-broccoli",
+    image: pexels(1860208),
     name: "Kycklingbowl med jasminris och broccoli",
     servings: 4,
     minutes: 30,
@@ -49,6 +57,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "proteinpasta-bolognese",
+    image: pexels(128408),
     name: "Proteinpasta bolognese",
     servings: 4,
     minutes: 30,
@@ -64,6 +73,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "ugnslax-sotpotatis-sparris",
+    image: pexels(3655916),
     name: "Ugnsbakad lax med sötpotatis och sparris",
     servings: 2,
     minutes: 35,
@@ -79,6 +89,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "kalkonwraps-hummus",
+    image: pexels(461198),
     name: "Kalkonwraps med hummus och spenat",
     servings: 2,
     minutes: 10,
@@ -93,6 +104,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "proteinpannkakor-kvarg",
+    image: pexels(376464),
     name: "Proteinpannkakor med kvarg och blåbär",
     servings: 2,
     minutes: 15,
@@ -107,6 +119,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "tonfisksallad-kikartor",
+    image: pexels(434258),
     name: "Tonfisksallad med kikärtor och feta",
     servings: 2,
     minutes: 10,
@@ -121,6 +134,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "biff-quinoa-haricots",
+    image: pexels(3186654),
     name: "Biff med quinoa och haricots verts",
     servings: 2,
     minutes: 25,
@@ -135,6 +149,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "kyckling-tikka-masala-latt",
+    image: pexels(2474661),
     name: "Lätt kyckling tikka masala",
     servings: 4,
     minutes: 35,
@@ -150,6 +165,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "tofuwok-edamame",
+    image: pexels(286283),
     name: "Tofuwok med edamame och risnudlar",
     servings: 2,
     minutes: 20,
@@ -164,6 +180,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "aggviteomelett-spenat-feta",
+    image: pexels(1437268),
     name: "Äggviteomelett med spenat och feta",
     servings: 1,
     minutes: 10,
@@ -178,6 +195,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "kycklingspett-tzatziki-pita",
+    image: pexels(2689419),
     name: "Kycklingspett med tzatziki och pitabröd",
     servings: 4,
     minutes: 30,
@@ -192,6 +210,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "halloumi-quinoasallad",
+    image: pexels(3872373),
     name: "Halloumi- och quinoasallad",
     servings: 2,
     minutes: 20,
@@ -208,6 +227,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   // -------------------------------------------- Viktnedgång / kalorisnålt ---
   {
     slug: "torsk-blomkal-tomat",
+    image: pexels(1516415),
     name: "Ugnsbakad torsk med blomkål och tomat",
     servings: 2,
     minutes: 30,
@@ -222,6 +242,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "krispig-kycklingsallad",
+    image: pexels(6107787),
     name: "Krispig kycklingsallad med avokado",
     servings: 2,
     minutes: 20,
@@ -236,6 +257,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "rod-linssoppa",
+    image: pexels(209540),
     name: "Röd linssoppa med kokos",
     servings: 4,
     minutes: 30,
@@ -250,6 +272,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "rakor-zucchinispaghetti",
+    image: pexels(2092906),
     name: "Räkor med zucchinispaghetti",
     servings: 2,
     minutes: 15,
@@ -278,6 +301,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "gronsaksfrittata",
+    image: pexels(568370),
     name: "Grönsaksfrittata med keso",
     servings: 2,
     minutes: 25,
@@ -292,6 +316,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "blomkalsris-kyckling",
+    image: pexels(2116094),
     name: "Blomkålsris med kyckling och sockerärtor",
     servings: 2,
     minutes: 20,
@@ -306,6 +331,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "skyrbowl-bar-chia",
+    image: pexels(1092730),
     name: "Skyrbowl med bär och chiafrön",
     servings: 1,
     minutes: 5,
@@ -315,6 +341,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "ugnskyckling-haricots-potatis",
+    image: pexels(2338407),
     name: "Ugnsbakad kyckling med haricots verts och potatis",
     servings: 2,
     minutes: 30,
@@ -329,6 +356,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "grekisk-kycklingsallad",
+    image: pexels(1211887),
     name: "Grekisk sallad med kyckling",
     servings: 2,
     minutes: 15,
@@ -340,6 +368,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   // ------------------------------------------------- Energi före passet ---
   {
     slug: "overnight-oats-banan",
+    image: pexels(1640768),
     name: "Overnight oats med banan och blåbär",
     servings: 1,
     minutes: 5,
@@ -358,6 +387,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "pasta-tomatsas-kyckling",
+    image: pexels(1437267),
     name: "Pasta med tomatsås och kyckling",
     servings: 2,
     minutes: 20,
@@ -367,6 +397,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "bar-och-havresmoothie",
+    image: pexels(2741444),
     name: "Bär- och havresmoothie",
     servings: 1,
     minutes: 5,
@@ -376,6 +407,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "fullkornsmacka-banan",
+    image: pexels(916925),
     name: "Fullkornsmacka med banan och honung",
     servings: 1,
     minutes: 5,
@@ -385,6 +417,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "sotsur-kyckling-ananas",
+    image: pexels(76093),
     name: "Sötsur kyckling med ananas och jasminris",
     servings: 4,
     minutes: 25,
@@ -408,6 +441,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "couscoussallad-kikartor",
+    image: pexels(1410235),
     name: "Couscoussallad med kikärtor",
     servings: 2,
     minutes: 15,
@@ -437,6 +471,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "kvargparfait-granola-hallon",
+    image: pexels(1065030),
     name: "Kvargparfait med granola och hallon",
     servings: 1,
     minutes: 5,
@@ -446,6 +481,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "kyckling-sotpotatisbowl",
+    image: pexels(1640777),
     name: "Kyckling- och sötpotatisbowl med tzatziki",
     servings: 2,
     minutes: 30,
@@ -460,6 +496,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "laxpoke-ris-edamame",
+    image: pexels(2741448),
     name: "Laxpoké med ris, edamame och mango",
     servings: 2,
     minutes: 20,
@@ -469,6 +506,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "agg-potatishash",
+    image: pexels(103124),
     name: "Ägg- och potatishash med kalkon",
     servings: 2,
     minutes: 25,
@@ -478,6 +516,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "nudelwok-biff-broccoli",
+    image: pexels(2347311),
     name: "Nudelwok med biff och broccoli",
     servings: 2,
     minutes: 20,
@@ -487,6 +526,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "burrito-bowl-svarta-bonor",
+    image: pexels(2087748),
     name: "Burrito bowl med svarta bönor",
     servings: 2,
     minutes: 25,
@@ -496,6 +536,7 @@ export const LIBRARY_SOURCE: LibrarySource[] = [
   },
   {
     slug: "flaskfile-couscous-gronsaker",
+    image: pexels(1307658),
     name: "Fläskfilé med couscous och rostade grönsaker",
     servings: 3,
     minutes: 30,

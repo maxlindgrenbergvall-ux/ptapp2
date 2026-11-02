@@ -182,7 +182,7 @@ function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) 
         onClick={onOpen}
         className="flex w-full max-w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-border/70 bg-card p-2 text-left shadow-card transition-[background-color,transform] hover:bg-muted/40 active:scale-[0.99]"
       >
-        <RecipeImage recipe={recipe} className="aspect-square size-14 shrink-0 rounded-xl min-[360px]:size-16" />
+        <RecipeImage recipe={recipe} size="thumb" className="aspect-square size-14 shrink-0 rounded-xl min-[360px]:size-16" />
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
           {/* Plats för stjärnan bredvid titeln – pillren under får hela bredden. */}
           <span className="line-clamp-2 pr-8 text-[15px] leading-snug font-semibold break-words">{recipe.name}</span>

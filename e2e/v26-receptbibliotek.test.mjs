@@ -27,7 +27,8 @@ p.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m
 const external = []
 p.on("request", (r) => {
   const u = new URL(r.url())
-  if (!["localhost", "127.0.0.1"].includes(u.hostname) && u.protocol.startsWith("http")) external.push(r.url())
+  // Matfotona (v28) hämtas från Pexels bildserver – inga andra externa anrop.
+  if (!["localhost", "127.0.0.1", "images.pexels.com"].includes(u.hostname) && u.protocol.startsWith("http")) external.push(r.url())
 })
 const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data)
 const toast = (text) => p.waitForSelector(`[data-sonner-toast] >> text=${text}`)

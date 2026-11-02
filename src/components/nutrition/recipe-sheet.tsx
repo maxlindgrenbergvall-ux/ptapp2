@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { LogRecipeDialog } from "@/components/nutrition/log-recipe-dialog"
 import { MacroDot } from "@/components/nutrition/macros"
-import { FavoriteButton, GoalBadges, RecipeImage } from "@/components/nutrition/recipe-parts"
+import { FavoriteButton, GoalBadges, photoSource, RecipeImage } from "@/components/nutrition/recipe-parts"
 import { Button } from "@/components/ui/button"
 import { confirmDialog } from "@/components/ui/confirm"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
@@ -68,6 +68,16 @@ function RecipeSheetBody({ recipe, onClose, onEdit }: { recipe: Recipe; onClose:
         {/* Handtag för att dra ned panelen. */}
         <span aria-hidden className="absolute top-2 left-1/2 h-1.5 w-10 -translate-x-1/2 rounded-full bg-background/70" />
         <FavoriteButton recipe={recipe} onImage className="absolute top-3 left-3" />
+        {photoSource(recipe.imageUrl) && (
+          <a
+            href={photoSource(recipe.imageUrl)!.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute right-2 bottom-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white/90 backdrop-blur-sm"
+          >
+            {photoSource(recipe.imageUrl)!.label}
+          </a>
+        )}
       </div>
 
       <div className="space-y-6 px-4 pt-4 pb-6">

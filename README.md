@@ -44,7 +44,8 @@ npm run dev                  # http://localhost:3000
    25. `supabase/migrations/20261107000000_v25_recipe_import_favorites.sql`. Receptimport och favoriter: nya fält på `client_recipes` (`goal_types`, `image_url`, `source_url`, `steps`, `total_minutes`, `nutrition`, `macros_source`), tabellen `user_favorite_recipes` (RLS: `auth.uid() = user_id`) och måltid/recept på `food_entries` (`meal_type`, `recipe_id`).
    26. `supabase/migrations/20261108000000_v26_recipe_library.sql`. Coaviras färdiga receptbibliotek (`library_recipes`, 40 recept med makron, bilder, tid, metriska ingredienser och steg – läsbart för inloggade, ingen kan skriva), favoriter för både biblioteks- och egna recept och `food_entries.library_recipe_id`. Kan köras om.
    27. `supabase/migrations/20261109000000_v27_recipe_photos.sql`. Tar bort de illustrerade receptbilderna och skapar bucketen `recipe-images` (publik läsning, max 2 MB) för riktiga matfoton.
-   28. `supabase/seed.sql`
+   28. `supabase/migrations/20261110000000_v28_recipe_photos.sql`. Riktiga matfoton (Pexels) för 34 av 40 biblioteksrecept. Skriver inte över foton som laddats upp till Storage.
+   29. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -569,6 +570,12 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 **Återbetalningar** görs i Stripe-panelen. Välj **Reverse transfer** (och vid behov *Refund application fee*), så att pengarna tas tillbaka från PT:ns konto.
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
+
+## Nytt i v28: matfoton i receptbiblioteket
+
+- 34 av 40 recept har ett riktigt matfoto från Pexels (fri licens, även kommersiellt; ingen attribution krävs men pop-upen visar "Foto: Pexels" med länk). Varje foto är granskat för att visa just den rätten – sex rätter utan ett tillräckligt likt foto (riskakor med banan, energibollar, proteinshake, chili sin carne, salladswraps, havregrynsgröt) visar reservbilden tills ett eget foto laddas upp med `scripts/set-recipe-images.mjs`.
+- Fotona anges i `src/lib/recipes/library-source.ts` (`image: pexels(<id>)`); generatorn skriver dem i `library.json`, seed-SQL:en och v28-migrationen.
+- Listan laddar en liten version (200/320 px), pop-upen 1200 px.
 
 ## Nytt i v27: kompakt receptlista och riktiga matfoton
 

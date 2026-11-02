@@ -116,5 +116,26 @@ on conflict (id) do update set
 const sql = fs.readFileSync(MIGRATION, "utf8")
 fs.writeFileSync(MIGRATION, sql.replace(/-- BEGIN LIBRARY SEED[\s\S]*?-- END LIBRARY SEED/, seed))
 
+// v28: fotolänkarna som egen migration – för databaser där v26 redan körts.
+// Skriver aldrig över ett foto som laddats upp till Storage (set-recipe-images.mjs).
+const photoUpdates = recipes
+  .filter((r) => r.imageUrl && /^https:\/\/images\.pexels\.com\//.test(r.imageUrl))
+  .map((r) => `update library_recipes set image_url = ${q(r.imageUrl)}, updated_at = now()\n  where slug = ${q(r.slug)} and (image_url is null or image_url like 'https://images.pexels.com/%');`)
+  .join("\n")
+fs.writeFileSync(
+  path.join(root, "supabase/migrations/20261110000000_v28_recipe_photos.sql"),
+  `-- ============================================================================
+-- v28: riktiga matfoton i receptbiblioteket (Pexels, fri licens även för
+-- kommersiellt bruk). Varje foto är granskat för att visa just den rätten;
+-- rätter utan ett tillräckligt likt foto får ingen bild (appen visar då en
+-- neutral reservbild). Foton som laddats upp till Storage skrivs inte över.
+--
+-- Genererad av scripts/gen-recipe-library.mjs. Körs efter v27. Kan köras om.
+-- ============================================================================
+
+${photoUpdates}
+`
+)
+
 console.log(`${recipes.length} recept → library.json, fotolista i supabase/recipe-photos.csv, SQL i ${path.relative(root, MIGRATION)}`)
 for (const r of recipes) console.log(`  ${String(r.nutrition.kcal).padStart(4)} kcal P${String(r.nutrition.protein).padStart(5)} K${String(r.nutrition.carbs).padStart(5)} F${String(r.nutrition.fat).padStart(5)}  ${r.name}  [${r.goalTypes.join(", ")}]`)
