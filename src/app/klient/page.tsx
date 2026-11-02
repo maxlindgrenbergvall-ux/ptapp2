@@ -146,8 +146,8 @@ export default function TodayPage() {
         <OwnWorkoutDialog />
       </section>
 
-      {/* Dagens kost */}
-      <section className="space-y-3">
+      {/* Dagens kost (kostdagboken – länkas från recepten med ?datum=…#dagens-kost) */}
+      <section id="dagens-kost" className="scroll-mt-20 space-y-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <Utensils className="size-4" /> Dagens kost
         </h2>

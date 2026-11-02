@@ -1,175 +1,203 @@
 "use client"
 
-import { ChefHat, ChevronDown, Pencil, Plus, Save, Trash2, Utensils } from "lucide-react"
+import { ChefHat, Clock, Globe, Plus, Save, Search, Star } from "lucide-react"
+import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/common"
 import { FoodSearch } from "@/components/nutrition/food-search"
-import { MacroInline, MacroSplitBar, sumMacros } from "@/components/nutrition/macros"
+import { MacroInline } from "@/components/nutrition/macros"
+import { FavoriteButton, GoalBadges, RecipeImage } from "@/components/nutrition/recipe-parts"
+import { RecipeImportDialog } from "@/components/nutrition/recipe-import"
 import { ItemList } from "@/components/pt/nutrition-builder"
 import { Button } from "@/components/ui/button"
-import { confirmDialog } from "@/components/ui/confirm"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
-import { todayISO } from "@/lib/date"
 import { itemFromFood } from "@/lib/nutrition/meal-items"
+import { GOAL_INFO, perServing, RECIPE_GOALS, suggestGoals, sumItems } from "@/lib/recipes/goals"
 import { cn } from "@/lib/utils"
-import type { MealItem, Recipe } from "@/types/domain"
+import type { MealItem, Recipe, RecipeGoal } from "@/types/domain"
 
 const MAX_SERVINGS = 20
-
-/** Makron per portion, avrundade (kcal och gram). */
-export function perServing(recipe: Pick<Recipe, "items" | "servings">) {
-  const total = sumMacros(recipe.items)
-  const n = Math.max(1, recipe.servings ?? 1)
-  const grams = recipe.items.reduce((s, i) => s + i.grams, 0)
-  return {
-    kcal: Math.round(total.kcal / n),
-    protein: Math.round((total.protein / n) * 10) / 10,
-    carbs: Math.round((total.carbs / n) * 10) / 10,
-    fat: Math.round((total.fat / n) * 10) / 10,
-    grams: Math.round(grams / n),
-  }
-}
+type Filter = "all" | "favorites" | RecipeGoal
 
 /**
- * Recept-fliken: klientens egna recept med ingredienser och automatiskt
- * uträknade makron (kalorier, protein, kolhydrater, fett) – totalt och per
- * portion. En portion loggas i Dagens kost med ett tryck.
- * (Import av recept från webben kommer i en senare version.)
+ * Recept-fliken (v25): klientens recept – egna och hämtade från webben – med
+ * makron per portion, träningsmålskategorier, favoriter och sök. Ett tryck på
+ * ett recept öppnar detaljvyn (/klient/recept/[id]).
  */
 export function RecipesView() {
   const { data, me } = useAppData()
-  const recipes = data.recipes.filter((r) => r.trainerId === me.id).sort((a, b) => a.name.localeCompare(b.name, "sv"))
-  const [editing, setEditing] = React.useState<Recipe | "new" | null>(null)
+  const [filter, setFilter] = React.useState<Filter>("all")
+  const [q, setQ] = React.useState("")
+  const [creating, setCreating] = React.useState(false)
+  const [importing, setImporting] = React.useState(false)
+  const favorites = new Set(data.favoriteRecipes)
+  const mine = data.recipes.filter((r) => r.trainerId === me.id)
+  const query = q.trim().toLowerCase()
+  const recipes = mine
+    .filter((r) => (filter === "all" ? true : filter === "favorites" ? favorites.has(r.id) : r.goalTypes?.includes(filter)))
+    .filter((r) => !query || r.name.toLowerCase().includes(query) || r.items.some((i) => i.name.toLowerCase().includes(query)))
+    .sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)) || a.name.localeCompare(b.name, "sv"))
+  const count = (f: Filter) => (f === "all" ? mine.length : f === "favorites" ? mine.filter((r) => favorites.has(r.id)).length : mine.filter((r) => r.goalTypes?.includes(f)).length)
 
   return (
     <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
+      <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Recept</h1>
-          <p className="text-sm text-muted-foreground">Dina favoriter med makron per portion.</p>
+          <p className="text-sm text-muted-foreground">Makron per portion – sorterade efter dina träningsmål.</p>
         </div>
-        <Button onClick={() => setEditing("new")} data-testid="new-recipe">
-          <Plus /> Nytt recept
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)} data-testid="import-recipe">
+            <Globe /> Hämta från webben
+          </Button>
+          <Button onClick={() => setCreating(true)} data-testid="new-recipe">
+            <Plus /> Nytt recept
+          </Button>
+        </div>
       </div>
 
-      {recipes.length === 0 ? (
-        <EmptyState icon={ChefHat} title="Inga recept än" text="Skapa ett recept av livsmedel – kalorier och makron räknas ut automatiskt." />
+      {mine.length > 0 && (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök recept eller ingrediens" className="pl-9" aria-label="Sök recept" />
+          </div>
+          {/* Snabbfilter: favoriter och träningsmål. Rullar i sidled på mobil. */}
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="radiogroup" aria-label="Filtrera recept">
+            {(["all", "favorites", ...RECIPE_GOALS] as Filter[]).map((f) => {
+              const active = filter === f
+              return (
+                <button
+                  key={f}
+                  role="radio"
+                  aria-checked={active}
+                  data-testid={`filter-${f}`}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors",
+                    active ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-card hover:bg-muted"
+                  )}
+                >
+                  {f === "favorites" && <Star className={cn("size-3.5", active ? "fill-current" : "fill-warning text-warning")} />}
+                  {f === "all" ? "Alla" : f === "favorites" ? "Mina favoriter" : GOAL_INFO[f].label}
+                  <span className={cn("text-xs tabular", active ? "text-primary-foreground/80" : "text-muted-foreground")}>{count(f)}</span>
+                </button>
+              )
+            })}
+          </div>
+          {filter !== "all" && filter !== "favorites" && <p className="text-xs text-muted-foreground">{GOAL_INFO[filter].hint}.</p>}
+        </div>
+      )}
+
+      {mine.length === 0 ? (
+        <EmptyState icon={ChefHat} title="Inga recept än" text="Hämta ett recept från webben eller skapa ett eget – makron räknas ut automatiskt." />
+      ) : recipes.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          {filter === "favorites" ? "Inga favoriter än – tryck på stjärnan på ett recept." : "Inga recept matchar."}
+        </p>
       ) : (
-        <ul className="space-y-3" aria-label="Mina recept">
+        <ul className="grid gap-3 sm:grid-cols-2" aria-label="Mina recept">
           {recipes.map((r) => (
-            <RecipeCard key={r.id} recipe={r} onEdit={() => setEditing(r)} />
+            <RecipeCard key={r.id} recipe={r} />
           ))}
         </ul>
       )}
 
-      <RecipeEditor
-        key={editing === null ? "closed" : editing === "new" ? "new" : editing.id}
-        open={editing !== null}
-        onOpenChange={(o) => !o && setEditing(null)}
-        initial={editing && editing !== "new" ? editing : undefined}
-      />
+      <RecipeImportDialog open={importing} onOpenChange={setImporting} />
+      <RecipeEditor key={creating ? "new" : "closed"} open={creating} onOpenChange={setCreating} />
     </div>
   )
 }
 
-function RecipeCard({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) {
-  const { actions } = useAppData()
-  const [open, setOpen] = React.useState(false)
+function RecipeCard({ recipe }: { recipe: Recipe }) {
   const portion = perServing(recipe)
-  const servings = recipe.servings ?? 1
-  const panelId = `recipe-${recipe.id}`
-
   return (
-    <li className="rounded-2xl border border-border/70 bg-card shadow-card" data-testid="recipe-card">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={panelId} className="flex w-full items-start gap-3 p-4 text-left">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <ChefHat className="size-5" />
-        </span>
-        <span className="min-w-0 flex-1 space-y-1.5">
-          <span className="block truncate font-semibold">{recipe.name}</span>
-          <span className="block text-xs text-muted-foreground tabular">
-            {portion.kcal} kcal per portion · {servings} {servings === 1 ? "portion" : "portioner"}
+    <li className="relative" data-testid="recipe-card">
+      <Link
+        href={`/klient/recept/${recipe.id}`}
+        className="flex gap-3 rounded-2xl border border-border/70 bg-card p-2.5 pr-12 shadow-card transition-colors hover:bg-muted/40 active:scale-[0.99]"
+      >
+        <RecipeImage recipe={recipe} className="size-22 shrink-0 rounded-xl" />
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 py-0.5">
+          <span className="line-clamp-2 leading-snug font-semibold">{recipe.name}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular">
+            <span className="font-medium text-foreground">{portion.kcal} kcal</span>
+            per portion
+            {recipe.totalMinutes ? (
+              <span className="inline-flex items-center gap-0.5">
+                <Clock className="size-3" /> {recipe.totalMinutes} min
+              </span>
+            ) : null}
           </span>
           <MacroInline value={portion} />
-          <MacroSplitBar value={portion} />
+          {recipe.goalTypes?.length ? <GoalBadges goals={recipe.goalTypes} className="mt-0.5" /> : null}
         </span>
-        <ChevronDown className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div id={panelId} className="space-y-3 border-t border-border/60 px-4 pt-3 pb-4">
-          <ul className="space-y-1 text-sm" aria-label="Ingredienser">
-            {recipe.items.map((i, idx) => (
-              <li key={idx} className="flex justify-between gap-3">
-                <span className="min-w-0 truncate">{i.name}</span>
-                <span className="shrink-0 text-muted-foreground tabular">
-                  {i.unit && i.unit !== "g" ? `${i.qty ?? 1} ${i.unit}` : `${Math.round(i.grams)} g`} · {Math.round(i.kcal)} kcal
-                </span>
-              </li>
-            ))}
-          </ul>
-          {recipe.notes && <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm whitespace-pre-line">{recipe.notes}</p>}
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2">
-            <Button
-              className="bg-brand text-brand-foreground hover:bg-brand/90"
-              onClick={() => {
-                actions.addFoodEntry(todayISO(), {
-                  name: servings > 1 ? `${recipe.name} (1 portion)` : recipe.name,
-                  kcal: portion.kcal,
-                  protein: portion.protein,
-                  carbs: portion.carbs,
-                  fat: portion.fat,
-                  grams: portion.grams,
-                })
-                toast.success(`${recipe.name} är loggat`, { description: `${portion.kcal} kcal i dagens kost.` })
-              }}
-            >
-              <Utensils /> Logga en portion
-            </Button>
-            <Button variant="outline" size="icon" aria-label={`Ändra ${recipe.name}`} onClick={onEdit}>
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Ta bort ${recipe.name}`}
-              onClick={async () => {
-                if (!(await confirmDialog({ title: `Ta bort "${recipe.name}"?`, confirmLabel: "Ta bort", destructive: true }))) return
-                actions.deleteRecipe(recipe.id)
-                toast("Receptet är borttaget")
-              }}
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        </div>
-      )}
+      </Link>
+      <FavoriteButton recipe={recipe} className="absolute top-1.5 right-1.5" />
     </li>
   )
 }
 
-function RecipeEditor({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (open: boolean) => void; initial?: Recipe }) {
+/**
+ * Skapa eller ändra ett recept: namn, portioner, ingredienser (makron räknas
+ * automatiskt), tid, kategorier och steg. Importerade recept behåller källan
+ * och – om källan angav dem – källans makron (omräknade om portionerna ändras).
+ */
+export function RecipeEditor({ open, onOpenChange, initial }: { open: boolean; onOpenChange: (open: boolean) => void; initial?: Recipe }) {
   const { actions } = useAppData()
   const [name, setName] = React.useState(initial?.name ?? "")
   const [notes, setNotes] = React.useState(initial?.notes ?? "")
   const [servings, setServings] = React.useState<number | undefined>(initial?.servings ?? 1)
+  const [minutes, setMinutes] = React.useState<number | undefined>(initial?.totalMinutes)
   const [items, setItems] = React.useState<MealItem[]>(initial?.items ?? [])
-  const total = sumMacros(items)
-  const portion = perServing({ items, servings: servings || 1 })
+  const [steps, setSteps] = React.useState((initial?.steps ?? []).join("\n"))
+  const [goals, setGoals] = React.useState<RecipeGoal[] | null>(initial?.goalTypes ?? null)
+  const siteNutrition = initial?.macrosSource === "site" ? initial.nutrition : undefined
+  // Källans makron gäller källans portioner: ändras antalet räknas de om.
+  const nutrition =
+    siteNutrition && servings && initial?.servings && servings !== initial.servings
+      ? (() => {
+          const f = initial.servings / servings
+          return { kcal: siteNutrition.kcal * f, protein: siteNutrition.protein * f, carbs: siteNutrition.carbs * f, fat: siteNutrition.fat * f }
+        })()
+      : siteNutrition
+  const portion = perServing({ items, servings: servings || 1, nutrition })
+  const total = nutrition ? { kcal: nutrition.kcal * (servings || 1), protein: nutrition.protein * (servings || 1), carbs: nutrition.carbs * (servings || 1), fat: nutrition.fat * (servings || 1) } : sumItems(items)
+  // Utan egna val föreslås kategorierna utifrån makrona.
+  const chosen = goals ?? suggestGoals(portion, minutes)
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim().length < 2) return toast.error("Ge receptet ett namn")
     if (!items.length) return toast.error("Lägg till minst en ingrediens")
     if (!servings || servings < 1 || servings > MAX_SERVINGS) return toast.error(`Ange antal portioner (1–${MAX_SERVINGS})`)
-    actions.saveRecipe({ id: initial?.id ?? actions.newId(), name: name.trim().slice(0, 80), notes: notes.trim().slice(0, 2000), items, servings })
+    if (minutes !== undefined && (minutes < 0 || minutes > 1440)) return toast.error("Tiden ska vara 0–1440 minuter")
+    const roundedNutrition = nutrition && {
+      kcal: Math.round(nutrition.kcal),
+      protein: Math.round(nutrition.protein * 10) / 10,
+      carbs: Math.round(nutrition.carbs * 10) / 10,
+      fat: Math.round(nutrition.fat * 10) / 10,
+    }
+    actions.saveRecipe({
+      ...(initial ?? {}),
+      id: initial?.id ?? actions.newId(),
+      name: name.trim().slice(0, 120),
+      notes: notes.trim().slice(0, 2000),
+      items,
+      servings,
+      totalMinutes: minutes,
+      goalTypes: chosen,
+      steps: steps.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 60),
+      nutrition: roundedNutrition,
+      macrosSource: initial?.macrosSource ?? "manual",
+    })
     toast.success(`"${name.trim()}" är sparat`)
     onOpenChange(false)
   }
@@ -182,14 +210,18 @@ function RecipeEditor({ open, onOpenChange, initial }: { open: boolean; onOpenCh
             <DialogTitle>{initial ? "Ändra recept" : "Nytt recept"}</DialogTitle>
             <DialogDescription>Lägg till ingredienser – kalorier och makron räknas ut automatiskt.</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-[1fr_6rem] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="recipe-name">Namn</Label>
-              <Input id="recipe-name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Kycklinggryta" />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="recipe-name">Namn</Label>
+            <Input id="recipe-name" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Kycklinggryta" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="recipe-servings">Portioner</Label>
               <NumberInput id="recipe-servings" required min={1} max={MAX_SERVINGS} value={servings} onValueChange={setServings} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="recipe-minutes">Tid (min)</Label>
+              <NumberInput id="recipe-minutes" min={0} max={1440} value={minutes} onValueChange={setMinutes} placeholder="Valfritt" />
             </div>
           </div>
           <div className="rounded-xl border">
@@ -206,7 +238,7 @@ function RecipeEditor({ open, onOpenChange, initial }: { open: boolean; onOpenCh
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Per portion</dt>
+                <dt className="text-xs text-muted-foreground">Per portion{siteNutrition ? " (från källan)" : ""}</dt>
                 <dd className="font-medium tabular" data-testid="recipe-portion-kcal">
                   {portion.kcal} kcal
                 </dd>
@@ -216,9 +248,37 @@ function RecipeEditor({ open, onOpenChange, initial }: { open: boolean; onOpenCh
               </div>
             </dl>
           </div>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Kategorier</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {RECIPE_GOALS.map((g) => {
+                const on = chosen.includes(g)
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    aria-pressed={on}
+                    title={GOAL_INFO[g].hint}
+                    onClick={() => setGoals(on ? chosen.filter((x) => x !== g) : [...chosen, g])}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                    )}
+                  >
+                    {GOAL_INFO[g].label}
+                  </button>
+                )
+              })}
+            </div>
+            {goals === null && <p className="text-xs text-muted-foreground">Förslag utifrån makrona – tryck för att ändra.</p>}
+          </fieldset>
           <div className="space-y-1.5">
-            <Label htmlFor="recipe-notes">Gör så här (valfritt)</Label>
-            <Textarea id="recipe-notes" rows={3} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Label htmlFor="recipe-steps">Gör så här (ett steg per rad)</Label>
+            <Textarea id="recipe-steps" rows={4} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder={"Koka riset.\nStek kycklingen."} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="recipe-notes">Anteckningar (valfritt)</Label>
+            <Textarea id="recipe-notes" rows={2} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>

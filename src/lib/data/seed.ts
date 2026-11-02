@@ -757,6 +757,7 @@ export function createSeedData(today = todayISO()): AppData {
         ],
       },
     ],
+    favoriteRecipes: ["rc-c1-oats"],
     clients: makeClients(today),
     exercises,
     templates,

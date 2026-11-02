@@ -16,6 +16,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mockSleepRange } from "@/lib/wearables/mock"
 import { PROVIDER_LABEL } from "@/lib/wearables/types"
+import { MEAL_LABEL, MEAL_TYPES } from "@/lib/recipes/goals"
 import type { FoodProduct, ISODate, SleepLog, WearableProvider } from "@/types/domain"
 
 // ================================================================ extra mat ===
@@ -26,7 +27,12 @@ import type { FoodProduct, ISODate, SleepLog, WearableProvider } from "@/types/d
  */
 export function ExtraFood({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
-  const entries = data.foodEntries.filter((e) => e.clientId === me.id && e.date === date)
+  // Sorterat efter måltid (frukost → mellanmål), poster utan måltid sist.
+  const entries = data.foodEntries
+    .filter((e) => e.clientId === me.id && e.date === date)
+    .map((e, i) => ({ e, i, order: e.meal ? MEAL_TYPES.indexOf(e.meal) : MEAL_TYPES.length }))
+    .sort((a, b) => a.order - b.order || a.i - b.i)
+    .map((x) => x.e)
   const [manual, setManual] = React.useState(false)
 
   // Senaste: unika produkter som loggats med gram, nyast först – så att vanliga val går på ett tryck.
@@ -68,6 +74,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
           {entries.map((e) => (
             <li key={e.id} className="flex items-center gap-3 px-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
+                {e.meal && <div className="text-[11px] font-medium text-primary">{MEAL_LABEL[e.meal]}</div>}
                 <div className="flex min-w-0 items-baseline gap-1">
                   <span className="truncate">{e.name}</span>
                   {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} {e.unit ?? "g"}</span> : null}

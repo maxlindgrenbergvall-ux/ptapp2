@@ -31,7 +31,10 @@ import type {
   ProgressEntry,
   Referral,
   Purchase,
+  MacroTotals,
+  MealType,
   Recipe,
+  RecipeGoal,
   Review,
   ScheduledWorkout,
   SetLog,
@@ -183,6 +186,9 @@ interface FoodRow {
   unit?: "g" | "ml" | null
   barcode: string | null
   product_id: string | null
+  /** v25 */
+  meal_type?: MealType | null
+  recipe_id?: string | null
 }
 export interface ProductRow {
   id: string
@@ -303,6 +309,15 @@ interface RecipeRow {
   notes: string
   items: Recipe["items"]
   servings?: number
+  /** v25 (klientens recept) */
+  goal_types?: RecipeGoal[] | null
+  image_url?: string | null
+  source_url?: string | null
+  source_name?: string | null
+  steps?: string[] | null
+  total_minutes?: number | null
+  nutrition?: MacroTotals | null
+  macros_source?: Recipe["macrosSource"] | null
 }
 interface RuleRow {
   id: string
@@ -546,6 +561,8 @@ export const toFood = (r: FoodRow): FoodEntry => ({
   unit: r.unit === "ml" ? "ml" : undefined,
   barcode: r.barcode ?? undefined,
   productId: r.product_id ?? undefined,
+  meal: r.meal_type ?? undefined,
+  recipeId: r.recipe_id ?? undefined,
 })
 
 export const toProduct = (r: ProductRow): FoodProduct => ({
@@ -673,6 +690,14 @@ const toRecipe = (r: RecipeRow): Recipe => ({
   notes: r.notes,
   items: Array.isArray(r.items) ? r.items : [],
   servings: r.servings ?? 1,
+  goalTypes: r.goal_types ?? undefined,
+  imageUrl: r.image_url ?? undefined,
+  sourceUrl: r.source_url ?? undefined,
+  sourceName: r.source_name ?? undefined,
+  steps: Array.isArray(r.steps) ? r.steps : undefined,
+  totalMinutes: r.total_minutes ?? undefined,
+  nutrition: r.nutrition ?? undefined,
+  macrosSource: r.macros_source ?? undefined,
 })
 
 const toRule = (r: RuleRow): AvailabilityRule => ({
@@ -818,6 +843,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         templates: must<TemplateRow[]>(templates, "mallar").map(toTemplate),
         availabilityRules: must<RuleRow[]>(rules, "tillgänglighet").map(toRule),
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
+        favoriteRecipes: [],
         relationships: clients.map((c) => ({
           trainerId: uid,
           clientId: c.id,
@@ -840,7 +866,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart, recipes] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -851,6 +877,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("cart_items").select("client_id, service_id, trainer_id, added_at, quantity").order("added_at"),
     // Egna recept (v24). Saknas tabellen (v24 inte körd än) blir listan tom.
     sb.from("client_recipes").select("*").eq("client_id", uid).order("name"),
+    // Stjärnmarkerade recept (v25). Saknas tabellen blir listan tom.
+    sb.from("user_favorite_recipes").select("recipe_id").eq("user_id", uid),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -886,6 +914,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       templates: [],
       availabilityRules: [],
       recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
+      favoriteRecipes: favorites.error ? [] : ((favorites.data ?? []) as { recipe_id: string }[]).map((f) => f.recipe_id),
       relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
@@ -1171,6 +1200,9 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           barcode: e.barcode ?? null,
           // Bara riktiga produkt-id:n (baslivsmedel i appen har inga databas-id).
           product_id: e.productId && UUID.test(e.productId) ? e.productId : null,
+          // v25: bara när de finns, så att loggning fungerar även före migrationen.
+          ...(e.meal ? { meal_type: e.meal } : {}),
+          ...(e.recipeId ? { recipe_id: e.recipeId } : {}),
         })
       )
     }
@@ -1242,12 +1274,36 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       const servings = r.servings ?? 1
       // Klientens egna recept ligger i client_recipes (v24), PT:ns i recipes.
       if (me.role === "client") {
-        return result(sb.from("client_recipes").upsert({ id: r.id, client_id: me.id, name: r.name, notes: r.notes, items: r.items, servings }))
+        return result(
+          sb.from("client_recipes").upsert({
+            id: r.id,
+            client_id: me.id,
+            name: r.name,
+            notes: r.notes,
+            items: r.items,
+            servings,
+            // v25
+            goal_types: r.goalTypes ?? [],
+            image_url: r.imageUrl ?? null,
+            source_url: r.sourceUrl ?? null,
+            source_name: r.sourceName ?? null,
+            steps: r.steps ?? [],
+            total_minutes: r.totalMinutes ?? null,
+            nutrition: r.nutrition ?? null,
+            macros_source: r.macrosSource ?? "manual",
+          })
+        )
       }
       return result(sb.from("recipes").upsert({ id: r.id, trainer_id: me.id, name: r.name, notes: r.notes, items: r.items, ...(servings !== 1 ? { servings } : {}) }))
     }
     case "deleteRecipe":
       return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
+    case "setFavoriteRecipe":
+      return result(
+        action.favorite
+          ? sb.from("user_favorite_recipes").upsert({ user_id: me.id, recipe_id: action.recipeId }, { onConflict: "user_id,recipe_id", ignoreDuplicates: true })
+          : sb.from("user_favorite_recipes").delete().eq("user_id", me.id).eq("recipe_id", action.recipeId)
+      )
     case "setWorkoutExercises":
       return result(sb.from("scheduled_workouts").update({ exercises: action.exercises }).eq("id", action.workoutId))
     case "editCompletedWorkout":

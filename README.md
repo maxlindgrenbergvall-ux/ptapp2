@@ -41,7 +41,8 @@ npm run dev                  # http://localhost:3000
    22. `supabase/migrations/20261104000000_v22_stripe_connect.sql`. Den lägger till Stripe Connect och den obligatoriska PT-onboardingen (`trainers.stripe_onboarding_complete`, den privata tabellen `trainer_payout_accounts`, `apply_stripe_account`, `admin_mark_pt_onboarded`). **Publicerade PT-profiler döljs tills PT:n kopplat Stripe och visas sedan automatiskt igen.**
    23. `supabase/migrations/20261105000000_v23_security_hardening.sql`. Säkerhetsgranskningen: hälsodata kräver samtycke även via API:t, relationsfrågorna svarar bara parterna, TRUNCATE m.fl. tas bort för anon/authenticated och tabellen `rate_limits` med `hit_rate_limit()` (bara servern).
    24. `supabase/migrations/20261106000000_v24_training_recipes.sql`. Engelska övningsnamn (Romanian Deadlift, Bench Press …), klienten får ändra ordningen på övningar i PT:ns pass, `edit_completed_workout()` för att redigera genomförda pass, låsta set efter PT:ns klarmarkering och klientens recept (`client_recipes`, `servings`).
-   25. `supabase/seed.sql`
+   25. `supabase/migrations/20261107000000_v25_recipe_import_favorites.sql`. Receptimport och favoriter: nya fält på `client_recipes` (`goal_types`, `image_url`, `source_url`, `steps`, `total_minutes`, `nutrition`, `macros_source`), tabellen `user_favorite_recipes` (RLS: `auth.uid() = user_id`) och måltid/recept på `food_entries` (`meal_type`, `recipe_id`).
+   26. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -566,6 +567,17 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 **Återbetalningar** görs i Stripe-panelen. Välj **Reverse transfer** (och vid behov *Refund application fee*), så att pengarna tas tillbaka från PT:ns konto.
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
+
+## Nytt i v25: recept från webben, träningsmål, favoriter och kostdagbok
+
+- **Hämta från webben** (`POST /api/recipes/import`): servern läser receptet ur sidans JSON-LD (schema.org/Recipe, även i `@graph`/HowToSection) eller HTML-microdata (`itemprop`) som reserv. Logik i `src/lib/recipes/` (`extract.ts`, `units.ts`, `estimate.ts`, `import.ts`).
+- **Metriska mått:** amerikanska mått räknas om innan receptet sparas – oz/lb → gram, cups/tbsp/tsp/fl oz/pint/quart → ml/dl för vätskor och gram för fasta ingredienser (densitet per ingrediens), "1 (14.5 oz) can" → 411 g. I instruktionerna blir °F → °C och inch → cm. Svenska mått (dl, msk, tsk, krm) behålls.
+- **Makron per portion krävs:** sidans näringsvärden (kcal, protein, kolhydrater, fett) i första hand, annars uträknade ur ingredienserna mot livsmedelsbasen (engelska namn översätts). Går det inte – minst 70 % av ingrediensvikten måste kunna matchas – hämtas receptet inte (422).
+- **Säker hämtning (SSRF):** bara http(s) på standardportar, inga interna/privata adresser (kontrolleras efter DNS-uppslag och vid varje omdirigering), max 4 omdirigeringar, 10 s och 3 MB. Kräver inloggning och har rate limiting (10 per 10 min). Bilden länkas från källan (kopieras inte) och källan visas i receptet. `RECIPE_IMPORT_TEST_ORIGIN` släpper igenom låtsassajten i e2e (ignoreras i Vercels produktion).
+- **Träningsmål:** Högt protein, Kalorisnålt, Före passet, Efter passet och Snabbt & enkelt (≤ 20 min) föreslås automatiskt utifrån makrona (`src/lib/recipes/goals.ts`) och kan ändras. Snabbfilter i receptlistan.
+- **Detaljvy** `/klient/recept/[id]`: stor bild, tid, makron per portion som badges, ingredienser i gram/dl som skalas med antalet portioner och numrerade steg.
+- **Favoriter:** stjärnan på korten och i detaljvyn (optimistiskt), filtret *Mina favoriter*.
+- **Logga i kostdagboken:** välj datum, måltid (frukost/lunch/middag/mellanmål) och portioner (0,5–20). Makrona räknas om och sparas i `food_entries`; toasten länkar till dagen i kostdagboken (`/klient?datum=…#dagens-kost`), där posten visas under sin måltid.
 
 ## Nytt i v24: loggning, recept och framsteg för alla
 

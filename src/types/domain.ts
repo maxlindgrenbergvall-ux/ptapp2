@@ -279,6 +279,8 @@ export interface MealItem {
   pieceG?: number
   /** Densitet (gram per milliliter) för köksmått, t.ex. havregryn ≈ 0,35. */
   gPerMl?: number
+  /** Originalraden från ett importerat recept, t.ex. "1 cup flour" (före omräkning till metriskt). */
+  original?: string
 }
 
 /**
@@ -294,7 +296,36 @@ export interface Recipe {
   items: MealItem[]
   /** Antal portioner som ingredienserna räcker till (standard 1). */
   servings?: number
+  /** Träningsmål receptet passar för (klientens recept, v25). */
+  goalTypes?: RecipeGoal[]
+  /** Originalbild (länk till källan). */
+  imageUrl?: string
+  /** Var receptet hämtades. */
+  sourceUrl?: string
+  sourceName?: string
+  /** Steg-för-steg-instruktioner. */
+  steps?: string[]
+  /** Total tillagningstid i minuter. */
+  totalMinutes?: number
+  /** Makron PER PORTION från källan. Saknas = räknas ur ingredienserna. */
+  nutrition?: MacroTotals
+  /** Var makrona kommer ifrån: egna ingredienser, källan eller uppskattade ur ingredienserna. */
+  macrosSource?: "manual" | "site" | "estimated"
 }
+
+/** Träningsmål för recept (v25). */
+export type RecipeGoal = "high_protein" | "weight_loss" | "pre_workout" | "post_workout" | "quick_easy"
+
+/** Kalorier och makron (gram). */
+export interface MacroTotals {
+  kcal: number
+  protein: number
+  carbs: number
+  fat: number
+}
+
+/** Måltid i kostdagboken (v25). */
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack"
 
 export interface Meal {
   id: ID
@@ -376,6 +407,10 @@ export interface FoodEntry {
   unit?: FoodUnit
   barcode?: string
   productId?: ID
+  /** Måltid (frukost, lunch, middag, mellanmål) – v25. */
+  meal?: MealType
+  /** Recept som loggats (v25). */
+  recipeId?: ID
 }
 
 /** Näringsvärden per 100 g. */
@@ -559,6 +594,8 @@ export interface AppData {
   purchases: Purchase[]
   /** PT:ns egna recept. */
   recipes: Recipe[]
+  /** Stjärnmarkerade recept (id:n) för inloggad användare. */
+  favoriteRecipes: ID[]
   /** PT–klient-relationer (klient: alla egna; PT: egna klienter). */
   relationships: CoachingRelationship[]
   /** Loggade mätpunkter för intressena (Framsteg). */

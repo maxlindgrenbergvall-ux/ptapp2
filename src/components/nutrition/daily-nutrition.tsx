@@ -31,8 +31,20 @@ import { MEAL_UNIT_LABEL, type ID, type NutritionPlan, type Trainer } from "@/ty
 export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; viewer?: "client" | "trainer" }) {
   const { data, actions } = useAppData()
   const trainerView = viewer === "trainer"
-  const [date, setDate] = React.useState(todayISO())
+  // Djuplänk från "Logga i kostdagboken": /klient?datum=YYYY-MM-DD#dagens-kost.
+  // (Vyn visas först när appens data har laddats i webbläsaren, så window finns.)
+  const [date, setDate] = React.useState(() => (trainerView ? todayISO() : linkedDate() ?? todayISO()))
   const trainers = myTrainers(data, clientId)
+  React.useEffect(() => {
+    if (trainerView) return
+    // Vid klientnavigering (router.push från toasten) är adressen uppdaterad först här.
+    const linked = linkedDate()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synkar med adressfältet (externt system)
+    if (linked) setDate(linked)
+    if (window.location.hash === "#dagens-kost") document.getElementById("dagens-kost")?.scrollIntoView({ block: "start" })
+  }, [trainerView])
+  // Klienten kan bläddra en vecka framåt (t.ex. loggad matlåda), PT:n bara till idag.
+  const maxDate = trainerView ? todayISO() : addDays(todayISO(), 7)
 
   // Kostråd kräver köpt kostcoaching hos någon av klientens PT:er (databasen döljer annars planerna).
   // Med flera PT:er gäller högst ETT kostschema åt gången – klienten väljer vilket.
@@ -57,17 +69,17 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
 
   return (
     <div className="space-y-5 rounded-2xl border border-border/70 bg-card shadow-card p-5" data-testid="daily-nutrition">
-      {trainerView && (
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" size="icon-sm" aria-label="Föregående dag" onClick={() => setDate(addDays(date, -1))}>
-            <ChevronLeft />
-          </Button>
-          <p className="text-sm font-medium">{date === todayISO() ? "Idag" : formatDay(date)}</p>
-          <Button variant="ghost" size="icon-sm" aria-label="Nästa dag" disabled={date >= todayISO()} onClick={() => setDate(addDays(date, 1))}>
-            <ChevronRight />
-          </Button>
-        </div>
-      )}
+      <div className="-mx-1 -mt-1 flex items-center justify-between gap-2">
+        <Button variant="ghost" size="icon-sm" aria-label="Föregående dag" onClick={() => setDate(addDays(date, -1))}>
+          <ChevronLeft />
+        </Button>
+        <p className="text-sm font-medium" data-testid="nutrition-date">
+          {date === todayISO() ? "Idag" : formatDay(date)}
+        </p>
+        <Button variant="ghost" size="icon-sm" aria-label="Nästa dag" disabled={date >= maxDate} onClick={() => setDate(addDays(date, 1))}>
+          <ChevronRight />
+        </Button>
+      </div>
       {!trainerView && (plans.length > 1 || (plans.length === 1 && !plan)) && <PlanChooser plans={plans} current={plan?.id ?? null} />}
       {locked ? (
         // Ingen kostcoaching: ren och snabb loggning – ingen betalvägg i vägen.
@@ -317,4 +329,11 @@ function PlanChooser({ plans, current }: { plans: NutritionPlan[]; current: stri
       </Select>
     </div>
   )
+}
+
+/** Datum ur ?datum= (en månad bakåt till en vecka framåt), annars undefined. */
+function linkedDate(): string | undefined {
+  if (typeof window === "undefined") return undefined
+  const d = new URLSearchParams(window.location.search).get("datum")
+  return d && /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= addDays(todayISO(), -30) && d <= addDays(todayISO(), 7) ? d : undefined
 }

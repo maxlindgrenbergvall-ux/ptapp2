@@ -303,6 +303,9 @@ function createActions(ctx: {
       commit({ type: "addProgressEntry", entry: { id: newId(), clientId: me.id, metric, value, date, note: note?.trim() || undefined } }),
     deleteProgressEntry: (id: ID) => commit({ type: "deleteProgressEntry", id }),
     saveRecipe: (recipe: Omit<Recipe, "trainerId">) => commit({ type: "saveRecipe", recipe: { ...recipe, trainerId: me.id } }),
+    /** Stjärnmarkera/avmarkera ett recept. Syns direkt (optimistiskt) och sparas i bakgrunden. */
+    toggleFavoriteRecipe: (recipeId: ID) =>
+      commit({ type: "setFavoriteRecipe", recipeId, favorite: !getData().favoriteRecipes.includes(recipeId) }),
     deleteRecipe: (recipeId: ID) => commit({ type: "deleteRecipe", recipeId }),
     /** PT: skapa eller ändra en tjänst i menyn. */
     saveService: (service: Omit<TrainerService, "trainerId">) => commit({ type: "saveService", service: { ...service, trainerId: me.id } }),

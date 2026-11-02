@@ -80,6 +80,8 @@ export type PersistableAction =
   | { type: "saveService"; service: TrainerService }
   | { type: "deleteService"; serviceId: ID }
   | { type: "saveRecipe"; recipe: Recipe }
+  /** Stjärnmarkera/avmarkera ett recept (v25). */
+  | { type: "setFavoriteRecipe"; recipeId: ID; favorite: boolean }
   /** Ny ordning (eller nytt innehåll i ett eget pass) på passets övningar. */
   | { type: "setWorkoutExercises"; workoutId: ID; exercises: WorkoutExercise[] }
   /** Klient: redigera ett genomfört pass i efterhand (edit_completed_workout). */
@@ -518,7 +520,18 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       return { ...data, recipes: upsertBy(data.recipes, action.recipe, (r) => r.id === action.recipe.id) }
 
     case "deleteRecipe":
-      return { ...data, recipes: data.recipes.filter((r) => r.id !== action.recipeId) }
+      return {
+        ...data,
+        recipes: data.recipes.filter((r) => r.id !== action.recipeId),
+        favoriteRecipes: data.favoriteRecipes.filter((id) => id !== action.recipeId),
+        // Loggad mat finns kvar men tappar kopplingen (on delete set null).
+        foodEntries: data.foodEntries.map((e) => (e.recipeId === action.recipeId ? { ...e, recipeId: undefined } : e)),
+      }
+
+    case "setFavoriteRecipe": {
+      const rest = data.favoriteRecipes.filter((id) => id !== action.recipeId)
+      return { ...data, favoriteRecipes: action.favorite ? [...rest, action.recipeId] : rest }
+    }
 
     case "addClient":
       if (data.clients.some((c) => c.id === action.client.id)) return data
@@ -678,6 +691,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
     services: list(d.services),
     purchases: list(d.purchases),
     recipes: list(d.recipes),
+    favoriteRecipes: list<ID>(d.favoriteRecipes),
     // v12: relationer (flera PT:er). Äldre data: härled från klienternas PT.
     relationships: Array.isArray(d.relationships)
       ? list<CoachingRelationship>(d.relationships)
