@@ -43,7 +43,8 @@ npm run dev                  # http://localhost:3000
    24. `supabase/migrations/20261106000000_v24_training_recipes.sql`. Engelska övningsnamn (Romanian Deadlift, Bench Press …), klienten får ändra ordningen på övningar i PT:ns pass, `edit_completed_workout()` för att redigera genomförda pass, låsta set efter PT:ns klarmarkering och klientens recept (`client_recipes`, `servings`).
    25. `supabase/migrations/20261107000000_v25_recipe_import_favorites.sql`. Receptimport och favoriter: nya fält på `client_recipes` (`goal_types`, `image_url`, `source_url`, `steps`, `total_minutes`, `nutrition`, `macros_source`), tabellen `user_favorite_recipes` (RLS: `auth.uid() = user_id`) och måltid/recept på `food_entries` (`meal_type`, `recipe_id`).
    26. `supabase/migrations/20261108000000_v26_recipe_library.sql`. Coaviras färdiga receptbibliotek (`library_recipes`, 40 recept med makron, bilder, tid, metriska ingredienser och steg – läsbart för inloggade, ingen kan skriva), favoriter för både biblioteks- och egna recept och `food_entries.library_recipe_id`. Kan köras om.
-   27. `supabase/seed.sql`
+   27. `supabase/migrations/20261109000000_v27_recipe_photos.sql`. Tar bort de illustrerade receptbilderna och skapar bucketen `recipe-images` (publik läsning, max 2 MB) för riktiga matfoton.
+   28. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -569,12 +570,23 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v27: kompakt receptlista och riktiga matfoton
+
+- **Kompakta kort:** kvadratisk miniatyr till vänster, titel (högst två rader, aldrig under stjärnan) och små piller med ikon för kcal, protein, kolhydrater, fett och tid. 6–7 recept syns på en mobilskärm, utan horisontell overflow (testat på 320 och 390 px).
+- **Kategori-chips** rullar i sidled och ligger kvar överst (sticky) när listan rullar – byt mål direkt.
+- **Bilder:** `object-fit: cover` i fasta format – kvadrat i listan, 16:9 i pop-upen. Saknas fotot eller går det inte att ladda visas en minimalistisk gradient med en ikon för receptets mål. Pop-upen rullar inuti sig själv (`overscroll-contain`, `touch-pan-y`) så att sidan bakom står still i Capacitor.
+- **Riktiga matfoton:** de illustrerade bilderna är borttagna. Foton laddas upp till Supabase Storage och kopplas till rätt rätt med ett skript:
+  1. Lägg ett foto per rätt i en mapp, med receptets slug som filnamn (`kycklingbowl-jasminris-broccoli.jpg` …). Listan med slug, namn och motiv finns i `supabase/recipe-photos.csv`. JPEG/WebP/PNG, högst 2 MB, gärna minst 1600 × 900 px.
+  2. `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node scripts/set-recipe-images.mjs <mapp>`
+  3. Skriptet laddar upp till `recipe-images`, sätter `library_recipes.image_url`, skriver länken i CSV-filen och kör generatorn så att `library.json` och seed-SQL:en får samma foton. En ny seed skriver aldrig över ett uppladdat foto.
+  Använd foton du har rätt att använda (egna, köpta eller med fri licens, t.ex. Unsplash/Pexels) och som visar just den rätten.
+
 ## Nytt i v26: färdigt receptbibliotek (ingen webbskrapning)
 
 - **Inga externa anrop:** importen från webben (v25) är borttagen – ingen API-route, ingen skrapning. Alla recept kommer från Supabase (`library_recipes`) eller appen själv.
 - **40 träningsanpassade recept** med färdiga makron per portion (kcal, protein, kolhydrater, fett), bild, tillagningstid, metriska mått (g/dl/msk/tsk/krm/st) och steg. Källan är `src/lib/recipes/library-source.ts`, där varje ingrediens pekar på livsmedelsbasen så att makrona räknas ur samma näringsvärden som resten av appen. `node scripts/gen-recipe-library.mjs` skriver `src/lib/recipes/library.json`, bilderna i `public/recipes/` och seed-SQL:en i v26-migrationen.
 - **Flikar per träningsmål:** Högt protein (31), Kalorisnålt (17), Före passet (13), Efter passet (20), Snabbt & enkelt (24, ≤ 20 min). Ett recept kan ligga i flera flikar (`src/lib/recipes/goals.ts`).
-- **Bilder:** illustrerade rättbilder (SVG) som följer med appen och fungerar offline i mobilappen. Byt mot foton genom att lägga en bild i `public/recipes/` och ändra `imageUrl` i generatorn (eller `image_url` i databasen).
+- **Bilder:** se v27 – riktiga matfoton via Supabase Storage (de illustrerade bilderna är borttagna).
 - **Pop-up:** ett tryck på ett recept öppnar det som en panel (bottenpanel på mobilen) med stor bild, makrobadges, skalbara ingredienser, numrerade steg, favoritstjärna och *Logga i kostdagboken* (datum, måltid, portioner → `food_entries`). Panelen stängs efter loggningen så att länken i bekräftelsen syns.
 - **Skapa eget recept från scratch:** namn, kategori (minst en), portioner, tid, ingredienser i gram/dl (fritt eller från livsmedelsbasen), steg och makron per portion – egna värden eller uträknade ur ingredienserna. Sparas i `client_recipes`.
 - Snabbfilter *Mina favoriter* och *Mina egna*, plus sök på namn och ingrediens. Demoläget läser biblioteket ur `library.json`; med Supabase används tabellen (och JSON-filen om v26 inte är körd än).

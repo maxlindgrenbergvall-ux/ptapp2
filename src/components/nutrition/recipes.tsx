@@ -1,12 +1,12 @@
 "use client"
 
-import { ChefHat, Clock, Plus, Save, Search, Star, Trash2, UserRound } from "lucide-react"
+import { ChefHat, Clock, Droplet, Drumstick, Flame, Plus, Save, Search, Star, Trash2, UserRound, Wheat } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { FoodSearch } from "@/components/nutrition/food-search"
 import { MacroInline } from "@/components/nutrition/macros"
-import { FavoriteButton, GoalBadges, RecipeImage } from "@/components/nutrition/recipe-parts"
+import { FavoriteButton, RecipeImage } from "@/components/nutrition/recipe-parts"
 import { RecipeSheet } from "@/components/nutrition/recipe-sheet"
 import { ItemList } from "@/components/pt/nutrition-builder"
 import { Button } from "@/components/ui/button"
@@ -56,9 +56,9 @@ export function RecipesView() {
   const open = all.find((r) => r.id === openId) ?? null
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Recept</h1>
           <p className="text-sm text-muted-foreground">Träningsanpassade recept med färdiga makron.</p>
         </div>
@@ -67,13 +67,15 @@ export function RecipesView() {
         </Button>
       </div>
 
-      <div className="space-y-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök recept eller ingrediens" className="pl-9" aria-label="Sök recept" />
-        </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök recept eller ingrediens" className="pl-9" aria-label="Sök recept" />
+      </div>
+
+      {/* Filterraden ligger kvar överst när listan rullar – byt kategori direkt. */}
+      <div className="sticky top-[calc(3.5rem+var(--safe-top))] z-10 -mx-4 space-y-2 border-b border-border/50 bg-background/90 px-4 py-2 backdrop-blur-xl" data-testid="recipe-filters">
         {/* Flikar per träningsmål. Rullar i sidled på mobilen. */}
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="tablist" aria-label="Träningsmål">
+        <div className="-mx-4 flex snap-x gap-1.5 overflow-x-auto scroll-px-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Träningsmål">
           {(["all", ...RECIPE_GOALS] as Tab[]).map((t) => {
             const active = tab === t
             return (
@@ -84,7 +86,7 @@ export function RecipesView() {
                 data-testid={`tab-${t}`}
                 onClick={() => setTab(t)}
                 className={cn(
-                  "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm whitespace-nowrap transition-colors",
+                  "flex h-8 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3 text-[13px] whitespace-nowrap transition-colors",
                   active ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-card hover:bg-muted"
                 )}
               >
@@ -94,7 +96,7 @@ export function RecipesView() {
             )
           })}
         </div>
-        <div className="flex gap-2" role="radiogroup" aria-label="Visa">
+        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" role="radiogroup" aria-label="Visa">
           {(
             [
               ["all", "Alla recept", null],
@@ -109,7 +111,7 @@ export function RecipesView() {
               data-testid={`filter-${s}`}
               onClick={() => setSource(s)}
               className={cn(
-                "flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium transition-colors",
+                "flex h-7 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
                 source === s ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
@@ -118,13 +120,14 @@ export function RecipesView() {
             </button>
           ))}
         </div>
-        {tab !== "all" && <p className="text-xs text-muted-foreground">{GOAL_INFO[tab].hint}.</p>}
       </div>
 
+      {tab !== "all" && <p className="-mt-2 text-xs text-muted-foreground">{GOAL_INFO[tab].hint}.</p>}
+
       {library === null ? (
-        <ul className="grid gap-3 sm:grid-cols-2" aria-label="Laddar recept">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28 rounded-2xl" />
+        <ul className="grid gap-2 sm:grid-cols-2" aria-label="Laddar recept">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-2xl" />
           ))}
         </ul>
       ) : recipes.length === 0 ? (
@@ -138,7 +141,7 @@ export function RecipesView() {
           )}
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2" aria-label="Recept">
+        <ul className="grid gap-2 sm:grid-cols-2" aria-label="Recept">
           {recipes.map((r) => (
             <RecipeCard key={r.id} recipe={r} onOpen={() => setOpenId(r.id)} />
           ))}
@@ -165,34 +168,51 @@ export function RecipesView() {
   )
 }
 
+/**
+ * Kompakt receptrad: kvadratisk miniatyr till vänster, titel (högst två rader,
+ * aldrig överlappad) och små piller för tid och makron. 5–6 recept får plats
+ * på en mobilskärm.
+ */
 function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) {
   const portion = perServing(recipe)
   return (
-    <li className="relative" data-testid="recipe-card">
+    <li className="relative min-w-0" data-testid="recipe-card">
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full gap-3 rounded-2xl border border-border/70 bg-card p-2.5 pr-12 text-left shadow-card transition-colors hover:bg-muted/40 active:scale-[0.99]"
+        className="flex w-full max-w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-border/70 bg-card p-2 text-left shadow-card transition-[background-color,transform] hover:bg-muted/40 active:scale-[0.99]"
       >
-        <RecipeImage recipe={recipe} className="size-22 shrink-0 rounded-xl" />
-        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 py-0.5">
-          <span className="line-clamp-2 leading-snug font-semibold">{recipe.name}</span>
-          <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground tabular">
-            <span className="font-medium text-foreground">{portion.kcal} kcal</span>
-            per portion
-            {recipe.totalMinutes ? (
-              <span className="inline-flex items-center gap-0.5">
-                <Clock className="size-3" /> {recipe.totalMinutes} min
-              </span>
-            ) : null}
-            {!recipe.library && <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium text-foreground">Eget</span>}
-          </span>
-          <MacroInline value={portion} />
-          {recipe.goalTypes?.length ? <GoalBadges goals={recipe.goalTypes} className="mt-0.5" /> : null}
+        <RecipeImage recipe={recipe} className="aspect-square size-14 shrink-0 rounded-xl min-[360px]:size-16" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* Plats för stjärnan bredvid titeln – pillren under får hela bredden. */}
+          <span className="line-clamp-2 pr-8 text-[15px] leading-snug font-semibold break-words">{recipe.name}</span>
+          <MacroPills recipe={recipe} portion={portion} />
         </span>
       </button>
-      <FavoriteButton recipe={recipe} className="absolute top-1.5 right-1.5" />
+      <FavoriteButton recipe={recipe} className="absolute top-0.5 right-0.5 size-10" />
     </li>
+  )
+}
+
+/** Tid och makron per portion som små piller med ikon. */
+function MacroPills({ recipe, portion }: { recipe: Recipe; portion: MacroTotals }) {
+  const pills = [
+    { key: "kcal", icon: Flame, text: `${portion.kcal} kcal`, tone: "text-orange-600 dark:text-orange-400", label: `${portion.kcal} kalorier per portion` },
+    { key: "protein", icon: Drumstick, text: `${Math.round(portion.protein)}`, tone: "text-macro-protein", label: `${Math.round(portion.protein)} gram protein` },
+    { key: "carbs", icon: Wheat, text: `${Math.round(portion.carbs)}`, tone: "text-macro-carbs", label: `${Math.round(portion.carbs)} gram kolhydrater` },
+    { key: "fat", icon: Droplet, text: `${Math.round(portion.fat)}`, tone: "text-macro-fat", label: `${Math.round(portion.fat)} gram fett` },
+    ...(recipe.totalMinutes ? [{ key: "time", icon: Clock, text: `${recipe.totalMinutes} min`, tone: "text-muted-foreground", label: `${recipe.totalMinutes} minuter` }] : []),
+  ]
+  return (
+    <span className="flex min-w-0 flex-wrap gap-x-1 gap-y-1" data-testid="macro-pills">
+      {pills.map(({ key, icon: Icon, text, tone, label }) => (
+        <span key={key} className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-muted/70 px-1.5 py-[3px] text-[11px] leading-none font-medium tabular" aria-label={label}>
+          <Icon className={cn("size-3", tone)} aria-hidden />
+          <span aria-hidden>{text}</span>
+        </span>
+      ))}
+      {!recipe.library && <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] leading-none font-medium text-primary">Eget</span>}
+    </span>
   )
 }
 

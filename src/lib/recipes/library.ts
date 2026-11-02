@@ -31,7 +31,7 @@ interface LibraryJson {
   servings: number
   totalMinutes: number
   goalTypes: RecipeGoal[]
-  imageUrl: string
+  imageUrl: string | null
   items: MealItem[]
   steps: string[]
   nutrition: MacroTotals
@@ -48,14 +48,15 @@ const fromJson = (r: LibraryJson): Recipe => ({
   servings: r.servings,
   totalMinutes: r.totalMinutes,
   goalTypes: r.goalTypes,
-  imageUrl: r.imageUrl,
+  // Riktigt foto (Supabase Storage) eller ingen bild – då visas reservbilden.
+  imageUrl: r.imageUrl ?? undefined,
   steps: r.steps,
   nutrition: r.nutrition,
   library: true,
 })
 
 const fromRow = (r: LibraryRow): Recipe =>
-  fromJson({ ...r, totalMinutes: r.total_minutes, goalTypes: r.goal_types, imageUrl: r.image_url ?? `/recipes/${r.slug}.svg` })
+  fromJson({ ...r, totalMinutes: r.total_minutes, goalTypes: r.goal_types, imageUrl: r.image_url && /^https:\/\//.test(r.image_url) ? r.image_url : null })
 
 async function bundled(): Promise<Recipe[]> {
   const mod = await import("@/lib/recipes/library.json")

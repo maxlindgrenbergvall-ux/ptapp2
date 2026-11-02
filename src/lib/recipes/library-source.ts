@@ -7,8 +7,9 @@
  * börjar med "*" och räknas som 0 kcal.
  *
  * Ändra här och kör:  node scripts/gen-recipe-library.mjs
- * Det skriver src/lib/recipes/library.json, bilderna i public/recipes/ och
- * seed-SQL:en i v26-migrationen.
+ * Det skriver src/lib/recipes/library.json, fotolistan supabase/recipe-photos.csv
+ * och seed-SQL:en i v26-migrationen. Riktiga matfoton laddas upp med
+ * scripts/set-recipe-images.mjs (Supabase Storage, bucketen recipe-images).
  */
 import type { RecipeGoal } from "@/types/domain"
 
@@ -25,6 +26,8 @@ export interface LibrarySource {
   goals: RecipeGoal[]
   ingredients: LibraryIngredient[]
   steps: string[]
+  /** Riktigt matfoto (https) som visar just den här rätten. Saknas = neutral reservbild. */
+  image?: string
 }
 
 export const LIBRARY_SOURCE: LibrarySource[] = [

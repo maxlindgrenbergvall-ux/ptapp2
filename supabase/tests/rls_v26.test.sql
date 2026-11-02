@@ -7,8 +7,8 @@ insert into auth.users (email, raw_user_meta_data, raw_app_meta_data) values
   ('v26-b@test.se', '{"role":"client","full_name":"Bibliotek B","health_data_consent":true}', '{}');
 
 select test.eq((select count(*) >= 40 from library_recipes), true, 'biblioteket har minst 40 recept');
-select test.eq((select count(*) from library_recipes where nutrition is null or image_url is null or jsonb_array_length(steps) = 0 or total_minutes is null), 0::bigint,
-  'alla recept har makron, bild, tid och steg');
+select test.eq((select count(*) from library_recipes where nutrition is null or jsonb_array_length(steps) = 0 or total_minutes is null), 0::bigint,
+  'alla recept har makron, tid och steg');
 select test.eq((select bool_and((select count(*) from library_recipes l where g = any (l.goal_types)) >= 8)
   from unnest(array['high_protein','weight_loss','pre_workout','post_workout','quick_easy']) g), true, 'minst 8 recept i varje kategori');
 select id as lib from library_recipes where slug = 'kycklingbowl-jasminris-broccoli' \gset

@@ -1,6 +1,6 @@
 "use client"
 
-import { ChefHat, Star } from "lucide-react"
+import { ChefHat, Drumstick, Dumbbell, Salad, Star, Timer, Zap } from "lucide-react"
 import * as React from "react"
 
 import { useAppData } from "@/lib/data/store"
@@ -52,25 +52,44 @@ export function GoalBadges({ goals, className }: { goals: RecipeGoal[]; classNam
   )
 }
 
-/** Receptets bild (länk till källan) eller en neutral platshållare. */
-export function RecipeImage({ recipe, className }: { recipe: Pick<Recipe, "imageUrl" | "name">; className?: string }) {
-  const [failed, setFailed] = React.useState(false)
-  if (!recipe.imageUrl || failed) {
-    return (
-      <span className={cn("flex items-center justify-center bg-gradient-to-br from-primary/15 to-brand/20 text-primary", className)} aria-hidden>
-        <ChefHat className="size-1/3 max-h-10 max-w-10" />
-      </span>
-    )
-  }
+const FALLBACK: Record<RecipeGoal | "none", { icon: React.ComponentType<{ className?: string }>; tone: string }> = {
+  high_protein: { icon: Drumstick, tone: "from-orange-100 to-rose-100 text-orange-700/70 dark:from-orange-950/60 dark:to-rose-950/60 dark:text-orange-300/70" },
+  weight_loss: { icon: Salad, tone: "from-emerald-100 to-lime-100 text-emerald-700/70 dark:from-emerald-950/60 dark:to-lime-950/60 dark:text-emerald-300/70" },
+  pre_workout: { icon: Zap, tone: "from-amber-100 to-yellow-100 text-amber-700/70 dark:from-amber-950/60 dark:to-yellow-950/60 dark:text-amber-300/70" },
+  post_workout: { icon: Dumbbell, tone: "from-sky-100 to-indigo-100 text-sky-700/70 dark:from-sky-950/60 dark:to-indigo-950/60 dark:text-sky-300/70" },
+  quick_easy: { icon: Timer, tone: "from-violet-100 to-fuchsia-100 text-violet-700/70 dark:from-violet-950/60 dark:to-fuchsia-950/60 dark:text-violet-300/70" },
+  none: { icon: ChefHat, tone: "from-muted to-muted/60 text-muted-foreground" },
+}
+
+/**
+ * Receptets foto i ett fast format (formatet sätts med className, t.ex.
+ * aspect-square eller aspect-video). Bilden fyller ytan med object-cover och
+ * dras aldrig ut. Saknas fotot – eller går det inte att ladda – visas en
+ * minimalistisk gradient med en ikon för receptets träningsmål.
+ */
+export function RecipeImage({ recipe, className }: { recipe: Pick<Recipe, "imageUrl" | "name" | "goalTypes">; className?: string }) {
+  const [state, setState] = React.useState<"loading" | "ok" | "failed">("loading")
+  const fallback = FALLBACK[recipe.goalTypes?.[0] ?? "none"]
+  const Icon = fallback.icon
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- extern receptbild från källan (kopieras inte)
-    <img
-      src={recipe.imageUrl}
-      alt=""
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
-      className={cn("bg-muted object-cover", className)}
-    />
+    <span className={cn("relative block overflow-hidden bg-gradient-to-br", fallback.tone, className)} data-testid="recipe-image">
+      {(!recipe.imageUrl || state !== "ok") && (
+        <span className="absolute inset-0 flex items-center justify-center" aria-hidden>
+          <Icon className="size-[30%] max-h-12 max-w-12 min-h-5 min-w-5" />
+        </span>
+      )}
+      {recipe.imageUrl && state !== "failed" && (
+        // eslint-disable-next-line @next/next/no-img-element -- foto från Supabase Storage (publik bucket)
+        <img
+          src={recipe.imageUrl}
+          alt={recipe.name}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setState("ok")}
+          onError={() => setState("failed")}
+          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-300", state === "ok" ? "opacity-100" : "opacity-0")}
+        />
+      )}
+    </span>
   )
 }

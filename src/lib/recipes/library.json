@@ -9,7 +9,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/kycklingbowl-jasminris-broccoli.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -159,7 +159,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/proteinpasta-bolognese.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Nötfärs 5 %",
@@ -334,7 +334,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/ugnslax-sotpotatis-sparris.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Lax",
@@ -454,7 +454,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/kalkonwraps-hummus.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Tortillabröd",
@@ -575,7 +575,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/proteinpannkakor-kvarg.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Ägg",
@@ -708,7 +708,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/tonfisksallad-kikartor.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Tonfisk i vatten (konserv)",
@@ -853,7 +853,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/biff-quinoa-haricots.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Ryggbiff / entrecôte",
@@ -966,7 +966,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/kyckling-tikka-masala-latt.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -1124,7 +1124,7 @@
    "high_protein",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/tofuwok-edamame.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Tofu",
@@ -1272,7 +1272,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/aggviteomelett-spenat-feta.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Ägg",
@@ -1386,7 +1386,7 @@
    "weight_loss",
    "post_workout"
   ],
-  "imageUrl": "/recipes/kycklingspett-tzatziki-pita.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -1545,7 +1545,7 @@
    "high_protein",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/halloumi-quinoasallad.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Halloumi",
@@ -1673,7 +1673,7 @@
    "high_protein",
    "weight_loss"
   ],
-  "imageUrl": "/recipes/torsk-blomkal-tomat.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Torsk",
@@ -1792,7 +1792,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/krispig-kycklingsallad.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -1920,7 +1920,7 @@
    "weight_loss",
    "pre_workout"
   ],
-  "imageUrl": "/recipes/rod-linssoppa.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Röda linser (kokta)",
@@ -2065,7 +2065,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/rakor-zucchinispaghetti.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Räkor (skalade)",
@@ -2198,7 +2198,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/salladswraps-kycklingfars.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfärs",
@@ -2332,7 +2332,7 @@
    "high_protein",
    "weight_loss"
   ],
-  "imageUrl": "/recipes/gronsaksfrittata.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Ägg",
@@ -2472,7 +2472,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/blomkalsris-kyckling.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -2596,7 +2596,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/skyrbowl-bar-chia.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Skyr naturell",
@@ -2686,7 +2686,7 @@
    "weight_loss",
    "post_workout"
   ],
-  "imageUrl": "/recipes/ugnskyckling-haricots-potatis.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -2795,7 +2795,7 @@
    "weight_loss",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/grekisk-kycklingsallad.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -2927,7 +2927,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/overnight-oats-banan.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Havregryn",
@@ -3036,7 +3036,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/riskakor-banan-honung.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Riskakor",
@@ -3114,7 +3114,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/pasta-tomatsas-kyckling.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Pasta (okokt)",
@@ -3195,7 +3195,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/bar-och-havresmoothie.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Banan",
@@ -3301,7 +3301,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/fullkornsmacka-banan.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Fullkornsbröd",
@@ -3388,7 +3388,7 @@
    "pre_workout",
    "post_workout"
   ],
-  "imageUrl": "/recipes/sotsur-kyckling-ananas.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Jasminris (okokt)",
@@ -3537,7 +3537,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/havregrynsgrot-apple-kanel.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Havregryn",
@@ -3640,7 +3640,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/couscoussallad-kikartor.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Couscous (kokt)",
@@ -3779,7 +3779,7 @@
    "pre_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/dadelbollar-havre.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Dadlar (torkade)",
@@ -3876,7 +3876,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/proteinshake-banan-havre.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Proteinpulver (vassle)",
@@ -3968,7 +3968,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/kvargparfait-granola-hallon.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kvarg naturell",
@@ -4055,7 +4055,7 @@
    "weight_loss",
    "post_workout"
   ],
-  "imageUrl": "/recipes/kyckling-sotpotatisbowl.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kycklingfilé",
@@ -4186,7 +4186,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/laxpoke-ris-edamame.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Lax",
@@ -4321,7 +4321,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/agg-potatishash.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Potatis (kokt)",
@@ -4446,7 +4446,7 @@
    "post_workout",
    "quick_easy"
   ],
-  "imageUrl": "/recipes/nudelwok-biff-broccoli.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Innerfilé nöt",
@@ -4568,7 +4568,7 @@
    "high_protein",
    "post_workout"
   ],
-  "imageUrl": "/recipes/burrito-bowl-svarta-bonor.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Nötfärs 5 %",
@@ -4699,7 +4699,7 @@
    "weight_loss",
    "post_workout"
   ],
-  "imageUrl": "/recipes/flaskfile-couscous-gronsaker.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Fläskfilé",
@@ -4816,7 +4816,7 @@
    "pre_workout",
    "post_workout"
   ],
-  "imageUrl": "/recipes/chili-sin-carne.svg",
+  "imageUrl": null,
   "items": [
    {
     "name": "Kidneybönor (kokta)",
