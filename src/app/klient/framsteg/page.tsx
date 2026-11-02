@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
 import { RequirePlus, usePlus } from "@/components/plus/require-plus"
+import { ProgressKpis } from "@/components/progress/kpis"
 import { MetricsGrid } from "@/components/progress/metrics"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
@@ -60,19 +61,19 @@ export default function ProgressPage() {
         <StatTile label="Veckor i rad" icon={Flame} value={streak} sub="med minst ett pass" />
       </div>
 
-      {/* Coavira Plus: djupgående grafer (1RM-utveckling). Vikt och träningsfrekvens är gratis. */}
+      {/* Framstegsmätning är gratis för alla (v24): e1RM, relativ styrka och veckovolym. */}
+      <ProgressKpis client={client} workouts={workouts} />
+
       {showStrength && (
-        <RequirePlus feature="charts" title="1RM-utveckling">
-          <Card>
-            <CardHeader>
-              <CardTitle>Styrka</CardTitle>
-              <CardDescription>Uppskattat 1RM per pass</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <StrengthChart workouts={workouts} />
-            </CardContent>
-          </Card>
-        </RequirePlus>
+        <Card>
+          <CardHeader>
+            <CardTitle>Styrkeutveckling</CardTitle>
+            <CardDescription>Uppskattat 1RM (e1RM) per pass i baslyften</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StrengthChart workouts={workouts} />
+          </CardContent>
+        </Card>
       )}
 
       <Card>

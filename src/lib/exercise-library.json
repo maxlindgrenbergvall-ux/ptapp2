@@ -1,763 +1,890 @@
 [
  {
   "id": "e-squat",
-  "name": "Knäböj (skivstång)",
+  "name": "Back Squat",
+  "sv": "Knäböj (skivstång)",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-frontsquat",
-  "name": "Frontböj",
+  "name": "Front Squat",
+  "sv": "Frontböj",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-goblet",
-  "name": "Goblet squat",
+  "name": "Goblet Squat",
+  "sv": "Goblet squat",
   "muscleGroup": "ben",
   "equipment": "Kettlebell/hantel"
  },
  {
   "id": "e-boxsquat",
-  "name": "Boxböj",
+  "name": "Box Squat",
+  "sv": "Boxböj",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-pausesquat",
-  "name": "Pausböj",
+  "name": "Pause Squat",
+  "sv": "Pausböj",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-hacksquat",
-  "name": "Hack squat (maskin)",
+  "name": "Hack Squat",
+  "sv": "Hack squat (maskin)",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-legpress",
-  "name": "Benpress",
+  "name": "Leg Press",
+  "sv": "Benpress",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-bss",
-  "name": "Bulgarisk utfallsböj",
+  "name": "Bulgarian Split Squat",
+  "sv": "Bulgarisk utfallsböj",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-lunge",
-  "name": "Utfallssteg",
+  "name": "Dumbbell Lunge",
+  "sv": "Utfallssteg",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-walklunge",
-  "name": "Gående utfall",
+  "name": "Walking Lunge",
+  "sv": "Gående utfall",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-revlunge",
-  "name": "Bakåtutfall",
+  "name": "Reverse Lunge",
+  "sv": "Bakåtutfall",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-stepup",
-  "name": "Step-up på låda",
+  "name": "Box Step-Up",
+  "sv": "Step-up på låda",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-legext",
-  "name": "Benspark (leg extension)",
+  "name": "Leg Extension",
+  "sv": "Benspark (leg extension)",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-pistol",
-  "name": "Pistol squat",
+  "name": "Pistol Squat",
+  "sv": "Pistol squat",
   "muscleGroup": "ben",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-wallsit",
-  "name": "Väggsittning",
+  "name": "Wall Sit",
+  "sv": "Väggsittning",
   "muscleGroup": "ben",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-rdl",
-  "name": "Rumänsk marklyft",
+  "name": "Romanian Deadlift",
+  "sv": "Rumänsk marklyft",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-sldl",
-  "name": "Raka ben-marklyft",
+  "name": "Stiff-Leg Deadlift",
+  "sv": "Raka ben-marklyft",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-db-rdl",
-  "name": "Rumänsk marklyft (hantlar)",
+  "name": "Dumbbell Romanian Deadlift",
+  "sv": "Rumänsk marklyft (hantlar)",
   "muscleGroup": "ben",
   "equipment": "Hantlar"
  },
  {
   "id": "e-hipthrust",
-  "name": "Höftlyft (hip thrust)",
+  "name": "Barbell Hip Thrust",
+  "sv": "Höftlyft (hip thrust)",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-glutebridge",
-  "name": "Glute bridge",
+  "name": "Glute Bridge",
+  "sv": "Glute bridge",
   "muscleGroup": "ben",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-legcurl",
-  "name": "Liggande lårcurl",
+  "name": "Lying Leg Curl",
+  "sv": "Liggande lårcurl",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-seatedcurl",
-  "name": "Sittande lårcurl",
+  "name": "Seated Leg Curl",
+  "sv": "Sittande lårcurl",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-nordic",
-  "name": "Nordic hamstring curl",
+  "name": "Nordic Hamstring Curl",
+  "sv": "Nordic hamstring curl",
   "muscleGroup": "ben",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-kbswing",
-  "name": "Kettlebellsving",
+  "name": "Kettlebell Swing",
+  "sv": "Kettlebellsving",
   "muscleGroup": "helkropp",
   "equipment": "Kettlebell"
  },
  {
   "id": "e-goodmorning",
-  "name": "Good morning",
+  "name": "Good Morning",
+  "sv": "Good morning",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
  },
  {
   "id": "e-calfraise",
-  "name": "Stående tåhävning",
+  "name": "Standing Calf Raise",
+  "sv": "Stående tåhävning",
   "muscleGroup": "ben",
   "equipment": "Maskin/hantlar"
  },
  {
   "id": "e-seatedcalf",
-  "name": "Sittande tåhävning",
+  "name": "Seated Calf Raise",
+  "sv": "Sittande tåhävning",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-abduction",
-  "name": "Abduktion (maskin)",
+  "name": "Hip Abduction Machine",
+  "sv": "Abduktion (maskin)",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-adduction",
-  "name": "Adduktion (maskin)",
+  "name": "Hip Adduction Machine",
+  "sv": "Adduktion (maskin)",
   "muscleGroup": "ben",
   "equipment": "Maskin"
  },
  {
   "id": "e-copenhagen",
-  "name": "Copenhagen-planka",
+  "name": "Copenhagen Plank",
+  "sv": "Copenhagen-planka",
   "muscleGroup": "bål",
   "equipment": "Bänk"
  },
  {
   "id": "e-deadlift",
-  "name": "Marklyft (konventionell)",
+  "name": "Conventional Deadlift",
+  "sv": "Marklyft (konventionell)",
   "muscleGroup": "rygg",
   "equipment": "Skivstång"
  },
  {
   "id": "e-sumodl",
-  "name": "Sumomarklyft",
+  "name": "Sumo Deadlift",
+  "sv": "Sumomarklyft",
   "muscleGroup": "rygg",
   "equipment": "Skivstång"
  },
  {
   "id": "e-trapbar",
-  "name": "Trap bar-marklyft",
+  "name": "Trap Bar Deadlift",
+  "sv": "Trap bar-marklyft",
   "muscleGroup": "rygg",
   "equipment": "Trap bar"
  },
  {
   "id": "e-row",
-  "name": "Skivstångsrodd",
+  "name": "Barbell Row",
+  "sv": "Skivstångsrodd",
   "muscleGroup": "rygg",
   "equipment": "Skivstång"
  },
  {
   "id": "e-pendlay",
-  "name": "Pendlay-rodd",
+  "name": "Pendlay Row",
+  "sv": "Pendlay-rodd",
   "muscleGroup": "rygg",
   "equipment": "Skivstång"
  },
  {
   "id": "e-db-row",
-  "name": "Enarmsrodd med hantel",
+  "name": "Single-Arm Dumbbell Row",
+  "sv": "Enarmsrodd med hantel",
   "muscleGroup": "rygg",
   "equipment": "Hantlar"
  },
  {
   "id": "e-cablerow",
-  "name": "Sittande kabelrodd",
+  "name": "Seated Cable Row",
+  "sv": "Sittande kabelrodd",
   "muscleGroup": "rygg",
   "equipment": "Kabel"
  },
  {
   "id": "e-tbarrow",
-  "name": "T-bar-rodd",
+  "name": "T-Bar Row",
+  "sv": "T-bar-rodd",
   "muscleGroup": "rygg",
   "equipment": "Maskin"
  },
  {
   "id": "e-chestrow",
-  "name": "Bröststödd rodd",
+  "name": "Chest-Supported Row",
+  "sv": "Bröststödd rodd",
   "muscleGroup": "rygg",
   "equipment": "Hantlar/maskin"
  },
  {
   "id": "e-pullup",
-  "name": "Pull-ups (överhandsgrepp)",
+  "name": "Pull-Up",
+  "sv": "Pull-ups (överhandsgrepp)",
   "muscleGroup": "rygg",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-chinup",
-  "name": "Chins (underhandsgrepp)",
+  "name": "Chin-Up",
+  "sv": "Chins (underhandsgrepp)",
   "muscleGroup": "rygg",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-assistpull",
-  "name": "Assisterade pull-ups",
+  "name": "Assisted Pull-Up",
+  "sv": "Assisterade pull-ups",
   "muscleGroup": "rygg",
   "equipment": "Maskin/band"
  },
  {
   "id": "e-latpull",
-  "name": "Latsdrag",
+  "name": "Lat Pulldown",
+  "sv": "Latsdrag",
   "muscleGroup": "rygg",
   "equipment": "Kabel"
  },
  {
   "id": "e-straightarm",
-  "name": "Raka armar-drag (kabel)",
+  "name": "Straight-Arm Pulldown",
+  "sv": "Raka armar-drag (kabel)",
   "muscleGroup": "rygg",
   "equipment": "Kabel"
  },
  {
   "id": "e-invrow",
-  "name": "Inverterad rodd",
+  "name": "Inverted Row",
+  "sv": "Inverterad rodd",
   "muscleGroup": "rygg",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-backext",
-  "name": "Ryggresningar",
+  "name": "Back Extension",
+  "sv": "Ryggresningar",
   "muscleGroup": "rygg",
   "equipment": "Bänk"
  },
  {
   "id": "e-shrug",
-  "name": "Shrugs",
+  "name": "Shrug",
+  "sv": "Shrugs",
   "muscleGroup": "rygg",
   "equipment": "Skivstång/hantlar"
  },
  {
   "id": "e-rackpull",
-  "name": "Rack pull",
+  "name": "Rack Pull",
+  "sv": "Rack pull",
   "muscleGroup": "rygg",
   "equipment": "Skivstång"
  },
  {
   "id": "e-bench",
-  "name": "Bänkpress (skivstång)",
+  "name": "Bench Press",
+  "sv": "Bänkpress (skivstång)",
   "muscleGroup": "bröst",
   "equipment": "Skivstång"
  },
  {
   "id": "e-closegrip",
-  "name": "Bänkpress smalt grepp",
+  "name": "Close-Grip Bench Press",
+  "sv": "Bänkpress smalt grepp",
   "muscleGroup": "armar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-inclinebb",
-  "name": "Lutande bänkpress (skivstång)",
+  "name": "Incline Bench Press",
+  "sv": "Lutande bänkpress (skivstång)",
   "muscleGroup": "bröst",
   "equipment": "Skivstång"
  },
  {
   "id": "e-db-bench",
-  "name": "Hantelpress",
+  "name": "Dumbbell Bench Press",
+  "sv": "Hantelpress",
   "muscleGroup": "bröst",
   "equipment": "Hantlar"
  },
  {
   "id": "e-incline",
-  "name": "Lutande hantelpress",
+  "name": "Incline Dumbbell Press",
+  "sv": "Lutande hantelpress",
   "muscleGroup": "bröst",
   "equipment": "Hantlar"
  },
  {
   "id": "e-declinebench",
-  "name": "Nedåtlutande bänkpress",
+  "name": "Decline Bench Press",
+  "sv": "Nedåtlutande bänkpress",
   "muscleGroup": "bröst",
   "equipment": "Skivstång"
  },
  {
   "id": "e-pausebench",
-  "name": "Pausbänk",
+  "name": "Paused Bench Press",
+  "sv": "Pausbänk",
   "muscleGroup": "bröst",
   "equipment": "Skivstång"
  },
  {
   "id": "e-dbfly",
-  "name": "Flyes med hantlar",
+  "name": "Dumbbell Fly",
+  "sv": "Flyes med hantlar",
   "muscleGroup": "bröst",
   "equipment": "Hantlar"
  },
  {
   "id": "e-cablefly",
-  "name": "Kabelflyes (cable crossover)",
+  "name": "Cable Crossover",
+  "sv": "Kabelflyes (cable crossover)",
   "muscleGroup": "bröst",
   "equipment": "Kabel"
  },
  {
   "id": "e-pecdeck",
-  "name": "Pec deck",
+  "name": "Pec Deck",
+  "sv": "Pec deck",
   "muscleGroup": "bröst",
   "equipment": "Maskin"
  },
  {
   "id": "e-chestpress",
-  "name": "Bröstpress (maskin)",
+  "name": "Machine Chest Press",
+  "sv": "Bröstpress (maskin)",
   "muscleGroup": "bröst",
   "equipment": "Maskin"
  },
  {
   "id": "e-pushup",
-  "name": "Armhävningar",
+  "name": "Push-Up",
+  "sv": "Armhävningar",
   "muscleGroup": "bröst",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-dip",
-  "name": "Dips",
+  "name": "Dip",
+  "sv": "Dips",
   "muscleGroup": "bröst",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-ohp",
-  "name": "Stående axelpress (militärpress)",
+  "name": "Overhead Press",
+  "sv": "Stående axelpress (militärpress)",
   "muscleGroup": "axlar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-db-ohp",
-  "name": "Sittande hantelpress för axlar",
+  "name": "Seated Dumbbell Shoulder Press",
+  "sv": "Sittande hantelpress för axlar",
   "muscleGroup": "axlar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-pushpress",
-  "name": "Push press",
+  "name": "Push Press",
+  "sv": "Push press",
   "muscleGroup": "axlar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-arnold",
-  "name": "Arnoldpress",
+  "name": "Arnold Press",
+  "sv": "Arnoldpress",
   "muscleGroup": "axlar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-landmine",
-  "name": "Landmine-press",
+  "name": "Landmine Press",
+  "sv": "Landmine-press",
   "muscleGroup": "axlar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-lateral",
-  "name": "Sidolyft",
+  "name": "Lateral Raise",
+  "sv": "Sidolyft",
   "muscleGroup": "axlar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-cablelateral",
-  "name": "Sidolyft i kabel",
+  "name": "Cable Lateral Raise",
+  "sv": "Sidolyft i kabel",
   "muscleGroup": "axlar",
   "equipment": "Kabel"
  },
  {
   "id": "e-frontraise",
-  "name": "Frontlyft",
+  "name": "Front Raise",
+  "sv": "Frontlyft",
   "muscleGroup": "axlar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-reardelt",
-  "name": "Omvända flyes (bakre axel)",
+  "name": "Reverse Fly",
+  "sv": "Omvända flyes (bakre axel)",
   "muscleGroup": "axlar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-facepull",
-  "name": "Face pulls",
+  "name": "Face Pull",
+  "sv": "Face pulls",
   "muscleGroup": "axlar",
   "equipment": "Kabel"
  },
  {
   "id": "e-uprightrow",
-  "name": "Upprätt rodd",
+  "name": "Upright Row",
+  "sv": "Upprätt rodd",
   "muscleGroup": "axlar",
   "equipment": "Skivstång/kabel"
  },
  {
   "id": "e-handstandpu",
-  "name": "Handstående armhävning",
+  "name": "Handstand Push-Up",
+  "sv": "Handstående armhävning",
   "muscleGroup": "axlar",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-curl",
-  "name": "Bicepscurl (hantlar)",
+  "name": "Dumbbell Curl",
+  "sv": "Bicepscurl (hantlar)",
   "muscleGroup": "armar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-bbcurl",
-  "name": "Bicepscurl (skivstång)",
+  "name": "Barbell Curl",
+  "sv": "Bicepscurl (skivstång)",
   "muscleGroup": "armar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-hammer",
-  "name": "Hammercurl",
+  "name": "Hammer Curl",
+  "sv": "Hammercurl",
   "muscleGroup": "armar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-preacher",
-  "name": "Scottcurl",
+  "name": "Preacher Curl",
+  "sv": "Scottcurl",
   "muscleGroup": "armar",
   "equipment": "Skivstång/maskin"
  },
  {
   "id": "e-inclinecurl",
-  "name": "Lutande bicepscurl",
+  "name": "Incline Dumbbell Curl",
+  "sv": "Lutande bicepscurl",
   "muscleGroup": "armar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-cablecurl",
-  "name": "Bicepscurl i kabel",
+  "name": "Cable Curl",
+  "sv": "Bicepscurl i kabel",
   "muscleGroup": "armar",
   "equipment": "Kabel"
  },
  {
   "id": "e-pushdown",
-  "name": "Triceps pushdown",
+  "name": "Triceps Pushdown",
+  "sv": "Triceps pushdown",
   "muscleGroup": "armar",
   "equipment": "Kabel"
  },
  {
   "id": "e-ohext",
-  "name": "Tricepspress över huvudet",
+  "name": "Overhead Triceps Extension",
+  "sv": "Tricepspress över huvudet",
   "muscleGroup": "armar",
   "equipment": "Kabel/hantel"
  },
  {
   "id": "e-skullcrusher",
-  "name": "Liggande tricepspress (skullcrusher)",
+  "name": "Skull Crusher",
+  "sv": "Liggande tricepspress (skullcrusher)",
   "muscleGroup": "armar",
   "equipment": "Skivstång"
  },
  {
   "id": "e-benchdip",
-  "name": "Bänkdips",
+  "name": "Bench Dip",
+  "sv": "Bänkdips",
   "muscleGroup": "armar",
   "equipment": "Bänk"
  },
  {
   "id": "e-wristcurl",
-  "name": "Handledscurl",
+  "name": "Wrist Curl",
+  "sv": "Handledscurl",
   "muscleGroup": "armar",
   "equipment": "Hantlar"
  },
  {
   "id": "e-plank",
-  "name": "Plankan",
+  "name": "Plank",
+  "sv": "Plankan",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-sideplank",
-  "name": "Sidoplanka",
+  "name": "Side Plank",
+  "sv": "Sidoplanka",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-pallof",
-  "name": "Pallof press",
+  "name": "Pallof Press",
+  "sv": "Pallof press",
   "muscleGroup": "bål",
   "equipment": "Kabel/band"
  },
  {
   "id": "e-deadbug",
-  "name": "Dead bug",
+  "name": "Dead Bug",
+  "sv": "Dead bug",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-birddog",
-  "name": "Bird dog",
+  "name": "Bird Dog",
+  "sv": "Bird dog",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-hlr",
-  "name": "Hängande benlyft",
+  "name": "Hanging Leg Raise",
+  "sv": "Hängande benlyft",
   "muscleGroup": "bål",
   "equipment": "Räckhäck"
  },
  {
   "id": "e-kneeraise",
-  "name": "Hängande knälyft",
+  "name": "Hanging Knee Raise",
+  "sv": "Hängande knälyft",
   "muscleGroup": "bål",
   "equipment": "Räckhäck"
  },
  {
   "id": "e-abwheel",
-  "name": "Magrulle (ab wheel)",
+  "name": "Ab Wheel Rollout",
+  "sv": "Magrulle (ab wheel)",
   "muscleGroup": "bål",
   "equipment": "Magrulle"
  },
  {
   "id": "e-cablecrunch",
-  "name": "Kabelcrunch",
+  "name": "Cable Crunch",
+  "sv": "Kabelcrunch",
   "muscleGroup": "bål",
   "equipment": "Kabel"
  },
  {
   "id": "e-crunch",
-  "name": "Crunches",
+  "name": "Crunch",
+  "sv": "Crunches",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-russian",
-  "name": "Russian twist",
+  "name": "Russian Twist",
+  "sv": "Russian twist",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt/vikt"
  },
  {
   "id": "e-hollow",
-  "name": "Hollow hold",
+  "name": "Hollow Hold",
+  "sv": "Hollow hold",
   "muscleGroup": "bål",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-woodchop",
-  "name": "Vedhuggaren (kabel)",
+  "name": "Cable Woodchop",
+  "sv": "Vedhuggaren (kabel)",
   "muscleGroup": "bål",
   "equipment": "Kabel"
  },
  {
   "id": "e-suitcase",
-  "name": "Suitcase carry",
+  "name": "Suitcase Carry",
+  "sv": "Suitcase carry",
   "muscleGroup": "bål",
   "equipment": "Kettlebell/hantel"
  },
  {
   "id": "e-clean",
-  "name": "Frivändning (power clean)",
+  "name": "Power Clean",
+  "sv": "Frivändning (power clean)",
   "muscleGroup": "helkropp",
   "equipment": "Skivstång"
  },
  {
   "id": "e-hangclean",
-  "name": "Hängande frivändning",
+  "name": "Hang Clean",
+  "sv": "Hängande frivändning",
   "muscleGroup": "helkropp",
   "equipment": "Skivstång"
  },
  {
   "id": "e-snatch",
-  "name": "Ryck (power snatch)",
+  "name": "Power Snatch",
+  "sv": "Ryck (power snatch)",
   "muscleGroup": "helkropp",
   "equipment": "Skivstång"
  },
  {
   "id": "e-thruster",
-  "name": "Thrusters",
+  "name": "Thruster",
+  "sv": "Thrusters",
   "muscleGroup": "helkropp",
   "equipment": "Skivstång/hantlar"
  },
  {
   "id": "e-kbcleanpress",
-  "name": "Kettlebell clean & press",
+  "name": "Kettlebell Clean & Press",
+  "sv": "Kettlebell clean & press",
   "muscleGroup": "helkropp",
   "equipment": "Kettlebell"
  },
  {
   "id": "e-tgu",
-  "name": "Turkish get-up",
+  "name": "Turkish Get-Up",
+  "sv": "Turkish get-up",
   "muscleGroup": "helkropp",
   "equipment": "Kettlebell"
  },
  {
   "id": "e-farmers",
-  "name": "Farmer's walk",
+  "name": "Farmer's Walk",
+  "sv": "Farmer's walk",
   "muscleGroup": "helkropp",
   "equipment": "Hantlar/kettlebells"
  },
  {
   "id": "e-sandbag",
-  "name": "Sandsäcksutfall",
+  "name": "Sandbag Lunge",
+  "sv": "Sandsäcksutfall",
   "muscleGroup": "helkropp",
   "equipment": "Sandsäck"
  },
  {
   "id": "e-wallball",
-  "name": "Wall balls",
+  "name": "Wall Ball",
+  "sv": "Wall balls",
   "muscleGroup": "helkropp",
   "equipment": "Medicinboll"
  },
  {
   "id": "e-sledpush",
-  "name": "Slädpush",
+  "name": "Sled Push",
+  "sv": "Slädpush",
   "muscleGroup": "helkropp",
   "equipment": "Släde"
  },
  {
   "id": "e-sledpull",
-  "name": "Slädpull",
+  "name": "Sled Pull",
+  "sv": "Slädpull",
   "muscleGroup": "helkropp",
   "equipment": "Släde"
  },
  {
   "id": "e-burpee",
-  "name": "Burpees",
+  "name": "Burpee",
+  "sv": "Burpees",
   "muscleGroup": "helkropp",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-burpee-bj",
-  "name": "Burpee broad jumps",
+  "name": "Burpee Broad Jump",
+  "sv": "Burpee broad jumps",
   "muscleGroup": "helkropp",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-boxjump",
-  "name": "Boxhopp",
+  "name": "Box Jump",
+  "sv": "Boxhopp",
   "muscleGroup": "helkropp",
   "equipment": "Låda"
  },
  {
   "id": "e-battleropes",
-  "name": "Battle ropes",
+  "name": "Battle Ropes",
+  "sv": "Battle ropes",
   "muscleGroup": "helkropp",
   "equipment": "Rep"
  },
  {
   "id": "e-mountain",
-  "name": "Mountain climbers",
+  "name": "Mountain Climber",
+  "sv": "Mountain climbers",
   "muscleGroup": "helkropp",
   "equipment": "Kroppsvikt"
  },
  {
   "id": "e-musclup",
-  "name": "Muscle-up",
+  "name": "Muscle-Up",
+  "sv": "Muscle-up",
   "muscleGroup": "helkropp",
   "equipment": "Räckhäck/ringar"
  },
  {
   "id": "e-run",
-  "name": "Löpning",
+  "name": "Running",
+  "sv": "Löpning",
   "muscleGroup": "kondition",
   "equipment": "—"
  },
  {
   "id": "e-intervals",
-  "name": "Intervallöpning",
+  "name": "Interval Running",
+  "sv": "Intervallöpning",
   "muscleGroup": "kondition",
   "equipment": "—"
  },
  {
   "id": "e-treadmill",
-  "name": "Löpband",
+  "name": "Treadmill",
+  "sv": "Löpband",
   "muscleGroup": "kondition",
   "equipment": "Löpband"
  },
  {
   "id": "e-row-erg",
-  "name": "Roddmaskin",
+  "name": "Rowing Machine",
+  "sv": "Roddmaskin",
   "muscleGroup": "kondition",
   "equipment": "Roddmaskin"
  },
  {
   "id": "e-skierg",
   "name": "SkiErg",
+  "sv": "SkiErg",
   "muscleGroup": "kondition",
   "equipment": "SkiErg"
  },
  {
   "id": "e-bikeerg",
-  "name": "Cykel (BikeErg/spinning)",
+  "name": "Bike Erg",
+  "sv": "Cykel (BikeErg/spinning)",
   "muscleGroup": "kondition",
   "equipment": "Cykel"
  },
  {
   "id": "e-airbike",
-  "name": "Airbike",
+  "name": "Air Bike",
+  "sv": "Airbike",
   "muscleGroup": "kondition",
   "equipment": "Airbike"
  },
  {
   "id": "e-crosstrainer",
-  "name": "Crosstrainer",
+  "name": "Elliptical",
+  "sv": "Crosstrainer",
   "muscleGroup": "kondition",
   "equipment": "Crosstrainer"
  },
  {
   "id": "e-stairs",
-  "name": "Trappmaskin",
+  "name": "Stair Climber",
+  "sv": "Trappmaskin",
   "muscleGroup": "kondition",
   "equipment": "Trappmaskin"
  },
  {
   "id": "e-jumprope",
-  "name": "Hopprep",
+  "name": "Jump Rope",
+  "sv": "Hopprep",
   "muscleGroup": "kondition",
   "equipment": "Hopprep"
  },
  {
   "id": "e-swim",
-  "name": "Simning",
+  "name": "Swimming",
+  "sv": "Simning",
   "muscleGroup": "kondition",
   "equipment": "Bassäng"
  },
  {
   "id": "e-walk",
-  "name": "Promenad / incline walk",
+  "name": "Incline Walk",
+  "sv": "Promenad / incline walk",
   "muscleGroup": "kondition",
   "equipment": "—"
  }

@@ -94,10 +94,12 @@ check((await p.locator("text=Knäböj 1RM").count()) === 0, "den gamla fasta 1RM
 // ------------------------------------------------ 4. kostrekommendation ---
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))
 await p.goto(base + "/klient")
+await p.click("[data-testid=nutrition-coaching-hint]")
 await p.waitForSelector("[data-testid=nutrition-lock]")
 check((await p.locator("[data-testid=nutrition-recommended]").first().innerText()).includes("din PT Elin"), "rekommenderar i första hand nuvarande PT som erbjuder kost")
 await patchDemo((d) => ({ ...d, trainers: d.trainers.map((t) => (t.id === "t1" ? { ...t, offersNutrition: false } : t)) }))
 await p.reload()
+await p.click("[data-testid=nutrition-coaching-hint]")
 await p.waitForSelector("[data-testid=nutrition-lock]")
 const rec = p.locator("[data-testid=nutrition-recommended]").first()
 check((await rec.innerText()).includes("Rekommenderad för kostcoaching") && (await rec.innerText()).includes("Nora Ek"), "annars rekommenderas en PT som säljer kostcoaching")

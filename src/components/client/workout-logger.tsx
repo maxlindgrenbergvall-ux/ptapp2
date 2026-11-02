@@ -1,11 +1,12 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, PlayCircle, Plus, ShieldCheck, Timer, Trash2, TriangleAlert, X } from "lucide-react"
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, Pencil, PlayCircle, Plus, ShieldCheck, Timer, Trash2, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
@@ -24,6 +25,7 @@ import { confirmDialog } from "@/components/ui/confirm"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
+import { hasSetReps, repsLabel, targetRepsFor } from "@/lib/exercises/draft"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
@@ -62,6 +64,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const [finishOpen, setFinishOpen] = React.useState(false)
   // Kommande pass visas som förhandsvisning tills dagen (eller tills klienten startar ändå).
   const [startEarly, setStartEarly] = React.useState(false)
+  // Redigering av ett genomfört pass (helskärm).
+  const [editing, setEditing] = React.useState(false)
   const home = backHref ?? (trainerMode ? "/pt" : "/klient")
 
   const firstOpen = workout?.exercises.find((e) => !isExerciseDone(workout, e))?.id ?? null
@@ -93,6 +97,10 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const started = hasWorkoutStarted(data, workout)
   const startsAt = started ? "" : startsAtLabel(data, workout)
   const sections = groupBySection(workout.exercises)
+  // Klienten kan ändra ordningen medan passet pågår (även i PT:ns pass – innehållet är låst).
+  const canReorder = !trainerMode && !readOnly && workout.exercises.length > 1
+  // Genomfört men inte klarmarkerat: kan redigeras i efterhand.
+  const canEdit = !trainerMode && workout.status === "completed" && !workout.verifiedAt
 
   const onSetDone = (exercise: WorkoutExercise) => {
     // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
@@ -137,6 +145,11 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               }}
             >
               <Trash2 />
+            </Button>
+          )}
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)} data-testid="edit-workout">
+              <Pencil /> Redigera
             </Button>
           )}
           {trainerMode && !workout.verifiedAt && (
@@ -187,7 +200,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
         )}
         {workout.status === "completed" && !trainerMode && !workout.verifiedAt && (
           <p className="rounded-lg bg-muted px-3 py-2 text-sm">
-            Passet är genomfört. {workout.clientComment && <>Din kommentar: &quot;{workout.clientComment}&quot;</>}
+            Passet är genomfört. {workout.clientComment && <>Din kommentar: &quot;{workout.clientComment}&quot;</>} Har du loggat fel? Tryck{" "}
+            <b>Redigera</b> för att rätta vikter, reps, set och ordning.
           </p>
         )}
         {workout.verifiedAt && (
@@ -205,7 +219,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             {sections.length > 1 || group.section !== "main" ? (
               <h2 className="px-1 pt-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{group.label}</h2>
             ) : null}
-            {group.exercises.map((exercise) => (
+            {group.exercises.map((exercise, i) => (
               <ExerciseCard
                 key={exercise.id}
                 index={workout.exercises.indexOf(exercise)}
@@ -217,6 +231,14 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
                 readOnly={readOnly}
                 onLog={(log) => actions.logSet(workout.id, log)}
                 onSetDone={() => onSetDone(exercise)}
+                onMove={
+                  canReorder
+                    ? {
+                        up: i > 0 ? () => actions.swapWorkoutExercises(workout.id, exercise.id, group.exercises[i - 1].id) : undefined,
+                        down: i < group.exercises.length - 1 ? () => actions.swapWorkoutExercises(workout.id, exercise.id, group.exercises[i + 1].id) : undefined,
+                      }
+                    : undefined
+                }
               />
             ))}
           </section>
@@ -229,6 +251,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
       </div>
 
       {rest && !readOnly && <RestTimer rest={rest} onChange={setRest} />}
+
+      {editing && <CompletedWorkoutEditor workout={workout} onClose={() => setEditing(false)} />}
 
       {trainerMode ? (
         <VerifyDialog
@@ -281,6 +305,7 @@ function ExerciseCard({
   readOnly,
   onLog,
   onSetDone,
+  onMove,
 }: {
   index: number
   workout: ScheduledWorkout
@@ -291,6 +316,8 @@ function ExerciseCard({
   readOnly: boolean
   onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
   onSetDone: () => void
+  /** Flytta övningen upp/ned i passet (saknas = ordningen är låst). */
+  onMove?: { up?: () => void; down?: () => void }
 }) {
   const { data } = useAppData()
   // PT:ns eget namn för klienten om det finns.
@@ -304,7 +331,8 @@ function ExerciseCard({
 
   return (
     <section className={cn("rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
-      <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex w-full items-center gap-3 p-4 text-left">
+      <div className="flex items-center">
+      <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left">
         <span
           className={cn(
             "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular",
@@ -316,13 +344,25 @@ function ExerciseCard({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{name}</span>
           <span className="block text-xs text-muted-foreground tabular">
-            {exercise.sets} × {exercise.reps}
+            {exercise.sets} × {repsLabel(exercise)}
             {exercise.targetKg ? ` · ${exercise.targetKg} kg` : ""}
             {exercise.rpe ? ` · RPE ${exercise.rpe}` : ""} · {doneCount}/{exercise.sets} klara
           </span>
         </span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
+      {onMove && (
+        // Snabba pilar för att ändra ordningen (drag-and-drop är svårt med svettiga fingrar).
+        <div className="flex shrink-0 flex-col pr-2">
+          <Button variant="ghost" size="icon-sm" aria-label={`Flytta upp ${name}`} disabled={!onMove.up} onClick={onMove.up}>
+            <ArrowUp />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label={`Flytta ned ${name}`} disabled={!onMove.down} onClick={onMove.down}>
+            <ArrowDown />
+          </Button>
+        </div>
+      )}
+      </div>
 
       {open && (
         <div id={panelId} className="space-y-3 px-4 pb-4">
@@ -391,28 +431,42 @@ function SetRow({
 }) {
   const logged = findLog(workout.logs, exercise.id, setIndex)
   const suggestion = suggestSet(exercise, setIndex, workout.logs, history)
-  // Ej sparade justeringar för set som inte bockats av ännu.
-  const [draft, setDraft] = React.useState<{ kg: number; reps: number } | null>(null)
-  const values = logged ?? draft ?? suggestion
+  // Ändringar som inte sparats än: set som inte bockats av, eller ett tömt fält.
+  // Ett fält kan tömmas helt (undefined) och fyllas i med valfritt värde.
+  const [draft, setDraft] = React.useState<Partial<SetValues> | null>(null)
+  const values: SetValues = { ...(logged ?? suggestion), ...draft }
   const isDone = logged?.done ?? false
+  const [invalid, setInvalid] = React.useState(false)
+  const ownTarget = hasSetReps(exercise) ? targetRepsFor(exercise, setIndex) : null
 
-  const change = (patch: Partial<{ kg: number; reps: number }>) => {
-    const next = { kg: values.kg, reps: values.reps, ...patch }
-    next.kg = Math.max(0, Math.round(next.kg * 4) / 4)
-    next.reps = Math.max(0, Math.round(next.reps))
-    // Redan avbockat set: rätta loggen direkt. Annars: håll som utkast.
-    if (logged) onLog({ ...logged, ...next })
-    else setDraft(next)
+  const missing = (v: SetValues) => v.reps === undefined || (usesWeight && v.kg === undefined)
+  const change = (patch: Partial<SetValues>) => {
+    const next: SetValues = { ...values, ...patch }
+    if (next.kg !== undefined) next.kg = Math.max(0, Math.round(next.kg * 4) / 4)
+    if (next.reps !== undefined) next.reps = Math.max(0, Math.round(next.reps))
+    if (!missing(next)) setInvalid(false)
+    // Redan avbockat set med ifyllda fält: rätta loggen direkt. Annars: håll som utkast.
+    if (logged && !missing(next)) {
+      onLog({ ...logged, kg: next.kg ?? 0, reps: next.reps! })
+      setDraft(null)
+    } else setDraft(next)
   }
 
   // Ökar vid varje avbockning: bocken "poppar" (bara när den bockas av, inte vid sidladdning).
   const [pop, setPop] = React.useState(0)
   const toggle = () => {
     if (isDone) {
-      onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg, reps: values.reps, done: false })
+      onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg ?? 0, reps: values.reps ?? 0, done: false })
       return
     }
-    onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg, reps: values.reps, done: true })
+    // Valideringen sker först här – när setet sparas som genomfört.
+    if (missing(values)) {
+      setInvalid(true)
+      toast.error(values.reps === undefined ? `Fyll i reps för set ${setIndex + 1}` : `Fyll i vikten för set ${setIndex + 1}`)
+      return
+    }
+    onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg ?? 0, reps: values.reps!, done: true })
+    setDraft(null)
     setPop((n) => n + 1)
     navigator.vibrate?.(15)
     onDone()
@@ -420,13 +474,38 @@ function SetRow({
 
   return (
     <li className={cn("grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 rounded-xl p-1 transition-colors duration-300", isDone && "bg-brand/15")}>
-      <span className="text-center text-sm font-semibold tabular">{setIndex + 1}</span>
+      <span className="flex flex-col items-center text-center leading-tight">
+        <span className="text-sm font-semibold tabular">{setIndex + 1}</span>
+        {/* Eget rep-mål för setet (pyramid, drop-set …). */}
+        {ownTarget && (
+          <span className="text-[10px] text-muted-foreground tabular" aria-label={`Mål ${ownTarget} reps`}>
+            {ownTarget}
+          </span>
+        )}
+      </span>
       {usesWeight ? (
-        <Stepper value={values.kg} step={2.5} unit="kg" disabled={readOnly} onChange={(kg) => change({ kg })} label={`Vikt set ${setIndex + 1}`} />
+        <Stepper
+          value={values.kg}
+          step={2.5}
+          unit="kg"
+          disabled={readOnly}
+          invalid={(invalid || isDone) && values.kg === undefined}
+          onChange={(kg) => change({ kg })}
+          label={`Vikt set ${setIndex + 1}`}
+        />
       ) : (
         <span className="text-center text-muted-foreground">–</span>
       )}
-      <Stepper value={values.reps} step={1} unit="reps" disabled={readOnly} onChange={(reps) => change({ reps })} label={`Reps set ${setIndex + 1}`} />
+      <Stepper
+        value={values.reps}
+        step={1}
+        unit="reps"
+        disabled={readOnly}
+        invalid={(invalid || isDone) && values.reps === undefined}
+        placeholder={ownTarget ?? undefined}
+        onChange={(reps) => change({ reps })}
+        label={`Reps set ${setIndex + 1}`}
+      />
       <button
         onClick={toggle}
         disabled={readOnly}
@@ -443,49 +522,81 @@ function SetRow({
   )
 }
 
-function Stepper({
+/** Värden i ett set under loggning. undefined = tomt fält. */
+interface SetValues {
+  kg?: number
+  reps?: number
+}
+
+/**
+ * Stort sifferfält med − och + (för svettiga fingrar). Fältet kan tömmas helt
+ * och fyllas i med valfritt värde; tomt = undefined.
+ */
+export function Stepper({
   value,
   step,
   unit,
   label,
   disabled,
+  invalid,
+  placeholder,
   onChange,
 }: {
-  value: number
+  value: number | undefined
   step: number
   unit: string
   label: string
   disabled?: boolean
-  onChange: (v: number) => void
+  invalid?: boolean
+  placeholder?: string
+  onChange: (v: number | undefined) => void
 }) {
   const [text, setText] = React.useState<string | null>(null)
+  const show = (n: number | undefined) => (n === undefined ? "" : String(n).replace(".", ","))
+  const parse = (t: string) => {
+    const n = Number(t.trim().replace(",", "."))
+    return t.trim() === "" || !Number.isFinite(n) ? undefined : Math.max(0, n)
+  }
   return (
-    <div className="flex h-12 items-center rounded-xl bg-muted">
+    <div className={cn("flex h-12 items-center rounded-xl bg-muted", invalid && "ring-2 ring-destructive")}>
       {!disabled && (
-        <button className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground" aria-label={`Minska ${label}`} onClick={() => onChange(value - step)}>
+        <button
+          type="button"
+          className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground"
+          aria-label={`Minska ${label}`}
+          onClick={() => onChange(Math.max(0, (value ?? 0) - step))}
+        >
           <Minus className="size-4" />
         </button>
       )}
       <input
         aria-label={`${label} (${unit})`}
+        aria-invalid={invalid || undefined}
         inputMode="decimal"
         disabled={disabled}
-        value={text ?? String(value).replace(".", ",")}
+        placeholder={placeholder ?? "–"}
+        value={text ?? show(value)}
         onFocus={(e) => {
-          setText(String(value).replace(".", ","))
+          setText(show(value))
           e.target.select()
         }}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => {
-          const n = Number((text ?? "").replace(",", "."))
-          if (Number.isFinite(n) && text !== null && text.trim() !== "") onChange(n)
-          setText(null)
+        onChange={(e) => {
+          // Bara siffror och ett decimaltecken; fältet får vara tomt.
+          const t = e.target.value.replace(/[^\d.,]/g, "")
+          setText(t)
+          onChange(parse(t))
         }}
+        onBlur={() => setText(null)}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className="h-full w-full min-w-0 bg-transparent text-center text-lg font-semibold tabular outline-none disabled:opacity-100"
+        className="h-full w-full min-w-0 bg-transparent text-center text-lg font-semibold tabular outline-none placeholder:text-muted-foreground/50 disabled:opacity-100"
       />
       {!disabled && (
-        <button className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground" aria-label={`Öka ${label}`} onClick={() => onChange(value + step)}>
+        <button
+          type="button"
+          className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground"
+          aria-label={`Öka ${label}`}
+          onClick={() => onChange((value ?? 0) + step)}
+        >
           <Plus className="size-4" />
         </button>
       )}

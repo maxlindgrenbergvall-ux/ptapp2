@@ -61,7 +61,7 @@ select test.login('pt6@test.se');
 select test.eq((select count(*) from client_exercise_aliases), 0::bigint, 'annan PT ser inte aliasen');
 select test.logout();
 
-select test.eq((select name from exercises where id = 'e-pullup'), 'Pull-ups (överhandsgrepp)', 'övningsbiblioteket är uppdaterat (rättat namn)');
+select test.eq((select name from exercises where id = 'e-pullup'), 'Pull-Up', 'övningsbiblioteket är uppdaterat (seed.sql, engelska namn från v24)');
 select test.eq((select count(*) from exercises where owner_id is null), 127::bigint, 'övningsbiblioteket har 127 övningar');
 
 \warn 'ALLA V3-TESTER GODKÄNDA'

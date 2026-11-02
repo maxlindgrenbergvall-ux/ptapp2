@@ -93,9 +93,9 @@ export function TrendChart({
 }
 
 const LIFTS = [
-  { key: "squat", exerciseId: "e-squat", label: "Knäböj", color: "var(--chart-1)" },
-  { key: "bench", exerciseId: "e-bench", label: "Bänkpress", color: "var(--chart-2)" },
-  { key: "deadlift", exerciseId: "e-deadlift", label: "Marklyft", color: "var(--chart-3)" },
+  { key: "squat", exerciseId: "e-squat", label: "Back Squat", color: "var(--chart-1)" },
+  { key: "bench", exerciseId: "e-bench", label: "Bench Press", color: "var(--chart-2)" },
+  { key: "deadlift", exerciseId: "e-deadlift", label: "Deadlift", color: "var(--chart-3)" },
 ] as const
 
 export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {

@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils"
 import { SECTION_LABEL, sectionOf } from "@/lib/workout-rules"
 import { SESSION_MODE_LABEL, type CalendarEvent, type ScheduledWorkout } from "@/types/domain"
 import { firstName } from "@/lib/names"
+import { repsLabel } from "@/lib/exercises/draft"
 
 type Entry = { kind: "event"; at: Date; event: CalendarEvent } | { kind: "workout"; at: Date; workout: ScheduledWorkout }
 type View = "week" | "list"
@@ -564,7 +565,7 @@ function ProgramPreview({ workoutId, upcoming }: { workoutId: string; upcoming: 
               {sectionOf(e) !== "main" && <span className="ml-1 text-[10px] uppercase">· {SECTION_LABEL[sectionOf(e)]}</span>}
             </span>
             <span className="shrink-0 tabular">
-              {e.sets} × {e.reps}
+              {e.sets} × {repsLabel(e)}
               {e.targetKg ? ` · ${e.targetKg} kg` : ""}
             </span>
           </li>

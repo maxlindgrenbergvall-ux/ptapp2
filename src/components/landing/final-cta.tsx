@@ -339,7 +339,7 @@ function WorkoutTile({ active }: { active: boolean }) {
         </span>
         <span className="text-[10px] text-muted-foreground tabular-nums">2/3 set</span>
       </div>
-      <p className="mt-2 text-sm font-semibold">Knäböj</p>
+      <p className="mt-2 text-sm font-semibold">Back Squat</p>
       <ul className="mt-2 space-y-1.5 text-xs tabular-nums">
         {SETS.map((s) => (
           <li

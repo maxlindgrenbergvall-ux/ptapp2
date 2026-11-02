@@ -25,7 +25,7 @@ import { usePurchaseMode } from "@/lib/native/use-digital-purchases"
 import { isPlusActive, PLUS_FEATURE_LABEL, type PlusFeature } from "@/lib/plus"
 import { cn } from "@/lib/utils"
 
-export const UPGRADE_TEXT = "Lås upp full historik, sömntracking och djupgående grafer med Coavira Plus."
+export const UPGRADE_TEXT = "Lås upp full historik, sömntracking och export med Coavira Plus."
 
 /** Har inloggad användare Coavira Plus? PT:er har aldrig låsta klientfunktioner. */
 export function usePlus() {
@@ -39,17 +39,40 @@ export function RequirePlus({
   children,
   className,
   title,
+  variant = "preview",
 }: {
   feature: PlusFeature
   children: React.ReactNode
   className?: string
   /** Rubrik på låset (standard: funktionens namn). */
   title?: string
+  /**
+   * "preview" = suddig förhandsvisning med lås. "inline" = en diskret rad utan
+   * förhandsvisning (för vyer som ska kännas rena, t.ex. startsidan).
+   */
+  variant?: "preview" | "inline"
 }) {
   const { isPlus } = usePlus()
   const [open, setOpen] = React.useState(false)
   if (isPlus) return <>{children}</>
   const label = title ?? PLUS_FEATURE_LABEL[feature]
+  if (variant === "inline") {
+    return (
+      <div className={cn("rounded-2xl border border-dashed border-border/70", className)} data-testid="plus-lock" data-feature={feature}>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`${label} – ingår i Coavira Plus`}
+        >
+          <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1 text-muted-foreground">{label}</span>
+          <span className="shrink-0 text-xs font-medium text-primary">Plus</span>
+        </button>
+        <UpgradeDialog open={open} onOpenChange={setOpen} feature={feature} />
+      </div>
+    )
+  }
   return (
     <div className={cn("relative isolate overflow-hidden rounded-2xl", className)} data-testid="plus-lock" data-feature={feature}>
       {/* Förhandsvisning: suddig, inte klickbar och dold för skärmläsare. */}

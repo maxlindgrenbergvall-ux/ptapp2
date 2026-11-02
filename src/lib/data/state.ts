@@ -36,6 +36,7 @@ import type {
   Recipe,
   ScheduledWorkout,
   SetLog,
+  WorkoutExercise,
   Trainer,
   WeightEntry,
   WorkoutStatus,
@@ -79,6 +80,10 @@ export type PersistableAction =
   | { type: "saveService"; service: TrainerService }
   | { type: "deleteService"; serviceId: ID }
   | { type: "saveRecipe"; recipe: Recipe }
+  /** Ny ordning (eller nytt innehåll i ett eget pass) på passets övningar. */
+  | { type: "setWorkoutExercises"; workoutId: ID; exercises: WorkoutExercise[] }
+  /** Klient: redigera ett genomfört pass i efterhand (edit_completed_workout). */
+  | { type: "editCompletedWorkout"; workoutId: ID; exercises: WorkoutExercise[]; logs: SetLog[]; comment?: string; name?: string }
   | { type: "deleteRecipe"; recipeId: ID }
   /** Klient: lämna en PT (relationen avslutas, kommande pass avbokas, PT:ns kostschema slutar gälla). */
   | { type: "leaveTrainer"; clientId: ID; trainerId: ID; at: string }
@@ -494,6 +499,20 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "deleteService":
       return { ...data, services: data.services.filter((x) => x.id !== action.serviceId) }
+
+    case "setWorkoutExercises":
+      return mapWorkout(data, action.workoutId, (w) => ({ ...w, exercises: action.exercises }))
+
+    case "editCompletedWorkout": {
+      const ids = new Set(action.exercises.map((e) => e.id))
+      return mapWorkout(data, action.workoutId, (w) => ({
+        ...w,
+        name: w.byClient && action.name?.trim() ? action.name.trim().slice(0, 80) : w.name,
+        exercises: action.exercises,
+        logs: action.logs.filter((l) => ids.has(l.workoutExerciseId)),
+        clientComment: action.comment?.trim() || undefined,
+      }))
+    }
 
     case "saveRecipe":
       return { ...data, recipes: upsertBy(data.recipes, action.recipe, (r) => r.id === action.recipe.id) }

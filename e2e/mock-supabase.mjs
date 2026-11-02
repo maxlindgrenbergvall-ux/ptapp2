@@ -39,7 +39,7 @@ const userJson = (u) => ({ id: u.id, aud: "authenticated", role: "authenticated"
 const session = (u) => ({ access_token: token(u), refresh_token: `r-${u.id}`, token_type: "bearer", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, user: userJson(u) })
 
 const exercises = [
-  { id: "e-squat", name: "Knäböj", muscle_group: "ben", equipment: "Skivstång", video_url: null },
+  { id: "e-squat", name: "Back Squat", muscle_group: "ben", equipment: "Skivstång", video_url: null },
   { id: "e-bench", name: "Bänkpress", muscle_group: "bröst", equipment: "Skivstång", video_url: null },
 ]
 const workout = {

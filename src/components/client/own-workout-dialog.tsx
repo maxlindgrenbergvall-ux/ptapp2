@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus, Search, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Plus, Search, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
@@ -14,8 +14,9 @@ import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
+import { matchesExercise } from "@/lib/exercises/search"
+import { type ExerciseDraft, finalizeExercises, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
 import { cn } from "@/lib/utils"
-import type { WorkoutExercise } from "@/types/domain"
 
 /**
  * Klientens eget pass: välj övningar och logga dem i samma passvy som PT:ns
@@ -29,17 +30,17 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
   const [name, setName] = React.useState("")
   const [date, setDate] = React.useState(todayISO())
   const [q, setQ] = React.useState("")
-  const [items, setItems] = React.useState<WorkoutExercise[]>([])
+  const [items, setItems] = React.useState<ExerciseDraft[]>([])
 
   const query = q.trim().toLowerCase()
   // Egna övningar först, sedan övningsbanken.
   const matches = data.exercises
     .filter((e) => !items.some((i) => i.exerciseId === e.id))
-    .filter((e) => !query || e.name.toLowerCase().includes(query) || e.muscleGroup.includes(query))
+    .filter((e) => matchesExercise(e, query))
     .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
     .slice(0, 6)
 
-  const update = (idx: number, patch: Partial<WorkoutExercise>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  const update = (idx: number, patch: Partial<ExerciseDraft>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
 
   const reset = () => {
     setName("")
@@ -51,7 +52,10 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!items.length) return toast.error("Lägg till minst en övning")
-    const id = actions.createOwnWorkout(name, date, items)
+    // Fälten får vara tomma medan man skriver – kontrolleras först här.
+    const result = finalizeExercises(items, (id) => data.exercises.find((x) => x.id === id)?.name ?? "övningen")
+    if ("error" in result) return toast.error(result.error)
+    const id = actions.createOwnWorkout(name, date, result.exercises)
     setOpen(false)
     reset()
     toast.success("Passet är skapat", { description: "Logga seten – dina PT:er ser passet som underlag." })
@@ -89,6 +93,12 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
                   <div className="flex items-center gap-2">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular">{idx + 1}</span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{data.exercises.find((x) => x.id === it.exerciseId)?.name}</span>
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Flytta upp" disabled={idx === 0} onClick={() => setItems(moveItem(items, idx, -1))}>
+                      <ArrowUp />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Flytta ned" disabled={idx === items.length - 1} onClick={() => setItems(moveItem(items, idx, 1))}>
+                      <ArrowDown />
+                    </Button>
                     <Button type="button" variant="ghost" size="icon-sm" aria-label="Ta bort övningen" onClick={() => setItems(items.filter((_, i) => i !== idx))}>
                       <Trash2 />
                     </Button>
@@ -96,11 +106,11 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
                   <div className="grid grid-cols-3 gap-2">
                     <label className="space-y-1 text-xs text-muted-foreground">
                       Set
-                      <NumberInput min={1} max={20} value={it.sets} onValueChange={(v) => v !== undefined && update(idx, { sets: Math.min(20, Math.max(1, v)) })} aria-label="Set" />
+                      <NumberInput required min={1} max={MAX_SETS} value={it.sets} onValueChange={(v) => update(idx, { sets: v, setReps: resizeSetReps(it.setReps, v) })} aria-label="Set" />
                     </label>
                     <label className="space-y-1 text-xs text-muted-foreground">
                       Reps
-                      <Input value={it.reps} maxLength={12} onChange={(e) => update(idx, { reps: e.target.value })} aria-label="Reps" />
+                      <Input value={it.reps} maxLength={12} aria-invalid={!it.reps.trim() || undefined} onChange={(e) => update(idx, { reps: e.target.value })} aria-label="Reps" />
                     </label>
                     <label className="space-y-1 text-xs text-muted-foreground">
                       Kg

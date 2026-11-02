@@ -296,10 +296,13 @@ export interface PurchaseRow {
 }
 interface RecipeRow {
   id: string
-  trainer_id: string
+  /** PT:ns recept (recipes) – klientens egna (client_recipes, v24) har client_id. */
+  trainer_id?: string
+  client_id?: string
   name: string
   notes: string
   items: Recipe["items"]
+  servings?: number
 }
 interface RuleRow {
   id: string
@@ -665,10 +668,11 @@ export const toPurchase = (r: PurchaseRow): Purchase => ({
 
 const toRecipe = (r: RecipeRow): Recipe => ({
   id: r.id,
-  trainerId: r.trainer_id,
+  trainerId: (r.trainer_id ?? r.client_id)!,
   name: r.name,
   notes: r.notes,
   items: Array.isArray(r.items) ? r.items : [],
+  servings: r.servings ?? 1,
 })
 
 const toRule = (r: RuleRow): AvailabilityRule => ({
@@ -836,7 +840,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -845,6 +849,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("food_products").select("*").eq("source", "custom").order("updated_at", { ascending: false }).limit(200),
     // Varukorgen (RLS: bara min egen).
     sb.from("cart_items").select("client_id, service_id, trainer_id, added_at, quantity").order("added_at"),
+    // Egna recept (v24). Saknas tabellen (v24 inte körd än) blir listan tom.
+    sb.from("client_recipes").select("*").eq("client_id", uid).order("name"),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -879,7 +885,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       cart: must<CartRow[]>(cart, "varukorg").map(toCart),
       templates: [],
       availabilityRules: [],
-      recipes: [],
+      recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
       relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
@@ -1233,10 +1239,27 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       return result(sb.from("trainer_services").delete().eq("id", action.serviceId))
     case "saveRecipe": {
       const r = action.recipe
-      return result(sb.from("recipes").upsert({ id: r.id, trainer_id: me.id, name: r.name, notes: r.notes, items: r.items }))
+      const servings = r.servings ?? 1
+      // Klientens egna recept ligger i client_recipes (v24), PT:ns i recipes.
+      if (me.role === "client") {
+        return result(sb.from("client_recipes").upsert({ id: r.id, client_id: me.id, name: r.name, notes: r.notes, items: r.items, servings }))
+      }
+      return result(sb.from("recipes").upsert({ id: r.id, trainer_id: me.id, name: r.name, notes: r.notes, items: r.items, ...(servings !== 1 ? { servings } : {}) }))
     }
     case "deleteRecipe":
-      return result(sb.from("recipes").delete().eq("id", action.recipeId))
+      return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
+    case "setWorkoutExercises":
+      return result(sb.from("scheduled_workouts").update({ exercises: action.exercises }).eq("id", action.workoutId))
+    case "editCompletedWorkout":
+      return result(
+        sb.rpc("edit_completed_workout", {
+          p_workout: action.workoutId,
+          p_exercises: action.exercises,
+          p_logs: action.logs,
+          p_comment: action.comment ?? null,
+          p_name: action.name ?? null,
+        })
+      )
     case "verifyWorkout":
       return result(
         sb

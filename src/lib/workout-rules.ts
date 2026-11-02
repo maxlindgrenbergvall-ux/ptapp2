@@ -67,10 +67,10 @@ export function completeBlocker(data: AppData, workout: ScheduledWorkout): strin
 
 export const WORKOUT_SECTIONS: WorkoutSection[] = ["warmup", "main", "cooldown"]
 export const SECTION_LABEL: Record<WorkoutSection, string> = { warmup: "Uppvärmning", main: "Huvudpass", cooldown: "Nedvarvning" }
-export const sectionOf = (e: WorkoutExercise): WorkoutSection => e.section ?? "main"
+export const sectionOf = (e: Pick<WorkoutExercise, "section">): WorkoutSection => e.section ?? "main"
 
 /** Övningarna i ordningen uppvärmning → huvudpass → nedvarvning (stabil inom varje del). */
-export const sortBySection = <T extends WorkoutExercise>(exercises: T[]): T[] =>
+export const sortBySection = <T extends Pick<WorkoutExercise, "section">>(exercises: T[]): T[] =>
   WORKOUT_SECTIONS.flatMap((s) => exercises.filter((e) => sectionOf(e) === s))
 
 /** Grupperat per del – tomma delar utelämnas. Rubriker visas bara om passet har fler delar än huvudpass. */

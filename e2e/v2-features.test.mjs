@@ -77,7 +77,7 @@ void kcalBefore
 
 // Övningshistorik
 await m.goto(`${base}/klient/framsteg`)
-await m.click("a:has-text('Knäböj')")
+await m.click("a:has-text('Back Squat')")
 await m.waitForURL(/\/klient\/framsteg\/ovning\/e-squat/)
 await m.waitForSelector("text=Alla tillfällen")
 const sessions = await m.locator("ol[aria-label=Set]").count()

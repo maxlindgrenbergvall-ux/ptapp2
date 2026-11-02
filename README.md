@@ -40,7 +40,8 @@ npm run dev                  # http://localhost:3000
    21. `supabase/migrations/20261103000000_v21_store_purchases.sql`. Den lägger till köp i appen via App Store/RevenueCat (`profiles.store_plus_until`, `store_transactions`, `apply_store_plus`, `apply_store_boost`, `revoke_store_boost`) och sätter webbpriset för Coavira Plus till 49 kr / 30 dagar.
    22. `supabase/migrations/20261104000000_v22_stripe_connect.sql`. Den lägger till Stripe Connect och den obligatoriska PT-onboardingen (`trainers.stripe_onboarding_complete`, den privata tabellen `trainer_payout_accounts`, `apply_stripe_account`, `admin_mark_pt_onboarded`). **Publicerade PT-profiler döljs tills PT:n kopplat Stripe och visas sedan automatiskt igen.**
    23. `supabase/migrations/20261105000000_v23_security_hardening.sql`. Säkerhetsgranskningen: hälsodata kräver samtycke även via API:t, relationsfrågorna svarar bara parterna, TRUNCATE m.fl. tas bort för anon/authenticated och tabellen `rate_limits` med `hit_rate_limit()` (bara servern).
-   24. `supabase/seed.sql`
+   24. `supabase/migrations/20261106000000_v24_training_recipes.sql`. Engelska övningsnamn (Romanian Deadlift, Bench Press …), klienten får ändra ordningen på övningar i PT:ns pass, `edit_completed_workout()` för att redigera genomförda pass, låsta set efter PT:ns klarmarkering och klientens recept (`client_recipes`, `servings`).
+   25. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -565,6 +566,18 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 **Återbetalningar** görs i Stripe-panelen. Välj **Reverse transfer** (och vid behov *Refund application fee*), så att pengarna tas tillbaka från PT:ns konto.
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
+
+## Nytt i v24: loggning, recept och framsteg för alla
+
+- **Navigering:** chatten ligger uppe till höger i headern (bredvid varukorg, aviseringar och profil). Bottenmenyns femte flik är **Recept** (`/klient/recept`).
+- **Recept:** klientens egna recept med ingredienser ur livsmedelsbasen, antal portioner och automatiskt uträknade kalorier, protein, kolhydrater och fett (totalt och per portion). *Logga en portion* lägger receptet i Dagens kost. Import från webben kommer senare.
+- **Ingen betalvägg i Idag/Kost:** matloggningen är ren och öppen. Utan kostcoaching visas dagens intag och en diskret länk till PT:er som erbjuder kostschema; sömnlåset (Plus) är en enkel rad.
+- **Framsteg gratis för alla:** e1RM per lyft (Brzycki upp till 10 reps, Epley 11–12), utveckling mot 4–8 veckor sedan, relativ styrka (e1RM / kroppsvikt) och veckovolym (effektiva set per muskelgrupp senaste 7 dagarna, riktmärke 10–20). "Djupgående grafer" är inte längre en Plus-funktion – Plus = full historik, sömn och export. Logik: `src/lib/training.ts`, vy: `src/components/progress/kpis.tsx`.
+- **Engelska övningsnamn** enligt branschnorm. De svenska namnen finns kvar som sökord (`src/lib/exercises/search.ts`) – "knäböj" hittar Back Squat.
+- **Tömbara sifferfält:** `NumberInput` och loggerns fält kan tömmas helt och få valfritt värde; inget hoppar tillbaka till ett standardvärde. Valideringen sker när setet bockas av eller passet/mallen sparas (`src/lib/exercises/draft.ts`).
+- **Rep-mål per set** (`WorkoutExercise.setReps`, t.ex. 12/10/8) i passbyggaren, eget pass och loggern – förslaget för varje set följer setets mål.
+- **Ordning:** pilknappar (och dra-och-släpp i passbyggaren) flyttar övningar; i loggern även i PT:ns pass (innehållet är fortfarande låst).
+- **Redigera genomförda pass:** *Redigera* i passvyn rättar vikter, reps, set, ordning och kommentar (i egna pass även övningar och namn) via `edit_completed_workout()`. Pass som PT:n klarmarkerat är låsta.
 
 ## Nytt i v23: säkerhetsgranskning
 

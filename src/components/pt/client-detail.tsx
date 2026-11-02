@@ -172,7 +172,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Styrkeutveckling</CardTitle>
-              <CardDescription>Uppskattat 1RM (Epley) från bästa setet per pass</CardDescription>
+              <CardDescription>Uppskattat 1RM (Brzycki/Epley) från bästa setet per pass</CardDescription>
             </CardHeader>
             <CardContent>
               <StrengthChart workouts={workouts} />

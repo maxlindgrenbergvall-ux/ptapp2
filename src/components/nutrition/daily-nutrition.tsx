@@ -10,6 +10,7 @@ import { PersonAvatar } from "@/components/common"
 import { KcalMeter, MacroInline, MACROS, MacroTargetRow, sumMacros } from "@/components/nutrition/macros"
 import { ServiceMenu } from "@/components/services/service-menu"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { myTrainers, nutritionPlansFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
@@ -69,7 +70,8 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
       )}
       {!trainerView && (plans.length > 1 || (plans.length === 1 && !plan)) && <PlanChooser plans={plans} current={plan?.id ?? null} />}
       {locked ? (
-        <NutritionLock clientId={clientId} trainers={trainers} />
+        // Ingen kostcoaching: ren och snabb loggning – ingen betalvägg i vägen.
+        <DaySummary kcal={eaten.kcal} macros={eaten} />
       ) : targets ? (
         <>
           {trainerView && planOwner && (
@@ -171,7 +173,54 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
       ) : (
         <ExtraFood date={date} />
       )}
+      {locked && <CoachingHint clientId={clientId} trainers={trainers} />}
     </div>
+  )
+}
+
+/** Dagens intag utan kostschema: kalorier och makron, inga mål att jämföra mot. */
+function DaySummary({ kcal, macros }: { kcal: number; macros: { protein: number; carbs: number; fat: number; kcal: number } }) {
+  return (
+    <div className="flex items-end justify-between gap-3" data-testid="day-summary">
+      <div>
+        <p className="text-xs text-muted-foreground">Idag</p>
+        <p className="text-2xl font-bold tracking-tight tabular">
+          {Math.round(kcal)} <span className="text-sm font-medium text-muted-foreground">kcal</span>
+        </p>
+      </div>
+      <MacroInline value={macros} className="justify-end" />
+    </div>
+  )
+}
+
+/**
+ * Diskret länk till kostcoaching (i stället för en stor betalvägg). Ett tryck
+ * öppnar rekommendationerna: i första hand klientens egen PT.
+ */
+function CoachingHint({ clientId, trainers }: { clientId: ID; trainers: Trainer[] }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-2 border-t border-border/60 pt-3 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+        data-testid="nutrition-coaching-hint"
+      >
+        <Sparkles className="size-3.5 shrink-0" />
+        <span className="flex-1">Vill du ha ett personligt kostschema från en PT?</span>
+        <ChevronRight className="size-3.5 shrink-0" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kostcoaching</DialogTitle>
+            <DialogDescription>Ett personligt kostschema med mål, måltider och uppföljning från en PT.</DialogDescription>
+          </DialogHeader>
+          <NutritionLock clientId={clientId} trainers={trainers} />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -191,7 +240,7 @@ function NutritionLock({ clientId, trainers }: { clientId: ID; trainers: Trainer
           <Lock className="size-4" />
         </span>
         <div className="min-w-0">
-          <p className="font-medium">Kostråd ingår inte i ditt paket</p>
+          <p className="font-medium">Kostråd ingår inte i ditt paket än</p>
           <p className="text-sm text-muted-foreground">
             {mine.length
               ? `Lägg till kostcoaching hos ${mine.map((m) => firstName(m.trainer.name)).join(" eller ")} för att få ett personligt kostschema, recept och uppföljning.`
@@ -233,7 +282,7 @@ function NutritionLock({ clientId, trainers }: { clientId: ID; trainers: Trainer
           <Search /> Se andra PT:s som erbjuder kostschema
         </Link>
       </Button>
-      <p className="text-xs text-muted-foreground">Du kan alltid logga det du äter själv nedan.</p>
+      <p className="text-xs text-muted-foreground">Matloggningen är alltid gratis – du kan logga det du äter själv.</p>
     </div>
   )
 }

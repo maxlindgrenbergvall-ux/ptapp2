@@ -18,7 +18,7 @@ const fail = (m) => {
   process.exitCode = 1
 }
 const check = (c, m) => (c ? ok(m) : fail(m))
-const UPGRADE = "Lås upp full historik, sömntracking och djupgående grafer med Coavira Plus."
+const UPGRADE = "Lås upp full historik, sömntracking och export med Coavira Plus."
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ["clipboard-read", "clipboard-write"] })
 const p = await ctx.newPage()
@@ -63,10 +63,10 @@ await dialog.locator("text=Bjud in en vän & få 1 månad gratis").click()
 await p.waitForURL("**/klient/inbjudningar")
 ok("Bjud in-knappen leder till inbjudningsvyn")
 
-// Framsteg: 1RM-grafen och historik äldre än 30 dagar.
+// Framsteg: e1RM och nyckeltal är gratis (v24) – bara historik äldre än 30 dagar är låst.
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=plus-lock][data-feature=charts]")
-ok("1RM-grafen är låst")
+await p.waitForSelector("[data-testid=progress-kpis]")
+check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "e1RM och nyckeltal är gratis (v24)")
 const old = await p.locator("[data-testid=plus-lock][data-feature=history]").count()
 check(old >= 1, "pass äldre än 30 dagar är låsta")
 await p.screenshot({ path: `${out}/v18-las-framsteg.png`, fullPage: true })

@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Copy, Dumbbell, GripVertical, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Dumbbell, GripVertical, ListOrdered, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
@@ -53,14 +53,20 @@ import { ACCEPT, safeName, uploadFile } from "@/lib/storage"
 import { cn } from "@/lib/utils"
 import { SECTION_LABEL, sectionOf, sortBySection, WORKOUT_SECTIONS } from "@/lib/workout-rules"
 import { parseVideo } from "@/lib/video"
+import { matchesExercise } from "@/lib/exercises/search"
+import { type ExerciseDraft, finalizeExercises, MAX_REST_SEC, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
+import { exerciseName } from "@/lib/data/selectors"
 import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutSection, WorkoutTemplate } from "@/types/domain"
 
+
+/** Mall under redigering: sifferfälten får vara tomma tills mallen sparas. */
+type TemplateDraft = Omit<WorkoutTemplate, "exercises"> & { exercises: ExerciseDraft[] }
 
 export function WorkoutBuilder() {
   const { data, actions, me } = useAppData()
   const templates = data.templates.filter((t) => t.trainerId === me.id)
   const [selectedId, setSelectedId] = React.useState<string | null>(templates[0]?.id ?? null)
-  const [draft, setDraft] = React.useState<WorkoutTemplate | null>(() => templates[0] ?? null)
+  const [draft, setDraft] = React.useState<TemplateDraft | null>(() => templates[0] ?? null)
   const saved = templates.find((t) => t.id === draft?.id)
   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved)
 
@@ -83,11 +89,26 @@ export function WorkoutBuilder() {
     setDraft(tpl)
   }
 
-  const save = () => {
-    if (!draft) return
-    if (!draft.name.trim()) return toast.error("Passet behöver ett namn")
+  /** Validera (alla fält ifyllda) och gör om utkastet till en mall. */
+  const finalize = (d: TemplateDraft): WorkoutTemplate | null => {
+    if (!d.name.trim()) {
+      toast.error("Passet behöver ett namn")
+      return null
+    }
     // Uppvärmning först, nedvarvning sist – ordningen inom varje del behålls.
-    actions.saveTemplate({ ...draft, name: draft.name.trim(), exercises: sortBySection(draft.exercises) })
+    const result = finalizeExercises(sortBySection(d.exercises), (id) => exerciseName(data, id, ""))
+    if ("error" in result) {
+      toast.error(result.error)
+      return null
+    }
+    return { ...d, name: d.name.trim(), exercises: result.exercises }
+  }
+
+  const save = () => {
+    const tpl = draft && finalize(draft)
+    if (!tpl) return
+    actions.saveTemplate(tpl)
+    setDraft(tpl)
     toast.success("Mallen är sparad")
   }
 
@@ -152,7 +173,9 @@ export function WorkoutBuilder() {
                     size="icon"
                     aria-label="Duplicera mall"
                     onClick={() => {
-                      const copy = { ...draft, id: actions.newId(), name: `${draft.name} (kopia)` }
+                      const tpl = finalize(draft)
+                      if (!tpl) return
+                      const copy = { ...tpl, id: actions.newId(), name: `${tpl.name} (kopia)` }
                       actions.saveTemplate(copy)
                       setSelectedId(copy.id)
                       setDraft(copy)
@@ -220,8 +243,8 @@ function SortableExercises({
   items,
   onChange,
 }: {
-  items: WorkoutExercise[]
-  onChange: (items: WorkoutExercise[]) => void
+  items: ExerciseDraft[]
+  onChange: (items: ExerciseDraft[]) => void
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -233,7 +256,7 @@ function SortableExercises({
     const to = items.findIndex((i) => i.id === over.id)
     onChange(arrayMove(items, from, to))
   }
-  const update = (id: string, patch: Partial<WorkoutExercise>) =>
+  const update = (id: string, patch: Partial<ExerciseDraft>) =>
     onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)))
 
   return (
@@ -247,6 +270,8 @@ function SortableExercises({
               item={item}
               onUpdate={(patch) => update(item.id, patch)}
               onRemove={() => onChange(items.filter((i) => i.id !== item.id))}
+              onMoveUp={index > 0 ? () => onChange(moveItem(items, index, -1)) : undefined}
+              onMoveDown={index < items.length - 1 ? () => onChange(moveItem(items, index, 1)) : undefined}
             />
           ))}
         </ol>
@@ -260,11 +285,15 @@ function SortableExerciseRow({
   index,
   onUpdate,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
-  item: WorkoutExercise
+  item: ExerciseDraft
   index: number
-  onUpdate: (patch: Partial<WorkoutExercise>) => void
+  onUpdate: (patch: Partial<ExerciseDraft>) => void
   onRemove: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }) {
   const { data } = useAppData()
   const exercise = data.exercises.find((e) => e.id === item.exerciseId)
@@ -286,6 +315,15 @@ function SortableExerciseRow({
         >
           <GripVertical className="size-4" />
         </button>
+        {/* Pilar: snabbare än att dra på en mobil. */}
+        <div className="-ml-1 flex flex-col">
+          <Button variant="ghost" size="icon-sm" aria-label={`Flytta upp ${exercise?.name}`} disabled={!onMoveUp} onClick={onMoveUp}>
+            <ArrowUp />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label={`Flytta ned ${exercise?.name}`} disabled={!onMoveDown} onClick={onMoveDown}>
+            <ArrowDown />
+          </Button>
+        </div>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground tabular">{index + 1}.</span>
@@ -325,21 +363,34 @@ function SortableExerciseRow({
               </Select>
             </Field>
             <Field label="Set">
-              <NumberInput min={1} max={20} value={item.sets} onValueChange={(v) => v !== undefined && onUpdate({ sets: Math.min(20, Math.max(1, v)) })} />
+              <NumberInput
+                required
+                min={1}
+                max={MAX_SETS}
+                value={item.sets}
+                onValueChange={(v) => onUpdate({ sets: v, setReps: resizeSetReps(item.setReps, v) })}
+              />
             </Field>
             <Field label="Reps">
-              <Input value={item.reps} onChange={(e) => onUpdate({ reps: e.target.value })} />
+              <Input
+                value={item.reps}
+                aria-invalid={!item.reps.trim() || undefined}
+                onChange={(e) => onUpdate({ reps: e.target.value })}
+                disabled={Boolean(item.setReps)}
+                title={item.setReps ? "Rep-målen sätts per set nedan" : undefined}
+              />
             </Field>
             <Field label="Kg">
               <NumberInput decimal min={0} max={1000} value={item.targetKg} onValueChange={(v) => onUpdate({ targetKg: v })} />
             </Field>
             <Field label="Vila (s)">
-              <NumberInput min={0} max={900} value={item.restSec} onValueChange={(v) => onUpdate({ restSec: v ?? 0 })} />
+              <NumberInput required min={0} max={MAX_REST_SEC} value={item.restSec} onValueChange={(v) => onUpdate({ restSec: v })} />
             </Field>
             <Field label="RPE">
               <NumberInput decimal min={1} max={10} value={item.rpe} onValueChange={(v) => onUpdate({ rpe: v })} />
             </Field>
           </div>
+          <SetRepsEditor item={item} onUpdate={onUpdate} name={exercise?.name ?? "övningen"} />
           {showNotes && (
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
               <Textarea
@@ -362,6 +413,58 @@ function SortableExerciseRow({
   )
 }
 
+/**
+ * Eget rep-mål per set (pyramid 12/10/8, drop-set 8/8/AMRAP …). Av = samma
+ * reps för alla set.
+ */
+function SetRepsEditor({ item, onUpdate, name }: { item: ExerciseDraft; onUpdate: (patch: Partial<ExerciseDraft>) => void; name: string }) {
+  const on = Boolean(item.setReps)
+  const count = item.sets ?? item.setReps?.length ?? 0
+  return (
+    <div className="space-y-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        aria-pressed={on}
+        className={cn("h-8 px-2 text-xs", on ? "text-primary" : "text-muted-foreground")}
+        onClick={() =>
+          onUpdate(
+            on
+              ? // Av: första setets mål blir övningens reps.
+                { setReps: undefined, reps: item.setReps?.find((r) => r.trim()) ?? item.reps }
+              : { setReps: Array.from({ length: count }, () => item.reps) }
+          )
+        }
+      >
+        <ListOrdered /> {on ? "Olika reps per set" : "Olika reps per set (pyramid, drop-set)"}
+      </Button>
+      {on && (
+        <ol className="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label={`Rep-mål per set för ${name}`}>
+          {item.setReps!.map((r, i) => (
+            <li key={i}>
+              <label className="space-y-1">
+                <span className="block text-[11px] text-muted-foreground">Set {i + 1}</span>
+                <Input
+                  value={r}
+                  placeholder={item.reps}
+                  aria-label={`Reps set ${i + 1} för ${name}`}
+                  onChange={(e) => {
+                    const setReps = item.setReps!.slice()
+                    setReps[i] = e.target.value
+                    // Övningens reps följer första setet (visas i äldre vyer).
+                    onUpdate(i === 0 ? { setReps, reps: e.target.value || item.reps } : { setReps })
+                  }}
+                />
+              </label>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="space-y-1">
@@ -379,8 +482,7 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
   const results = data.exercises
     .filter(
       (e) =>
-        (!group || e.muscleGroup === group) &&
-        (e.name.toLowerCase().includes(q.trim().toLowerCase()) || e.equipment.toLowerCase().includes(q.trim().toLowerCase()))
+        (!group || e.muscleGroup === group) && matchesExercise(e, q)
     )
     .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
 

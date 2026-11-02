@@ -195,6 +195,11 @@ export interface WorkoutExercise {
   sets: number
   /** Fritext så att intervall fungerar, t.ex. "8–10" eller "AMRAP". */
   reps: string
+  /**
+   * Eget rep-mål per set (pyramid, drop-set …), t.ex. ["12", "10", "8"].
+   * Saknas eller tomt för ett set = `reps` gäller.
+   */
+  setReps?: string[]
   restSec: number
   rpe?: number
   targetKg?: number
@@ -276,13 +281,19 @@ export interface MealItem {
   gPerMl?: number
 }
 
-/** PT:ns sparade recept i kostbyggaren. Läggs in i klienternas måltider. */
+/**
+ * Sparat recept. PT:ns recept (kostbyggaren) läggs in i klienternas måltider;
+ * klientens egna recept (Recept-fliken) loggas direkt. `trainerId` är ägaren –
+ * PT:n eller klienten.
+ */
 export interface Recipe {
   id: ID
   trainerId: ID
   name: string
   notes: string
   items: MealItem[]
+  /** Antal portioner som ingredienserna räcker till (standard 1). */
+  servings?: number
 }
 
 export interface Meal {

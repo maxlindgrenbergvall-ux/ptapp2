@@ -365,7 +365,7 @@ function MealEditor({
 }
 
 /** Livsmedelsrader med mängd i gram eller styck. Makrona räknas om från värdena per 100 g. */
-function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: MealItem[]) => void }) {
+export function ItemList({ items, onChange }: { items: MealItem[]; onChange: (items: MealItem[]) => void }) {
   if (!items.length) return null
   const update = (idx: number, fn: (item: MealItem) => MealItem) => onChange(items.map((item, i) => (i === idx ? fn(item) : item)))
   return (

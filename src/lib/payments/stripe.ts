@@ -203,7 +203,7 @@ export function plusSessionParams(input: {
           unit_amount: unitAmount,
           product_data: {
             name: `Coavira Plus – ${input.days} dagar`,
-            description: "Full historik, sömntracking, djupgående grafer och export. Förnyas inte automatiskt.",
+            description: "Full historik, sömntracking och export. Förnyas inte automatiskt.",
           },
         },
       },

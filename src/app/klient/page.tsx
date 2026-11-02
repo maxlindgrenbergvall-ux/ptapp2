@@ -157,8 +157,8 @@ export default function TodayPage() {
       {/* Vanor */}
       <div className="grid gap-4">
         <WaterTracker date={today} />
-        {/* Coavira Plus: sömntracking (vatten och dagens kost är gratis). */}
-        <RequirePlus feature="sleep">
+        {/* Coavira Plus: sömntracking – en diskret rad, ingen stor betalvägg på startsidan. */}
+        <RequirePlus feature="sleep" variant="inline" title="Sömntracking">
           <SleepTracker date={today} />
         </RequirePlus>
       </div>

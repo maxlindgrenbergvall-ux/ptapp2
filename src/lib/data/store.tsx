@@ -72,6 +72,7 @@ import type {
   TrainerService,
   UserRole,
   WeightEntry,
+  WorkoutExercise,
   WorkoutStatus,
   WorkoutTemplate,
 } from "@/types/domain"
@@ -243,6 +244,37 @@ function createActions(ctx: {
       return id
     },
     deleteOwnWorkout: (workoutId: ID) => commit({ type: "deleteWorkout", workoutId }),
+    /**
+     * Byt plats på två övningar i passet (pilknapparna: övningen och grannen
+     * ovanför/under i samma del av passet). Set-loggarna följer med – de pekar
+     * på övningens id, inte på platsen.
+     */
+    swapWorkoutExercises: (workoutId: ID, a: ID, b: ID) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      const i = w?.exercises.findIndex((e) => e.id === a) ?? -1
+      const j = w?.exercises.findIndex((e) => e.id === b) ?? -1
+      if (!w || i < 0 || j < 0 || i === j) return
+      const exercises = w.exercises.slice()
+      ;[exercises[i], exercises[j]] = [exercises[j], exercises[i]]
+      commit({ type: "setWorkoutExercises", workoutId, exercises })
+    },
+    /**
+     * Klient: spara ändringar i ett genomfört pass (vikter, reps, set, ordning,
+     * kommentar – och i egna pass även övningarna och namnet). Ett pass som
+     * PT:n klarmarkerat är låst.
+     */
+    editCompletedWorkout: (
+      workoutId: ID,
+      edit: { exercises: WorkoutExercise[]; logs: SetLog[]; comment?: string; name?: string }
+    ): string | null => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (!w || w.clientId !== me.id) return "Passet hittades inte."
+      if (w.verifiedAt) return "Passet är klarmarkerat av din PT och kan inte ändras."
+      if (w.status !== "completed") return "Bara genomförda pass kan redigeras i efterhand."
+      if (edit.exercises.length === 0) return "Passet behöver minst en övning."
+      commit({ type: "editCompletedWorkout", workoutId, ...edit, comment: edit.comment?.trim().slice(0, 1000) })
+      return null
+    },
     saveTemplate: (template: WorkoutTemplate) => commit({ type: "upsertTemplate", template }),
     deleteTemplate: (templateId: ID) => commit({ type: "deleteTemplate", templateId }),
     /** PT: spara kostplanen. Kräver att klienten köpt kostcoaching. */

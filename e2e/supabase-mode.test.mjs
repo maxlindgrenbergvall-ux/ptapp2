@@ -332,8 +332,8 @@ ok("bekräftelselänk: inloggad och direkt i appen (/dashboard → /klient)")
 
 // 15. v11: köp med kortbetalning (Stripe), mersälj och kostlås
 await v.waitForSelector("text=Dagens kost")
-await v.waitForSelector("[data-testid=nutrition-lock]")
-ok("Supabase: kostråd låsta när klienten inte köpt kost")
+await v.waitForSelector("[data-testid=nutrition-coaching-hint]")
+ok("Supabase: kostcoaching erbjuds diskret när klienten inte köpt kost")
 check((await v.locator("text=/2 pass kvar/").count()) >= 1, "Supabase: passsaldo räknas från betalda köp (5 köpta, 3 använda)")
 await v.goto(`${base}/klient/hitta/11111111-0000-4000-8000-000000000001`)
 await v.click('button[aria-label="Välj Enstaka pass"]')

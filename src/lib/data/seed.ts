@@ -743,6 +743,19 @@ export function createSeedData(today = todayISO()): AppData {
           { name: "Havregryn", grams: 40, unit: "g", per100: { kcal: 370, protein: 13, carbs: 59, fat: 7 }, kcal: 148, protein: 5.2, carbs: 23.6, fat: 2.8 },
         ],
       },
+      // Klientens egna recept (Recept-fliken).
+      {
+        id: "rc-c1-oats",
+        trainerId: "c1",
+        name: "Overnight oats med bär",
+        notes: "Blanda kvällen före och låt stå i kylen över natten.",
+        servings: 2,
+        items: [
+          { name: "Havregryn", grams: 120, unit: "g", per100: { kcal: 370, protein: 13, carbs: 59, fat: 7 }, kcal: 444, protein: 15.6, carbs: 70.8, fat: 8.4 },
+          { name: "Kvarg naturell", grams: 300, unit: "g", per100: { kcal: 63, protein: 11, carbs: 4, fat: 0.2 }, kcal: 189, protein: 33, carbs: 12, fat: 0.6 },
+          { name: "Blåbär", grams: 150, unit: "g", per100: { kcal: 51, protein: 0.7, carbs: 10.6, fat: 0.6 }, kcal: 77, protein: 1.1, carbs: 15.9, fat: 0.9 },
+        ],
+      },
     ],
     clients: makeClients(today),
     exercises,
@@ -755,7 +768,7 @@ export function createSeedData(today = todayISO()): AppData {
     ...makeTrackers(today),
     wearables: [],
     // Exempel: Elin har döpt om en övning för Sara.
-    exerciseAliases: [{ clientId: "c1", exerciseId: "e-bss", name: "Bulgarisk utfallsböj (bakre fot på låg bänk)" }],
+    exerciseAliases: [{ clientId: "c1", exerciseId: "e-bss", name: "Bulgarian Split Squat (bakre fot på låg bänk)" }],
     customFoods: [],
     offers: makeOffers(today),
     relationships: [],

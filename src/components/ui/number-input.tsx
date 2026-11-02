@@ -35,10 +35,15 @@ const format = (n: number | null | undefined) => (n === null || n === undefined 
  * med värdet 0 visar "01" när man skriver en etta (React skriver inte över fältet
  * när siffervärdet är detsamma). Här hålls texten i ett eget tillstånd och
  * städas vid varje tangent; värdet begränsas till min/max när fältet lämnas.
+ *
+ * Fältet kan alltid tömmas helt (onValueChange(undefined)) – det hoppar aldrig
+ * tillbaka till ett standardvärde medan man skriver. Formuläret validerar att
+ * fältet är ifyllt när det sparas.
  */
 export function NumberInput({ value, onValueChange, min, max, decimal = false, onBlur, onFocus, ...props }: Props) {
   const [draft, setDraft] = React.useState(() => format(value))
-  // Följ värdet när det ändras utifrån (t.ex. ett annat val i formuläret).
+  // Följ värdet bara när det ändras utifrån (t.ex. ett annat val i formuläret) –
+  // inte när föräldern behåller sitt gamla värde medan fältet är tomt.
   const [lastValue, setLastValue] = React.useState(value)
   if (value !== lastValue) {
     setLastValue(value)
@@ -52,6 +57,7 @@ export function NumberInput({ value, onValueChange, min, max, decimal = false, o
       inputMode={decimal ? "decimal" : "numeric"}
       autoComplete="off"
       value={draft}
+      aria-invalid={props["aria-invalid"] ?? (props.required && draft === "" ? true : undefined)}
       onFocus={(e) => {
         // Markera innehållet så att en ny siffra ersätter det gamla värdet.
         e.currentTarget.select()
@@ -64,19 +70,14 @@ export function NumberInput({ value, onValueChange, min, max, decimal = false, o
         if (draft === "0" && raw.length === 2 && /^\d$/.test(raw.replace("0", ""))) raw = raw.replace("0", "")
         const next = cleanNumber(raw, decimal)
         setDraft(next)
-        const n = parse(next)
-        setLastValue(n)
-        onValueChange(n)
+        onValueChange(parse(next))
       }}
       onBlur={(e) => {
         const n = parse(draft)
         if (n !== undefined) {
           const clamped = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n))
           setDraft(format(clamped))
-          if (clamped !== n) {
-            setLastValue(clamped)
-            onValueChange(clamped)
-          }
+          if (clamped !== n) onValueChange(clamped)
         }
         onBlur?.(e)
       }}

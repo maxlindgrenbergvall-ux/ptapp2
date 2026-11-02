@@ -44,9 +44,9 @@ export const INTERESTS: InterestDef[] = [
     label: "Styrkelyft",
     emoji: "🏋️",
     metrics: [
-      { key: "e1rm_squat", label: "Knäböj, uppsk. 1RM", unit: "kg", format: "number", auto: e1rm("e-squat") },
-      { key: "e1rm_bench", label: "Bänkpress, uppsk. 1RM", unit: "kg", format: "number", auto: e1rm("e-bench") },
-      { key: "e1rm_deadlift", label: "Marklyft, uppsk. 1RM", unit: "kg", format: "number", auto: e1rm("e-deadlift") },
+      { key: "e1rm_squat", label: "Back Squat, e1RM", unit: "kg", format: "number", auto: e1rm("e-squat") },
+      { key: "e1rm_bench", label: "Bench Press, e1RM", unit: "kg", format: "number", auto: e1rm("e-bench") },
+      { key: "e1rm_deadlift", label: "Deadlift, e1RM", unit: "kg", format: "number", auto: e1rm("e-deadlift") },
     ],
   },
   {

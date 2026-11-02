@@ -38,8 +38,12 @@ await p.waitForSelector("text=Dagens kost")
 // Sara har köpt kost i demodatan – ta bort den så att låset och mersäljet syns.
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))
 await p.reload()
+// v24: ingen betalvägg – matloggningen syns direkt och kostcoachingen nås via en diskret länk.
+await p.waitForSelector("[data-testid=day-summary]")
+check((await p.locator("[data-testid=nutrition-lock]").count()) === 0, "ingen stor betalvägg i Dagens kost (v24)")
+await p.click("[data-testid=nutrition-coaching-hint]")
 await p.waitForSelector("[data-testid=nutrition-lock]")
-check(await p.locator("text=Kostråd ingår inte i ditt paket").isVisible(), "kostråden är låsta utan köpt kostcoaching")
+check(await p.locator("text=Kostråd ingår inte i ditt paket").isVisible(), "kostråden ingår inte utan köpt kostcoaching")
 check((await p.locator("[data-testid=nutrition-lock] li").count()) >= 1, "låset visar PT:ns kosttjänster att köpa")
 await p.screenshot({ path: `${out}/v11-kostlas.png`, fullPage: true })
 
@@ -71,7 +75,7 @@ check((await p.locator("[data-testid=session-balance]").innerText()).includes("p
 
 await p.goto(base + "/klient")
 await p.waitForSelector("text=Dagens kost")
-check((await p.locator("[data-testid=nutrition-lock]").count()) === 0, "kostschemat är upplåst efter köpet")
+check((await p.locator("[data-testid=nutrition-coaching-hint]").count()) === 0, "kostschemat är upplåst efter köpet")
 
 // "Nej tack" ger bara passet.
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))

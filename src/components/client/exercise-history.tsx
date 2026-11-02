@@ -59,14 +59,13 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
             <StatTile label="Tillfällen" value={sessions.length} sub={`Senast ${formatShort(sessions[0].date)}`} />
           </div>
 
-          {/* Coavira Plus: djupgående graf (1RM-utveckling). */}
+          {/* e1RM-utvecklingen är gratis för alla (v24). */}
           {usesWeight && (
-            <RequirePlus feature="charts" title="1RM-utveckling">
-              <section className="space-y-2 rounded-2xl border bg-card p-4">
-                <h2 className="text-sm font-medium">Uppskattat 1RM</h2>
-                <TrendChart label="Uppskattat 1RM" unit="kg" points={[...sessions].reverse().map((s) => ({ date: s.date, value: s.e1rm }))} />
-              </section>
-            </RequirePlus>
+            <section className="space-y-2 rounded-2xl border bg-card p-4">
+              <h2 className="text-sm font-medium">Uppskattat 1RM (e1RM)</h2>
+              <TrendChart label="Uppskattat 1RM" unit="kg" points={[...sessions].reverse().map((s) => ({ date: s.date, value: s.e1rm }))} />
+              <p className="text-xs text-muted-foreground">Brzycki (upp till 10 reps) och Epley (11–12 reps) från ditt bästa set varje gång.</p>
+            </section>
           )}
 
           <section className="space-y-2">

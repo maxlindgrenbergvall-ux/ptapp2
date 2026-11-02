@@ -41,7 +41,7 @@ export function appMenuLinks(role: "client" | "trainer") {
       hint: role === "trainer" ? "En veckas Boost per verifierad PT" : "Ge 1 månad Plus, få 1 månad",
       icon: Gift,
     },
-    ...(role === "client" ? [{ href: "/klient/plus", label: "Coavira Plus", hint: "Historik, sömn, grafer och export", icon: Sparkles }] : []),
+    ...(role === "client" ? [{ href: "/klient/plus", label: "Coavira Plus", hint: "Full historik, sömn och export", icon: Sparkles }] : []),
   ]
 }
 

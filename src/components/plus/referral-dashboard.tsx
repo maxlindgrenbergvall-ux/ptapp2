@@ -383,10 +383,9 @@ export function PlusPage() {
   const features: [string, string][] = [
     ["Sömntracking", "Logga sömn och se hur den påverkar träningen."],
     ["Full historik", "Alla pass och all kost – inte bara de senaste 30 dagarna."],
-    ["Djupgående grafer", "1RM-utveckling och volym över tid per övning."],
     ["Export till CSV", "Ladda ner träning och kost till Excel eller Numbers."],
   ]
-  const free = ["Dagens kostschema", "Boka pass", "Utföra dina pass", "Chatt med din PT"]
+  const free = ["Matloggning och recept", "Framsteg: e1RM, volym och relativ styrka", "Boka och utföra pass", "Chatt med din PT"]
 
   return (
     <div className="space-y-5">
@@ -400,7 +399,7 @@ export function PlusPage() {
             {confirming
               ? "Bekräftar betalningen …"
               : !isPlus
-                ? "Lås upp full historik, sömntracking och djupgående grafer med Coavira Plus."
+                ? "Lås upp full historik, sömntracking och export med Coavira Plus."
                 : days === Infinity
                   ? "Plus utan slutdatum."
                   : `Aktivt till ${formatDate(account!.plusUntil!)} · ${days} ${days === 1 ? "dag" : "dagar"} kvar`}

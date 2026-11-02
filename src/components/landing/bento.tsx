@@ -210,18 +210,18 @@ interface PassRow {
 }
 
 const PASS_BLOCKS: { key: string; label: string; rows: PassRow[] }[] = [
-  { key: "warm", label: "Uppvärmning", rows: [{ id: "rodd", name: "Roddmaskin", detail: "5 min" }] },
+  { key: "warm", label: "Uppvärmning", rows: [{ id: "rodd", name: "Rowing Machine", detail: "5 min" }] },
   {
     key: "main",
     label: "Huvudpass",
     rows: [
-      { id: "knaboj", name: "Knäböj", detail: "4 × 6 · 80 kg" },
-      { id: "rdl", name: "Rumänsk marklyft", detail: "3 × 8 · 60 kg" },
+      { id: "knaboj", name: "Back Squat", detail: "4 × 6 · 80 kg" },
+      { id: "rdl", name: "Romanian Deadlift", detail: "3 × 8 · 60 kg" },
     ],
   },
   { key: "cool", label: "Nedvarvning", rows: [{ id: "stretch", name: "Höftstretch", detail: "2 × 45 s" }] },
 ]
-const EXTRA_ROW: PassRow = { id: "bulgarisk", name: "Bulgarisk utfallsböj", detail: "3 × 10 · 14 kg" }
+const EXTRA_ROW: PassRow = { id: "bulgarisk", name: "Bulgarian Split Squat", detail: "3 × 10 · 14 kg" }
 const SYNC_STEPS = ["Planera", "Synka", "Klarmarkera"] as const
 
 const rowsFor = (key: string, rows: PassRow[], step: SyncStep) => (key === "main" && step >= 1 ? [...rows, EXTRA_ROW] : rows)
@@ -342,7 +342,7 @@ function PtPanel({ step }: { step: SyncStep }) {
 
 const PT_CHIP_TEXT: Record<SyncStep, string> = {
   0: "Bygger passet Ben & core",
-  1: "La till Bulgarisk utfallsböj",
+  1: "La till Bulgarian Split Squat",
   2: "Vikter ifyllda efter passet",
 }
 
@@ -513,7 +513,7 @@ function SyncDemo() {
       next === 0
         ? "Demon är återställd."
         : next === 1
-          ? "Elin lade till Bulgarisk utfallsböj. Övningen syns direkt i Saras app."
+          ? "Elin lade till Bulgarian Split Squat. Övningen syns direkt i Saras app."
           : "Passet är genomfört, vikterna ifyllda och klarmarkerat av Elin."
     )
   }, [])
