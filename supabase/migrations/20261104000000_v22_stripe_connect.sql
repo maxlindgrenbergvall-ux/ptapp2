@@ -355,4 +355,5 @@ select set_config('coavira.system', 'on', true);
 update trainers set publish_when_ready = true, is_published = false
 where is_published and not stripe_onboarding_complete;
 select set_config('coavira.system', 'off', true);
-select sync_pt_ready(id) from trainers;
+-- Räkna om spärren i JWT:n för alla PT:er (utan att skriva ut en rad per PT).
+do $$ begin perform sync_pt_ready(id) from trainers; end $$;
