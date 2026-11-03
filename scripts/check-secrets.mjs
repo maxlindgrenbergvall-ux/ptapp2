@@ -12,7 +12,7 @@ const root = path.resolve(import.meta.dirname, "..")
 const failures = []
 
 // 1. Inga NEXT_PUBLIC_-variabler med hemliga namn (de bakas in i klientkoden).
-const SECRET_NAME = /NEXT_PUBLIC_[A-Z0-9_]*(SECRET|SERVICE_ROLE|PRIVATE|WEBHOOK|PASSWORD|TOKEN)[A-Z0-9_]*/g
+const SECRET_NAME = /NEXT_PUBLIC_[A-Z0-9_]*(SECRET|SERVICE_ROLE|PRIVATE|WEBHOOK|PASSWORD|TOKEN|API_KEY)[A-Z0-9_]*/g
 function walk(dir, fn) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (e.name === "node_modules" || e.name.startsWith(".")) continue
@@ -37,7 +37,7 @@ if (!fs.existsSync(staticDir)) {
   console.error("Hittar inte .next/static – bygg först (npm run build).")
   process.exit(2)
 }
-const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_KEY", "REVENUECAT_WEBHOOK_SECRET", "FITBIT_CLIENT_SECRET", "STRAVA_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET"]
+const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_KEY", "REVENUECAT_WEBHOOK_SECRET", "FITBIT_CLIENT_SECRET", "STRAVA_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET", "RESEND_API_KEY"]
   .map((name) => ({ name, value: process.env[name]?.trim() }))
   .filter((v) => v.value && v.value.length >= 8)
 const patterns = [

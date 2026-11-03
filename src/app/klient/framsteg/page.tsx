@@ -6,10 +6,10 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
+import { GoalOverview } from "@/components/goals/goal-overview"
 import { GoalProgressChart } from "@/components/goals/goal-progress-card"
 import { RequirePlus, usePlus } from "@/components/plus/require-plus"
 import { ProgressKpis } from "@/components/progress/kpis"
-import { InterestsDialog, MetricsGrid } from "@/components/progress/metrics"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,9 +29,9 @@ export default function ProgressPage() {
   const [kg, setKg] = React.useState("")
 
   const squat = oneRepMaxSeries("e-squat", workouts)
-  // Styrkediagrammet visas för styrkeintressen (eller när inga intressen är valda och det finns lyft).
-  const strengthInterests = ["styrkelyft", "bodybuilding", "kalisthenics"]
-  const showStrength = client.interests?.length ? client.interests.some((k) => strengthInterests.includes(k)) : squat.length > 0
+  // Styrkediagrammet visas för styrke- och muskelmål (eller när det finns lyft att visa).
+  const goals = data.goalProfiles.find((g) => g.clientId === client.id)?.goals ?? []
+  const showStrength = goals.some((g) => g === "strength" || g === "bodybuilding" || g === "muscle_gain" || g === "recomp") || squat.length > 0
   const streak = weekStreak(completed.map((w) => w.date))
   // Gratis: senaste 30 dagarna. Äldre historik kräver Coavira Plus.
   const { isPlus } = usePlus()
@@ -43,15 +43,12 @@ export default function ProgressPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Framsteg</h1>
 
-      {/* Mätpunkterna styrs av intressena: Cykling → tid på milen och watt, Styrkelyft → 1RM osv. */}
+      {/* v35: bara de aktiva målen – ett kort per mål med målets eget mått (intressena är borta). */}
       <section className="space-y-3" aria-labelledby="goals-title">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 id="goals-title" className="font-semibold">
-            Dina mål
-          </h2>
-          <InterestsDialog clientId={client.id} interests={client.interests ?? []} label="Ändra mätpunkter" />
-        </div>
-        <MetricsGrid clientId={client.id} interests={client.interests} editable />
+        <h2 id="goals-title" className="font-semibold">
+          Dina mål
+        </h2>
+        <GoalOverview clientId={client.id} />
       </section>
 
       <div className="grid grid-cols-2 gap-3">

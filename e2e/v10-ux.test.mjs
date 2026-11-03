@@ -34,17 +34,19 @@ const setName = (kind, id, name) =>
 await p.goto(`${base}/klient`)
 await p.waitForSelector("text=Dagens träning")
 const seedClient = (await demo()).data.clients.find((c) => c.id === "c1").name.split(" ")[0]
-check(await p.locator(`h1:has-text("Hej ${seedClient}!")`).isVisible(), `klient: "Hej ${seedClient}!" från profilen`)
+// v35: hälsningen beror på klockan (God morgon / Hej / God kväll) – namnet är det som testas här.
+const greet = (name) => new RegExp(`^(God morgon ${name}|Hej ${name}!|God kväll ${name})$`)
+check(greet(seedClient).test((await p.locator("[data-testid=home-greeting]").innerText()).trim()), `klient: hälsningen till ${seedClient} från profilen`)
 await setName("clients", "c1", "Alexandra Testsson")
 await p.reload()
 await p.waitForSelector("text=Dagens träning")
-check(await p.locator('h1:has-text("Hej Alexandra!")').isVisible(), "klient: hälsningen följer profilens namn (inte hårdkodad)")
+check(greet("Alexandra").test((await p.locator("[data-testid=home-greeting]").innerText()).trim()), "klient: hälsningen följer profilens namn (inte hårdkodad)")
 
 await p.setViewportSize({ width: 1280, height: 900 })
 await setName("trainers", "t1", "Kim Coachsson")
 await p.goto(`${base}/pt`)
 await p.waitForSelector("text=Översikt")
-check(await p.locator("text=/Hej Kim! Så här ser det ut idag/").isVisible(), "PT: \"Hej Kim!\" från profilen (tidigare hårdkodat \"Hej Elin\")")
+check(await p.locator("text=/(God morgon Kim|Hej Kim|God kväll Kim)! Så här ser det ut idag/").isVisible(), "PT: hälsningen till Kim från profilen (tidigare hårdkodat \"Hej Elin\")")
 check(await p.locator("aside >> text=Kim Coachsson").isVisible(), "PT: profilkortet i menyn visar profilens namn")
 const html = await p.content()
 check(!/Hej Elin/.test(html), "inget hårdkodat \"Hej Elin\" kvar")

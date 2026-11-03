@@ -577,6 +577,33 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v35: hälsning efter klockan, mål i Framsteg och nyhetsbrev via Resend
+
+- **Hälsning på hemskärmen** (`src/lib/greeting.ts`, `src/hooks/use-day-part.ts`). Hälsningen följer enhetens klocka:
+  - 05–10: "God morgon Sara"
+  - 10–18: "Hej Sara!"
+  - 18–05: "God kväll Sara"
+
+  Den byter av sig själv när klockan passerar gränserna och när appen kommer tillbaka från bakgrunden. PT:ns översikt hälsar på samma sätt.
+- **Framsteg visar bara målen** (`src/lib/goals/overview.ts`, `src/components/goals/goal-overview.tsx`). Intresse-mätpunkterna och "Ändra mätpunkter" är borta. I stället finns ett kort per valt mål:
+
+  | Mål | Kortet visar |
+  |---|---|
+  | Viktnedgång | kg sedan start och kvar till målvikten, med förlopp |
+  | Ökad muskelmassa | kg sedan start och pass per vecka |
+  | Bodybuilding | pass per vecka och avbockade set |
+  | Body recomposition | styrka (e1RM) och vikt |
+  | Styrka | e1RM-utveckling i baslyften |
+  | Kondition och Hälsa | aktiva minuter mot 150 min/vecka |
+- **Resend-segment för nyhetsbrev** (`src/lib/marketing/resend.ts`, `POST /api/marketing/sync`). Den som kryssar i nyhetsbrevet (i onboarding eller Inställningar) läggs som kontakt hos Resend:
+  - klienter i segmentet **`klient`**, PT:er i segmentet **`PT-Segment`**;
+  - kryss bort → kontakten avregistreras och tas bort ur segmentet;
+  - raderat konto → kontakten tas bort helt.
+
+  Servern läser roll och samtycke ur databasen, aldrig från webbläsaren. Saknas ett segment skapas det med det namnet.
+  - **Serverhemligheter:** `RESEND_API_KEY` krävs. Valfritt: `RESEND_SEGMENT_CLIENT_ID` och `RESEND_SEGMENT_PT_ID`, om segmenten heter något annat.
+  - **Synka samtycken från före v35:** `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… RESEND_API_KEY=… npx tsx --conditions=react-server --tsconfig tsconfig.json scripts/sync-resend-segments.mts` (lägg till `--dry-run` för att först se listan).
+
 ## Nytt i v34: dynamisk viktkurva, drag-and-drop och ett användaravtal
 
 - **Dynamisk viktkurva** (`src/lib/goals/adaptive.ts`, enhetstest `e2e/adaptive.unit.ts`). Kurvan under Mål, Framsteg och hos PT:n räknas om löpande:
@@ -1013,6 +1040,10 @@ npx tsx --tsconfig tsconfig.json e2e/progression.unit.ts # progressiv överbelas
 npx tsx --tsconfig tsconfig.json e2e/splits.unit.ts      # splits och schemaläggning
 npx tsx --tsconfig tsconfig.json e2e/activity.unit.ts    # kalorimätaren: dubbletter, dagssumma, MET
 npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan: förbränning, förtroende, frekvens, förankring
+npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
+node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
+node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
+node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "klient", PT → "PT-Segment", kryss bort → avregistrerad, inget samtycke → ingen kontakt
 node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal
 node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil
 node e2e/mock-strava.mjs &         # (krävs av v32-supabase) Stravas API på :54700 (STRAVA_API_BASE=http://localhost:54700, STRAVA_CLIENT_ID=123, STRAVA_CLIENT_SECRET=sek)

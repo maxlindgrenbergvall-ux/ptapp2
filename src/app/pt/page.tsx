@@ -18,7 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
+import { greeting } from "@/lib/greeting"
 import { firstName } from "@/lib/names"
+import { useDayPart } from "@/hooks/use-day-part"
 import { addDays, formatShort, relativeDay, todayISO } from "@/lib/date"
 import type { ClientStatus } from "@/types/domain"
 
@@ -26,6 +28,8 @@ type Filter = "all" | ClientStatus
 
 export default function PtOverviewPage() {
   const { data, me } = useAppData()
+  // v35: samma tidsbaserade hälsning som klientens hemskärm.
+  const part = useDayPart()
   // Direkt efter onboardingen (v22): /pt?valkommen=1.
   React.useEffect(() => {
     if (new URLSearchParams(window.location.search).get("valkommen") !== "1") return
@@ -85,7 +89,7 @@ export default function PtOverviewPage() {
     <div className="space-y-6">
       <PageHeader
         title="Översikt"
-        description={`${firstName(me.name) ? `Hej ${firstName(me.name)}! ` : ""}Så här ser det ut idag, ${formatShort(today)}`}
+        description={`${greeting(part, firstName(me.name))}${part === "day" ? "" : "!"} Så här ser det ut idag, ${formatShort(today)}`}
         actions={<InviteExistingClientButton />}
       />
 

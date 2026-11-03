@@ -80,7 +80,18 @@ export async function acceptUserAgreement(marketing: boolean): Promise<Onboardin
     if (marketing) demoSet(DEMO_MARKETING_KEY, "1")
     return null
   }
-  return rpc<OnboardingStatus>("accept_user_agreement", { p_marketing: marketing })
+  const status = await rpc<OnboardingStatus>("accept_user_agreement", { p_marketing: marketing })
+  if (marketing) syncMarketingSegment()
+  return status
+}
+
+/**
+ * v35: be servern lägga användaren i rätt Resend-segment ("klient" eller "PT-Segment")
+ * – eller avregistrera. Servern läser samtycke och roll ur databasen. Väntar inte på
+ * svaret: ett fel hos Resend får aldrig stoppa onboarding eller inställningar.
+ */
+export function syncMarketingSegment() {
+  void fetch("/api/marketing/sync", { method: "POST", credentials: "same-origin", keepalive: true }).catch(() => {})
 }
 
 /** Har användaren redan godkänt avtalets nuvarande version? (Demoläget: i den här webbläsaren.) */
@@ -101,7 +112,9 @@ export async function setMarketingConsent(granted: boolean): Promise<boolean> {
     demoSet(DEMO_MARKETING_KEY, granted ? "1" : "0")
     return granted
   }
-  return rpc<boolean>("set_marketing_consent", { p_granted: granted })
+  const saved = await rpc<boolean>("set_marketing_consent", { p_granted: granted })
+  syncMarketingSegment()
+  return saved
 }
 
 /**

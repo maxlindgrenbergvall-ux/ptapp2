@@ -18,13 +18,16 @@ import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
 import { setsDone, setsTotal } from "@/lib/training"
 import { cn } from "@/lib/utils"
+import { greeting } from "@/lib/greeting"
 import { firstName } from "@/lib/names"
+import { useDayPart } from "@/hooks/use-day-part"
 import { sessionBalance } from "@/lib/services/balance"
 
 const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
 export default function TodayPage() {
   const { data, me } = useAppData()
+  const part = useDayPart()
   const today = todayISO()
   const client = data.clients.find((c) => c.id === me.id)!
   const trainers = myTrainers(data, client.id)
@@ -46,7 +49,10 @@ export default function TodayPage() {
     <div className="space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">{formatDay(today)}</p>
-        <h1 className="text-2xl font-bold tracking-tight">Hej {firstName(client.name)}!</h1>
+        {/* v35: hälsningen följer klockan – God morgon / Hej! / God kväll. */}
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="home-greeting" data-daypart={part}>
+          {greeting(part, firstName(client.name))}
+        </h1>
       </div>
 
       {/* v30: intro-flödet inte gjort (eller överhoppat) – en vänlig påminnelse, ingen spärr. */}

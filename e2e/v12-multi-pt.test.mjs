@@ -59,26 +59,11 @@ for (const [label, path, text] of pages) {
   ok(`logomenyn → ${label}`)
 }
 
-// ---------------------------------------- 2. intressen styr Framsteg ---
-// v32: intressena (mätpunkterna) väljs under Framsteg – profilen visar bara valda mål.
+// ------------------------------------ 2. Framsteg visar bara målen (v35) ---
 await p.goto(base + "/klient/framsteg")
-await p.click("[data-testid=choose-interests]")
-await p.click('[role=dialog] [role=group][aria-label=Intressen] button:has-text("Cykling")')
-await p.click('[role=dialog] button:has-text("Spara")')
-await p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
-check((await demo()).clients.find((c) => c.id === "c1").interests.includes("cykling"), "intresset sparas på profilen")
-await p.screenshot({ path: `${out}/v12-profil.png`, fullPage: true })
-
-await p.waitForSelector("[data-testid=metrics-grid]")
-check(await p.locator('section[aria-label="Cykling"] >> text=Bästa tid på milen').isVisible(), "Framsteg visar Bästa tid på milen för Cykling")
-check(await p.locator('section[aria-label="Styrkelyft"] >> text=Back Squat, e1RM').isVisible(), "Framsteg visar 1RM för Styrkelyft")
-check((await p.locator("[data-testid=metric-hyrox_total]").innerText()).includes("1:33:30"), "Hyrox-tid från loggen (1:33:30)")
-await p.click('button[aria-label="Logga Bästa tid på milen"]')
-await p.fill("#metric-value", "18:30")
-await p.click('[role=dialog] button[type=submit]')
-await p.waitForSelector("text=/Bästa tid på milen: 18:30 sparat/")
-await overlayGone()
-check((await p.locator("[data-testid=metric-cykling_10km]").innerText()).includes("18:30"), "loggad tid visas på mätpunkten")
+await p.waitForSelector("[data-testid=goal-overview], [data-testid=goal-overview-empty]")
+check((await p.locator("[data-testid=choose-interests], [data-testid=metrics-grid]").count()) === 0, "inga intresse-mätpunkter i Framsteg")
+check((await p.locator("text=Ändra mätpunkter").count()) === 0, "\"Ändra mätpunkter\" är borta")
 await p.screenshot({ path: `${out}/v12-framsteg.png`, fullPage: true })
 
 // ------------------------------------- 3. flera PT:er och chatt per PT ---
@@ -178,8 +163,7 @@ check((await p.locator("text=Ahmed Rashid").count()) === 0, "Ahmed syns inte lä
 await p.setViewportSize({ width: 1280, height: 900 })
 await p.goto(base + "/pt/klienter/c1")
 await p.waitForSelector("text=Mål och mätpunkter")
-check(await p.locator('ul[aria-label=Intressen] >> text=Cykling').first().isVisible(), "PT:n ser klientens intressen")
-check(await p.locator('[data-testid=metrics-grid] >> text=Bästa tid på milen').first().isVisible(), "PT:n ser klientens mätpunkter")
+ok("PT:ns klientvy öppnas")
 await p.goto(base + "/pt/profil")
 await p.waitForSelector("text=Vad erbjuder du?")
 await p.click('[role=group][aria-label=Utbud] button:has-text("Träning")')

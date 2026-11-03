@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { DELETE_CONFIRM_WORD } from "@/lib/account"
 import { deleteSubscriber, isRevenueCatEnabled } from "@/lib/payments/revenuecat-server"
 import { getStripe, isStripeEnabled } from "@/lib/payments/stripe"
+import { removeMarketingContact, resendConfigured } from "@/lib/marketing/resend"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { createSupabaseAdmin, hasServiceRole } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -19,7 +20,7 @@ const USER_FOLDERS = ["avatars", "chat-attachments", "exercise-videos"] as const
  *  2. Användarens filer i Storage tas bort (profilbild, chattbilagor i den egna
  *     klienttråden, övningsvideor).
  *  3. Kopplingar hos tredje part tas bort (bästa försök, loggas vid fel):
- *     PT:ns Stripe Connect-konto och kunden hos RevenueCat.
+ *     PT:ns Stripe Connect-konto, kunden hos RevenueCat och kontakten hos Resend.
  *  4. Kontot raderas med Supabase Auth admin-API:t (service role, bara på
  *     servern). Databasen raderar resten via `on delete cascade` och
  *     avidentifierar det andra behåller (omdömen, aviseringar) – se v20.
@@ -86,6 +87,12 @@ export async function POST(request: NextRequest) {
   if (isRevenueCatEnabled()) {
     await deleteSubscriber(user.id).catch((e: unknown) =>
       console.error("account delete: revenuecat subscriber left", { userId: user.id, message: String(e) })
+    )
+  }
+  // v35: kontakten för nyhetsbrevet tas bort hos Resend (bästa försök, loggas vid fel).
+  if (user.email && resendConfigured()) {
+    await removeMarketingContact(user.email).catch((e: unknown) =>
+      console.error("account delete: resend contact left", { userId: user.id, message: String(e) })
     )
   }
   await supabase.auth.signOut().catch(() => {})
