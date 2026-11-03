@@ -62,6 +62,8 @@ import type {
   FoodProduct,
   SleepLog,
   WearableConnection,
+  ActivityDay,
+  ActivityLog,
   ID,
   ISODate,
   Me,
@@ -250,6 +252,41 @@ function createActions(ctx: {
      * ovanför/under i samma del av passet). Set-loggarna följer med – de pekar
      * på övningens id, inte på platsen.
      */
+    /**
+     * Under passet (v32): ett set till i en övning. Rep-målen per set (om PT:n
+     * satt sådana) förlängs med övningens vanliga reps. Max 20 set.
+     */
+    addWorkoutSet: (workoutId: ID, workoutExerciseId: ID) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (!w) return
+      const exercises = w.exercises.map((e) =>
+        e.id === workoutExerciseId && e.sets < 20 ? { ...e, sets: e.sets + 1, ...(e.setReps ? { setReps: [...e.setReps, ""] } : {}) } : e
+      )
+      commit({ type: "setWorkoutExercises", workoutId, exercises })
+    },
+    /**
+     * Under passet (v32): en övning till, sist i huvuddelen. I PT:ns pass märks den
+     * som extra (databasen tillåter bara tillägg där – PT:ns övningar ligger kvar).
+     * Returnerar den nya övningens id.
+     */
+    addWorkoutExercise: (workoutId: ID, exercise: Omit<WorkoutExercise, "id">): ID | null => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (!w || w.exercises.length >= 40) return null
+      const id = newId()
+      const entry: WorkoutExercise = { ...exercise, id, ...(w.byClient ? {} : { extra: true }) }
+      // Före nedvarvningen om passet har en sådan.
+      const cooldown = w.exercises.findIndex((e) => e.section === "cooldown")
+      const exercises = cooldown < 0 ? [...w.exercises, entry] : [...w.exercises.slice(0, cooldown), entry, ...w.exercises.slice(cooldown)]
+      commit({ type: "setWorkoutExercises", workoutId, exercises })
+      return id
+    },
+    /** Ta bort en övning man själv lagt till under passet (inte PT:ns). Loggade set följer med bort. */
+    removeExtraExercise: (workoutId: ID, workoutExerciseId: ID) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      const target = w?.exercises.find((e) => e.id === workoutExerciseId)
+      if (!w || !target || !(target.extra || w.byClient)) return
+      commit({ type: "setWorkoutExercises", workoutId, exercises: w.exercises.filter((e) => e.id !== workoutExerciseId) })
+    },
     swapWorkoutExercises: (workoutId: ID, a: ID, b: ID) => {
       const w = getData().workouts.find((x) => x.id === workoutId)
       const i = w?.exercises.findIndex((e) => e.id === a) ?? -1
@@ -829,6 +866,12 @@ function createActions(ctx: {
     /** Resultat från en wearable-synk (servern har redan sparat dem). */
     applySleepSync: (logs: SleepLog[]) => ctx.dispatch({ type: "mergeSleepLogs", logs }),
     setWearables: (connections: WearableConnection[]) => ctx.dispatch({ type: "setWearables", connections }),
+    /** Telefonens hälsodata (HealthKit / Health Connect, v32): sparas som dagssummor och pass. */
+    syncDeviceActivity: (days: ActivityDay[], activities: ActivityLog[]) => {
+      if (days.length || activities.length) commit({ type: "syncDeviceActivity", days, activities })
+    },
+    /** Aktiviteter från servern (efter en Strava-synk) – ersätter de gamla från samma källa. */
+    setActivities: (source: ActivityLog["source"], activities: ActivityLog[]) => ctx.dispatch({ type: "setActivities", source, activities }),
     resetDemo: () => {
       if (ctx.mode !== "demo") return
       try {

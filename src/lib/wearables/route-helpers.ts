@@ -5,12 +5,12 @@ import { NextResponse } from "next/server"
 import { hasServiceRole } from "@/lib/supabase/admin"
 import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import type { WearableProvider } from "@/types/domain"
+import type { SleepProvider } from "@/types/domain"
 
-const PROVIDERS: WearableProvider[] = ["fitbit", "apple_health", "google_fit"]
+const PROVIDERS: SleepProvider[] = ["fitbit", "apple_health", "google_fit"]
 
-export function parseProvider(value: string): WearableProvider | null {
-  return (PROVIDERS as string[]).includes(value) ? (value as WearableProvider) : null
+export function parseProvider(value: string): SleepProvider | null {
+  return (PROVIDERS as string[]).includes(value) ? (value as SleepProvider) : null
 }
 
 /** Inloggad klient, eller ett färdigt felsvar. */

@@ -9,8 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { InterestPicker } from "@/components/progress/metrics"
 import { normalizePhone } from "@/lib/phone"
 import { forgetReferral, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS, storedReferral } from "@/lib/plus"
 import { formatPtInviteInput } from "@/components/pt/pt-invite-redeem"
@@ -40,9 +38,6 @@ export function OnboardingForm() {
   const [name, setName] = React.useState("")
   const [phone, setPhone] = React.useState("")
   const [consent, setConsent] = React.useState(false)
-  // Intressen och mål styr mätpunkterna under Framsteg och syns för klientens PT:er.
-  const [interests, setInterests] = React.useState<string[]>([])
-  const [focus, setFocus] = React.useState("")
   // Inbjudningskod (valfri): förifylls från inbjudningslänken (/ref/KOD).
   const [referral, setReferral] = React.useState("")
   // PT:ns kod till en befintlig klient (valfri): förifylls från PT:ns länk (/ref/EX-…).
@@ -113,11 +108,6 @@ export function OnboardingForm() {
     if (rpcError && !/redan vald/i.test(rpcError.message)) {
       setPending(false)
       return setError(/telefon/i.test(rpcError.message) ? "Ogiltigt telefonnummer." : rpcError.message)
-    }
-    if (interests.length || focus.trim()) {
-      // Valfritt – ett fel här stoppar inte registreringen (kan ändras i profilen).
-      const { data: u } = await sb.auth.getUser()
-      if (u.user) await sb.from("profiles").update({ interests, focus: focus.trim().slice(0, 300) }).eq("id", u.user.id)
     }
     // Ny JWT med rollen i user_metadata, sedan hel sidladdning (proxy.ts läser cookien).
     await sb.auth.refreshSession()
@@ -211,23 +201,6 @@ export function OnboardingForm() {
             </div>
           </>
         )}
-
-        <div className="space-y-2">
-          <Label>Vad tränar du för?</Label>
-          <p className="text-xs text-muted-foreground">Välj det som passar – vi visar rätt mätpunkter under Framsteg. Kan ändras när som helst.</p>
-          <InterestPicker value={interests} onChange={setInterests} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="focus">Vad vill du utveckla? (valfritt)</Label>
-          <Textarea
-            id="focus"
-            rows={2}
-            maxLength={300}
-            value={focus}
-            onChange={(e) => setFocus(e.target.value)}
-            placeholder="T.ex. springa milen under 50 minuter"
-          />
-        </div>
 
         {isSupabaseEnabled && (
           <div className="space-y-2">

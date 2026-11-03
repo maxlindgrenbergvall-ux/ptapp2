@@ -4,17 +4,20 @@ import { CalendarDays, Watch } from "lucide-react"
 
 import { CalendarSyncButton } from "@/components/calendar/calendar-sync-dialog"
 import { WearablesCard } from "@/components/client/trackers"
+import { ActivityCard } from "@/components/activity/activity-card"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAppData } from "@/lib/data/store"
 
-const UPCOMING = ["Garmin Connect", "Strava", "Polar", "Oura"]
+const UPCOMING = ["Garmin Connect", "Polar", "Oura"]
 
 /** Anslutningar: wearables (sömn m.m.) och kalendersynk – samlade på ett ställe. */
 export function ConnectionsPage() {
   const { me } = useAppData()
   return (
     <div className="mx-auto max-w-2xl space-y-5">
+      {/* v32: Strava och telefonens hälsodata (kalorier och aktiv tid). */}
+      {me.role === "client" && <ActivityCard clientId={me.id} compact />}
       {me.role === "client" && <WearablesCard />}
       <Card className="gap-3">
         <CardHeader>

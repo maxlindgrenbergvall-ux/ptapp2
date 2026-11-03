@@ -224,6 +224,9 @@ function fixtures(uid, table) {
     case "weight_entries": return client ? [] : []
     case "meal_checks": return []
     case "workout_templates": return []
+    case "activity_logs": return svc.activity_logs.filter((a) => a.client_id === uid)
+    case "activity_days": return []
+    case "wearable_connections": return svc.wearable_connections.filter((c) => c.user_id === uid).map(({ provider, status, connected_at, last_synced_at, last_error }) => ({ provider, status: status ?? "active", connected_at: connected_at ?? new Date().toISOString(), last_synced_at: last_synced_at ?? null, last_error: last_error ?? null }))
     case "trainer_services": return serviceRows
     case "purchases": return purchaseRows
     case "recipes": return []
@@ -237,6 +240,9 @@ function fixtures(uid, table) {
 }
 
 const log = []
+// v32: tabeller som servern (service role) skriver i e2e-testerna.
+const SVC_KEYS = { wearable_connections: ["user_id", "provider"], wearable_tokens: ["user_id", "provider"], activity_logs: ["client_id", "source", "external_id"], weight_entries: ["client_id", "date"] }
+const svc = { wearable_connections: [], wearable_tokens: [], activity_logs: [], weight_entries: [] }
 const read = (req) => new Promise((r) => { let d = ""; req.on("data", (c) => (d += c)); req.on("end", () => r(d)) })
 
 http.createServer(async (req, res) => {
@@ -257,6 +263,8 @@ http.createServer(async (req, res) => {
 
   if (url.pathname === "/__log") return send(200, log)
   if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
+  if (url.pathname === "/__svc") return send(200, svc)
+  if (url.pathname === "/__reset_v32") { for (const k of Object.keys(svc)) svc[k] = []; return send(200, {}) }
   // v18: Plus och inbjudningar som från start, och Nova blir ny igen (ingen roll,
   // kan lösa in en kod) – så att v18-testet kan köras efter supabase-mode och om igen.
   // v21: köp i appen ändrar Elins boost och Saras Plus – återställ för andra test.
@@ -448,6 +456,41 @@ http.createServer(async (req, res) => {
         return send(200, trainerRow.boosted_until)
       }
       return send(200, null)
+    }
+  }
+  // v32: servern (service role) – Strava-anslutning, tokens och aktiviteter i minnet.
+  {
+    const t = url.pathname.match(/^\/rest\/v1\/([a-z_]+)$/)?.[1]
+    if (t && t in svc && req.headers.authorization === `Bearer ${SERVICE_KEY}`) {
+      const filters = [...url.searchParams.entries()].filter(([, v]) => v.startsWith("eq.")).map(([k, v]) => [k, v.slice(3)])
+      const match = (r) => filters.every(([k, v]) => String(r[k]) === v)
+      if (req.method === "GET") {
+        const rows = svc[t].filter(match)
+        if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) return rows[0] ? send(200, rows[0]) : send(406, { code: "PGRST116", message: "0 rows" })
+        return send(200, rows)
+      }
+      const p = body ? JSON.parse(body) : null
+      log.push({ method: req.method, table: `svc.${t}`, query: url.search, body: p })
+      if (req.method === "POST") {
+        const keys = SVC_KEYS[t]
+        for (const row of Array.isArray(p) ? p : [p]) {
+          const i = svc[t].findIndex((r) => keys.every((k) => String(r[k]) === String(row[k])))
+          if (i >= 0) svc[t][i] = { ...svc[t][i], ...row }
+          else svc[t].push({ id: crypto.randomUUID(), ...row })
+        }
+        return send(201, [])
+      }
+      if (req.method === "PATCH") {
+        svc[t].forEach((r, i) => match(r) && (svc[t][i] = { ...r, ...p }))
+        return send(204)
+      }
+      if (req.method === "DELETE") {
+        const removed = svc[t].filter(match)
+        svc[t] = svc[t].filter((r) => !match(r))
+        // Som triggern i databasen: koppla från Strava tar bort passen därifrån.
+        if (t === "wearable_connections") for (const r of removed) if (r.provider === "strava") svc.activity_logs = svc.activity_logs.filter((a) => !(a.client_id === r.user_id && a.source === "strava"))
+        return send(204)
+      }
     }
   }
   // v29: servern (service role) loggar stoppade/flaggade bilder.

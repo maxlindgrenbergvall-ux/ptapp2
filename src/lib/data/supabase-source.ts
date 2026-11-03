@@ -36,6 +36,8 @@ import type {
   Recipe,
   RecipeGoal,
   ActivityLevel,
+  ActivityDay,
+  ActivityLog,
   GoalKey,
   GoalProfile,
   Sex,
@@ -138,6 +140,50 @@ interface SetLogRow {
   reps: number
   done: boolean
 }
+interface ActivityRow {
+  id: string
+  client_id: string
+  source: ActivityLog["source"]
+  external_id: string
+  sport: string
+  name: string
+  started_at: string
+  date: string
+  duration_sec: number
+  distance_m: number | string | null
+  kcal: number | null
+  kcal_estimated: boolean
+}
+interface ActivityDayRow {
+  client_id: string
+  date: string
+  source: ActivityDay["source"]
+  active_kcal: number
+  active_minutes: number | null
+  steps: number | null
+}
+export const toActivity = (r: ActivityRow): ActivityLog => ({
+  id: r.id,
+  clientId: r.client_id,
+  source: r.source,
+  externalId: r.external_id,
+  sport: r.sport,
+  name: r.name,
+  startedAt: r.started_at,
+  date: r.date,
+  durationSec: r.duration_sec,
+  distanceM: r.distance_m === null ? undefined : Number(r.distance_m),
+  kcal: r.kcal ?? undefined,
+  kcalEstimated: r.kcal_estimated || undefined,
+})
+const toActivityDay = (r: ActivityDayRow): ActivityDay => ({
+  clientId: r.client_id,
+  date: r.date,
+  source: r.source,
+  activeKcal: r.active_kcal,
+  activeMinutes: r.active_minutes ?? undefined,
+  steps: r.steps ?? undefined,
+})
 interface GoalRow {
   client_id: string
   goals: GoalKey[]
@@ -869,7 +915,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   if (me.role === "trainer") {
-    const [self, rels, weights, templates, rules, recipes, ptMeals, invites, goals] = await Promise.all([
+    const [self, rels, weights, templates, rules, recipes, ptMeals, invites, goals, ptActivities, ptActivityDays] = await Promise.all([
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
@@ -886,6 +932,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       sb.from("pt_invites").select("*").order("created_at", { ascending: false }).limit(200),
       // Klienternas mål och kalorimål (v30, RLS: bara aktiva klienter). Saknas tabellen blir listan tom.
       sb.from("client_goals").select("*"),
+      // Klienternas aktiviteter (v32, RLS). Saknas tabellerna blir listorna tomma.
+      sb.from("activity_logs").select("*").gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(500),
+      sb.from("activity_days").select("*").gte("date", addDays(todayISO(), -60)),
     ])
     const relRowsPt = must<RelationshipRow[]>(rels, "klienter")
     const weightRows = must<{ client_id: string; date: string; kg: number | string }[]>(weights, "vikt")
@@ -912,6 +961,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
         favoriteRecipes: [],
         goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
+        activities: ptActivities.error ? [] : ((ptActivities.data ?? []) as ActivityRow[]).map(toActivity),
+        activityDays: ptActivityDays.error ? [] : ((ptActivityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
         relationships: clients.map((c) => ({
           trainerId: uid,
           clientId: c.id,
@@ -934,7 +985,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates, goals] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates, goals, activities, activityDays] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -951,6 +1002,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("workout_templates").select("*").eq("client_id", uid).order("name"),
     // Mål och kalorimål från intro-flödet (v30). Saknas tabellen blir listan tom.
     sb.from("client_goals").select("*").eq("client_id", uid),
+    // Aktiviteter (v32): Strava, Apple Health, Health Connect.
+    sb.from("activity_logs").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(300),
+    sb.from("activity_days").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -988,6 +1042,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
       favoriteRecipes: favorites.error ? [] : ((favorites.data ?? []) as { recipe_id: string }[]).map((f) => f.recipe_id),
       goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
+      activities: activities.error ? [] : ((activities.data ?? []) as ActivityRow[]).map(toActivity),
+      activityDays: activityDays.error ? [] : ((activityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
       relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
@@ -1376,6 +1432,8 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
     case "saveGoalProfile":
       return result(sb.from("client_goals").upsert(goalRow(me.id, action.profile)))
+    case "syncDeviceActivity":
+      return persistDeviceActivity(sb, me, action.days, action.activities)
     case "setFavoriteRecipe":
       return result(
         action.favorite
@@ -1590,6 +1648,45 @@ export function subscribeRealtime(sb: SupabaseClient, me: Me, dispatch: (a: Acti
   return () => {
     void sb.removeChannel(channel)
   }
+}
+
+/** Telefonens hälsodata (v32): idempotent upsert av dagssummor och pass (samma dag/pass skrivs över). */
+async function persistDeviceActivity(sb: SupabaseClient, me: Me, days: ActivityDay[], activities: ActivityLog[]): Promise<PersistResult> {
+  const now = new Date().toISOString()
+  if (days.length) {
+    const r = await result(
+      sb.from("activity_days").upsert(
+        days.map((d) => ({ client_id: me.id, date: d.date, source: d.source, active_kcal: d.activeKcal, active_minutes: d.activeMinutes ?? null, steps: d.steps ?? null, updated_at: now }))
+      )
+    )
+    if (!r.ok) return r
+  }
+  if (!activities.length) return { ok: true }
+  return result(
+    sb.from("activity_logs").upsert(
+      activities.map((a) => ({
+        client_id: me.id,
+        source: a.source,
+        external_id: a.externalId,
+        sport: a.sport,
+        name: a.name,
+        started_at: a.startedAt,
+        date: a.date,
+        duration_sec: a.durationSec,
+        distance_m: a.distanceM ?? null,
+        kcal: a.kcal ?? null,
+        kcal_estimated: Boolean(a.kcalEstimated),
+        updated_at: now,
+      })),
+      { onConflict: "client_id,source,external_id" }
+    )
+  )
+}
+
+/** Efter en Strava-synk på servern: läs om aktiviteterna (RLS: bara egna rader). */
+export async function reloadActivities(sb: SupabaseClient): Promise<ActivityLog[]> {
+  const { data, error } = await sb.from("activity_logs").select("*").gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(300)
+  return error ? [] : ((data ?? []) as ActivityRow[]).map(toActivity)
 }
 
 /** Efter en wearable-synk: läs om sömn och anslutningar (RLS: bara egna rader). */

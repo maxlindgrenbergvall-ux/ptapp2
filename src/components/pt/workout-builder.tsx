@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDown, ArrowUp, ChevronDown, Dumbbell, FilePlus2, LayoutTemplate, GripVertical, ListOrdered, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, Columns3, Dumbbell, FilePlus2, LayoutTemplate, GripVertical, ListOrdered, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
@@ -26,6 +26,7 @@ import { EmptyState, PageHeader } from "@/components/common"
 import { AddCustomExerciseButton, CustomBadge, MUSCLE_GROUPS } from "@/components/exercises/custom-exercise-dialog"
 import { VideoEmbed } from "@/components/video-embed"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
+import { SplitBuilder } from "@/components/workouts/split-builder"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -75,6 +76,7 @@ type TemplateDraft = Omit<WorkoutTemplate, "exercises"> & { exercises: ExerciseD
 export function WorkoutBuilder() {
   const { data, actions, me } = useAppData()
   const templates = myTemplates(data, me.id)
+  const [splitOpen, setSplitOpen] = React.useState(false)
   const [selectedId, setSelectedId] = React.useState<string | null>(templates[0]?.id ?? null)
   const [draft, setDraft] = React.useState<TemplateDraft | null>(() => templates[0] ?? null)
   const saved = templates.find((t) => t.id === draft?.id)
@@ -148,6 +150,9 @@ export function WorkoutBuilder() {
                 <DropdownMenuItem onSelect={() => createNew()}>
                   <FilePlus2 /> Tomt pass
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setSplitOpen(true)} data-testid="new-from-split">
+                  <Columns3 /> Från split (PPL, Upper/Lower …)
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Ny från mall</DropdownMenuLabel>
                 {templates.map((t) => (
@@ -159,12 +164,28 @@ export function WorkoutBuilder() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button variant="outline" onClick={() => createNew()}>
-              <Plus /> Nytt pass
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setSplitOpen(true)} data-testid="new-from-split">
+                <Columns3 /> Från split
+              </Button>
+              <Button variant="outline" onClick={() => createNew()}>
+                <Plus /> Nytt pass
+              </Button>
+            </div>
           )
         }
       />
+
+      {/* v32: färdiga splits → en mall per dag. */}
+      <Dialog open={splitOpen} onOpenChange={setSplitOpen}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Mallar från en split</DialogTitle>
+            <DialogDescription>Välj och anpassa – varje dag blir en mall som du kan tilldela klienter.</DialogDescription>
+          </DialogHeader>
+          <SplitBuilder mode="trainer" onDone={() => setSplitOpen(false)} />
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr] xl:grid-cols-[220px_1fr_300px]">
         {/* Mallar */}

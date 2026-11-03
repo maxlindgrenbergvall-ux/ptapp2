@@ -17,6 +17,8 @@ export async function POST() {
   const { data: conns } = await sb.from("wearable_connections").select("provider").neq("status", "revoked")
   const results: { provider: WearableProvider; nights: number; error?: string }[] = []
   for (const { provider } of (conns ?? []) as { provider: WearableProvider }[]) {
+    // Strava har bara aktiviteter (synkas via /api/strava/sync).
+    if (provider === "strava") continue
     try {
       results.push({ provider, nights: (await syncSleep(auth.userId, provider, 7)).length })
     } catch (e) {

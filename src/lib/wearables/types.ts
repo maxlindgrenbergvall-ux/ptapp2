@@ -3,7 +3,7 @@
  * som översätter till den här formen; resten av appen känner inte till Fitbit,
  * Apple Health eller Google Fit.
  */
-import type { SleepStages, WearableProvider } from "@/types/domain"
+import type { SleepProvider, SleepStages, WearableProvider } from "@/types/domain"
 
 export interface SleepRecord {
   /** Datum man vaknade (YYYY-MM-DD). */
@@ -24,7 +24,8 @@ export interface TokenSet {
 }
 
 export interface WearableAdapter {
-  provider: WearableProvider
+  /** Sömnkällor. Strava (aktiviteter) har en egen integration, se src/lib/activity/strava.ts. */
+  provider: SleepProvider
   /** false = inga API-nycklar; mock-adaptern används i stället. */
   configured: boolean
   authorizeUrl(state: string, redirectUri: string): string
@@ -37,4 +38,5 @@ export const PROVIDER_LABEL: Record<WearableProvider, string> = {
   fitbit: "Fitbit",
   apple_health: "Apple Health",
   google_fit: "Google Fit / Health Connect",
+  strava: "Strava",
 }

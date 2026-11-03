@@ -25,7 +25,7 @@ export function appMenuLinks(role: "client" | "trainer") {
     {
       href: `${base}/profil`,
       label: "Profilinställningar",
-      hint: role === "trainer" ? "Profil, utbud och tjänster" : "Intressen, mål och personuppgifter",
+      hint: role === "trainer" ? "Profil, utbud och tjänster" : "Personuppgifter, mål och PT:er",
       icon: UserRound,
     },
     ...(role === "client" ? [{ href: "/klient/profil/mal", label: "Mål", hint: "Kalorimål, takt och prognos", icon: Target }] : []),

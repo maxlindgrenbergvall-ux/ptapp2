@@ -1,13 +1,12 @@
 "use client"
 
 import { Plus, Sparkles, TrendingDown, TrendingUp, Trophy } from "lucide-react"
-import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
@@ -56,11 +55,7 @@ export function MetricsGrid({ clientId, interests, editable }: { clientId: ID; i
             ? "Berätta vad du tränar för, så visar vi rätt mätpunkter här – t.ex. bästa tid på milen för cykling eller 1RM för styrkelyft."
             : "Klienten har inte valt några intressen än."}
         </p>
-        {editable && (
-          <Button asChild size="sm" variant="outline">
-            <Link href="/klient/profil">Välj intressen</Link>
-          </Button>
-        )}
+        {editable && <InterestsDialog clientId={clientId} interests={interests ?? []} />}
       </div>
     )
   }
@@ -240,5 +235,41 @@ export function InterestPicker({ value, onChange }: { value: string[]; onChange:
         )
       })}
     </div>
+  )
+}
+
+/**
+ * Välj intressen (mätpunkter) direkt under Framsteg (v32) – profilen visar
+ * bara de valda målen.
+ */
+export function InterestsDialog({ interests, label = "Välj intressen" }: { clientId: ID; interests: string[]; label?: string }) {
+  const { actions } = useAppData()
+  const [open, setOpen] = React.useState(false)
+  const [value, setValue] = React.useState(interests)
+  return (
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), o && setValue(interests))}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid="choose-interests">
+          {label}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Mätpunkter</DialogTitle>
+          <DialogDescription>Välj vad du tränar för – vi visar rätt mätpunkter under Framsteg.</DialogDescription>
+        </DialogHeader>
+        <InterestPicker value={value} onChange={setValue} />
+        <DialogFooter>
+          <Button
+            onClick={() => {
+              actions.updateProfile({ interests: value })
+              setOpen(false)
+            }}
+          >
+            Spara
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

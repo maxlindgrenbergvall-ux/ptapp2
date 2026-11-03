@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, ChevronLeft, ChevronRight, Lock, Search, Sparkles, Star } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Flame, Lock, Search, Sparkles, Star } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -12,6 +12,7 @@ import { ServiceMenu } from "@/components/services/service-menu"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { daySummary } from "@/lib/activity/summary"
 import { myTrainers, nutritionPlansFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, todayISO } from "@/lib/date"
@@ -86,6 +87,8 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
     </div>
   )
   const planOwner = plan ? data.trainers.find((t) => t.id === plan.trainerId)?.name : undefined
+  // v32: förbränd aktiv energi samma dag (Strava, Apple Hälsa, Health Connect).
+  const burned = daySummary(data.activities, data.activityDays, clientId, date)
 
   return (
     <div className="space-y-5 rounded-2xl border border-border/70 bg-card shadow-card p-5" data-testid="daily-nutrition">
@@ -131,6 +134,25 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
           {eaten.kcal > 0 && ` (${Math.round(eaten.kcal)} kcal ${date === todayISO() ? "idag" : "den dagen"})`}
           {!trainerView && "."}
         </p>
+      )}
+      {(burned.activeKcal > 0 || eaten.kcal > 0) && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted/50 p-2 text-center" data-testid="energy-balance">
+          <div>
+            <p className="text-sm font-semibold tabular">{Math.round(eaten.kcal).toLocaleString("sv-SE")}</p>
+            <p className="text-[11px] text-muted-foreground">ätit (kcal)</p>
+          </div>
+          <div>
+            <p className="flex items-center justify-center gap-1 text-sm font-semibold text-orange-600 tabular dark:text-orange-400" data-testid="energy-burned">
+              <Flame className="size-3.5" />
+              {burned.activeKcal.toLocaleString("sv-SE")}
+            </p>
+            <p className="text-[11px] text-muted-foreground">förbränt · {burned.activeMinutes} min</p>
+          </div>
+          <div>
+            <p className="text-sm font-semibold tabular">{Math.round(eaten.kcal - burned.activeKcal).toLocaleString("sv-SE")}</p>
+            <p className="text-[11px] text-muted-foreground">netto (kcal)</p>
+          </div>
+        </div>
       )}
       {plan && (
         <ul className="divide-y" aria-label="Måltider">

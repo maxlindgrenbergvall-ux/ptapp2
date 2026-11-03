@@ -1,5 +1,6 @@
 import { addDays, parseISODate } from "@/lib/date"
 import { targetRepsFor, hasSetReps } from "@/lib/exercises/draft"
+import { nextTarget, setPlan } from "@/lib/progression"
 import { sectionOf } from "@/lib/workout-rules"
 import type { Exercise, ISODate, MuscleGroup, ScheduledWorkout, SetLog, WeightEntry, WorkoutExercise } from "@/types/domain"
 
@@ -47,14 +48,26 @@ export function findLog(
 
 /**
  * Förslag för ett set som inte loggats ännu, så att klienten bara behöver bocka av.
- * Ordning: föregående set i samma pass → senaste gången övningen gjordes → PT:ns mål.
+ * Ordning (v32):
+ *   1. Progressiv överbelastning: dagens mål ur historiken (src/lib/progression.ts)
+ *      och en pyramid upp till toppsetet,
+ *   2. föregående set i samma pass,
+ *   3. PT:ns mål.
  */
 export function suggestSet(
   exercise: WorkoutExercise,
   setIndex: number,
   logs: SetLog[],
-  history: ScheduledWorkout[]
+  history: ScheduledWorkout[],
+  info?: { equipment?: string; muscleGroup?: MuscleGroup }
 ): { kg: number; reps: number } {
+  const target = nextTarget(exercise, history, info)
+  if (target) {
+    const plan = setPlan(exercise, target)
+    // Extra set som lagts till under passet: samma som toppsetet.
+    return plan[Math.min(setIndex, plan.length - 1)]
+  }
+
   // Eget rep-mål för setet (pyramid, drop-set …) går före tidigare reps.
   const ownTarget = hasSetReps(exercise) ? parseTargetReps(targetRepsFor(exercise, setIndex)) : 0
   const withTarget = (s: { kg: number; reps: number }) => (ownTarget ? { kg: s.kg, reps: ownTarget } : s)

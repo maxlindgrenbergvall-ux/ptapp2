@@ -47,7 +47,7 @@ const pages = [
   ["Inställningar", "/klient/installningar", "Inställningar"],
   ["Min data och sekretess", "/klient/sekretess", "Ladda ner min data"],
   ["Anslutningar", "/klient/anslutningar", "Fitbit"],
-  ["Profilinställningar", "/klient/profil", "Intressen och mål"],
+  ["Profilinställningar", "/klient/profil", "Mina mål"],
 ]
 await p.keyboard.press("Escape")
 for (const [label, path, text] of pages) {
@@ -60,20 +60,19 @@ for (const [label, path, text] of pages) {
 }
 
 // ---------------------------------------- 2. intressen styr Framsteg ---
-await p.click('[role=group][aria-label=Intressen] button:has-text("Cykling")')
-check((await p.locator("[data-testid=metric-preview]").innerText()).includes("Bästa tid på milen"), "profilen förhandsvisar mätpunkterna för Cykling")
-await p.fill("#profile-focus", "Under 15 minuter på milen")
-await p.click('button:has-text("Spara profilen")')
-await p.waitForSelector("text=Profilen är sparad")
+// v32: intressena (mätpunkterna) väljs under Framsteg – profilen visar bara valda mål.
+await p.goto(base + "/klient/framsteg")
+await p.click("[data-testid=choose-interests]")
+await p.click('[role=dialog] [role=group][aria-label=Intressen] button:has-text("Cykling")')
+await p.click('[role=dialog] button:has-text("Spara")')
+await p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
 check((await demo()).clients.find((c) => c.id === "c1").interests.includes("cykling"), "intresset sparas på profilen")
 await p.screenshot({ path: `${out}/v12-profil.png`, fullPage: true })
 
-await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("[data-testid=metrics-grid]")
 check(await p.locator('section[aria-label="Cykling"] >> text=Bästa tid på milen').isVisible(), "Framsteg visar Bästa tid på milen för Cykling")
 check(await p.locator('section[aria-label="Styrkelyft"] >> text=Back Squat, e1RM').isVisible(), "Framsteg visar 1RM för Styrkelyft")
 check((await p.locator("[data-testid=metric-hyrox_total]").innerText()).includes("1:33:30"), "Hyrox-tid från loggen (1:33:30)")
-check(await p.locator("text=Under 15 minuter på milen").isVisible(), "målet visas i Framsteg")
 await p.click('button[aria-label="Logga Bästa tid på milen"]')
 await p.fill("#metric-value", "18:30")
 await p.click('[role=dialog] button[type=submit]')

@@ -4,4 +4,6 @@
     <string name="title_activity_main">Coavira</string>
     <string name="package_name">com.coavira.app</string>
     <string name="custom_url_scheme">com.coavira.app</string>
+    <!-- Health Connect visar integritetspolicyn när användaren ger behörighet (v32). -->
+    <string name="health_connect_privacy_policy_url">https://coavira.fit/integritet</string>
 </resources>

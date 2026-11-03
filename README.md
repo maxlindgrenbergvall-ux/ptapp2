@@ -52,7 +52,8 @@ npm run dev                  # http://localhost:3000
        - **Loggar ut alla** genom att tömma `auth.sessions` och `auth.refresh_tokens`.
        - Lägger till förnamn och efternamn, `legal_acceptances` och profilbilder som bara får ligga i den egna Storage-mappen.
        - Lägger till RPC-funktionerna `save_profile_step`, `accept_legal_documents`, `finish_onboarding` och `my_onboarding_status`.
-   32. `supabase/seed.sql`
+   32. `supabase/migrations/20261114000000_v32_training_activity.sql`. Träning och aktivitet: extra set och egna övningar (`"extra": true`) i PT:ns pass under passet, målet `bodybuilding` i `client_goals`, `strava` i `wearable_provider`, tabellerna `activity_logs` (pass från Strava, Apple Hälsa, Health Connect) och `activity_days` (dagssummor från telefonen) med RLS. Stravas pass raderas när kopplingen tas bort.
+   33. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -578,6 +579,32 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v32: progressiv överbelastning, splits, Strava och hälsosynk
+
+- **Progressiv överbelastning** (`src/lib/progression.ts`, enhetstest `e2e/progression.unit.ts`). Dubbel progression per övning:
+  - Repintervallet läses ur PT:ns mål ("8" → 6–8).
+  - Klarar toppsetet max-reps → nästa viktsteg och min-reps (140 × 8 → 142,5 × 6).
+  - Annars samma vikt +1 rep; två pass i rad under min-reps → deload 10 %.
+  - Viktsteget beror på utrustningen: skivstång 2,5, hantel 2, kettlebell 4, maskin 2,5 (ben 5), kroppsvikt = fler reps.
+  - De tidigare seten byggs som en pyramid upp mot toppsetet (Epley).
+- **Splits** (`src/lib/splits.ts`, `/klient/schema`, PT: "Nytt pass → Från split"): PPL (3 och 6 dagar), Upper/Lower, 4-split, Bro split och Full Body. Alla kan anpassas. Klienten lägger ut passen i kalendern på valda veckodagar; PT:n får en mall per dag.
+- **Vilotid** (`src/lib/rest-timer.ts`): 45 s–3 min eller eget värde, som standard (Inställningar) eller under passet. Notis på låsskärmen i appen (`@capacitor/local-notifications`).
+- **Lägg till set / övning** under passet, även i PT:ns pass. PT:ns egna övningar kan inte tas bort eller ändras (databasregeln `exercises_only_extended`).
+- **Strava** (`src/lib/activity/strava.ts`, `/api/strava/*`):
+  - OAuth på servern, med state-cookie.
+  - Tokens sparas bara med service role (`wearable_tokens`).
+  - Synkar de senaste 30 dagarna.
+  - Kalorier tas från Stravas egna värden, därefter från kilojoule, annars uppskattas de med MET.
+  - Kräver `STRAVA_CLIENT_ID` och `STRAVA_CLIENT_SECRET` (serverhemligheter). Ange Authorization Callback Domain = er domän i Stravas API-inställningar.
+- **Apple Hälsa / Health Connect** (`src/lib/native/health.ts`, `@capgo/capacitor-health`):
+  - Bara i mobilappen.
+  - Läser aktiv energi, aktiva minuter, steg och träningspass.
+  - Kräver ett nytt appbygge. iOS behöver HealthKit-capability (`App.entitlements`). Android kräver minSdk 26 och Health Connect-deklarationen i Play Console.
+- **Kalorimätaren** visas på Idag, i kostdagboken (ätit / förbränt / netto), under Anslutningar och hos PT:n.
+  - Dagens summa är det största av telefonens dagssumma och summan av passen.
+  - Dubbletter tas bort: samma start ±5 min och längd ±20 %.
+- **Profilen** visar bara namn, profilbild, valda mål som piller och PT:er. Intressena (mätpunkterna) väljs under Framsteg.
+
 ## Nytt i v31: rollbaserat intro-flöde, avtal och tvingad utloggning
 
 - **Tvingad utloggning och flaggan.**
@@ -961,6 +988,12 @@ node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.
 node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
 node e2e/connect-onboarding-demo.test.mjs # (demo) PT-onboardingen med simulerad Stripe-koppling
 npx tsx --tsconfig tsconfig.json e2e/goals.unit.ts # BMR/TDEE, reglaget, energigolv, makron och prognos
+npx tsx --tsconfig tsconfig.json e2e/progression.unit.ts # progressiv överbelastning och pyramid
+npx tsx --tsconfig tsconfig.json e2e/splits.unit.ts      # splits och schemaläggning
+npx tsx --tsconfig tsconfig.json e2e/activity.unit.ts    # kalorimätaren: dubbletter, dagssumma, MET
+node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil
+node e2e/mock-strava.mjs &         # (krävs av v32-supabase) Stravas API på :54700 (STRAVA_API_BASE=http://localhost:54700, STRAVA_CLIENT_ID=123, STRAVA_CLIENT_SECRET=sek)
+node e2e/v32-supabase.test.mjs     # Strava: OAuth/CSRF, tokens på servern, kalorier, synk utan dubbletter, koppla från
 node e2e/v31-intro-demo.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Välkomststeget utan namn, steg 1 med bildfiltret, klientens mål, Framsteg mot plan
 node e2e/v31-supabase.test.mjs  # Befintliga konton tvingas genom intro-flödet; klient: steg 1 → mål → klar; PT: steg 1 → villkor → aktiverat
 node e2e/v30-mal-intro.test.mjs  # (demo) Intro-flödet, reglaget räknar om i realtid, två grafer, Profil → Mål, PT:ns vy, friskrivning

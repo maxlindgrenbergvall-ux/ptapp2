@@ -471,7 +471,7 @@ export function WearablesCard() {
     setBusy("sync")
     try {
       if (mode === "demo") {
-        data.wearables.forEach((w) => demoSync(w.provider, 7))
+        data.wearables.forEach((w) => w.provider !== "strava" && demoSync(w.provider, 7))
       } else {
         const res = await fetch("/api/wearables/sync", { method: "POST" })
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Synk misslyckades")
@@ -501,7 +501,8 @@ export function WearablesCard() {
     }
   }
 
-  const connected = data.wearables.filter((w) => w.status !== "revoked")
+  // Strava (aktiviteter) visas i aktivitetskortet, inte bland sömnkällorna.
+  const connected = data.wearables.filter((w) => w.status !== "revoked" && w.provider !== "strava")
 
   return (
     <section className="space-y-3 rounded-2xl border bg-card p-5" aria-labelledby="wearables-title">

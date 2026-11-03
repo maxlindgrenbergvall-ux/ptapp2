@@ -9,12 +9,12 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin"
 import { fitbitAdapter, TokenExpiredError } from "@/lib/wearables/fitbit"
 import { mockAdapter } from "@/lib/wearables/mock"
 import type { SleepRecord, TokenSet, WearableAdapter } from "@/lib/wearables/types"
-import type { HealthSource, WearableProvider } from "@/types/domain"
+import type { HealthSource, SleepProvider, WearableProvider } from "@/types/domain"
 
 /** Apple Health och Health Connect saknar webb-API (data finns bara på telefonen). */
-export const WEB_OAUTH_PROVIDERS: WearableProvider[] = ["fitbit"]
+export const WEB_OAUTH_PROVIDERS: SleepProvider[] = ["fitbit"]
 
-export function adapterFor(provider: WearableProvider): WearableAdapter {
+export function adapterFor(provider: SleepProvider): WearableAdapter {
   if (provider === "fitbit" && fitbitAdapter.configured) return fitbitAdapter
   return mockAdapter(provider)
 }
@@ -46,7 +46,7 @@ export async function saveConnection(userId: string, provider: WearableProvider,
 }
 
 /** Hämtar sömn för de senaste `days` nätterna och sparar dem. Returnerar sparade rader. */
-export async function syncSleep(userId: string, provider: WearableProvider, days = 7): Promise<SleepRecord[]> {
+export async function syncSleep(userId: string, provider: SleepProvider, days = 7): Promise<SleepRecord[]> {
   const db = createSupabaseAdmin()
   const adapter = adapterFor(provider)
   const { data: row, error } = await db

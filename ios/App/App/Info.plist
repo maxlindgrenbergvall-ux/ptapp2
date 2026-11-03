@@ -75,6 +75,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Coavira använder kameran för att skanna streckkoder på livsmedel, ta profilbild och för videosamtal med din PT.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Coavira läser aktiv energi, aktiv tid, steg och träningspass från Hälsa så att du ser hur mycket du förbränt bredvid kosten och träningen. Coavira skriver aldrig till Hälsa.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Coavira använder mikrofonen för röst- och videosamtal med din PT.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

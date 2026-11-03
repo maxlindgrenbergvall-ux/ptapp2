@@ -1,10 +1,11 @@
 "use client"
 
-import { BellRing, ChevronRight, LogOut, Palette, RotateCcw } from "lucide-react"
+import { BellRing, ChevronRight, LogOut, Palette, RotateCcw, Timer } from "lucide-react"
 import Link from "next/link"
 
 import { appMenuLinks } from "@/components/app-menu"
 import { LegalLinksCard } from "@/components/legal-links"
+import { RestSettingsFields } from "@/components/client/rest-settings"
 import { PushSettingsCard } from "@/components/native/push-settings"
 import { DeleteAccountCard } from "@/components/settings/delete-account"
 import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
@@ -66,6 +67,20 @@ export function SettingsPage() {
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={interests.enabled} onCheckedChange={(v) => interests.setEnabled(v === true)} /> Visa personliga erbjudanden
             </label>
+          </CardContent>
+        </Card>
+      )}
+
+      {me.role === "client" && (
+        <Card className="gap-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Timer className="size-4" /> Vilotid mellan set
+            </CardTitle>
+            <CardDescription>Standard för dina pass. Kan också ändras direkt i passet.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RestSettingsFields />
           </CardContent>
         </Card>
       )}

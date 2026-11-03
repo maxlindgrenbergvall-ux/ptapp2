@@ -43,6 +43,8 @@ import type {
   WorkoutTemplate,
   TrainerService,
   GoalProfile,
+  ActivityDay,
+  ActivityLog,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
 
@@ -59,6 +61,8 @@ export type PersistableAction =
   | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string; trainerId?: ID }
   | { type: "addWeight"; clientId: ID; entry: WeightEntry }
   | { type: "saveGoalProfile"; profile: GoalProfile }
+  /** Telefonens hälsodata (HealthKit / Health Connect): dagssummor och pass (v32). */
+  | { type: "syncDeviceActivity"; days: ActivityDay[]; activities: ActivityLog[] }
   | { type: "requestCoaching"; trainerId: ID; clientId: ID; goal: string }
   | { type: "addEvent"; event: CalendarEvent }
   | { type: "updateEvent"; eventId: ID; patch: EventPatch }
@@ -141,6 +145,8 @@ export type LocalAction =
   | { type: "remoteEvent"; event: CalendarEvent }
   | { type: "addNotification"; notification: AppNotification }
   | { type: "setWearables"; connections: WearableConnection[] }
+  /** Aktiviteter från en källa (t.ex. efter en Strava-synk på servern) ersätter de gamla från samma källa. */
+  | { type: "setActivities"; source: ActivityLog["source"]; activities: ActivityLog[] }
   | { type: "mergeSleepLogs"; logs: SleepLog[] }
   /** Köp från servern (eller demoläget). Ett betalt köp gör klienten aktiv hos PT:n, som databasen. */
   | { type: "upsertPurchases"; purchases: Purchase[]; today?: ISODate }
@@ -530,6 +536,22 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         foodEntries: data.foodEntries.map((e) => (e.recipeId === action.recipeId ? { ...e, recipeId: undefined } : e)),
       }
 
+    case "syncDeviceActivity": {
+      const dayKey = (d: ActivityDay) => `${d.clientId}|${d.date}|${d.source}`
+      const logKey = (a: ActivityLog) => `${a.clientId}|${a.source}|${a.externalId}`
+      const days = new Map(data.activityDays.map((d) => [dayKey(d), d]))
+      action.days.forEach((d) => days.set(dayKey(d), d))
+      const logs = new Map(data.activities.map((a) => [logKey(a), a]))
+      action.activities.forEach((a) => logs.set(logKey(a), { ...a, id: logs.get(logKey(a))?.id ?? a.id }))
+      return { ...data, activityDays: [...days.values()], activities: [...logs.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)) }
+    }
+
+    case "setActivities":
+      return {
+        ...data,
+        activities: [...data.activities.filter((a) => a.source !== action.source), ...action.activities].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
+      }
+
     case "saveGoalProfile":
       return { ...data, goalProfiles: upsertBy(data.goalProfiles, action.profile, (g) => g.clientId === action.profile.clientId) }
 
@@ -698,6 +720,8 @@ export function normalizeAppData(raw: unknown): AppData | null {
     recipes: list(d.recipes),
     favoriteRecipes: list<ID>(d.favoriteRecipes),
     goalProfiles: list<GoalProfile>(d.goalProfiles),
+    activities: list<ActivityLog>(d.activities),
+    activityDays: list<ActivityDay>(d.activityDays),
     // v12: relationer (flera PT:er). Äldre data: härled från klienternas PT.
     relationships: Array.isArray(d.relationships)
       ? list<CoachingRelationship>(d.relationships)

@@ -206,6 +206,8 @@ export interface WorkoutExercise {
   notes?: string
   /** Instruktionsvideo från PT:n (t.ex. YouTube/Vimeo eller egen uppladdning). */
   videoUrl?: string
+  /** Tillagd av klienten under passet (v32) – extra utöver PT:ns program. */
+  extra?: boolean
 }
 
 export interface WorkoutTemplate {
@@ -337,7 +339,7 @@ export interface Meal {
 }
 
 /** Mål i intro-flödet och under Profil → Mål (v30). */
-export type GoalKey = "weight_loss" | "muscle_gain" | "recomp" | "strength" | "endurance" | "health"
+export type GoalKey = "weight_loss" | "muscle_gain" | "recomp" | "strength" | "endurance" | "health" | "bodybuilding"
 export type Sex = "female" | "male" | "other"
 export type ActivityLevel = "sedentary" | "light" | "moderate" | "very"
 
@@ -509,7 +511,41 @@ export interface SleepLog {
   source: HealthSource
 }
 
-export type WearableProvider = "fitbit" | "apple_health" | "google_fit"
+export type WearableProvider = "fitbit" | "apple_health" | "google_fit" | "strava"
+
+/** Källor för sömn (Strava har bara aktiviteter). */
+export type SleepProvider = Exclude<WearableProvider, "strava">
+
+/** Var en aktivitet kommer ifrån (v32). */
+export type ActivitySource = "strava" | "apple_health" | "google_fit" | "manual"
+
+/** Ett konditions-/aktivitetspass från Strava, Apple Health eller Health Connect (v32). */
+export interface ActivityLog {
+  id: ID
+  clientId: ID
+  source: ActivitySource
+  externalId: string
+  /** Sporttyp från källan, t.ex. "Run", "Ride", "running". */
+  sport: string
+  name: string
+  startedAt: ISODateTime
+  date: ISODate
+  durationSec: number
+  distanceM?: number
+  kcal?: number
+  /** Kalorier uppskattade (MET × vikt × tid) när källan saknar dem. */
+  kcalEstimated?: boolean
+}
+
+/** Dagens totala aktiva energi från telefonens hälsodata (HealthKit / Health Connect). */
+export interface ActivityDay {
+  clientId: ID
+  date: ISODate
+  source: "apple_health" | "google_fit"
+  activeKcal: number
+  activeMinutes?: number
+  steps?: number
+}
 
 export interface WearableConnection {
   provider: WearableProvider
@@ -617,6 +653,10 @@ export interface AppData {
   waterLogs: WaterLog[]
   sleepLogs: SleepLog[]
   wearables: WearableConnection[]
+  /** Aktiviteter (v32): Strava, Apple Health, Health Connect. Klientens egna, eller PT:ns klienters. */
+  activities: ActivityLog[]
+  /** Dagssummor av aktiv energi från telefonen (v32). */
+  activityDays: ActivityDay[]
   exerciseAliases: ExerciseAlias[]
   /** Klientens egna produkter (och produkter den skannat). */
   customFoods: FoodProduct[]

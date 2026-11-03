@@ -15,6 +15,7 @@ import {
   Target,
   TrendingDown,
   TriangleAlert,
+  Trophy,
   Weight,
   type LucideIcon,
 } from "lucide-react"
@@ -42,9 +43,10 @@ import {
 import { cn } from "@/lib/utils"
 import type { ActivityLevel, GoalKey, Sex } from "@/types/domain"
 
-const GOAL_ICON: Record<GoalKey, LucideIcon> = {
+export const GOAL_ICON: Record<GoalKey, LucideIcon> = {
   weight_loss: TrendingDown,
   muscle_gain: BicepsFlexed,
+  bodybuilding: Trophy,
   recomp: Shuffle,
   strength: Weight,
   endurance: HeartPulse,

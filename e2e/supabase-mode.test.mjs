@@ -362,12 +362,12 @@ const paid = log.find((e) => e.table === "mark_checkout_paid")
 check(paid?.body.p_checkout === "aaaaaaaa-0000-4000-8000-000000000002" && paid.body.p_amount_sek === 880, "servern bekräftar betalningen hos Stripe och markerar kassan betald (800 kr + 10 % serviceavgift)")
 await v.waitForURL(`${base}/klient`)
 
-// 16. v12: intressen i profilen och Lämna PT
+// 16. v12: intressen (v32: under Framsteg – profilen visar bara valda mål) och Lämna PT
 await v.waitForSelector("text=Dagens kost")
-await v.goto(`${base}/klient/profil`)
-await v.click('[role=group][aria-label=Intressen] button:has-text("Cykling")')
-await v.click('button:has-text("Spara profilen")')
-await v.waitForSelector("text=Profilen är sparad")
+await v.goto(`${base}/klient/framsteg`)
+await v.click("[data-testid=choose-interests]")
+await v.click('[role=dialog] [role=group][aria-label=Intressen] button:has-text("Cykling")')
+await v.click('[role=dialog] button:has-text("Spara")')
 await v.waitForTimeout(500)
 log = await getLog()
 check(log.some((e) => e.table === "profiles" && e.method === "PATCH" && JSON.stringify(e.body.interests) === JSON.stringify(["cykling"])), "intressena sparas på profilen")

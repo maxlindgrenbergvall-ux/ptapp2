@@ -13,11 +13,12 @@ export const GOAL_DISCLAIMER =
   "Obs: Alla uppskattningar, kaloriberäkningar och grafer baseras på genomsnittliga formler. Resultat varierar från person till person beroende på genetik, ämnesomsättning och följsamhet, och kan komma att behöva justeras individuellt över tid."
 
 // ---------------------------------------------------------------- mål ---
-export const GOAL_KEYS: GoalKey[] = ["weight_loss", "muscle_gain", "recomp", "strength", "endurance", "health"]
+export const GOAL_KEYS: GoalKey[] = ["weight_loss", "muscle_gain", "bodybuilding", "recomp", "strength", "endurance", "health"]
 
 export const GOAL_INFO: Record<GoalKey, { label: string; hint: string }> = {
   weight_loss: { label: "Viktnedgång", hint: "Tappa fett i lagom takt med ett kaloriunderskott" },
   muscle_gain: { label: "Ökad muskelmassa", hint: "Bygga muskler med ett litet kaloriöverskott" },
+  bodybuilding: { label: "Bodybuilding", hint: "Muskelvolym och symmetri – hög träningsvolym och mycket protein" },
   recomp: { label: "Body recomposition", hint: "Bygga muskler och tappa fett samtidigt – vikten står ungefär still" },
   strength: { label: "Styrkeökning", hint: "Bli starkare – energi i balans och gott om protein" },
   endurance: { label: "Kondition & uthållighet", hint: "Mer kolhydrater för fyllda glykogendepåer och ork" },
@@ -91,9 +92,10 @@ export type PlanMode = "cut" | "bulk" | "recomp" | "maintain"
  */
 export function planMode(goals: GoalKey[]): PlanMode {
   const has = (g: GoalKey) => goals.includes(g)
-  if (has("recomp") || (has("weight_loss") && has("muscle_gain"))) return "recomp"
+  const muscle = has("muscle_gain") || has("bodybuilding")
+  if (has("recomp") || (has("weight_loss") && muscle)) return "recomp"
   if (has("weight_loss")) return "cut"
-  if (has("muscle_gain")) return "bulk"
+  if (muscle) return "bulk"
   return "maintain"
 }
 
@@ -195,6 +197,7 @@ export interface NutritionPlanResult {
 const PROTEIN_PER_KG: Record<GoalKey, number> = {
   weight_loss: 2.0,
   muscle_gain: 1.8,
+  bodybuilding: 2.0,
   recomp: 2.2,
   strength: 1.8,
   endurance: 1.5,
@@ -318,7 +321,7 @@ const LEAN_POTENTIAL: Record<Sex, number> = { male: 0.11, female: 0.06, other: 0
  */
 export function projectWeeks(input: PlanInput & { targetWeightKg?: number }, plan: NutritionPlanResult, weeks: number): ProjectionPoint[] {
   const goals = input.goals
-  const trains = goals.some((g) => g === "muscle_gain" || g === "recomp" || g === "strength")
+  const trains = goals.some((g) => g === "muscle_gain" || g === "bodybuilding" || g === "recomp" || g === "strength")
   const potential = LEAN_POTENTIAL[input.sex]
   const start = input.weightKg
   const target = input.targetWeightKg
@@ -385,7 +388,7 @@ export interface ChartSeries {
 export function chartSeries(goals: GoalKey[]): ChartSeries[] {
   const has = (g: GoalKey) => goals.includes(g)
   const fatGoal = has("weight_loss") || has("recomp")
-  const muscleGoal = has("muscle_gain") || has("strength") || has("recomp")
+  const muscleGoal = has("muscle_gain") || has("bodybuilding") || has("strength") || has("recomp")
   if (fatGoal && muscleGoal) {
     return [
       { key: "fatDelta", label: "Fettmassa" },

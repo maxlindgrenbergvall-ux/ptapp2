@@ -153,7 +153,7 @@ const before = (await demo()).templates.filter((t) => t.trainerId === "t1").leng
 await p.click("[data-testid=new-workout-menu]")
 await p.waitForSelector("[role=menu]")
 await p.screenshot({ path: `${out}/v29-pt-ny-fran-mall.png` })
-await p.locator("[role=menuitem]").nth(1).click()
+await p.locator("[role=menuitem]").nth(2).click() // 0 = Tomt pass, 1 = Från split (v32)
 const draftName = await p.inputValue('[aria-label="Passets namn"]')
 check(draftName.endsWith("(ny)"), `nytt pass från mall: "${draftName}"`)
 check((await p.locator("text=Ej sparad").count()) >= 1, "utkastet är inte sparat förrän PT:n sparar")

@@ -1,12 +1,14 @@
 "use client"
 
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, Pencil, PlayCircle, Plus, ShieldCheck, Timer, Trash2, TriangleAlert, X } from "lucide-react"
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, Pencil, PlayCircle, Plus, Repeat, Search, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
+import { CustomBadge } from "@/components/exercises/custom-exercise-dialog"
+import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
@@ -20,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { confirmDialog } from "@/components/ui/confirm"
@@ -27,11 +30,15 @@ import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
 import { hasSetReps, repsLabel, targetRepsFor } from "@/lib/exercises/draft"
+import { workoutExerciseFor } from "@/lib/exercises/custom"
+import { matchesExercise } from "@/lib/exercises/search"
 import { exercisesFromWorkout } from "@/lib/templates"
+import { nextTarget, type ProgressionTarget } from "@/lib/progression"
+import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
-import type { ScheduledWorkout, WorkoutExercise } from "@/types/domain"
+import type { Exercise, ScheduledWorkout, WorkoutExercise } from "@/types/domain"
 
 /*
  * UX-principer för loggen (används mellan set, ofta med en hand och svettiga fingrar):
@@ -101,12 +108,16 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const sections = groupBySection(workout.exercises)
   // Klienten kan ändra ordningen medan passet pågår (även i PT:ns pass – innehållet är låst).
   const canReorder = !trainerMode && !readOnly && workout.exercises.length > 1
+  // Under passet (v32): lägg till set och övningar – även i PT:ns pass (som extra).
+  const canExtend = !trainerMode && !readOnly && workout.status !== "completed"
   // Genomfört men inte klarmarkerat: kan redigeras i efterhand.
   const canEdit = !trainerMode && workout.status === "completed" && !workout.verifiedAt
 
   const onSetDone = (exercise: WorkoutExercise) => {
     // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
-    if (exercise.restSec > 0 && !trainerMode) setRest({ endsAt: nowMs() + exercise.restSec * 1000, total: exercise.restSec })
+    // Vilotid (v32): passets eller min egen (inställning före/under passet).
+    const seconds = restSecondsFor(exercise.restSec, getRestPreference())
+    if (seconds > 0 && !trainerMode) setRest({ endsAt: nowMs() + seconds * 1000, total: seconds })
     // Sista setet i övningen → öppna nästa ofärdiga övning.
     const doneSoFar = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length + 1
     if (doneSoFar >= exercise.sets) {
@@ -149,6 +160,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               <Trash2 />
             </Button>
           )}
+          {!trainerMode && !readOnly && <RestSettingsButton />}
           {canEdit && (
             <Button size="sm" variant="outline" onClick={() => setEditing(true)} data-testid="edit-workout">
               <Pencil /> Redigera
@@ -233,6 +245,12 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
                 readOnly={readOnly}
                 onLog={(log) => actions.logSet(workout.id, log)}
                 onSetDone={() => onSetDone(exercise)}
+                onAddSet={canExtend ? () => actions.addWorkoutSet(workout.id, exercise.id) : undefined}
+                onRemove={
+                  canExtend && (exercise.extra || workout.byClient) && !workout.logs.some((l) => l.workoutExerciseId === exercise.id && l.done)
+                    ? () => actions.removeExtraExercise(workout.id, exercise.id)
+                    : undefined
+                }
                 onMove={
                   canReorder
                     ? {
@@ -245,6 +263,16 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             ))}
           </section>
         ))}
+        {canExtend && (
+          // v32: inte låst till programmet – improvisera eller kör extra.
+          <AddExerciseDialog
+            onAdd={(entry) => {
+              const id = actions.addWorkoutExercise(workout.id, entry)
+              if (id) setOpenId(id)
+              return Boolean(id)
+            }}
+          />
+        )}
         {!readOnly && !trainerMode && workout.status !== "completed" && done === total && started && (
           <Button size="lg" className="h-14 w-full bg-brand text-base text-brand-foreground hover:bg-brand/90" onClick={() => setFinishOpen(true)}>
             <Check /> Alla set klara – avsluta passet
@@ -266,6 +294,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
       </div>
 
       {rest && !readOnly && <RestTimer rest={rest} onChange={setRest} />}
+      <RestNotification rest={readOnly ? null : rest} />
 
       {editing && <CompletedWorkoutEditor workout={workout} onClose={() => setEditing(false)} />}
 
@@ -320,6 +349,8 @@ function ExerciseCard({
   readOnly,
   onLog,
   onSetDone,
+  onAddSet,
+  onRemove,
   onMove,
 }: {
   index: number
@@ -331,6 +362,10 @@ function ExerciseCard({
   readOnly: boolean
   onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
   onSetDone: () => void
+  /** Ett set till (saknas = passet är låst). */
+  onAddSet?: () => void
+  /** Ta bort en övning man själv lagt till (utan avbockade set). */
+  onRemove?: () => void
   /** Flytta övningen upp/ned i passet (saknas = ordningen är låst). */
   onMove?: { up?: () => void; down?: () => void }
 }) {
@@ -338,6 +373,10 @@ function ExerciseCard({
   // PT:ns eget namn för klienten om det finns.
   const name = exerciseName(data, exercise.exerciseId, workout.clientId)
   const last = lastPerformance(exercise.exerciseId, history)
+  const libraryExercise = data.exercises.find((x) => x.id === exercise.exerciseId)
+  const info = { equipment: libraryExercise?.equipment, muscleGroup: libraryExercise?.muscleGroup }
+  // Progressiv överbelastning (v32): dagens mål för toppsetet ur historiken.
+  const target = workout.status === "completed" ? null : nextTarget(exercise, history, info)
   const doneCount = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length
   const complete = doneCount >= exercise.sets
   // Viktövningar (skivstång, hantlar, maskin …) visar alltid kg – vikten måste fyllas i.
@@ -357,7 +396,14 @@ function ExerciseCard({
           {complete ? <Check className="size-4" strokeWidth={3} /> : index + 1}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold">{name}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-semibold">{name}</span>
+            {exercise.extra && (
+              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary" data-testid="extra-badge">
+                Extra
+              </span>
+            )}
+          </span>
           <span className="block text-xs text-muted-foreground tabular">
             {exercise.sets} × {repsLabel(exercise)}
             {exercise.targetKg ? ` · ${exercise.targetKg} kg` : ""}
@@ -398,6 +444,8 @@ function ExerciseCard({
             </div>
           )}
 
+          {target && target.kind !== "start" && <ProgressionHint target={target} usesWeight={usesWeight} />}
+
           <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 px-1 text-[11px] text-muted-foreground">
             <span>Set</span>
             <span className="text-center">{usesWeight ? "Kg" : "–"}</span>
@@ -412,6 +460,7 @@ function ExerciseCard({
                 exercise={exercise}
                 workout={workout}
                 history={history}
+                info={info}
                 usesWeight={usesWeight}
                 readOnly={readOnly}
                 onLog={onLog}
@@ -419,6 +468,20 @@ function ExerciseCard({
               />
             ))}
           </ol>
+          {(onAddSet || onRemove) && (
+            <div className="flex items-center justify-between gap-2">
+              {onAddSet && (
+                <Button variant="ghost" size="sm" className="text-primary" onClick={onAddSet} disabled={exercise.sets >= 20} data-testid="add-set">
+                  <Plus /> Lägg till set
+                </Button>
+              )}
+              {onRemove && (
+                <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground" onClick={onRemove} aria-label={`Ta bort ${name} ur passet`}>
+                  <Trash2 /> Ta bort
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -430,6 +493,7 @@ function SetRow({
   exercise,
   workout,
   history,
+  info,
   usesWeight,
   readOnly,
   onLog,
@@ -439,13 +503,14 @@ function SetRow({
   exercise: WorkoutExercise
   workout: ScheduledWorkout
   history: ScheduledWorkout[]
+  info?: { equipment?: string; muscleGroup?: Exercise["muscleGroup"] }
   usesWeight: boolean
   readOnly: boolean
   onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
   onDone: () => void
 }) {
   const logged = findLog(workout.logs, exercise.id, setIndex)
-  const suggestion = suggestSet(exercise, setIndex, workout.logs, history)
+  const suggestion = suggestSet(exercise, setIndex, workout.logs, history, info)
   // Ändringar som inte sparats än: set som inte bockats av, eller ett tömt fält.
   // Ett fält kan tömmas helt (undefined) och fyllas i med valfritt värde.
   const [draft, setDraft] = React.useState<Partial<SetValues> | null>(null)
@@ -537,6 +602,45 @@ function SetRow({
   )
 }
 
+const KIND_LABEL: Record<ProgressionTarget["kind"], string> = {
+  increase_weight: "Öka vikten",
+  add_reps: "Ett rep till",
+  repeat: "Samma vikt",
+  deload: "Avlastning",
+  start: "Start",
+  bodyweight: "Fler reps",
+}
+
+/**
+ * Dagens mål (progressiv överbelastning): toppsetet ur förra passet och
+ * nästa steg, med en kort förklaring. Seten nedanför är förifyllda som en
+ * pyramid upp till målet.
+ */
+function ProgressionHint({ target, usesWeight }: { target: ProgressionTarget; usesWeight: boolean }) {
+  const kg = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 2 })
+  const up = target.kind === "increase_weight" || target.kind === "add_reps" || target.kind === "bodyweight"
+  return (
+    <div className={cn("space-y-1 rounded-xl border px-3 py-2", target.kind === "deload" ? "border-warning/50 bg-warning/10" : "border-primary/30 bg-primary/5")} data-testid="progression-hint">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+        {up ? <TrendingUp className="size-4 text-primary" /> : target.kind === "deload" ? <TrendingDown className="size-4 text-warning" /> : <Repeat className="size-4 text-muted-foreground" />}
+        <span className="font-semibold">Mål idag:</span>
+        <span className="font-semibold tabular" data-testid="progression-target">
+          {usesWeight && target.kg > 0 ? `${kg(target.kg)} kg × ` : ""}
+          {target.reps} reps
+        </span>
+        {target.deltaKg !== 0 && (
+          <span className={cn("rounded-full px-1.5 text-xs font-medium tabular", target.deltaKg > 0 ? "bg-primary/15 text-primary" : "bg-warning/20")}>
+            {target.deltaKg > 0 ? "+" : "−"}
+            {kg(Math.abs(target.deltaKg))} kg
+          </span>
+        )}
+        <span className="text-xs text-muted-foreground">· {KIND_LABEL[target.kind]}</span>
+      </p>
+      <p className="text-xs text-muted-foreground">{target.reason}</p>
+    </div>
+  )
+}
+
 /** Värden i ett set under loggning. undefined = tomt fält. */
 interface SetValues {
   kg?: number
@@ -619,6 +723,17 @@ export function Stepper({
   )
 }
 
+/** Notisen "Vilan är slut" följer timern: schemaläggs, flyttas vid ±15 s och tas bort vid hoppa över. */
+function RestNotification({ rest }: { rest: { endsAt: number } | null }) {
+  const endsAt = rest?.endsAt ?? null
+  React.useEffect(() => {
+    if (endsAt === null || !getRestPreference().alert || endsAt <= Date.now()) return
+    void scheduleRestNotification(endsAt)
+    return () => void cancelRestNotification()
+  }, [endsAt])
+  return null
+}
+
 function RestTimer({
   rest,
   onChange,
@@ -636,7 +751,7 @@ function RestTimer({
   const finished = left === 0
 
   React.useEffect(() => {
-    if (finished) navigator.vibrate?.([120, 80, 120])
+    if (finished && getRestPreference().alert) restFinishedAlert()
   }, [finished])
 
   const mm = Math.floor(left / 60)
@@ -820,5 +935,65 @@ function ExerciseVideo({ source, title }: { source: string; title: string }) {
       </button>
       {show && <VideoEmbed source={source} title={`Instruktionsvideo: ${title}`} />}
     </div>
+  )
+}
+
+/**
+ * "Lägg till övning" mitt i passet (v32): sök i övningsbanken (egna övningar
+ * först) och lägg till med ett tryck. Set, reps och vila följer övningens
+ * förval; dagens mål räknas ur historiken som för alla övningar.
+ */
+function AddExerciseDialog({ onAdd }: { onAdd: (entry: Omit<WorkoutExercise, "id">) => boolean }) {
+  const { data } = useAppData()
+  const [open, setOpen] = React.useState(false)
+  const [q, setQ] = React.useState("")
+  const query = q.trim().toLowerCase()
+  const matches = data.exercises
+    .filter((e) => matchesExercise(e, query))
+    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
+    .slice(0, 8)
+  const add = (e: Exercise) => {
+    const base = workoutExerciseFor(e, "x")
+    const { id: _id, ...entry } = base
+    void _id
+    const ok = onAdd({
+      ...entry,
+      reps: e.custom ? base.reps : e.muscleGroup === "kondition" ? "500 m" : "8–12",
+      // Vilotid enligt min inställning (passets vila saknas för en extra övning).
+      restSec: getRestPreference().seconds,
+    })
+    if (!ok) return toast.error("Passet har redan max antal övningar")
+    toast.success(`${e.name} är tillagd`)
+    setOpen(false)
+    setQ("")
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => (setOpen(o), !o && setQ(""))}>
+      <Button variant="outline" className="h-12 w-full border-dashed" onClick={() => setOpen(true)} data-testid="add-exercise">
+        <Plus /> Lägg till övning
+      </Button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Lägg till övning</DialogTitle>
+          <DialogDescription>Kör extra eller byt ut något – PT:ns program ligger kvar.</DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning, t.ex. hip thrust" className="h-11 pl-8" aria-label="Sök övning" />
+        </div>
+        <ul className="max-h-[50vh] divide-y overflow-y-auto overscroll-contain rounded-xl border" aria-label="Övningar att lägga till">
+          {matches.map((e) => (
+            <li key={e.id}>
+              <button type="button" className="flex min-h-12 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60" onClick={() => add(e)}>
+                <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                {e.custom && <CustomBadge />}
+                <Plus className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            </li>
+          ))}
+          {matches.length === 0 && <li className="px-3 py-4 text-center text-sm text-muted-foreground">Ingen övning hittades.</li>}
+        </ul>
+      </DialogContent>
+    </Dialog>
   )
 }

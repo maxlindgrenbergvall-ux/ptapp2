@@ -6,7 +6,7 @@
 import { addDays } from "@/lib/date"
 import { estimateSleepScore } from "@/lib/wearables/sleep-score"
 import type { SleepRecord, TokenSet, WearableAdapter } from "@/lib/wearables/types"
-import type { WearableProvider } from "@/types/domain"
+import type { SleepProvider } from "@/types/domain"
 
 function seeded(date: string) {
   let h = 2166136261
@@ -35,7 +35,7 @@ export function mockSleepRange(from: string, to: string): SleepRecord[] {
   return out
 }
 
-export function mockAdapter(provider: WearableProvider): WearableAdapter {
+export function mockAdapter(provider: SleepProvider): WearableAdapter {
   return {
     provider,
     configured: false,

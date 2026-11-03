@@ -9,7 +9,7 @@ import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/p
 import { GoalProgressChart } from "@/components/goals/goal-progress-card"
 import { RequirePlus, usePlus } from "@/components/plus/require-plus"
 import { ProgressKpis } from "@/components/progress/kpis"
-import { MetricsGrid } from "@/components/progress/metrics"
+import { InterestsDialog, MetricsGrid } from "@/components/progress/metrics"
 import { StatTile } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,11 +49,8 @@ export default function ProgressPage() {
           <h2 id="goals-title" className="font-semibold">
             Dina mål
           </h2>
-          <Link href="/klient/profil" className="text-sm text-primary underline-offset-4 hover:underline">
-            Ändra intressen
-          </Link>
+          <InterestsDialog clientId={client.id} interests={client.interests ?? []} label="Ändra mätpunkter" />
         </div>
-        {client.focus && <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm">“{client.focus}”</p>}
         <MetricsGrid clientId={client.id} interests={client.interests} editable />
       </section>
 

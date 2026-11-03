@@ -12,6 +12,8 @@ import { ChatThread } from "@/components/chat/chat-thread"
 import { InterestChips, MetricsGrid } from "@/components/progress/metrics"
 import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
 import { GoalSummaryCard } from "@/components/goals/goal-summary-card"
+import { GoalPills } from "@/components/goals/goal-pills"
+import { ActivityCard } from "@/components/activity/activity-card"
 import { ClientStatusBadge, EmptyState, PersonAvatar, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,6 +46,7 @@ import type { ScheduledWorkout } from "@/types/domain"
 export function ClientDetail({ clientId }: { clientId: string }) {
   const { data, actions, me } = useAppData()
   const client = data.clients.find((c) => c.id === clientId && c.trainerId === me.id)
+  const clientGoals = data.goalProfiles.find((g) => g.clientId === clientId)
 
   if (!client) {
     return (
@@ -143,11 +146,16 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         <TabsContent value="progress" className="grid gap-6 pt-2 lg:grid-cols-2">
           {/* v30: mål, kalorimål och prognos från klientens intro-flöde. */}
           <GoalSummaryCard clientId={client.id} className="lg:col-span-2" />
+          {/* v32: klientens aktivitet och förbränning (Strava, Apple Hälsa, Health Connect). */}
+          <div className="lg:col-span-2">
+            <ActivityCard clientId={client.id} readOnly />
+          </div>
           {/* Klientens egna mål och mätpunkter (styrs av intressena klienten valt). */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Mål och mätpunkter</CardTitle>
-              <CardDescription>{client.focus ? `“${client.focus}”` : "Utifrån klientens intressen"}</CardDescription>
+              {/* v32: klientens valda mål som piller (ingen fritext). */}
+              {clientGoals?.goals.length ? <GoalPills goals={clientGoals.goals} size="sm" /> : <CardDescription>Utifrån klientens intressen</CardDescription>}
             </CardHeader>
             <CardContent>
               <MetricsGrid clientId={client.id} interests={client.interests} />

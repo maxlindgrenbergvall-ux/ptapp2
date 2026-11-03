@@ -12,7 +12,7 @@ export default function Page() {
   return (
     <div className="space-y-5">
       <div className="mx-auto max-w-2xl space-y-5">
-        <SettingsHeader title="Profilinställningar" description="Dina uppgifter, intressen och mål – och dina PT:er." />
+        <SettingsHeader title="Profilinställningar" description="Dina uppgifter, dina mål och dina PT:er." />
         {/* v30: målen (kalorimål, takt och prognos) har en egen vy. */}
         <Link
           href="/klient/profil/mal"

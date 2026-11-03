@@ -1,10 +1,11 @@
 "use client"
 
-import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Target, Utensils } from "lucide-react"
+import { CalendarCheck, CalendarRange, Check, ChevronRight, Dumbbell, Play, Search, Target, Utensils } from "lucide-react"
 import Link from "next/link"
 
 import { SleepTracker, WaterTracker } from "@/components/client/trackers"
 import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
+import { ActivityCard } from "@/components/activity/activity-card"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { PersonAvatar } from "@/components/common"
 import { RequirePlus } from "@/components/plus/require-plus"
@@ -162,7 +163,16 @@ export default function TodayPage() {
           )
         })}
         <OwnWorkoutDialog />
+        {/* v32: träningssplits och schema. */}
+        <Button asChild variant="ghost" className="w-full text-primary" data-testid="open-schedule">
+          <Link href="/klient/schema">
+            <CalendarRange /> Träningsschema och splits
+          </Link>
+        </Button>
       </section>
+
+      {/* v32: kalorimätaren – Strava, Apple Hälsa och Health Connect. */}
+      <ActivityCard clientId={client.id} />
 
       {/* Dagens kost (kostdagboken – länkas från recepten med ?datum=…#dagens-kost) */}
       <section id="dagens-kost" className="scroll-mt-20 space-y-3">
