@@ -146,21 +146,6 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
             </p>
           </div>
-          {workout.byClient && !trainerMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Ta bort passet"
-              onClick={async () => {
-                if (!(await confirmDialog({ title: `Ta bort "${workout.name}"?`, confirmLabel: "Ta bort", destructive: true }))) return
-                actions.deleteOwnWorkout(workout.id)
-                toast("Passet är borttaget")
-                router.push(home)
-              }}
-            >
-              <Trash2 />
-            </Button>
-          )}
           {!trainerMode && !readOnly && <RestSettingsButton />}
           {canEdit && (
             <Button size="sm" variant="outline" onClick={() => setEditing(true)} data-testid="edit-workout">
@@ -182,7 +167,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
         <SyncIndicator className="mx-4 my-2" />
       </header>
 
-      <div className="flex-1 space-y-3 p-4 pb-32">
+      <div className="flex-1 space-y-3 px-3 pt-3 pb-32 sm:p-4 sm:pb-32">
         {preview && (
           <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm" data-testid="workout-preview">
             <p className="flex items-center gap-2 font-medium">
@@ -302,6 +287,25 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             </p>
           </div>
         )}
+        {/* v37: flyttad från sidhuvudet – egna pass kan tas bort här, längst ned. */}
+        {workout.byClient && !trainerMode && (
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+              aria-label="Ta bort passet"
+              onClick={async () => {
+                if (!(await confirmDialog({ title: `Ta bort "${workout.name}"?`, confirmLabel: "Ta bort", destructive: true }))) return
+                actions.deleteOwnWorkout(workout.id)
+                toast("Passet är borttaget")
+                router.push(home)
+              }}
+            >
+              <Trash2 /> Ta bort passet
+            </Button>
+          </div>
+        )}
       </div>
 
       {rest && !readOnly && <RestTimer rest={rest} onChange={setRest} />}
@@ -401,7 +405,7 @@ function ExerciseCard({
   return (
     <section className={cn("rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
       <div className="flex items-center">
-      <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left">
+      <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left sm:p-4">
         <span
           className={cn(
             "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular",
@@ -431,12 +435,20 @@ function ExerciseCard({
       </div>
 
       {open && (
-        <div id={panelId} className="space-y-3 px-4 pb-4">
-          {(exercise.notes || exercise.videoUrl || last) && (
-            <div className="space-y-1.5 rounded-lg bg-muted px-3 py-2 text-sm">
+        <div id={panelId} className="space-y-2.5 px-3 pb-3 sm:space-y-3 sm:px-4 sm:pb-4">
+          {/* v37: en samlad ruta – dagens mål, PT:ns anteckning, video och förra gången. */}
+          {((target && target.kind !== "start") || exercise.notes || exercise.videoUrl || last) && (
+            <div
+              className={cn(
+                "space-y-1.5 rounded-xl border px-3 py-2 text-sm",
+                target?.kind === "deload" ? "border-warning/50 bg-warning/10" : target && target.kind !== "start" ? "border-primary/25 bg-primary/5" : "border-transparent bg-muted"
+              )}
+              data-testid="exercise-brief"
+            >
+              {target && target.kind !== "start" && <ProgressionHint target={target} usesWeight={usesWeight} />}
               {exercise.notes && (
                 <p className="flex gap-2">
-                  <Info className="mt-0.5 size-4 shrink-0" /> {exercise.notes}
+                  <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> {exercise.notes}
                 </p>
               )}
               {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={name} />}
@@ -449,36 +461,34 @@ function ExerciseCard({
             </div>
           )}
 
-          {target && target.kind !== "start" && <ProgressionHint target={target} usesWeight={usesWeight} />}
-
-          {/* v34: vikterna sätts manuellt – eller hämtas från förra passet, set för set. */}
-          {!readOnly && lastSets && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              data-testid="fill-last-session"
-              onClick={() => {
-                let filled = 0
-                for (let i = 0; i < exercise.sets; i++) {
-                  if (findLog(workout.logs, exercise.id, i)?.done) continue
-                  const prev = lastSets[Math.min(i, lastSets.length - 1)]
-                  onLog({ workoutExerciseId: exercise.id, setIndex: i, kg: prev.kg, reps: prev.reps, done: false })
-                  filled++
-                }
-                toast.success(filled ? `${filled} set ifyllda från förra passet` : "Alla set är redan avbockade")
-              }}
-            >
-              <History /> Som förra passet ({lastSets.map((x) => (x.kg ? `${x.kg.toLocaleString("sv-SE")}×${x.reps}` : `${x.reps}`)).slice(0, 4).join(", ")}
-              {lastSets.length > 4 ? " …" : ""})
-            </Button>
-          )}
-
-          <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 px-1 text-[11px] text-muted-foreground">
+          <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
             <span>Set</span>
             <span className="text-center">{usesWeight ? "Kg" : "–"}</span>
             <span className="text-center">Reps</span>
-            <span />
+            {/* v34: vikterna sätts manuellt – eller hämtas från förra passet, set för set. */}
+            {!readOnly && lastSets ? (
+              <button
+                type="button"
+                className="-my-1 flex min-h-8 items-center justify-center gap-0.5 rounded-md text-[11px] font-medium text-primary hover:bg-primary/10"
+                data-testid="fill-last-session"
+                aria-label={`Som förra passet: ${lastSets.map((x) => (x.kg ? `${x.kg.toLocaleString("sv-SE")} kg × ${x.reps}` : `${x.reps} reps`)).join(", ")}`}
+                title="Fyll i seten som förra passet"
+                onClick={() => {
+                  let filled = 0
+                  for (let i = 0; i < exercise.sets; i++) {
+                    if (findLog(workout.logs, exercise.id, i)?.done) continue
+                    const prev = lastSets[Math.min(i, lastSets.length - 1)]
+                    onLog({ workoutExerciseId: exercise.id, setIndex: i, kg: prev.kg, reps: prev.reps, done: false })
+                    filled++
+                  }
+                  toast.success(filled ? `${filled} set ifyllda från förra passet` : "Alla set är redan avbockade")
+                }}
+              >
+                <History className="size-3" /> Förra
+              </button>
+            ) : (
+              <span />
+            )}
           </div>
           <ol className="space-y-2">
             {Array.from({ length: exercise.sets }, (_, setIndex) => (
@@ -593,7 +603,7 @@ function SetRow({
   }
 
   return (
-    <li className={cn("grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 rounded-xl p-1 transition-colors duration-300", isDone && "bg-brand/15")}>
+    <li className={cn("grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2", isDone && "bg-brand/15")}>
       <span className="flex flex-col items-center text-center leading-tight">
         <span className="text-sm font-semibold tabular">{setIndex + 1}</span>
         {/* Eget rep-mål för setet (pyramid, drop-set …). */}
@@ -660,8 +670,8 @@ function ProgressionHint({ target, usesWeight }: { target: ProgressionTarget; us
   const kg = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 2 })
   const up = target.kind === "increase_weight" || target.kind === "add_reps" || target.kind === "bodyweight"
   return (
-    <div className={cn("space-y-1 rounded-xl border px-3 py-2", target.kind === "deload" ? "border-warning/50 bg-warning/10" : "border-primary/30 bg-primary/5")} data-testid="progression-hint">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+    <div data-testid="progression-hint">
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
         {up ? <TrendingUp className="size-4 text-primary" /> : target.kind === "deload" ? <TrendingDown className="size-4 text-warning" /> : <Repeat className="size-4 text-muted-foreground" />}
         <span className="font-semibold">Mål idag:</span>
         <span className="font-semibold tabular" data-testid="progression-target">
@@ -674,9 +684,14 @@ function ProgressionHint({ target, usesWeight }: { target: ProgressionTarget; us
             {kg(Math.abs(target.deltaKg))} kg
           </span>
         )}
-        <span className="text-xs text-muted-foreground">· {KIND_LABEL[target.kind]}</span>
       </p>
-      <p className="text-xs text-muted-foreground">{target.reason}</p>
+      {/* Förklaringen bakom "Varför?" – syns när man vill, tar ingen plats annars. */}
+      <details className="group text-xs text-muted-foreground">
+        <summary className="inline-flex min-h-6 cursor-pointer list-none items-center gap-1 select-none [&::-webkit-details-marker]:hidden">
+          {KIND_LABEL[target.kind]} · <span className="underline underline-offset-2">Varför?</span>
+        </summary>
+        <p className="pt-0.5">{target.reason}</p>
+      </details>
     </div>
   )
 }
@@ -721,7 +736,7 @@ export function Stepper({
       {!disabled && (
         <button
           type="button"
-          className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground"
+          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground active:text-foreground sm:w-9"
           aria-label={`Minska ${label}`}
           onClick={() => onChange(Math.max(0, (value ?? 0) - step))}
         >
@@ -752,7 +767,7 @@ export function Stepper({
       {!disabled && (
         <button
           type="button"
-          className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground active:text-foreground"
+          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground active:text-foreground sm:w-9"
           aria-label={`Öka ${label}`}
           onClick={() => onChange((value ?? 0) + step)}
         >

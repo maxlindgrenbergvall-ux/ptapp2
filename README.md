@@ -578,6 +578,26 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v37: mobilstädning – samma funktioner, mindre brus
+
+All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tätt de sitter på mobilen.
+
+- **Kort på mobil** (`src/components/ui/card.tsx`): under 640 px är padding och avstånd 16 px i stället för 24 px. Datorvyn är oförändrad, och kort med egen padding eller eget avstånd påverkas inte.
+- **Träningsvyn:**
+  - Viktfältet visar hela vikten (t.ex. 87,5) på små skärmar.
+  - Dagens mål, PT:ns anteckning, video och förra gången ligger i en samlad ruta. Förklaringen till målet visas under "Varför?".
+  - "Som förra passet" är en liten knapp ("Förra") i set-rubriken.
+  - "Ta bort passet" (egna pass) ligger längst ned i stället för i sidhuvudet.
+  - Inga nya inställningar har lagts i passets menyer.
+- **Profilen samlar inställningarna** (`src/components/settings/client-profile.tsx`, `settings-list.tsx`):
+  - kompakt kort för profilbild och namn;
+  - "Mina mål" som ett kort med genväg till Mål;
+  - gruppen "Träning": vilotid (i en dialog), hälsosynk och anslutningar, schema och splits, nyhetsbrev och alla inställningar.
+
+  Vilotiden går fortfarande att ändra mitt i passet via "Vila".
+- **Inställningar:** en lista med genvägar, inklusive Träning (som leder till profilen), och "Preferenser" (personliga erbjudanden och nyhetsbrev) som rader i stället för separata kort.
+- **Hemskärmen:** "Logga eget pass" och "Schema och splits" ligger sida vid sida.
+
 ## Nytt i v36: fråga befintliga användare om nyhetsbrev
 
 - **Vem som får frågan:** konton som registrerade sig innan nyhetsbrevet fanns i onboardingen och som aldrig valt får en pop-up vid nästa inloggning (`src/components/settings/marketing-prompt.tsx`). Det gäller både klienter och PT:er.
@@ -1055,6 +1075,7 @@ npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan:
 npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
+node e2e/v37-mobil.test.mjs   # (demo, 360 px) ingen overflow, viktfältet, Varför?, Ta bort passet längst ned, profilen som inställningsnav
 node e2e/v36-supabase.test.mjs # Pop-upen: syns bara för den som aldrig valt, Fråga mig senare → nästa inloggning, Ja → Resend-segmentet, Nej → ingen kontakt
 node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt
 node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal

@@ -4,16 +4,15 @@ import { Mail } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
+import { SettingsToggleRow } from "@/components/settings/settings-list"
 import { fetchMarketingConsent, OnboardingError, setMarketingConsent } from "@/lib/onboarding-client"
 
 /**
  * Nyhetsbrev, erbjudanden och produktnyheter (v34). Valet görs i intro-flödet
- * och kan ändras här när som helst – varje ändring loggas i databasen
- * (consent_events) med tidpunkt och källa.
+ * (eller pop-upen, v36) och kan ändras här när som helst – varje ändring loggas
+ * i databasen (consent_events) och synkas till Resend.
  */
-export function MarketingConsentCard() {
+function useMarketingConsent() {
   const [value, setValue] = React.useState<boolean | null>(null)
   const [saving, setSaving] = React.useState(false)
 
@@ -41,28 +40,23 @@ export function MarketingConsentCard() {
       setSaving(false)
     }
   }
+  return { value, saving, change }
+}
 
+/** v37: nyhetsbrevet som en rad i en inställningslista (Profil och Inställningar). */
+export function MarketingConsentRow() {
+  const { value, saving, change } = useMarketingConsent()
   return (
-    <Card className="gap-3" data-testid="marketing-settings">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Mail className="size-4" /> Nyhetsbrev och erbjudanden
-        </CardTitle>
-        <CardDescription>Valfritt. Påverkar inte ditt konto eller avtalet.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <label htmlFor="marketing-settings" className="flex cursor-pointer items-start gap-3 text-sm">
-          <Checkbox
-            id="marketing-settings"
-            checked={value === true}
-            disabled={value === null || saving}
-            onCheckedChange={(v) => void change(v === true)}
-            className="mt-0.5 size-5"
-            data-testid="marketing-toggle"
-          />
-          <span>Skicka nyhetsbrev, erbjudanden och produktnyheter till mig (e-post och notiser).</span>
-        </label>
-      </CardContent>
-    </Card>
+    <SettingsToggleRow
+      id="marketing-settings-checkbox"
+      icon={Mail}
+      label="Nyhetsbrev och erbjudanden"
+      hint="Valfritt · e-post och notiser · påverkar inte kontot"
+      checked={value === true}
+      disabled={value === null || saving}
+      onCheckedChange={(v) => void change(v)}
+      testId="marketing-toggle"
+      data-testid="marketing-settings"
+    />
   )
 }

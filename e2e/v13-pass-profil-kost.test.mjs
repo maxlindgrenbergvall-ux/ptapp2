@@ -78,7 +78,7 @@ check(balanceOk, "egna pass har ingen PT (räknas inte som betalda pass)")
 
 // --------------------------------------------- 3. profilbild och 1RM-ruta ---
 await p.goto(base + "/klient/profil")
-await p.waitForSelector("text=Personuppgifter")
+await p.waitForSelector("#profile-name")
 // En riktig (liten) PNG laddas upp – i demoläget sparas den som data-URL.
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==", "base64")
 await p.setInputFiles("input[type=file]", { name: "sara.png", mimeType: "image/png", buffer: png })

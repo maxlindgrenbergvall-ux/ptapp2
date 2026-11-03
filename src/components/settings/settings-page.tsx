@@ -1,18 +1,15 @@
 "use client"
 
-import { BellRing, ChevronRight, LogOut, Palette, RotateCcw, Timer } from "lucide-react"
-import Link from "next/link"
+import { BellRing, LogOut, Palette, RotateCcw, Timer } from "lucide-react"
 
 import { appMenuLinks } from "@/components/app-menu"
 import { LegalLinksCard } from "@/components/legal-links"
-import { RestSettingsFields } from "@/components/client/rest-settings"
 import { PushSettingsCard } from "@/components/native/push-settings"
 import { DeleteAccountCard } from "@/components/settings/delete-account"
-import { MarketingConsentCard } from "@/components/settings/marketing-consent"
+import { MarketingConsentRow } from "@/components/settings/marketing-consent"
+import { SettingsGroup, SettingsLinkRow, SettingsToggleRow } from "@/components/settings/settings-list"
 import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { BRAND } from "@/lib/brand"
 import { useAppData } from "@/lib/data/store"
 import { useInterests } from "@/lib/offers/interests"
@@ -33,72 +30,38 @@ export function SettingsPage() {
   const interests = useInterests(me.id)
   const links = appMenuLinks(me.role).slice(1)
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="mx-auto max-w-2xl space-y-4 sm:space-y-5">
       <SettingsHeader title="Inställningar" description={me.email ? `Inloggad som ${me.email}` : undefined} />
-      <ul className="divide-y overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card">
-        {links.map(({ href, label, hint, icon: Icon }) => (
-          <li key={href}>
-            <Link href={href} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon className="size-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{label}</span>
-                {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
-              </span>
-              <ChevronRight className="size-4 text-muted-foreground" />
-            </Link>
-          </li>
+      <SettingsGroup>
+        {links.map(({ href, label, hint, icon }) => (
+          <SettingsLinkRow key={href} href={href} icon={icon} label={label} hint={hint} />
         ))}
-      </ul>
+        {/* v37: träningsinställningarna (vilotid m.m.) bor i profilen. */}
+        {me.role === "client" && <SettingsLinkRow href="/klient/profil#traning" icon={Timer} label="Träning" hint="Vilotid mellan set, hälsosynk och scheman" />}
+      </SettingsGroup>
 
       {me.role === "client" && <PtInviteRedeemCard />}
 
-      {me.role === "client" && (
-        <Card className="gap-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BellRing className="size-4" /> Personliga erbjudanden
-            </CardTitle>
-            <CardDescription>
-              Erbjudanden från PT:er inom det du tittat på. Historiken sparas bara i den här webbläsaren.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={interests.enabled} onCheckedChange={(v) => interests.setEnabled(v === true)} /> Visa personliga erbjudanden
-            </label>
-          </CardContent>
-        </Card>
-      )}
-
-      {me.role === "client" && (
-        <Card className="gap-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Timer className="size-4" /> Vilotid mellan set
-            </CardTitle>
-            <CardDescription>Standard för dina pass. Kan också ändras direkt i passet.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RestSettingsFields />
-          </CardContent>
-        </Card>
-      )}
+      <SettingsGroup title="Preferenser">
+        {me.role === "client" && (
+          <SettingsToggleRow
+            id="offers-enabled"
+            icon={BellRing}
+            label="Visa personliga erbjudanden"
+            hint="Från PT:er inom det du tittat på (sparas i webbläsaren)"
+            checked={interests.enabled}
+            onCheckedChange={interests.setEnabled}
+          />
+        )}
+        <MarketingConsentRow />
+      </SettingsGroup>
 
       <PushSettingsCard />
-      <MarketingConsentCard />
-
-      <Card className="gap-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Palette className="size-4" /> Utseende
-          </CardTitle>
-          <CardDescription>{BRAND.name} följer telefonens eller datorns ljusa/mörka läge automatiskt.</CardDescription>
-        </CardHeader>
-      </Card>
 
       <LegalLinksCard />
+      <p className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <Palette className="size-3.5" /> Utseende: {BRAND.name} följer telefonens eller datorns ljusa/mörka läge automatiskt.
+      </p>
 
       {mode === "demo" ? (
         <Button variant="outline" onClick={actions.resetDemo}>

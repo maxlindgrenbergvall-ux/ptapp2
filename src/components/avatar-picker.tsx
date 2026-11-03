@@ -27,7 +27,8 @@ export function AvatarPicker({
   value: string
   userId: string
   onChange: (url: string) => void
-  size?: "md" | "lg"
+  /** "sm" (v37): kompakt i profilen på mobil. */
+  size?: "sm" | "md" | "lg"
   className?: string
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -57,7 +58,7 @@ export function AvatarPicker({
         <PersonAvatar
           name={name}
           src={value || undefined}
-          className={cn(size === "lg" ? "size-28 text-3xl" : "size-24 text-2xl", "ring-2 ring-primary/30 ring-offset-2 ring-offset-card")}
+          className={cn(size === "lg" ? "size-28 text-3xl" : size === "sm" ? "size-16 text-xl" : "size-24 text-2xl", "ring-2 ring-primary/30 ring-offset-2 ring-offset-card")}
         />
         {busy && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-background/80 text-[10px] font-medium">

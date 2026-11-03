@@ -52,7 +52,7 @@ const demo = () => p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).
 
 // ----------------------------------------- 2. bildfiltret i profilen (UI) ---
 await p.goto(base + "/klient/profil")
-await p.waitForSelector("text=Personuppgifter")
+await p.waitForSelector("#profile-name")
 await p.setInputFiles("input[type=file]", { name: "olamplig.png", mimeType: "image/png", buffer: blockedPng })
 await p.waitForSelector("text=innehållsfilter")
 check((await p.locator("img[src^='data:image']").count()) === 0, "den stoppade bilden används inte som profilbild")

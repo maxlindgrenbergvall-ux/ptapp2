@@ -46,7 +46,7 @@ export default function TodayPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <div>
         <p className="text-sm text-muted-foreground">{formatDay(today)}</p>
         {/* v35: hälsningen följer klockan – God morgon / Hej! / God kväll. */}
@@ -168,13 +168,16 @@ export default function TodayPage() {
             </Card>
           )
         })}
-        <OwnWorkoutDialog />
-        {/* v32: träningssplits och schema. */}
-        <Button asChild variant="ghost" className="w-full text-primary" data-testid="open-schedule">
-          <Link href="/klient/schema">
-            <CalendarRange /> Träningsschema och splits
-          </Link>
-        </Button>
+        {/* v37: två genvägar sida vid sida i stället för två hela rader. */}
+        <div className="grid grid-cols-2 gap-2">
+          <OwnWorkoutDialog />
+          {/* v32: träningssplits och schema. */}
+          <Button asChild variant="outline" className="w-full" data-testid="open-schedule">
+            <Link href="/klient/schema" aria-label="Träningsschema och splits">
+              <CalendarRange /> Schema och splits
+            </Link>
+          </Button>
+        </div>
       </section>
 
       {/* v32: kalorimätaren – Strava, Apple Hälsa och Health Connect. */}
@@ -189,7 +192,7 @@ export default function TodayPage() {
       </section>
 
       {/* Vanor */}
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:gap-4">
         <WaterTracker date={today} />
         {/* Coavira Plus: sömntracking – en diskret rad, ingen stor betalvägg på startsidan. */}
         <RequirePlus feature="sleep" variant="inline" title="Sömntracking">
