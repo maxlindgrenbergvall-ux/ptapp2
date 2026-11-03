@@ -48,11 +48,12 @@ export function findLog(
 
 /**
  * Förslag för ett set som inte loggats ännu, så att klienten bara behöver bocka av.
- * Ordning (v32):
- *   1. Progressiv överbelastning: dagens mål ur historiken (src/lib/progression.ts)
- *      och en pyramid upp till toppsetet,
- *   2. föregående set i samma pass,
- *   3. PT:ns mål.
+ * Ingen automatisk stegring mellan seten (v34) – ordning:
+ *   1. föregående avbockade set i samma pass (vikten klienten själv valt följer med),
+ *   2. dagens mål från progressionen (samma för alla set, src/lib/progression.ts),
+ *   3. samma set förra gången övningen kördes (passhistoriken),
+ *   4. PT:ns mål.
+ * PT:ns eget rep-mål per set (12/10/8 …) gäller alltid för reps.
  */
 export function suggestSet(
   exercise: WorkoutExercise,
@@ -61,24 +62,33 @@ export function suggestSet(
   history: ScheduledWorkout[],
   info?: { equipment?: string; muscleGroup?: MuscleGroup }
 ): { kg: number; reps: number } {
-  const target = nextTarget(exercise, history, info)
-  if (target) {
-    const plan = setPlan(exercise, target)
-    // Extra set som lagts till under passet: samma som toppsetet.
-    return plan[Math.min(setIndex, plan.length - 1)]
-  }
-
-  // Eget rep-mål för setet (pyramid, drop-set …) går före tidigare reps.
   const ownTarget = hasSetReps(exercise) ? parseTargetReps(targetRepsFor(exercise, setIndex)) : 0
   const withTarget = (s: { kg: number; reps: number }) => (ownTarget ? { kg: s.kg, reps: ownTarget } : s)
 
   const previousSet = findLog(logs, exercise.id, setIndex - 1)
   if (previousSet?.done) return withTarget({ kg: previousSet.kg, reps: previousSet.reps })
 
-  const last = lastPerformance(exercise.exerciseId, history)
-  if (last) return withTarget({ kg: last.kg, reps: last.reps })
+  const target = nextTarget(exercise, history, info)
+  if (target) return setPlan(exercise, target)[Math.min(setIndex, Math.max(0, exercise.sets - 1))] ?? withTarget(target)
+
+  const last = lastSessionSets(exercise.exerciseId, history)
+  if (last?.length) return withTarget(last[Math.min(setIndex, last.length - 1)])
 
   return { kg: exercise.targetKg ?? 0, reps: parseTargetReps(targetRepsFor(exercise, setIndex)) }
+}
+
+/**
+ * Seten (vikt × reps, i ordning) senaste gången övningen kördes – för
+ * "Som förra passet" och som förslag när progressionen saknar mål.
+ */
+export function lastSessionSets(exerciseId: string, history: ScheduledWorkout[]): { kg: number; reps: number }[] | null {
+  const done = history.filter((w) => w.status === "completed").sort((a, b) => b.date.localeCompare(a.date))
+  for (const w of done) {
+    const entryIds = new Set(w.exercises.filter((e) => e.exerciseId === exerciseId).map((e) => e.id))
+    const sets = w.logs.filter((l) => l.done && entryIds.has(l.workoutExerciseId)).sort((a, b) => a.setIndex - b.setIndex)
+    if (sets.length) return sets.map((l) => ({ kg: l.kg, reps: l.reps }))
+  }
+  return null
 }
 
 /** Tyngsta genomförda set för en övning i det senaste passet där den ingick. */

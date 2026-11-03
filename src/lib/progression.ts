@@ -15,9 +15,10 @@
  *   3. Viktsteget följer utrustningen: skivstång 2,5 kg, hantlar 2 kg,
  *      kettlebell 4 kg, maskin/kabel 2,5 kg (5 kg för tunga benövningar).
  *      Kroppsviktsövningar ökar reps i stället.
- *   4. Pyramid: seten före toppsetet bygger upp mot målet (lättare vikt, fler
- *      reps, samma ansträngning enligt Epley), så att man "arbetar sig uppåt".
- *      Har PT:n satt egna reps per set (12/10/8 …) används de i stället.
+ *   4. Raka set (v34): alla arbetsset får samma mål – ingen automatisk stegring
+ *      i vikt mellan seten. Har PT:n satt egna reps per set (12/10/8 …) används
+ *      de, med samma vikt. Klienten ändrar själv vikten på ett set; nästa set
+ *      utgår då från den (src/lib/training.ts → suggestSet).
  *
  * Ren TypeScript utan beroenden – enhetstestad i e2e/progression.unit.ts.
  */
@@ -208,31 +209,16 @@ export function nextTarget(
   }
 }
 
-/** Epley: samma ansträngning vid fler reps → lättare vikt. */
-const equivalentKg = (topKg: number, topReps: number, reps: number) => (topKg * (1 + topReps / 30)) / (1 + reps / 30)
-
 /**
- * Hela passets set-plan för övningen (styrkepyramid upp till dagens mål):
- *   - PT:ns reps per set (setReps) → vikten räknas fram för varje set,
- *   - annars, med 3+ set: de tidigare seten har 1 rep mer per steg och
- *     motsvarande lättare vikt; sista setet = toppsetet (målet).
- *   - 1–2 set: raka set på målet.
+ * Passets set-plan för övningen (v34: raka set, ingen stegring mellan seten):
+ *   - alla set på dagens mål (vikt och reps),
+ *   - PT:ns reps per set (setReps, t.ex. 12/10/8) används om de finns – med samma vikt.
  */
 export function setPlan(
   exercise: Pick<WorkoutExercise, "sets" | "setReps" | "reps">,
-  target: Pick<ProgressionTarget, "kg" | "reps" | "increment" | "range">
+  target: Pick<ProgressionTarget, "kg" | "reps">
 ): { kg: number; reps: number }[] {
   const n = Math.max(1, exercise.sets)
   const own = exercise.setReps?.map((r) => Number(r.match(/\d+/)?.[0] ?? 0))
-  const hasOwn = Boolean(own?.some((r) => r > 0))
-  const step = target.increment || 0
-  return Array.from({ length: n }, (_, i) => {
-    let reps: number
-    if (hasOwn) reps = own![i] || target.reps
-    else if (n >= 3 && step > 0) reps = Math.min(target.reps + (n - 1 - i), (target.range?.max ?? target.reps) + 4)
-    else reps = target.reps
-    if (step === 0 || target.kg <= 0) return { kg: target.kg, reps }
-    const kg = reps === target.reps ? target.kg : roundTo(equivalentKg(target.kg, target.reps, reps), step)
-    return { kg, reps }
-  })
+  return Array.from({ length: n }, (_, i) => ({ kg: target.kg, reps: own?.[i] || target.reps }))
 }

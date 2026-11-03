@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ClipboardCheck, Clock, Eye, Info, Minus, Pencil, PlayCircle, Plus, Repeat, Search, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, Search, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
+import { SortableList } from "@/components/workouts/sortable-list"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -35,7 +36,7 @@ import { matchesExercise } from "@/lib/exercises/search"
 import { exercisesFromWorkout } from "@/lib/templates"
 import { nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
-import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
+import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
 import type { Exercise, ScheduledWorkout, WorkoutExercise } from "@/types/domain"
@@ -233,34 +234,44 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             {sections.length > 1 || group.section !== "main" ? (
               <h2 className="px-1 pt-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{group.label}</h2>
             ) : null}
-            {group.exercises.map((exercise, i) => (
-              <ExerciseCard
-                key={exercise.id}
-                index={workout.exercises.indexOf(exercise)}
-                workout={workout}
-                exercise={exercise}
-                history={history}
-                open={openId === exercise.id}
-                onToggle={() => setOpenId(openId === exercise.id ? null : exercise.id)}
-                readOnly={readOnly}
-                onLog={(log) => actions.logSet(workout.id, log)}
-                onSetDone={() => onSetDone(exercise)}
-                onAddSet={canExtend ? () => actions.addWorkoutSet(workout.id, exercise.id) : undefined}
-                onRemove={
-                  canExtend && (exercise.extra || workout.byClient) && !workout.logs.some((l) => l.workoutExerciseId === exercise.id && l.done)
-                    ? () => actions.removeExtraExercise(workout.id, exercise.id)
-                    : undefined
-                }
-                onMove={
-                  canReorder
-                    ? {
-                        up: i > 0 ? () => actions.swapWorkoutExercises(workout.id, exercise.id, group.exercises[i - 1].id) : undefined,
-                        down: i < group.exercises.length - 1 ? () => actions.swapWorkoutExercises(workout.id, exercise.id, group.exercises[i + 1].id) : undefined,
-                      }
-                    : undefined
-                }
-              />
-            ))}
+            {(() => {
+              const card = (exercise: WorkoutExercise, dragHandle?: React.ReactNode) => (
+                <ExerciseCard
+                  key={exercise.id}
+                  index={workout.exercises.indexOf(exercise)}
+                  workout={workout}
+                  exercise={exercise}
+                  history={history}
+                  open={openId === exercise.id}
+                  onToggle={() => setOpenId(openId === exercise.id ? null : exercise.id)}
+                  readOnly={readOnly}
+                  onLog={(log) => actions.logSet(workout.id, log)}
+                  onSetDone={() => onSetDone(exercise)}
+                  onAddSet={canExtend ? () => actions.addWorkoutSet(workout.id, exercise.id) : undefined}
+                  onRemoveSet={canExtend && (exercise.extra || workout.byClient) ? () => actions.removeWorkoutSet(workout.id, exercise.id) : undefined}
+                  onRemove={
+                    canExtend && (exercise.extra || workout.byClient) && !workout.logs.some((l) => l.workoutExerciseId === exercise.id && l.done)
+                      ? () => actions.removeExtraExercise(workout.id, exercise.id)
+                      : undefined
+                  }
+                  dragHandle={dragHandle}
+                />
+              )
+              // v34: dra i handtaget för att ändra ordningen (inom uppvärmning/huvuddel/nedvarvning).
+              return canReorder && group.exercises.length > 1 ? (
+                <SortableList
+                  items={group.exercises}
+                  as="ul"
+                  className="space-y-3"
+                  aria-label={`Övningar – ${group.label}`}
+                  itemLabel={(e) => exerciseName(data, e.exerciseId, workout.clientId)}
+                  onReorder={(ids) => actions.reorderWorkoutExercises(workout.id, ids)}
+                  renderItem={(exercise, { handle }) => card(exercise, handle)}
+                />
+              ) : (
+                group.exercises.map((exercise) => card(exercise))
+              )
+            })()}
           </section>
         ))}
         {canExtend && (
@@ -350,8 +361,9 @@ function ExerciseCard({
   onLog,
   onSetDone,
   onAddSet,
+  onRemoveSet,
   onRemove,
-  onMove,
+  dragHandle,
 }: {
   index: number
   workout: ScheduledWorkout
@@ -366,13 +378,16 @@ function ExerciseCard({
   onAddSet?: () => void
   /** Ta bort en övning man själv lagt till (utan avbockade set). */
   onRemove?: () => void
-  /** Flytta övningen upp/ned i passet (saknas = ordningen är låst). */
-  onMove?: { up?: () => void; down?: () => void }
+  /** Ta bort sista setet (egna pass och egna/extra övningar). */
+  onRemoveSet?: () => void
+  /** Handtag för drag-and-drop (saknas = ordningen är låst). */
+  dragHandle?: React.ReactNode
 }) {
   const { data } = useAppData()
   // PT:ns eget namn för klienten om det finns.
   const name = exerciseName(data, exercise.exerciseId, workout.clientId)
   const last = lastPerformance(exercise.exerciseId, history)
+  const lastSets = workout.status === "completed" ? null : lastSessionSets(exercise.exerciseId, history)
   const libraryExercise = data.exercises.find((x) => x.id === exercise.exerciseId)
   const info = { equipment: libraryExercise?.equipment, muscleGroup: libraryExercise?.muscleGroup }
   // Progressiv överbelastning (v32): dagens mål för toppsetet ur historiken.
@@ -412,17 +427,7 @@ function ExerciseCard({
         </span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
-      {onMove && (
-        // Snabba pilar för att ändra ordningen (drag-and-drop är svårt med svettiga fingrar).
-        <div className="flex shrink-0 flex-col pr-2">
-          <Button variant="ghost" size="icon-sm" aria-label={`Flytta upp ${name}`} disabled={!onMove.up} onClick={onMove.up}>
-            <ArrowUp />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label={`Flytta ned ${name}`} disabled={!onMove.down} onClick={onMove.down}>
-            <ArrowDown />
-          </Button>
-        </div>
-      )}
+      {dragHandle && <div className="shrink-0 pr-2">{dragHandle}</div>}
       </div>
 
       {open && (
@@ -446,6 +451,29 @@ function ExerciseCard({
 
           {target && target.kind !== "start" && <ProgressionHint target={target} usesWeight={usesWeight} />}
 
+          {/* v34: vikterna sätts manuellt – eller hämtas från förra passet, set för set. */}
+          {!readOnly && lastSets && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              data-testid="fill-last-session"
+              onClick={() => {
+                let filled = 0
+                for (let i = 0; i < exercise.sets; i++) {
+                  if (findLog(workout.logs, exercise.id, i)?.done) continue
+                  const prev = lastSets[Math.min(i, lastSets.length - 1)]
+                  onLog({ workoutExerciseId: exercise.id, setIndex: i, kg: prev.kg, reps: prev.reps, done: false })
+                  filled++
+                }
+                toast.success(filled ? `${filled} set ifyllda från förra passet` : "Alla set är redan avbockade")
+              }}
+            >
+              <History /> Som förra passet ({lastSets.map((x) => (x.kg ? `${x.kg.toLocaleString("sv-SE")}×${x.reps}` : `${x.reps}`)).slice(0, 4).join(", ")}
+              {lastSets.length > 4 ? " …" : ""})
+            </Button>
+          )}
+
           <div className="grid grid-cols-[2rem_1fr_1fr_3.5rem] items-center gap-2 px-1 text-[11px] text-muted-foreground">
             <span>Set</span>
             <span className="text-center">{usesWeight ? "Kg" : "–"}</span>
@@ -468,11 +496,23 @@ function ExerciseCard({
               />
             ))}
           </ol>
-          {(onAddSet || onRemove) && (
-            <div className="flex items-center justify-between gap-2">
+          {(onAddSet || onRemove || onRemoveSet) && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
               {onAddSet && (
                 <Button variant="ghost" size="sm" className="text-primary" onClick={onAddSet} disabled={exercise.sets >= 20} data-testid="add-set">
                   <Plus /> Lägg till set
+                </Button>
+              )}
+              {onRemoveSet && exercise.sets > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={onRemoveSet}
+                  disabled={workout.logs.some((l) => l.workoutExerciseId === exercise.id && l.setIndex === exercise.sets - 1 && l.done)}
+                  data-testid="remove-set"
+                >
+                  <Minus /> Ta bort set
                 </Button>
               )}
               {onRemove && (
@@ -613,8 +653,8 @@ const KIND_LABEL: Record<ProgressionTarget["kind"], string> = {
 
 /**
  * Dagens mål (progressiv överbelastning): toppsetet ur förra passet och
- * nästa steg, med en kort förklaring. Seten nedanför är förifyllda som en
- * pyramid upp till målet.
+ * nästa steg, med en kort förklaring. Alla set är förifyllda med målet
+ * (raka set, v34) – vikten ändras fritt per set.
  */
 function ProgressionHint({ target, usesWeight }: { target: ProgressionTarget; usesWeight: boolean }) {
   const kg = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 2 })

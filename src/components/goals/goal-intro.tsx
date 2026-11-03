@@ -7,27 +7,32 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { ActivityPicker, BodyFields, GoalDisclaimer, GoalPicker, GoalResults } from "@/components/goals/goal-editor"
+import { AgreementFields } from "@/components/onboarding/agreement-step"
 import { profileDraft, type ProfileDraft, profileErrors, ProfileStepFields } from "@/components/onboarding/profile-step"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useAppData } from "@/lib/data/store"
 import { type DraftField, draftErrors, draftFromProfile, type GoalDraft, profileFromDraft } from "@/lib/goals/draft"
-import { fetchOnboardingStatus, finishOnboarding, OnboardingError, saveGoalsNow, saveProfileStep } from "@/lib/onboarding-client"
+import { acceptUserAgreement, agreementAccepted, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveGoalsNow, saveProfileStep } from "@/lib/onboarding-client"
 import { cn } from "@/lib/utils"
 
-const STEPS: { title: string; lead: string; fields: DraftField[] }[] = [
+type Step = { key: "profile" | "body" | "activity" | "goals" | "plan" | "agreement"; title: string; lead: string; fields: DraftField[] }
+const ALL_STEPS: Step[] = [
   // Steg 1 för alla (v31): namn och profilbild. Valideras separat (profileErrors).
-  { title: "Välkommen! Vem är du?", lead: "Ditt namn och en profilbild – dina PT:er ser dem. Bilden granskas automatiskt.", fields: [] },
-  { title: "Dina mått", lead: "Vi räknar ut din ämnesomsättning med Mifflin-St Jeor-formeln.", fields: ["weightKg", "heightCm", "age", "sex"] },
-  { title: "Hur aktiv är du?", lead: "Välj det som stämmer bäst för en vanlig vecka – träning inräknad.", fields: ["activity"] },
-  { title: "Vad vill du uppnå?", lead: "Välj ett eller flera mål. Fettförbränning och muskler samtidigt? Välj båda.", fields: ["goals"] },
-  { title: "Din plan", lead: "Dra i reglaget – kalorimålet och grafen räknas om direkt.", fields: ["targetWeightKg"] },
+  { key: "profile", title: "Välkommen! Vem är du?", lead: "Ditt namn och en profilbild – dina PT:er ser dem. Bilden granskas automatiskt.", fields: [] },
+  { key: "body", title: "Dina mått", lead: "Vi räknar ut din ämnesomsättning med Mifflin-St Jeor-formeln.", fields: ["weightKg", "heightCm", "age", "sex"] },
+  { key: "activity", title: "Hur aktiv är du?", lead: "Välj det som stämmer bäst för en vanlig vecka – träning inräknad.", fields: ["activity"] },
+  { key: "goals", title: "Vad vill du uppnå?", lead: "Välj ett eller flera mål. Fettförbränning och muskler samtidigt? Välj båda.", fields: ["goals"] },
+  { key: "plan", title: "Din plan", lead: "Dra i reglaget – kalorimålet och grafen räknas om direkt.", fields: ["targetWeightKg"] },
+  // v34: sista steget – ett obligatoriskt användaravtal och valfritt nyhetsbrev.
+  { key: "agreement", title: "Sista steget: avtalet", lead: "Ett avtal, ett godkännande – sedan är du igång.", fields: [] },
 ]
 
 /**
  * Intro-flödet för klienter (efter välkomststeget, v30/v31): steg 1 (förnamn,
  * efternamn, profilbild) → mått → aktivitet → mål → plan med kalorimål, makron,
- * aggressivitetsreglage och framtidsgraf. Sparas i profiles och client_goals;
+ * aggressivitetsreglage och framtidsgraf → användaravtalet (v34, obligatoriskt,
+ * ett godkännande + valfritt nyhetsbrev). Sparas i profiles och client_goals;
  * sist markerar finish_onboarding() intro-flödet som klart (obligatoriskt för
  * nya och – efter v31 – alla befintliga klienter). Målen kan ändras under Profil → Mål.
  */
@@ -39,6 +44,12 @@ export function GoalIntro() {
   const [draft, setDraft] = React.useState<GoalDraft>(() => draftFromProfile(existing, client?.weightLog.at(-1)?.kg))
   const [profile, setProfile] = React.useState<ProfileDraft>(() => profileDraft(client?.name ?? me.name, client?.avatarUrl))
   const [step, setStep] = React.useState(0)
+  // v34: avtalssteget visas tills avtalets nuvarande version är godkänd.
+  const [agreed, setAgreed] = React.useState<boolean | null>(null)
+  const [accepted, setAccepted] = React.useState(false)
+  const [marketing, setMarketing] = React.useState(false)
+  const [version, setVersion] = React.useState<string | undefined>()
+  const STEPS = agreed ? ALL_STEPS.filter((s) => s.key !== "agreement") : ALL_STEPS
   // Obligatoriskt tills databasen markerat flödet som klart (v31). Annars (gjort om från startsidan) kan man hoppa över.
   const mandatory = me.onboardingCompleted === false
   const [showErrors, setShowErrors] = React.useState(false)
@@ -54,7 +65,14 @@ export function GoalIntro() {
     let cancelled = false
     fetchOnboardingStatus()
       .then((s) => {
-        if (cancelled || !s) return
+        if (cancelled) return
+        if (!s) {
+          void agreementAccepted().then((a) => !cancelled && setAgreed(a))
+          return
+        }
+        setAgreed(s.terms_done)
+        setVersion(s.terms_version)
+        setMarketing(Boolean(s.marketing_consent))
         setProfile((p) => ({
           firstName: s.first_name ?? p.firstName,
           lastName: s.last_name ?? p.lastName,
@@ -103,6 +121,11 @@ export function GoalIntro() {
       setShowErrors(true)
       return
     }
+    // Avtalet är obligatoriskt för att gå vidare.
+    if (current.key === "agreement" && !accepted) {
+      setShowErrors(true)
+      return toast.error("Godkänn användaravtalet för att gå vidare")
+    }
     setShowErrors(false)
     if (step < STEPS.length - 1) {
       setStep(step + 1)
@@ -117,6 +140,7 @@ export function GoalIntro() {
     try {
       // Målen direkt i databasen, sedan markeras intro-flödet som klart (kontrolleras av databasen).
       await saveGoalsNow(me.id, goals)
+      if (current.key === "agreement") await acceptUserAgreement(marketing)
       if (mandatory) await finishOnboarding()
     } catch (e) {
       setSaving(false)
@@ -167,14 +191,35 @@ export function GoalIntro() {
           {step === 2 && <ActivityPicker value={draft.activity} onChange={(activity) => patch({ activity })} error={errors.activity} />}
           {step === 3 && <GoalPicker value={draft.goals} onChange={(goals) => patch({ goals })} error={errors.goals} />}
           {step === 4 && <GoalResults draft={draft} onChange={patch} errors={draftErrors(draft, ["targetWeightKg"])} />}
+          {current.key === "agreement" && (
+            <AgreementFields
+              role="client"
+              accepted={accepted}
+              onAcceptedChange={setAccepted}
+              marketing={marketing}
+              onMarketingChange={setMarketing}
+              invalid={showErrors}
+              version={version}
+            />
+          )}
         </div>
-        {step > 0 && <GoalDisclaimer />}
+        {step > 0 && current.key !== "agreement" && <GoalDisclaimer />}
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-lg border-t border-border/60 bg-background/90 px-4 pt-3 pb-[calc(0.75rem+var(--safe-bottom))] backdrop-blur-xl">
-        <Button size="lg" className="h-12 w-full text-base" onClick={() => void next()} disabled={saving} data-testid="intro-next">
+        <Button
+          size="lg"
+          className="h-12 w-full text-base"
+          onClick={() => void next()}
+          disabled={saving || (current.key === "plan" && agreed === null && mandatory)}
+          data-testid="intro-next"
+        >
           {saving ? (
             <Loader2 className="animate-spin" />
+          ) : current.key === "agreement" ? (
+            <>
+              <Check /> Godkänn och kom igång
+            </>
           ) : step === STEPS.length - 1 ? (
             <>
               <Check /> Spara min plan

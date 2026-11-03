@@ -152,12 +152,14 @@ resetV22()
 
 // v31: intro-flödets tillstånd per konto (som profiles + client_goals + legal_acceptances).
 const PT_DOCS = ["terms", "privacy", "pt_agreement", "gdpr_dpa"]
+// v34: klienter godkänner också avtalet (användarvillkor + integritetspolicy) i intro-flödet.
+const CLIENT_DOCS = ["terms", "privacy"]
 const onboarding = {}
 function resetV31() {
   for (const k of Object.keys(onboarding)) delete onboarding[k]
-  onboarding[C_INTRO] = { first_name: "Ida", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false }
+  onboarding[C_INTRO] = { first_name: "Ida", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false, marketing: false, consentLog: [] }
   // Befintlig PT: Stripe och presentation klara sedan tidigare, men saknar profilbild och avtal.
-  onboarding[T_INTRO] = { first_name: "Per", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false }
+  onboarding[T_INTRO] = { first_name: "Per", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false, marketing: false, consentLog: [] }
   payouts[T_INTRO] = { trainer_id: T_INTRO, stripe_account_id: "acct_1PerIntro", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
   byId[C_INTRO].app_metadata.onboarding_completed = false
   byId[T_INTRO].app_metadata.onboarding_completed = false
@@ -175,9 +177,10 @@ function onboardingStatus(uid) {
     pt_profile_done: trainer ? Boolean(o.avatar_url) : null,
     payouts_done: trainer ? Boolean(payouts[uid]?.complete) : null,
     terms_version: "2026-11",
-    required_documents: trainer ? PT_DOCS : [],
+    required_documents: trainer ? PT_DOCS : CLIENT_DOCS,
     accepted_documents: o.accepted,
-    terms_done: !trainer || PT_DOCS.every((d) => o.accepted.includes(d)),
+    terms_done: (trainer ? PT_DOCS : CLIENT_DOCS).every((d) => o.accepted.includes(d)),
+    marketing_consent: Boolean(o.marketing),
     completed: o.completed,
   }
 }
@@ -275,6 +278,7 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname === "/__reset_v22") { resetV22(); delete onboarding[T2]; return send(200, {}) }
   if (url.pathname === "/__reset_v31") { resetV31(); return send(200, {}) }
+  if (url.pathname === "/__onboarding") return send(200, onboarding)
   if (url.pathname === "/__reset_v20") {
     users[RADERA.email] = RADERA
     byId[RADERA.id] = RADERA
@@ -512,10 +516,10 @@ http.createServer(async (req, res) => {
       return send(200, null)
     }
     // v31: intro-flödet (samma regler som databasen, förenklat).
-    if (m[1] && ["my_onboarding_status", "save_profile_step", "accept_legal_documents", "finish_onboarding"].includes(table)) {
+    if (m[1] && ["my_onboarding_status", "save_profile_step", "accept_legal_documents", "accept_user_agreement", "set_marketing_consent", "finish_onboarding"].includes(table)) {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
-      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: [], completed: byId[uid].app_metadata.onboarding_completed !== false })
+      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: [], completed: byId[uid].app_metadata.onboarding_completed !== false, marketing: false, consentLog: [] })
       const trainer = byId[uid].app_metadata.role === "trainer"
       const err = (message, code = "23514") => send(400, { code, message, details: null, hint: null })
       if (table === "save_profile_step") {
@@ -539,11 +543,26 @@ http.createServer(async (req, res) => {
         if (!PT_DOCS.every((d) => (p.p_documents ?? []).includes(d))) return err("Godkänn alla villkor och avtal för att fortsätta")
         o.accepted = [...PT_DOCS]
       }
+      // v34: ett godkännande för hela användaravtalet + valfritt nyhetsbrev.
+      if (table === "accept_user_agreement") {
+        o.accepted = [...(trainer ? PT_DOCS : CLIENT_DOCS)]
+        if (p.p_marketing && !o.marketing) {
+          o.marketing = true
+          o.consentLog.push({ granted: true, source: "onboarding" })
+        }
+      }
+      if (table === "set_marketing_consent") {
+        const granted = Boolean(p.p_granted)
+        if (granted !== Boolean(o.marketing)) o.consentLog.push({ granted, source: "settings" })
+        o.marketing = granted
+        return send(200, granted)
+      }
       if (table === "finish_onboarding") {
         const st = onboardingStatus(uid)
         if (!st.profile_done) return err("Steg 1 (namn och profilbild) är inte klart")
         if (!trainer && !st.goals_done) return err("Sätt dina mål först")
-        if (trainer && !(st.payouts_done && st.terms_done)) return err("Godkänn villkoren och avtalen först")
+        if (trainer && !st.payouts_done) return err("Koppla utbetalningar via Stripe först")
+        if (!st.terms_done) return err("Godkänn användaravtalet för att fortsätta")
         o.completed = true
         byId[uid].app_metadata.onboarding_completed = true
         if (trainer) byId[uid].app_metadata.pt_ready = uid === T2 ? syncReady(T2) : true

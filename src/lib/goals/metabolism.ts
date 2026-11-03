@@ -309,6 +309,18 @@ export interface ProjectionPoint {
   leanDelta: number
 }
 
+/**
+ * Valfria ersättningar för prognosen (v34, dynamisk viktkurva):
+ *   burn       – energibehov per dag vid en viss vikt (uppmätt i stället för BMR × aktivitetsnivå),
+ *   leanScale  – skalar muskeltillväxten (faktisk träningsfrekvens; 1 = som planerat),
+ *   intakeKcal – dagligt intag (standard: planens kalorimål).
+ */
+export interface ProjectionOptions {
+  burn?: (weightKg: number) => number
+  leanScale?: number
+  intakeKcal?: number
+}
+
 /** Ungefärlig muskeltillväxt per vecka för en tränande person (nybörjare–van), kg. */
 const LEAN_POTENTIAL: Record<Sex, number> = { male: 0.11, female: 0.06, other: 0.085 }
 
@@ -319,10 +331,16 @@ const LEAN_POTENTIAL: Record<Sex, number> = { male: 0.11, female: 0.06, other: 0
  * Muskeltillväxten antas bara med ett träningsmål (muskler, rekomp, styrka)
  * och avtar långsamt med tiden.
  */
-export function projectWeeks(input: PlanInput & { targetWeightKg?: number }, plan: NutritionPlanResult, weeks: number): ProjectionPoint[] {
+export function projectWeeks(
+  input: PlanInput & { targetWeightKg?: number },
+  plan: NutritionPlanResult,
+  weeks: number,
+  opts: ProjectionOptions = {}
+): ProjectionPoint[] {
   const goals = input.goals
   const trains = goals.some((g) => g === "muscle_gain" || g === "bodybuilding" || g === "recomp" || g === "strength")
-  const potential = LEAN_POTENTIAL[input.sex]
+  const potential = LEAN_POTENTIAL[input.sex] * (opts.leanScale ?? 1)
+  const intake = opts.intakeKcal ?? plan.targets.kcal
   const start = input.weightKg
   const target = input.targetWeightKg
   let weight = start
@@ -331,8 +349,8 @@ export function projectWeeks(input: PlanInput & { targetWeightKg?: number }, pla
   let reached = false
   const points: ProjectionPoint[] = [{ week: 0, weightKg: start, weightDelta: 0, fatDelta: 0, leanDelta: 0 }]
   for (let week = 1; week <= weeks; week++) {
-    const burn = tdee({ ...input, weightKg: weight }, input.activity)
-    const balance = (plan.targets.kcal - burn) * 7
+    const burn = opts.burn ? opts.burn(weight) : tdee({ ...input, weightKg: weight }, input.activity)
+    const balance = (intake - burn) * 7
     let dWeight = balance < 0 ? balance / KCAL_PER_KG_LOSS : balance / KCAL_PER_KG_GAIN
     if (target !== undefined && !reached) {
       // Målvikten nås: stanna där (justerat intag efter det).

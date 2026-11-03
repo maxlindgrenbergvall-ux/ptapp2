@@ -111,10 +111,12 @@ else {
   check(logged?.reps === 11 && logged.done, "valfritt värde (11) sparas")
 
   const before = (await demo()).workouts.find((w) => w.id === todays.id).exercises.map((e) => e.id)
-  await p.locator('button[aria-label^="Flytta ned"]').first().click()
-  await p.waitForTimeout(200)
+  // v34: drag-and-drop via handtaget (här med tangentbordet: pil ned).
+  await p.locator("[data-testid=drag-handle]").first().focus()
+  await p.keyboard.press("ArrowDown")
+  await p.waitForTimeout(300)
   const after = (await demo()).workouts.find((w) => w.id === todays.id).exercises.map((e) => e.id)
-  check(after[0] === before[1] && after[1] === before[0], "pilarna flyttar övningen (ny ordning sparas)")
+  check(after[0] === before[1] && after[1] === before[0], `handtaget flyttar övningen (ny ordning sparas): ${before.join(",")} → ${after.join(",")}`)
   await p.screenshot({ path: `${out}/v24-logger.png`, fullPage: true })
 }
 

@@ -2,7 +2,7 @@
 
 import { Target } from "lucide-react"
 
-import { GoalProjectionChart } from "@/components/goals/goal-chart"
+import { GoalProgressChart } from "@/components/goals/goal-progress-card"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAppData } from "@/lib/data/store"
@@ -18,7 +18,7 @@ export function GoalSummaryCard({ clientId, className }: { clientId: ID; classNa
   const g = data.goalProfiles.find((x) => x.clientId === clientId)
   if (!g) return null
   const age = ageFromBirthYear(g.birthYear)
-  const { plan, points, series, reachedWeek } = goalOverview({
+  const { plan } = goalOverview({
     sex: g.sex,
     age,
     heightCm: g.heightCm,
@@ -56,7 +56,8 @@ export function GoalSummaryCard({ clientId, className }: { clientId: ID; classNa
             BMR {plan.bmr.toLocaleString("sv-SE")} kcal, TDEE {plan.tdee.toLocaleString("sv-SE")} kcal (Mifflin-St Jeor). Ett kostschema från dig ersätter dagsmålet i klientens kostdagbok.
           </span>
         </p>
-        <GoalProjectionChart points={points} series={series} reachedWeek={reachedWeek} />
+        {/* v34: samma dynamiska kurva som klienten ser (uppmätt förbränning och träningsfrekvens). */}
+        <GoalProgressChart clientId={clientId} readOnly />
       </CardContent>
     </Card>
   )

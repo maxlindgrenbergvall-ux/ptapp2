@@ -59,14 +59,13 @@ check(t6.kind === "bodyweight" && t6.reps === 10 && t6.kg === 0, "chins 9 reps �
 check(nextTarget({ exerciseId: "e-x", reps: "8", targetKg: 60 }, [], barbell)?.kind === "start", "ny övning med PT:ns startvikt")
 check(nextTarget({ exerciseId: "e-x", reps: "8" }, [], barbell) === null, "ny övning utan startvikt: inget mål")
 
-// Pyramiden upp till toppsetet.
+// v34: raka set – ingen automatisk stegring i vikt mellan seten.
 const plan = setPlan({ sets: 3, reps: "8" }, t1)
-check(plan.at(-1)!.kg === 142.5 && plan.at(-1)!.reps === 6, "sista setet = toppsetet 142,5 × 6")
-check(plan[0].reps === 8 && plan[1].reps === 7 && plan[0].kg < plan[1].kg && plan[1].kg < 142.5, `pyramid: ${plan.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
-check(plan.every((s) => (s.kg * 4) % 10 === 0), "alla vikter i hela 2,5 kg")
+check(plan.every((s) => s.kg === 142.5 && s.reps === 6), `alla set på målet: ${plan.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
+check(new Set(plan.map((s) => s.kg)).size === 1, "ingen stegring mellan seten")
 const own = setPlan({ sets: 3, reps: "8", setReps: ["12", "10", "6"] }, t1)
-check(own[0].reps === 12 && own[2].reps === 6 && own[2].kg === 142.5 && own[0].kg < own[1].kg, `PT:ns reps per set: ${own.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
-check(same(setPlan({ sets: 2, reps: "8" }, t1).map((s) => s.kg), [142.5, 142.5]), "två set: raka set på målet")
+check(own.map((s) => s.reps).join("/") === "12/10/6" && own.every((s) => s.kg === 142.5), `PT:ns reps per set behålls, samma vikt: ${own.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
+check(same(setPlan({ sets: 5, reps: "8" }, t1).map((s) => s.kg), [142.5, 142.5, 142.5, 142.5, 142.5]), "fem set: raka set på målet")
 
 if (failed) {
   console.log(`${failed} test misslyckades`)

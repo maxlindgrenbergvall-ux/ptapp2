@@ -287,6 +287,32 @@ function createActions(ctx: {
       if (!w || !target || !(target.extra || w.byClient)) return
       commit({ type: "setWorkoutExercises", workoutId, exercises: w.exercises.filter((e) => e.id !== workoutExerciseId) })
     },
+    /**
+     * Drag-and-drop (v34): ny ordning för passets övningar. `ids` är den nya ordningen
+     * (alla eller en sektion – övriga behåller sina platser). Databasen tillåter att
+     * klienten ändrar ordningen även i PT:ns pass, men inte övningarna i sig.
+     */
+    reorderWorkoutExercises: (workoutId: ID, ids: ID[]) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      if (!w) return
+      const moving = new Set(ids)
+      const byId = new Map(w.exercises.map((e) => [e.id, e]))
+      const queue = ids.map((id) => byId.get(id)).filter((e): e is WorkoutExercise => Boolean(e))
+      const exercises = w.exercises.map((e) => (moving.has(e.id) ? queue.shift()! : e))
+      if (exercises.every((e, i) => e.id === w.exercises[i].id)) return
+      commit({ type: "setWorkoutExercises", workoutId, exercises })
+    },
+    /** Ta bort sista setet (v34) – bara i egna pass och egna/extra övningar, och bara om det inte är avbockat. */
+    removeWorkoutSet: (workoutId: ID, workoutExerciseId: ID) => {
+      const w = getData().workouts.find((x) => x.id === workoutId)
+      const e = w?.exercises.find((x) => x.id === workoutExerciseId)
+      if (!w || !e || e.sets <= 1 || !(w.byClient || e.extra)) return
+      if (w.logs.some((l) => l.workoutExerciseId === e.id && l.setIndex === e.sets - 1 && l.done)) return
+      const exercises = w.exercises.map((x) =>
+        x.id === e.id ? { ...x, sets: x.sets - 1, ...(x.setReps ? { setReps: x.setReps.slice(0, x.sets - 1) } : {}) } : x
+      )
+      commit({ type: "setWorkoutExercises", workoutId, exercises })
+    },
     swapWorkoutExercises: (workoutId: ID, a: ID, b: ID) => {
       const w = getData().workouts.find((x) => x.id === workoutId)
       const i = w?.exercises.findIndex((e) => e.id === a) ?? -1

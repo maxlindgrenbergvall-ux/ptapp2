@@ -19,7 +19,7 @@ export const ONBOARDING_PATH_FOR: Record<UserRole, string> = {
 }
 
 /** Sidor som går att öppna mitt i intro-flödet (avtalen, återställning, Stripe-retur). */
-export const ALLOWED_DURING_ONBOARDING = ["/villkor", "/integritet", "/nytt-losenord", "/konto-raderat", "/app-retur", "/auth/", "/api/"]
+export const ALLOWED_DURING_ONBOARDING = ["/avtal", "/villkor", "/integritet", "/nytt-losenord", "/konto-raderat", "/app-retur", "/auth/", "/api/"]
 
 export type LegalDocument = "terms" | "privacy" | "pt_agreement" | "gdpr_dpa"
 
@@ -54,6 +54,19 @@ export const LEGAL_DOCUMENTS: Record<LegalDocument, { title: string; accept: str
   },
 }
 
+/**
+ * Coaviras användaravtal (v34): ETT avtal som godkänns med en bock i intro-flödet.
+ * Delarna per roll (sparas var för sig i legal_acceptances, samma version):
+ *   klient: användarvillkor + integritetspolicy,
+ *   PT:     dessutom PT-avtalet och GDPR-åtagandet.
+ * Hela avtalet finns på /avtal (/avtal/pt för PT:er).
+ */
+export const AGREEMENT_PARTS: Record<"client" | "trainer", LegalDocument[]> = {
+  client: ["terms", "privacy"],
+  trainer: ["terms", "privacy", "pt_agreement", "gdpr_dpa"],
+}
+export const AGREEMENT_TITLE = "Coaviras användaravtal"
+
 /** Status från databasen (my_onboarding_status). Demoläget bygger samma objekt lokalt. */
 export interface OnboardingStatus {
   role: UserRole | null
@@ -68,27 +81,29 @@ export interface OnboardingStatus {
   required_documents: LegalDocument[]
   accepted_documents: LegalDocument[]
   terms_done: boolean
+  /** v34: samtycke till nyhetsbrev, erbjudanden och produktnyheter. */
+  marketing_consent?: boolean
   completed: boolean
 }
 
-export type ClientStep = "profile" | "goals"
+export type ClientStep = "profile" | "goals" | "terms"
 export type TrainerStep = "profile" | "payouts" | "terms"
 export type OnboardingStep = ClientStep | TrainerStep | "done"
 
-export const CLIENT_STEPS: ClientStep[] = ["profile", "goals"]
+export const CLIENT_STEPS: ClientStep[] = ["profile", "goals", "terms"]
 export const TRAINER_STEPS: TrainerStep[] = ["profile", "payouts", "terms"]
 
 export const STEP_LABEL: Record<ClientStep | TrainerStep, string> = {
   profile: "Din profil",
   goals: "Mål och kostplan",
   payouts: "Utbetalningar",
-  terms: "Villkor och avtal",
+  terms: "Användaravtal",
 }
 
 /**
  * Rollbaserade routern: nästa steg som inte är klart.
- *   Klient → profil → mål
- *   PT     → profil (inkl. presentation) → Stripe Connect → villkor
+ *   Klient → profil → mål → användaravtal
+ *   PT     → profil (inkl. presentation) → Stripe Connect → användaravtal
  * "done" när allt är klart (finish_onboarding kan anropas / är anropad).
  */
 export function nextOnboardingStep(s: Pick<OnboardingStatus, "role" | "profile_done" | "goals_done" | "pt_profile_done" | "payouts_done" | "terms_done">): OnboardingStep {
@@ -100,6 +115,7 @@ export function nextOnboardingStep(s: Pick<OnboardingStatus, "role" | "profile_d
     return "done"
   }
   if (!s.goals_done) return "goals"
+  if (!s.terms_done) return "terms"
   return "done"
 }
 

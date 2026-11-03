@@ -8,6 +8,7 @@ import { LegalLinksCard } from "@/components/legal-links"
 import { RestSettingsFields } from "@/components/client/rest-settings"
 import { PushSettingsCard } from "@/components/native/push-settings"
 import { DeleteAccountCard } from "@/components/settings/delete-account"
+import { MarketingConsentCard } from "@/components/settings/marketing-consent"
 import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -86,6 +87,7 @@ export function SettingsPage() {
       )}
 
       <PushSettingsCard />
+      <MarketingConsentCard />
 
       <Card className="gap-3">
         <CardHeader>

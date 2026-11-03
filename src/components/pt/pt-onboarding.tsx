@@ -1,28 +1,27 @@
 "use client"
 
-import { ArrowRight, BadgeCheck, Banknote, Check, Clock, ExternalLink, FileCheck2, Loader2, Lock, RefreshCw, ShieldCheck, UserRound } from "lucide-react"
+import { ArrowRight, BadgeCheck, Banknote, Check, Clock, FileCheck2, Loader2, Lock, RefreshCw, ShieldCheck, UserRound } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { BrandMark } from "@/components/brand"
 import { profileDraft, type ProfileDraft, profileErrors, ProfileStepFields } from "@/components/onboarding/profile-step"
+import { AgreementFields } from "@/components/onboarding/agreement-step"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
 import { openCheckout } from "@/lib/native/checkout"
 import { EXISTING_CLIENT_FEE_PERCENT, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
-import { LEGAL_DOCUMENTS, type LegalDocument, nextOnboardingStep, type OnboardingStatus, TRAINER_STEPS, STEP_LABEL } from "@/lib/onboarding"
-import { acceptLegalDocuments, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveProfileStep } from "@/lib/onboarding-client"
+import { nextOnboardingStep, type OnboardingStatus, TRAINER_STEPS, STEP_LABEL } from "@/lib/onboarding"
+import { acceptUserAgreement, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveProfileStep } from "@/lib/onboarding-client"
 import { MIN_BIO_LENGTH, missingProfileParts, type PayoutStatus } from "@/lib/pt-onboarding"
 import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
 
 type Step = 1 | 2 | 3
-const ALL_DOCUMENTS = Object.keys(LEGAL_DOCUMENTS) as LegalDocument[]
 
 const STRIPE_MESSAGES: Record<string, { kind: "info" | "error"; text: string }> = {
   forny: { kind: "info", text: "Länken till Stripe hann gå ut. Tryck på knappen igen för att fortsätta där du var." },
@@ -38,8 +37,9 @@ const STRIPE_MESSAGES: Record<string, { kind: "info" | "error"; text: string }> 
  *  2. Utbetalningar: Stripe Connect (Express) med automatisk delning av
  *     betalningen (application_fee_amount). Stripe skickar tillbaka till
  *     /pt/onboarding/callback, som kontrollerar kontot.
- *  3. Villkor och avtal: användarvillkor, integritetspolicy, PT-avtal och
- *     GDPR-åtagandet. Sedan aktiverar finish_onboarding() kontot.
+ *  3. Användaravtalet (v34): ETT godkännande som täcker användarvillkor,
+ *     integritetspolicy, PT-avtal och GDPR-åtagandet, plus valfritt nyhetsbrev.
+ *     Sedan aktiverar finish_onboarding() kontot.
  */
 export function PtOnboarding() {
   const { data, me, actions, mode } = useAppData()
@@ -51,7 +51,9 @@ export function PtOnboarding() {
   }))
   const [onboarding, setOnboarding] = React.useState<OnboardingStatus | null>(null)
   const [showErrors, setShowErrors] = React.useState(false)
-  const [accepted, setAccepted] = React.useState<LegalDocument[]>([])
+  const [accepted, setAccepted] = React.useState(false)
+  const [marketing, setMarketing] = React.useState(false)
+  const [termsTried, setTermsTried] = React.useState(false)
   const [activating, setActivating] = React.useState(false)
   const [status, setStatus] = React.useState<PayoutStatus | null>(null)
   const [step, setStep] = React.useState<Step>(1)
@@ -81,7 +83,8 @@ export function PtOnboarding() {
         if (payout.data) setStatus(payout.data as PayoutStatus)
         if (!o) return
         setOnboarding(o)
-        setAccepted(o.accepted_documents)
+        setAccepted(o.terms_done)
+        setMarketing(Boolean(o.marketing_consent))
         setPerson((p) => ({ firstName: o.first_name ?? p.firstName, lastName: o.last_name ?? p.lastName, avatarUrl: o.avatar_url ?? p.avatarUrl }))
         const next = nextOnboardingStep(o)
         if (o.completed && next === "done") {
@@ -154,10 +157,13 @@ export function PtOnboarding() {
    * sessionen förnyas (ny JWT) och portalen öppnas.
    */
   const activate = async () => {
-    if (!ALL_DOCUMENTS.every((d) => accepted.includes(d))) return toast.error("Godkänn alla villkor och avtal för att fortsätta")
+    if (!accepted) {
+      setTermsTried(true)
+      return toast.error("Godkänn användaravtalet för att aktivera kontot")
+    }
     setActivating(true)
     try {
-      await acceptLegalDocuments(ALL_DOCUMENTS)
+      await acceptUserAgreement(marketing)
       await finishOnboarding()
     } catch (e) {
       setActivating(false)
@@ -354,6 +360,9 @@ export function PtOnboarding() {
         <TermsStep
           accepted={accepted}
           onChange={setAccepted}
+          marketing={marketing}
+          onMarketingChange={setMarketing}
+          invalid={termsTried}
           activating={activating}
           onActivate={() => void activate()}
           onBack={() => setStep(payoutsDone ? 1 : 2)}
@@ -419,64 +428,51 @@ async function saveProfileNow(
   }
 }
 
-/** Steg 3: villkor och avtal. Alla måste godkännas; länkarna öppnar dokumenten. */
+/** Steg 3 (v34): det sammanslagna användaravtalet – en bock – och valfritt nyhetsbrev. */
 function TermsStep({
   accepted,
   onChange,
+  marketing,
+  onMarketingChange,
+  invalid,
   activating,
   onActivate,
   onBack,
   version,
 }: {
-  accepted: LegalDocument[]
-  onChange: (docs: LegalDocument[]) => void
+  accepted: boolean
+  onChange: (v: boolean) => void
+  marketing: boolean
+  onMarketingChange: (v: boolean) => void
+  invalid: boolean
   activating: boolean
   onActivate: () => void
   onBack: () => void
   version?: string
 }) {
-  const all = ALL_DOCUMENTS.every((d) => accepted.includes(d))
-  const toggle = (d: LegalDocument, on: boolean) => onChange(on ? [...new Set([...accepted, d])] : accepted.filter((x) => x !== d))
   return (
     <Card data-testid="onboarding-terms">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileCheck2 className="size-5 text-primary" /> Steg 3: Villkor och avtal
+          <FileCheck2 className="size-5 text-primary" /> Steg 3: Användaravtal
         </CardTitle>
-        <CardDescription>Läs igenom och godkänn för att aktivera ditt PT-konto{version ? ` (version ${version})` : ""}.</CardDescription>
+        <CardDescription>Ett avtal och ett godkännande – sedan aktiveras ditt PT-konto.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ul className="divide-y rounded-xl border" aria-label="Avtal att godkänna">
-          {ALL_DOCUMENTS.map((d) => {
-            const doc = LEGAL_DOCUMENTS[d]
-            const id = `legal-${d}`
-            return (
-              <li key={d} className="flex gap-3 p-3">
-                <Checkbox id={id} checked={accepted.includes(d)} onCheckedChange={(v) => toggle(d, v === true)} className="mt-0.5 size-5" />
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <Label htmlFor={id} className="text-sm leading-snug font-medium">
-                    {doc.accept}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">{doc.summary}</p>
-                  <a href={doc.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
-                    {doc.read} <ExternalLink className="size-3" />
-                  </a>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-        <label className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2.5 text-sm font-medium">
-          <Checkbox checked={all} onCheckedChange={(v) => onChange(v === true ? ALL_DOCUMENTS : [])} className="size-5" data-testid="accept-all" /> Godkänn alla
-        </label>
-        <p className="text-xs text-muted-foreground">
-          Ditt godkännande sparas med datum och avtalsversion. Ändras avtalen ber vi dig godkänna den nya versionen.
-        </p>
+        <AgreementFields
+          role="trainer"
+          accepted={accepted}
+          onAcceptedChange={onChange}
+          marketing={marketing}
+          onMarketingChange={onMarketingChange}
+          invalid={invalid}
+          version={version}
+        />
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
           <Button variant="ghost" onClick={onBack}>
             Tillbaka
           </Button>
-          <Button size="lg" disabled={!all || activating} onClick={onActivate} data-testid="activate-account">
+          <Button size="lg" disabled={activating} onClick={onActivate} data-testid="activate-account">
             {activating ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Godkänn och aktivera kontot
           </Button>
         </div>

@@ -78,6 +78,10 @@ check((await p.locator("[data-testid=goal-chart]").getAttribute("data-series")) 
 check(await p.locator("[data-testid=goal-disclaimer]").isVisible(), "friskrivningen längst ned")
 check(await p.locator("[data-testid=rate-slider]").isVisible(), "aggressivitetsreglaget finns")
 await p.click("[data-testid=intro-next]")
+// v34: sista steget – användaravtalet (obligatoriskt).
+await p.waitForSelector("[data-testid=agreement-step]")
+await p.click("[data-testid=accept-agreement]")
+await p.click("[data-testid=intro-next]")
 await p.waitForURL(base + "/klient")
 check((await demo()).goalProfiles.some((g) => g.clientId === "c1"), "målen sparas och klienten kommer in i appen")
 
@@ -85,8 +89,9 @@ check((await demo()).goalProfiles.some((g) => g.clientId === "c1"), "målen spar
 await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("[data-testid=goal-progress]")
 await p.locator("[data-testid=goal-progress]").scrollIntoViewIfNeeded()
-await p.waitForFunction(() => document.querySelectorAll("[data-testid=goal-progress] .recharts-line").length >= 3)
-check((await p.locator("[data-testid=goal-progress] .recharts-line").count()) === 3, "Framsteg: fett, muskler och faktisk vikt i samma graf")
+await p.waitForFunction(() => document.querySelectorAll("[data-testid=goal-progress] .recharts-line").length >= 5)
+// v34: plan (fett, muskler), uppdaterad prognos (fett, muskler – streckade) och faktisk vikt.
+check((await p.locator("[data-testid=goal-progress] .recharts-line").count()) === 5, "Framsteg: plan, uppdaterad prognos och faktisk vikt i samma graf")
 check((await p.locator("[data-testid=goal-progress] [data-testid=goal-disclaimer]").count()) === 1, "Framsteg: friskrivningen under grafen")
 await p.screenshot({ path: `${out}/v31-framsteg.png`, fullPage: true })
 

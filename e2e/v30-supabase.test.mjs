@@ -57,6 +57,10 @@ const kcal = Number((await p.locator("[data-testid=goal-kcal]").innerText()).rep
 // 10×64 + 6,25×167 − 5×29 − 161 = 1 377,75 × 1,375 = 1 894 → 1 890 kcal.
 check(Math.abs(kcal - 1890) <= 10, `kalorimål ${kcal} kcal (BMR 1 378 × 1,375)`)
 await p.click("[data-testid=intro-next]")
+// v34: sista steget – användaravtalet (obligatoriskt).
+await p.waitForSelector("[data-testid=agreement-step]")
+await p.click("[data-testid=accept-agreement]")
+await p.click("[data-testid=intro-next]")
 await p.waitForURL(/\/klient$/)
 await p.waitForTimeout(800)
 const log = await getLog()

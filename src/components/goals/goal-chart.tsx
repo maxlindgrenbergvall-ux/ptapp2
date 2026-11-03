@@ -27,6 +27,8 @@ export function GoalProjectionChart({
   series,
   reachedWeek,
   actual,
+  adaptive,
+  nowWeek,
   className,
 }: {
   points: ProjectionPoint[]
@@ -34,17 +36,33 @@ export function GoalProjectionChart({
   reachedWeek?: number | null
   /** Faktiska vägningar (förändring i kg från start) per vecka – ritas ovanpå planen (Framsteg). */
   actual?: { week: number; delta: number }[]
+  /** v34: uppdaterad prognos (uppmätt förbränning och träningsfrekvens) – streckad, från senaste vägningen. */
+  adaptive?: ProjectionPoint[]
+  /** Markerar "Nu" på x-axeln. */
+  nowWeek?: number
   className?: string
 }) {
+  const hasAdaptive = !!adaptive?.length
   const config = {
-    ...Object.fromEntries(series.map((s) => [s.key, { label: s.label, color: COLOR[s.key] }])),
+    ...Object.fromEntries(series.map((s) => [s.key, { label: hasAdaptive ? `${s.label} (plan)` : s.label, color: COLOR[s.key] }])),
+    ...(hasAdaptive ? Object.fromEntries(series.map((s) => [`adaptive_${s.key}`, { label: `${s.label} (uppdaterad)`, color: COLOR[s.key] }])) : {}),
     ...(actual?.length ? { actualDelta: { label: "Faktisk vikt", color: "var(--chart-3)" } } : {}),
   } satisfies ChartConfig
-  const rows: (ProjectionPoint & { actualDelta?: number })[] = points.map((p) => {
+  type Row = ProjectionPoint & { actualDelta?: number } & Partial<Record<`adaptive_${SeriesKey}`, number>>
+  const rows: Row[] = points.map((p) => {
     const a = actual?.find((x) => x.week === p.week)
-    return a ? { ...p, actualDelta: a.delta } : p
+    const ad = adaptive?.find((x) => x.week === p.week)
+    return {
+      ...p,
+      ...(a ? { actualDelta: a.delta } : {}),
+      ...(ad ? Object.fromEntries(series.map((s) => [`adaptive_${s.key}`, ad[s.key]])) : {}),
+    }
   })
-  const values = [...points.flatMap((p) => series.map((s) => p[s.key])), ...(actual ?? []).map((a) => a.delta)]
+  const values = [
+    ...points.flatMap((p) => series.map((s) => p[s.key])),
+    ...(actual ?? []).map((a) => a.delta),
+    ...(adaptive ?? []).filter((p) => p.week <= (points.at(-1)?.week ?? 0)).flatMap((p) => series.map((s) => p[s.key])),
+  ]
   const lo = Math.min(0, ...values)
   const hi = Math.max(0, ...values)
   const pad = Math.max(0.3, (hi - lo) * 0.08)
@@ -52,12 +70,24 @@ export function GoalProjectionChart({
   const last = points.at(-1)
 
   return (
-    <div className={className} data-testid="goal-chart" data-series={series.map((s) => s.key).join(",")}>
+    <div className={className} data-testid="goal-chart" data-series={series.map((s) => s.key).join(",")} data-adaptive={hasAdaptive ? "1" : undefined}>
       <ChartFrame
         caption={`Förväntad utveckling i ${points.length - 1} veckor: ${series.map((s) => `${s.label.toLowerCase()} ${kg(last?.[s.key] ?? 0)}`).join(", ")}`}
         table={{
-          head: ["Vecka", ...series.map((s) => `${s.label} (kg)`), "Vikt (kg)", ...(actual?.length ? ["Faktisk (kg)"] : [])],
-          rows: rows.map((p) => [String(p.week), ...series.map((s) => kg(p[s.key])), p.weightKg.toFixed(1), ...(actual?.length ? [p.actualDelta === undefined ? "–" : kg(p.actualDelta)] : [])]),
+          head: [
+            "Vecka",
+            ...series.map((s) => `${s.label}${hasAdaptive ? ", plan" : ""} (kg)`),
+            ...(hasAdaptive ? series.map((s) => `${s.label}, uppdaterad (kg)`) : []),
+            "Vikt (kg)",
+            ...(actual?.length ? ["Faktisk (kg)"] : []),
+          ],
+          rows: rows.map((p) => [
+            String(p.week),
+            ...series.map((s) => kg(p[s.key])),
+            ...(hasAdaptive ? series.map((s) => (p[`adaptive_${s.key}`] === undefined ? "–" : kg(p[`adaptive_${s.key}`]!))) : []),
+            p.weightKg.toFixed(1),
+            ...(actual?.length ? [p.actualDelta === undefined ? "–" : kg(p.actualDelta)] : []),
+          ]),
         }}
       >
         <ChartContainer config={config} className="aspect-auto h-56 w-full sm:h-64">
@@ -66,6 +96,7 @@ export function GoalProjectionChart({
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} tickFormatter={(w) => (w === 0 ? "Start" : `v${w}`)} minTickGap={20} />
             <YAxis tickLine={false} axisLine={false} tickMargin={6} fontSize={12} width={40} domain={domain} allowDecimals={false} tickCount={5} tickFormatter={(v: number) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0")} />
             <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1.5} />
+            {nowWeek ? <ReferenceLine x={nowWeek} stroke="var(--muted-foreground)" strokeOpacity={0.6} label={{ value: "Nu", position: "insideTopLeft", fontSize: 11, fill: "var(--muted-foreground)" }} /> : null}
             {reachedWeek ? <ReferenceLine x={reachedWeek} stroke="var(--muted-foreground)" strokeDasharray="4 4" label={{ value: "Målvikt", position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }} /> : null}
             <ChartTooltip
               cursor={{ strokeDasharray: "3 3" }}
@@ -84,7 +115,7 @@ export function GoalProjectionChart({
                 />
               }
             />
-            {series.length + (actual?.length ? 1 : 0) > 1 && <ChartLegend content={<ChartLegendContent />} />}
+            {series.length + (actual?.length ? 1 : 0) + (hasAdaptive ? series.length : 0) > 1 && <ChartLegend content={<ChartLegendContent />} />}
             {series.map((s) => (
               <Line
                 key={s.key}
@@ -92,11 +123,27 @@ export function GoalProjectionChart({
                 type="monotone"
                 stroke={`var(--color-${s.key})`}
                 strokeWidth={2.5}
+                strokeOpacity={hasAdaptive ? 0.4 : 1}
                 dot={false}
                 activeDot={{ r: 5 }}
                 animationDuration={250}
               />
             ))}
+            {hasAdaptive &&
+              series.map((s) => (
+                <Line
+                  key={`adaptive_${s.key}`}
+                  dataKey={`adaptive_${s.key}`}
+                  type="monotone"
+                  stroke={`var(--color-adaptive_${s.key})`}
+                  strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  dot={false}
+                  connectNulls
+                  activeDot={{ r: 5 }}
+                  animationDuration={250}
+                />
+              ))}
             {actual?.length ? (
               <Line dataKey="actualDelta" type="monotone" stroke="var(--color-actualDelta)" strokeWidth={2} dot={{ r: 3 }} connectNulls animationDuration={250} />
             ) : null}

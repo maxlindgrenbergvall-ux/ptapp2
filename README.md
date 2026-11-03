@@ -53,7 +53,8 @@ npm run dev                  # http://localhost:3000
        - Lägger till förnamn och efternamn, `legal_acceptances` och profilbilder som bara får ligga i den egna Storage-mappen.
        - Lägger till RPC-funktionerna `save_profile_step`, `accept_legal_documents`, `finish_onboarding` och `my_onboarding_status`.
    32. `supabase/migrations/20261114000000_v32_training_activity.sql`. Träning och aktivitet: extra set och egna övningar (`"extra": true`) i PT:ns pass under passet, målet `bodybuilding` i `client_goals`, `strava` i `wearable_provider`, tabellerna `activity_logs` (pass från Strava, Apple Hälsa, Health Connect) och `activity_days` (dagssummor från telefonen) med RLS. Stravas pass raderas när kopplingen tas bort.
-   33. `supabase/seed.sql`
+   33. `supabase/migrations/20261115000000_v34_user_agreement_marketing.sql`. Ett sammanslaget användaravtal i intro-flödet (`accept_user_agreement`, krävs nu även för klienter i `finish_onboarding`) och samtycke till nyhetsbrev (`profiles.marketing_consent(_at)`, loggen `consent_events`, `set_marketing_consent`). Befintliga konton som redan är klara påverkas inte.
+   34. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -576,6 +577,29 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v34: dynamisk viktkurva, drag-and-drop och ett användaravtal
+
+- **Dynamisk viktkurva** (`src/lib/goals/adaptive.ts`, enhetstest `e2e/adaptive.unit.ts`). Kurvan under Mål, Framsteg och hos PT:n räknas om löpande:
+  - **Förbränning per dag** (senaste 28 dagarna, sedan målets start):
+    - med telefonens dagssumma (Apple Hälsa / Health Connect): BMR × 1,1 + aktiv energi;
+    - annars: BMR × 1,2 + passens kalorier (Strava och pass loggade i appen; styrkepass som redan synkats räknas inte igen).
+  - **Förtroende:** fullt efter 14 dagars data. Innan dess vägs det uppmätta ihop med planens aktivitetsnivå.
+  - **Träningsfrekvensen** (pass/vecka) skalar muskeltillväxten: 3 pass/vecka eller fler ger full effekt.
+  - **Förankring:** kurvan utgår från senaste vägningen och simuleras framåt vecka för vecka. Planen ritas ljust bredvid, den uppdaterade prognosen streckad.
+- **Drag-and-drop** (`src/components/workouts/sortable-list.tsx`) av övningar under passet och i splitbyggaren.
+  - Dra i handtaget med finger eller mus. Med tangentbordet: fokusera handtaget och tryck pil upp/ned.
+  - Klienten kan ändra ordningen även i PT:ns pass.
+  - Splitbyggaren redigerar set, reps och startvikt per övning.
+  - I egna pass går det att ta bort set.
+- **Ingen automatisk stegring mellan seten:** alla set får dagens mål (raka set).
+  - En vikt du själv fyller i följer med till nästa set.
+  - "Som förra passet" fyller i seten ur historiken.
+- **Användaravtal** (`src/components/onboarding/agreement-step.tsx`, `/avtal`, `/avtal/pt`):
+  - Ett obligatoriskt godkännande sist i klientens intro-flöde och som PT:ns steg 3.
+  - Klienter godkänner användarvillkor + integritetspolicy; PT:er även PT-avtalet och GDPR-åtagandet.
+  - Nyhetsbrev, erbjudanden och produktnyheter är ett valfritt kryss som aldrig är förkryssat och kan ändras under Inställningar.
+  - Samtycket till hälsodata vid registreringen ligger kvar, eftersom databasen kräver det för klientkonton.
+
 ## Nytt i v32: progressiv överbelastning, splits, Strava och hälsosynk
 
 - **Progressiv överbelastning** (`src/lib/progression.ts`, enhetstest `e2e/progression.unit.ts`). Dubbel progression per övning:
@@ -988,6 +1012,8 @@ npx tsx --tsconfig tsconfig.json e2e/goals.unit.ts # BMR/TDEE, reglaget, energig
 npx tsx --tsconfig tsconfig.json e2e/progression.unit.ts # progressiv överbelastning och pyramid
 npx tsx --tsconfig tsconfig.json e2e/splits.unit.ts      # splits och schemaläggning
 npx tsx --tsconfig tsconfig.json e2e/activity.unit.ts    # kalorimätaren: dubbletter, dagssumma, MET
+npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan: förbränning, förtroende, frekvens, förankring
+node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal
 node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil
 node e2e/mock-strava.mjs &         # (krävs av v32-supabase) Stravas API på :54700 (STRAVA_API_BASE=http://localhost:54700, STRAVA_CLIENT_ID=123, STRAVA_CLIENT_SECRET=sek)
 node e2e/v32-supabase.test.mjs     # Strava: OAuth/CSRF, tokens på servern, kalorier, synk utan dubbletter, koppla från

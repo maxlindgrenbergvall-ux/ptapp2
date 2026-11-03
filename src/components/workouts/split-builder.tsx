@@ -13,9 +13,20 @@ import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
 import { matchesExercise } from "@/lib/exercises/search"
-import { buildSchedule, cloneSplit, customSplit, type Split, type SplitExercise, SPLITS, WEEKDAY_SHORT } from "@/lib/splits"
+import { buildSchedule, cloneSplit, customSplit, type Split, type SplitDay, type SplitExercise, SPLITS, WEEKDAY_SHORT } from "@/lib/splits"
 import { buildTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
+import { SortableList } from "@/components/workouts/sortable-list"
+
+/** I editorn har varje övning ett id (för drag-and-drop); det tas bort när schemat skapas. */
+type EditExercise = SplitExercise & { id: string }
+type EditSplit = Omit<Split, "days"> & { days: (Omit<SplitDay, "exercises"> & { exercises: EditExercise[] })[] }
+const stripId = (e: EditExercise): SplitExercise => {
+  const copy: Partial<EditExercise> = { ...e }
+  delete copy.id
+  return copy as SplitExercise
+}
+const toPlain = (s: EditSplit): Split => ({ ...s, days: s.days.map((d) => ({ ...d, exercises: d.exercises.map(stripId) })) })
 
 /**
  * Träningssplits (v32): välj en färdig split (PPL, Upper/Lower, 4-split, Bro
@@ -26,7 +37,7 @@ import { cn } from "@/lib/utils"
  */
 export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onDone?: () => void }) {
   const { data, actions, me } = useAppData()
-  const [split, setSplit] = React.useState<Split | null>(null)
+  const [split, setSplit] = React.useState<EditSplit | null>(null)
   const [weekdays, setWeekdays] = React.useState<number[]>([])
   const [start, setStart] = React.useState(todayISO())
   const [weeks, setWeeks] = React.useState<number | undefined>(4)
@@ -36,7 +47,7 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
 
   const choose = (s: Split) => {
     const copy = cloneSplit(s)
-    setSplit(copy)
+    setSplit({ ...copy, days: copy.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e, id: actions.newId() })) })) })
     setWeekdays(copy.weekdays)
   }
 
@@ -85,16 +96,17 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
     )
   }
 
-  const sessions = buildSchedule(split, weekdays, start, weeks ?? 0)
+  const plain = toPlain(split)
+  const sessions = buildSchedule(plain, weekdays, start, weeks ?? 0)
   const emptyDays = split.days.filter((d) => d.exercises.length === 0).length
-  const updateDay = (i: number, patch: Partial<Split["days"][number]>) =>
+  const updateDay = (i: number, patch: Partial<EditSplit["days"][number]>) =>
     setSplit({ ...split, days: split.days.map((d, j) => (j === i ? { ...d, ...patch } : d)) })
 
   const submit = () => {
     if (emptyDays === split.days.length) return toast.error("Lägg till övningar först")
     const withIds = (list: SplitExercise[]) => list.map((e) => ({ ...e, id: actions.newId() }))
     if (asTemplates || mode === "trainer") {
-      for (const d of split.days.filter((x) => x.exercises.length)) {
+      for (const d of plain.days.filter((x) => x.exercises.length)) {
         actions.saveTemplate(buildTemplate({ ownerId: me.id, name: `${split.short}: ${d.name}`, description: d.focus, exercises: withIds(d.exercises), newId: actions.newId }))
       }
     }
@@ -124,21 +136,29 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{i + 1}</span>
               <Input value={d.name} onChange={(e) => updateDay(i, { name: e.target.value.slice(0, 40) })} className="h-9 font-medium" aria-label={`Namn på dag ${i + 1}`} />
             </div>
-            <ul className="divide-y rounded-xl border">
-              {d.exercises.map((e, k) => (
-                <li key={`${e.exerciseId}-${k}`} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{nameOf(e.exerciseId)}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground tabular">
-                    {e.sets} × {e.reps}
-                  </span>
-                  <Button variant="ghost" size="icon-sm" aria-label={`Ta bort ${nameOf(e.exerciseId)}`} onClick={() => updateDay(i, { exercises: d.exercises.filter((_, x) => x !== k) })}>
-                    <Trash2 />
-                  </Button>
-                </li>
-              ))}
-              {d.exercises.length === 0 && <li className="px-3 py-2 text-xs text-muted-foreground">Inga övningar än.</li>}
-            </ul>
-            <ExerciseAdder onAdd={(e) => updateDay(i, { exercises: [...d.exercises, e] })} />
+            {/* v34: dra i handtaget för att ändra ordningen; set, reps och startvikt redigeras direkt. */}
+            {d.exercises.length ? (
+              <SortableList
+                items={d.exercises}
+                as="ul"
+                className="space-y-1.5"
+                aria-label={`Övningar dag ${i + 1}`}
+                itemLabel={(e) => nameOf(e.exerciseId)}
+                onReorder={(ids) => updateDay(i, { exercises: ids.map((id) => d.exercises.find((e) => e.id === id)!) })}
+                renderItem={(e, { handle }) => (
+                  <SplitExerciseRow
+                    exercise={e}
+                    name={nameOf(e.exerciseId)}
+                    handle={handle}
+                    onChange={(patch) => updateDay(i, { exercises: d.exercises.map((x) => (x.id === e.id ? { ...x, ...patch } : x)) })}
+                    onRemove={() => updateDay(i, { exercises: d.exercises.filter((x) => x.id !== e.id) })}
+                  />
+                )}
+              />
+            ) : (
+              <p className="rounded-xl border px-3 py-2 text-xs text-muted-foreground">Inga övningar än.</p>
+            )}
+            <ExerciseAdder onAdd={(e) => updateDay(i, { exercises: [...d.exercises, { ...e, id: actions.newId() }] })} />
           </li>
         ))}
       </ol>
@@ -202,6 +222,74 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
           </>
         )}
       </Button>
+    </div>
+  )
+}
+
+/**
+ * En övning i en split-dag (v34): handtag för drag-and-drop, set, reps (intervall
+ * som "6–8" eller fast antal) och valfri startvikt. Repintervallet styr
+ * progressionen; startvikten blir PT:ns/klientens mål första gången.
+ */
+function SplitExerciseRow({
+  exercise,
+  name,
+  handle,
+  onChange,
+  onRemove,
+}: {
+  exercise: EditExercise
+  name: string
+  handle: React.ReactNode
+  onChange: (patch: Partial<SplitExercise>) => void
+  onRemove: () => void
+}) {
+  return (
+    <div className="rounded-xl border bg-background px-2 py-1.5" data-testid="split-exercise">
+      <div className="flex items-center gap-1">
+        {handle}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+        <Button variant="ghost" size="icon-sm" aria-label={`Ta bort ${name}`} onClick={onRemove}>
+          <Trash2 />
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 pt-1 pl-10">
+        <label className="space-y-0.5">
+          <span className="block text-[11px] text-muted-foreground">Set</span>
+          <NumberInput
+            min={1}
+            max={20}
+            value={exercise.sets}
+            onValueChange={(v) => onChange({ sets: Math.min(20, Math.max(1, v ?? 1)), setReps: undefined })}
+            aria-label={`Set för ${name}`}
+            className="h-9 tabular"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="block text-[11px] text-muted-foreground">Reps</span>
+          <Input
+            value={exercise.reps}
+            onChange={(e) => onChange({ reps: e.target.value.slice(0, 20) })}
+            aria-label={`Reps för ${name}`}
+            placeholder="8–12"
+            className="h-9 tabular"
+          />
+        </label>
+        <label className="space-y-0.5">
+          <span className="block text-[11px] text-muted-foreground">Startvikt</span>
+          <NumberInput
+            min={0}
+            max={500}
+            decimal
+            inputMode="decimal"
+            value={exercise.targetKg}
+            onValueChange={(v) => onChange({ targetKg: v || undefined })}
+            aria-label={`Startvikt (kg) för ${name}`}
+            placeholder="kg"
+            className="h-9 tabular"
+          />
+        </label>
+      </div>
     </div>
   )
 }
