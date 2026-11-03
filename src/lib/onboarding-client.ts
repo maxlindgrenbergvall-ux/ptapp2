@@ -106,13 +106,17 @@ export async function fetchMarketingConsent(): Promise<boolean> {
   return Boolean((await rpc<OnboardingStatus>("my_onboarding_status")).marketing_consent)
 }
 
-/** Nyhetsbrev – ge eller dra tillbaka samtycket (loggas i databasen). */
-export async function setMarketingConsent(granted: boolean): Promise<boolean> {
+/**
+ * Nyhetsbrev – ge, avböj eller dra tillbaka samtycket (loggas i databasen).
+ * source "prompt" = svaret i pop-upen för befintliga användare (v36).
+ */
+export async function setMarketingConsent(granted: boolean, source: "settings" | "prompt" = "settings"): Promise<boolean> {
   if (!isSupabaseEnabled) {
     demoSet(DEMO_MARKETING_KEY, granted ? "1" : "0")
     return granted
   }
-  const saved = await rpc<boolean>("set_marketing_consent", { p_granted: granted })
+  // Källan skickas bara från pop-upen – Inställningar fungerar då även före migration v36.
+  const saved = await rpc<boolean>("set_marketing_consent", source === "prompt" ? { p_granted: granted, p_source: source } : { p_granted: granted })
   syncMarketingSegment()
   return saved
 }

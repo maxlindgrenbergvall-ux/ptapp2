@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAppData } from "@/lib/data/store"
 import { PT_ONBOARDING_PATH } from "@/lib/supabase/config"
+import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 import { cn } from "@/lib/utils"
 
@@ -74,6 +75,8 @@ export function PtShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {/* v36: befintliga PT:er som aldrig valt om nyhetsbrev får frågan. */}
+      <MarketingPrompt />
     </div>
   )
 }

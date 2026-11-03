@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
+import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 
 const NAV = [
@@ -122,6 +123,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       )}
+      {/* v36: befintliga användare som aldrig valt om nyhetsbrev får frågan (inte under pass/intro). */}
+      <MarketingPrompt suppressed={focusMode} />
     </div>
   )
 }

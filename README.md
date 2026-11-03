@@ -54,7 +54,8 @@ npm run dev                  # http://localhost:3000
        - Lägger till RPC-funktionerna `save_profile_step`, `accept_legal_documents`, `finish_onboarding` och `my_onboarding_status`.
    32. `supabase/migrations/20261114000000_v32_training_activity.sql`. Träning och aktivitet: extra set och egna övningar (`"extra": true`) i PT:ns pass under passet, målet `bodybuilding` i `client_goals`, `strava` i `wearable_provider`, tabellerna `activity_logs` (pass från Strava, Apple Hälsa, Health Connect) och `activity_days` (dagssummor från telefonen) med RLS. Stravas pass raderas när kopplingen tas bort.
    33. `supabase/migrations/20261115000000_v34_user_agreement_marketing.sql`. Ett sammanslaget användaravtal i intro-flödet (`accept_user_agreement`, krävs nu även för klienter i `finish_onboarding`) och samtycke till nyhetsbrev (`profiles.marketing_consent(_at)`, loggen `consent_events`, `set_marketing_consent`). Befintliga konton som redan är klara påverkas inte.
-   34. `supabase/seed.sql`
+   34. `supabase/migrations/20261116000000_v36_marketing_prompt.sql`. Kräver v34. Lägger till `profiles.marketing_choice_at` (när användaren valt ja eller nej) och `marketing_choice_needed` i `my_onboarding_status()`. `set_marketing_consent(p_granted, p_source)` tar nu också källan `prompt`, och svaret i pop-upen loggas i `consent_events`.
+   35. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -577,6 +578,17 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v36: fråga befintliga användare om nyhetsbrev
+
+- **Vem som får frågan:** konton som registrerade sig innan nyhetsbrevet fanns i onboardingen och som aldrig valt får en pop-up vid nästa inloggning (`src/components/settings/marketing-prompt.tsx`). Det gäller både klienter och PT:er.
+- **Valen i rutan:**
+  - **Ja tack** → kontakten läggs i rätt Resend-segment ("Klient - Nyhetsbrev" eller "PT - Nyhetsbrev").
+  - **Nej tack** → inget skickas till Resend. Svaret loggas.
+  - **Fråga mig senare** → frågan kommer igen vid nästa inloggning.
+
+  Inget är förkryssat. Efter ett ja eller nej frågar appen aldrig igen; valet kan ändras under Inställningar.
+- **Var den inte visas:** under pågående pass, i intro-flödet och i PT-onboardingen. Nya användare väljer redan i avtalssteget, och en tom ruta där räknas också som ett val.
+
 ## Nytt i v35: hälsning efter klockan, mål i Framsteg och nyhetsbrev via Resend
 
 - **Hälsning på hemskärmen** (`src/lib/greeting.ts`, `src/hooks/use-day-part.ts`). Hälsningen följer enhetens klocka:
@@ -1043,6 +1055,7 @@ npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan:
 npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
+node e2e/v36-supabase.test.mjs # Pop-upen: syns bara för den som aldrig valt, Fråga mig senare → nästa inloggning, Ja → Resend-segmentet, Nej → ingen kontakt
 node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt
 node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal
 node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil

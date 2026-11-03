@@ -181,6 +181,8 @@ function onboardingStatus(uid) {
     accepted_documents: o.accepted,
     terms_done: (trainer ? PT_DOCS : CLIENT_DOCS).every((d) => o.accepted.includes(d)),
     marketing_consent: Boolean(o.marketing),
+    // v36: fixturkonton räknas som att de redan valt (choiceAt) – /__marketing_unasked tar bort valet.
+    marketing_choice_needed: Boolean(role && o.completed && o.choiceAt === null),
     completed: o.completed,
   }
 }
@@ -279,6 +281,14 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/__reset_v22") { resetV22(); delete onboarding[T2]; return send(200, {}) }
   if (url.pathname === "/__reset_v31") { resetV31(); return send(200, {}) }
   if (url.pathname === "/__onboarding") return send(200, onboarding)
+  // v36: kontot har aldrig valt om nyhetsbrev (registrerat före frågan fanns).
+  if (url.pathname === "/__marketing_unasked") {
+    const u = users[url.searchParams.get("email")]
+    if (!u) return send(404, {})
+    const o = onboarding[u.id] ?? (onboarding[u.id] = { first_name: null, last_name: null, avatar_url: null, goals_done: true, accepted: [], completed: true, marketing: false, consentLog: [] })
+    Object.assign(o, { completed: true, marketing: false, choiceAt: null, consentLog: [] })
+    return send(200, {})
+  }
   if (url.pathname === "/__reset_v20") {
     users[RADERA.email] = RADERA
     byId[RADERA.id] = RADERA
@@ -546,6 +556,7 @@ http.createServer(async (req, res) => {
       // v34: ett godkännande för hela användaravtalet + valfritt nyhetsbrev.
       if (table === "accept_user_agreement") {
         o.accepted = [...(trainer ? PT_DOCS : CLIENT_DOCS)]
+        o.choiceAt = new Date().toISOString()
         if (p.p_marketing && !o.marketing) {
           o.marketing = true
           o.consentLog.push({ granted: true, source: "onboarding" })
@@ -553,7 +564,10 @@ http.createServer(async (req, res) => {
       }
       if (table === "set_marketing_consent") {
         const granted = Boolean(p.p_granted)
-        if (granted !== Boolean(o.marketing)) o.consentLog.push({ granted, source: "settings" })
+        const source = p.p_source ?? "settings"
+        if (!["settings", "prompt"].includes(source)) return err("Okänd källa")
+        if (granted !== Boolean(o.marketing) || source === "prompt") o.consentLog.push({ granted, source })
+        o.choiceAt = new Date().toISOString()
         o.marketing = granted
         return send(200, granted)
       }

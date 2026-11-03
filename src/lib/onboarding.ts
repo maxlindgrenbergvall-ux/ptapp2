@@ -83,6 +83,8 @@ export interface OnboardingStatus {
   terms_done: boolean
   /** v34: samtycke till nyhetsbrev, erbjudanden och produktnyheter. */
   marketing_consent?: boolean
+  /** v36: klar med intro-flödet men har aldrig valt om nyhetsbrev → pop-upen visas. */
+  marketing_choice_needed?: boolean
   completed: boolean
 }
 
