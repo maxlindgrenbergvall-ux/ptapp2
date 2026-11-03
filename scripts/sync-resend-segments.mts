@@ -1,13 +1,13 @@
 /**
  * Engångs-/återkörbar synk (v35): alla som samtyckt till nyhetsbrev i databasen
- * läggs i rätt Resend-segment ("klient" / "PT-Segment"). Behövs för samtycken
+ * läggs i rätt Resend-segment ("Klient - Nyhetsbrev" / "PT - Nyhetsbrev"). Behövs för samtycken
  * som gavs innan Resend kopplades in (v34) eller om Resend inte svarade.
  * Samma logik som appen (src/lib/marketing/resend.ts) – idempotent.
  *
  *   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… RESEND_API_KEY=re_… \
  *     npx tsx --conditions=react-server --tsconfig tsconfig.json scripts/sync-resend-segments.mts [--dry-run]
  */
-import { syncMarketingContact, type MarketingRole } from "../src/lib/marketing/resend"
+import { SEGMENT_NAME, syncMarketingContact, type MarketingRole } from "../src/lib/marketing/resend"
 
 const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -37,7 +37,7 @@ for (const r of rows) {
   const email = u.ok ? ((await u.json()) as { email?: string }).email : undefined
   if (!email || !r.role) continue
   if (dryRun) {
-    console.log(`${email} → ${r.role === "trainer" ? "PT-Segment" : "klient"}`)
+    console.log(`${email} → ${SEGMENT_NAME[r.role]}`)
     continue
   }
   try {

@@ -12,8 +12,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
  * Servern läser själv rollen och samtycket ur databasen (my_onboarding_status,
  * med användarens egen session) och e-posten ur inloggningen – inget i
  * förfrågan avgör vem som hamnar i vilket segment:
- *   klient + samtycke → Resend-segmentet "klient"
- *   PT     + samtycke → Resend-segmentet "PT-Segment"
+ *   klient + samtycke → Resend-segmentet "Klient - Nyhetsbrev"
+ *   PT     + samtycke → Resend-segmentet "PT - Nyhetsbrev"
  *   inget samtycke    → avregistrerad och borttagen ur segmentet
  */
 export async function POST() {

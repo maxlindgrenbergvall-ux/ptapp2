@@ -86,7 +86,7 @@ export async function acceptUserAgreement(marketing: boolean): Promise<Onboardin
 }
 
 /**
- * v35: be servern lägga användaren i rätt Resend-segment ("klient" eller "PT-Segment")
+ * v35: be servern lägga användaren i rätt Resend-segment ("Klient - Nyhetsbrev" eller "PT - Nyhetsbrev")
  * – eller avregistrera. Servern läser samtycke och roll ur databasen. Väntar inte på
  * svaret: ett fel hos Resend får aldrig stoppa onboarding eller inställningar.
  */

@@ -9,8 +9,13 @@ let segments = []
 let contacts = new Map()
 let log = []
 function reset() {
-  // "klient" finns redan i kontot; "PT-Segment" saknas och ska skapas av appen.
-  segments = [{ id: "seg_klient_1", name: "klient", created_at: new Date().toISOString() }]
+  // Som i Coaviras Resend-konto. PT-segmentet med tankstreck och annat skiftläge –
+  // appen ska ändå hitta det. "Nyhetsbrev (gammal)" ska aldrig röras.
+  segments = [
+    { id: "seg_gammal", name: "Nyhetsbrev (gammal)", created_at: new Date().toISOString() },
+    { id: "seg_klient", name: "Klient - Nyhetsbrev", created_at: new Date().toISOString() },
+    { id: "seg_pt", name: "PT – nyhetsbrev", created_at: new Date().toISOString() },
+  ]
   contacts = new Map()
   log = []
 }

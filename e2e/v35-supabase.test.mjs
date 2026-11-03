@@ -1,6 +1,6 @@
 // E2E för v35 i Supabase-läge: nyhetsbrevet kopplas till Resend-segment efter roll.
-//   klient + kryss i onboarding → segmentet "klient"
-//   PT     + kryss i onboarding → segmentet "PT-Segment" (skapas om det saknas)
+//   klient + kryss i onboarding → segmentet "Klient - Nyhetsbrev"
+//   PT     + kryss i onboarding → segmentet "PT - Nyhetsbrev" (hittas trots tankstreck/skiftläge)
 //   kryss bort i Inställningar   → avregistrerad och borttagen ur segmentet
 // Mot e2e/mock-supabase.mjs och e2e/mock-resend.mjs
 //   (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800 på servern)
@@ -83,9 +83,9 @@ check((await state()).log.length === 0, "inget anrop till Resend utan inloggning
   await p.waitForURL(`${base}/klient`)
   const c = await waitFor(() => contact("intro@test.se"))
   check(Boolean(c), "klienten med kryss läggs som kontakt hos Resend")
-  check(c?.segments.join(",") === "klient" && c.unsubscribed === false, `klient → segmentet "klient" (${c?.segments})`)
+  check(c?.segments.join(",") === "Klient - Nyhetsbrev" && c.unsubscribed === false, `klient → "Klient - Nyhetsbrev" (${c?.segments})`)
   check(c?.first_name === "Ida", "förnamnet följer med till Resend")
-  check(!(await state()).segments.some((s) => s.name === "PT-Segment"), "PT-segmentet rörs inte för en klient")
+  check(!(await state()).log.some((e) => e.path.includes("seg_pt") || e.path.includes("seg_gammal")), "PT-segmentet och andra segment rörs inte för en klient")
   // Hemskärmen: tidsbaserad hälsning.
   const hello = await p.locator("[data-testid=home-greeting]").innerText()
   check(/^(God morgon Ida|Hej Ida!|God kväll Ida)$/.test(hello), `hälsningen på hemskärmen: "${hello}"`)
@@ -103,9 +103,9 @@ check((await state()).log.length === 0, "inget anrop till Resend utan inloggning
   await p.click("[data-testid=marketing-toggle]")
   const on = await waitFor(async () => {
     const x = await contact("intro@test.se")
-    return x && !x.unsubscribed && x.segments.includes("klient") ? x : null
+    return x && !x.unsubscribed && x.segments.includes("Klient - Nyhetsbrev") ? x : null
   })
-  check(Boolean(on), "kryss på igen: tillbaka i segmentet \"klient\"")
+  check(Boolean(on), "kryss på igen: tillbaka i \"Klient - Nyhetsbrev\"")
   await ctx.close()
 }
 
@@ -136,10 +136,9 @@ check((await state()).log.length === 0, "inget anrop till Resend utan inloggning
   await p.getByTestId("activate-account").click()
   await p.waitForURL(/\/pt(\?valkommen=1)?$/)
   const c = await waitFor(() => contact("intropt@test.se"))
-  check(c?.segments.join(",") === "PT-Segment" && c.unsubscribed === false, `PT → "PT-Segment" (${c?.segments})`)
+  check(c?.segments.join(",") === "PT – nyhetsbrev" && c.unsubscribed === false, `PT → "PT - Nyhetsbrev" (hittat som "${c?.segments}")`)
   const st = await state()
-  check(st.segments.filter((s) => s.name === "PT-Segment").length === 1, "segmentet \"PT-Segment\" skapades en gång (fanns inte i kontot)")
-  check(!st.log.some((e) => e.path === "/segments" && e.method === "POST" && e.body.name === "klient"), "\"klient\" fanns redan och skapades inte igen")
+  check(st.segments.length === 3 && !st.log.some((e) => e.path === "/segments" && e.method === "POST"), "inga nya segment skapas (bara era befintliga används)")
   await ctx.close()
 }
 

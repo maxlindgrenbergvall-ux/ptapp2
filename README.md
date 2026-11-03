@@ -596,11 +596,11 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
   | Styrka | e1RM-utveckling i baslyften |
   | Kondition och Hälsa | aktiva minuter mot 150 min/vecka |
 - **Resend-segment för nyhetsbrev** (`src/lib/marketing/resend.ts`, `POST /api/marketing/sync`). Den som kryssar i nyhetsbrevet (i onboarding eller Inställningar) läggs som kontakt hos Resend:
-  - klienter i segmentet **`klient`**, PT:er i segmentet **`PT-Segment`**;
+  - klienter i segmentet **`Klient - Nyhetsbrev`**, PT:er i segmentet **`PT - Nyhetsbrev`** (namnen jämförs utan hänsyn till skiftläge, mellanslag och typ av bindestreck);
   - kryss bort → kontakten avregistreras och tas bort ur segmentet;
   - raderat konto → kontakten tas bort helt.
 
-  Servern läser roll och samtycke ur databasen, aldrig från webbläsaren. Saknas ett segment skapas det med det namnet.
+  Servern läser roll och samtycke ur databasen, aldrig från webbläsaren. Appen skapar aldrig segment – saknas ett loggas ett tydligt fel.
   - **Serverhemligheter:** `RESEND_API_KEY` krävs. Valfritt: `RESEND_SEGMENT_CLIENT_ID` och `RESEND_SEGMENT_PT_ID`, om segmenten heter något annat.
   - **Synka samtycken från före v35:** `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… RESEND_API_KEY=… npx tsx --conditions=react-server --tsconfig tsconfig.json scripts/sync-resend-segments.mts` (lägg till `--dry-run` för att först se listan).
 
@@ -1043,7 +1043,7 @@ npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan:
 npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
-node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "klient", PT → "PT-Segment", kryss bort → avregistrerad, inget samtycke → ingen kontakt
+node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt
 node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal
 node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil
 node e2e/mock-strava.mjs &         # (krävs av v32-supabase) Stravas API på :54700 (STRAVA_API_BASE=http://localhost:54700, STRAVA_CLIENT_ID=123, STRAVA_CLIENT_SECRET=sek)

@@ -5,8 +5,8 @@ import "server-only"
  * och produktnyheter" (onboarding eller Inställningar) läggs som kontakt i
  * Resend, i segmentet för sin roll:
  *
- *   klient → segmentet "klient"
- *   PT     → segmentet "PT-Segment"
+ *   klient → segmentet "Klient - Nyhetsbrev"
+ *   PT     → segmentet "PT - Nyhetsbrev"
  *
  * Drar användaren tillbaka samtycket markeras kontakten som avregistrerad
  * (unsubscribed) och tas bort ur segmenten. Raderas kontot tas kontakten bort helt.
@@ -17,8 +17,9 @@ import "server-only"
  *
  * Miljövariabler (bara på servern – aldrig NEXT_PUBLIC_):
  *   RESEND_API_KEY              krävs (re_…), behörighet "Full access" för kontakter/segment
- *   RESEND_SEGMENT_CLIENT_ID    valfritt – annars hittas/skapas segmentet "klient" via namnet
- *   RESEND_SEGMENT_PT_ID        valfritt – annars hittas/skapas segmentet "PT-Segment"
+ *   RESEND_SEGMENT_CLIENT_ID    valfritt – annars hittas segmentet "Klient - Nyhetsbrev" via namnet
+ *   RESEND_SEGMENT_PT_ID        valfritt – annars hittas segmentet "PT - Nyhetsbrev" via namnet
+ * Segmenten skapas i Resend av er – appen skapar dem aldrig (inga dubbletter).
  *   RESEND_API_BASE             valfritt (tester), standard https://api.resend.com
  *
  * REST-API:t anropas direkt med fetch (samma vägar som Resends officiella SDK:
@@ -28,8 +29,8 @@ import "server-only"
 export type MarketingRole = "client" | "trainer"
 
 export const SEGMENT_NAME: Record<MarketingRole, string> = {
-  client: "klient",
-  trainer: "PT-Segment",
+  client: "Klient - Nyhetsbrev",
+  trainer: "PT - Nyhetsbrev",
 }
 
 const SEGMENT_ENV: Record<MarketingRole, string> = {
@@ -78,17 +79,30 @@ async function call<T>(method: "GET" | "POST" | "PATCH" | "DELETE", path: string
 // Segmentens id cachas per serverinstans (de ändras inte).
 const segmentCache = new Map<MarketingRole, string>()
 
-/** Segmentets id: från miljövariabeln, annars uppslag på namnet – skapas om det saknas. */
+/** Jämför segmentnamn utan att bry sig om skiftläge, mellanslag eller bindestreck (-, –, —). */
+export const normalizeSegmentName = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s*-\s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+/**
+ * Segmentets id: från miljövariabeln, annars uppslag på namnet i Resend.
+ * Hittas det inte skapas inget nytt (då kunde en dubblett uppstå bredvid ert
+ * segment) – i stället ett tydligt fel i serverloggen.
+ */
 export async function segmentId(role: MarketingRole): Promise<string> {
   const fromEnv = process.env[SEGMENT_ENV[role]]?.trim()
   if (fromEnv) return fromEnv
   const cached = segmentCache.get(role)
   if (cached) return cached
-  const name = SEGMENT_NAME[role]
+  const wanted = normalizeSegmentName(SEGMENT_NAME[role])
   let after: string | undefined
   for (let page = 0; page < 10; page++) {
     const list = await call<{ data: { id: string; name: string }[]; has_more?: boolean }>("GET", `/segments?limit=100${after ? `&after=${after}` : ""}`)
-    const hit = list?.data.find((s) => s.name === name)
+    const hit = list?.data.find((s) => normalizeSegmentName(s.name) === wanted)
     if (hit) {
       segmentCache.set(role, hit.id)
       return hit.id
@@ -96,9 +110,7 @@ export async function segmentId(role: MarketingRole): Promise<string> {
     if (!list?.has_more || !list.data.length) break
     after = list.data.at(-1)!.id
   }
-  const created = await call<{ id: string }>("POST", "/segments", { name })
-  segmentCache.set(role, created!.id)
-  return created!.id
+  throw new ResendError(`Segmentet "${SEGMENT_NAME[role]}" finns inte i Resend – skapa det eller sätt ${SEGMENT_ENV[role]}`, 404)
 }
 
 export interface MarketingContact {
