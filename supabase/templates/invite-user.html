@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- Coavira – Invite user (invite). Genererad av scripts/build-email-templates.mjs – ändra där, inte här. Ämnesrad: Du är inbjuden till Coavira -->
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>Du är inbjuden till Coavira</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&family=Geist+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    body { margin:0 !important; padding:0 !important; width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+    table, td { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
+    img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
+    a[x-apple-data-detectors] { color:inherit !important; text-decoration:none !important; }
+    u + #body a { color:inherit; text-decoration:none; }
+    @media only screen and (max-width:620px) {
+      .container { width:100% !important; }
+      .px { padding-left:20px !important; padding-right:20px !important; }
+      .card-pad { padding:28px 20px !important; }
+      .btn { display:block !important; text-align:center !important; }
+      .btn-td { width:100% !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg { background-color:#131916 !important; }
+      .card { background-color:#1d2320 !important; border-color:#2c3430 !important; }
+      .fg { color:#f4f6f2 !important; }
+      .muted { color:#a3ada6 !important; }
+      .link { color:#abf051 !important; }
+      .btn-td, .btn { background-color:#abf051 !important; color:#0e1a01 !important; }
+      .code-td { background-color:#2c3430 !important; }
+      .code { color:#abf051 !important; }
+    }
+    [data-ogsc] .bg { background-color:#131916 !important; }
+    [data-ogsc] .card { background-color:#1d2320 !important; border-color:#2c3430 !important; }
+    [data-ogsc] .fg { color:#f4f6f2 !important; }
+    [data-ogsc] .muted { color:#a3ada6 !important; }
+  </style>
+</head>
+<body id="body" class="bg" style="margin:0;padding:0;width:100%;background-color:#f9fbf8;">
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">Välj ett lösenord och kom igång med Coavira.&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
+  <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" class="bg" bgcolor="#f9fbf8" style="width:100%;background-color:#f9fbf8;">
+    <tr>
+      <td align="center" class="px" style="padding:32px 16px;">
+        <table role="presentation" class="container" width="600" align="center" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;border-collapse:separate;">
+          <tr>
+            <td style="padding:0 4px 20px 4px;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <a href="{{ .SiteURL }}" target="_blank" style="text-decoration:none;"><img src="{{ .SiteURL }}/email/coavira-mark.png" width="40" height="40" alt="Coavira" style="display:block;width:40px;height:40px;border-radius:10px;background-color:#aced37;"></a>
+                  </td>
+                  <td class="fg" style="vertical-align:middle;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:20px;line-height:24px;font-weight:700;letter-spacing:-0.3px;color:#0c1610;">Coavira</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="card card-pad" bgcolor="#ffffff" style="background-color:#ffffff;border:1px solid #dde3dc;border-radius:16px;padding:36px 36px 32px 36px;">
+              <h1 class="fg" style="margin:0 0 16px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.3px;color:#0c1610;">Du är inbjuden till Coavira</h1>
+              <p class="fg" style="margin:0 0 16px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:16px;line-height:24px;color:#0c1610;">Ett konto har skapats åt dig med e-postadressen <strong>{{ .Email }}</strong>.</p>
+              <p class="fg" style="margin:0 0 16px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:16px;line-height:24px;color:#0c1610;">Tryck på knappen, välj ett eget lösenord och slutför dina uppgifter – sedan är du igång.</p>
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:8px 0 24px 0;">
+                <tr>
+                  <td align="center" bgcolor="#006b2d" class="btn-td" style="border-radius:12px;background-color:#006b2d;">
+                    <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/nytt-losenord" target="_blank" class="btn" style="display:inline-block;padding:14px 28px;border:1px solid #006b2d;border-radius:12px;background-color:#006b2d;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:16px;font-weight:600;line-height:20px;color:#f8fef7;text-decoration:none;">Välj lösenord och kom igång</a>
+                  </td>
+                </tr>
+              </table>
+              <p class="muted" style="margin:0 0 6px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:13px;line-height:20px;color:#5b675e;">Fungerar inte knappen? Kopiera länken till webbläsaren:</p>
+              <p style="margin:0 0 20px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:13px;line-height:20px;word-break:break-all;"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/nytt-losenord" target="_blank" class="link" style="color:#006b2d;text-decoration:underline;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/nytt-losenord</a></p>
+              <p class="muted" style="margin:0 0 12px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;line-height:22px;color:#5b675e;">Inbjudan gäller i 1 timme och kan bara användas en gång. Har den gått ut kan du välja lösenord via <em>Glömt lösenordet?</em> på inloggningssidan.</p>
+              <p class="muted" style="margin:0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px;line-height:22px;color:#5b675e;">Väntade du dig inte den här inbjudan kan du bortse från mejlet.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 4px 0 4px;">
+              <p class="muted" style="margin:0 0 6px 0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:12px;line-height:18px;color:#5b675e;">Coavira – PT &amp; träning. Program, kost, kalender och uppföljning på ett ställe.</p>
+              <p class="muted" style="margin:0;font-family:'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:12px;line-height:18px;color:#5b675e;">Frågor? Skriv till <a href="mailto:support@coavira.fit" class="link" style="color:#006b2d;text-decoration:underline;">support@coavira.fit</a>. Det här är ett automatiskt mejl om ditt konto och går inte att svara på.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

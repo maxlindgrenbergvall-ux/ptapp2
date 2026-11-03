@@ -1,0 +1,32 @@
+{
+  "confirmation": {
+    "dashboard": "Confirm sign up",
+    "file": "confirm-signup.html",
+    "subject": "Bekräfta din e-postadress för Coavira"
+  },
+  "invite": {
+    "dashboard": "Invite user",
+    "file": "invite-user.html",
+    "subject": "Du är inbjuden till Coavira"
+  },
+  "magic_link": {
+    "dashboard": "Magic link or OTP",
+    "file": "magic-link.html",
+    "subject": "Din inloggningslänk till Coavira"
+  },
+  "email_change": {
+    "dashboard": "Change email address",
+    "file": "change-email.html",
+    "subject": "Bekräfta din nya e-postadress för Coavira"
+  },
+  "recovery": {
+    "dashboard": "Reset password",
+    "file": "reset-password.html",
+    "subject": "Återställ ditt lösenord för Coavira"
+  },
+  "reauthentication": {
+    "dashboard": "Reauthentication",
+    "file": "reauthentication.html",
+    "subject": "Din verifieringskod för Coavira"
+  }
+}

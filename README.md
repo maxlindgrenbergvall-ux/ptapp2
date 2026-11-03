@@ -57,11 +57,8 @@ npm run dev                  # http://localhost:3000
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
-   - **Authentication → Emails → Templates**: byt länken i *Confirm signup* till
-     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/dashboard`
-     och i *Reset password* till
-     `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/nytt-losenord`.
-     Då loggas användaren in direkt och hamnar i appen, även om länken öppnas på en annan enhet eller i mejlappens webbläsare.
+   - **Authentication → Emails → Templates**: klistra in Coaviras sex mallar från `supabase/templates/`. Tabellen i [`supabase/templates/README.md`](supabase/templates/README.md) visar vilken fil och ämnesrad som hör till *Confirm sign up*, *Invite user*, *Magic link or OTP*, *Change email address*, *Reset password* och *Reauthentication*. Du kan också köra `SUPABASE_ACCESS_TOKEN=… SUPABASE_PROJECT_REF=… node scripts/push-email-templates.mjs`, som bara ändrar mallarna.
+     Länkarna går till `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=…`. Då loggas användaren in direkt och hamnar i appen, även om länken öppnas på en annan enhet eller i mejlappens webbläsare.
 4. **Authentication → Providers → Apple och Google** (för "Fortsätt med Apple/Google"):
    - **Google:** skapa ett OAuth-klient-id (typ *Web*) i Google Cloud Console med redirect-URI `https://<projekt>.supabase.co/auth/v1/callback`, och klistra in Client ID och Secret i Supabase.
    - **Apple:** skapa ett *Services ID* med *Sign in with Apple* och samma return-URL, och en nyckel (.p8). Fyll i Services ID, Team ID, Key ID och nyckeln i Supabase.
@@ -1001,6 +998,8 @@ node e2e/v30-supabase.test.mjs   # Intro-flödet sparar i client_goals (eget id,
 node e2e/v29-filter-mealprep-mallar.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Bildfiltret, kostsökningen stängs utanför, Mealprep, spara/läsa in mallar
 node e2e/v29-supabase.test.mjs  # (MODERATION_TEST_BLOCK_COLOR=ff00ff) Uppladdning via servern (WebP, egen mapp), moderation_events, chattbehörighet, klientmall med client_id
 node e2e/connect-onboarding.test.mjs # Supabase-läge: onboardingspärren, profil + Stripe Connect, callback, delad betalning, account.updated
+node scripts/build-email-templates.mjs --check # e-postmallarna i supabase/templates/ är genererade från scripts/build-email-templates.mjs
+node e2e/email-templates.test.mjs # Mallarna renderas med Go html/template (som Supabase), länkar, storlek, mobil/mörkt läge; med BASE_URL även klick-genom
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)
 ```
