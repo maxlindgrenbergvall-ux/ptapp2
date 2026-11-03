@@ -68,22 +68,21 @@ check((await p.locator('nav[aria-label="Huvudmeny"]').count()) === 0, "onboardin
 check(await p.locator("text=Välkommen till Coavira, Nils!").isVisible(), "personlig välkomstrubrik")
 
 // --------------------------------------------------------- steg 1: profil ---
-const save = p.getByRole("button", { name: "Spara och fortsätt" })
-// Databasen saknar v22 (my_payout_status finns inte): tydligt besked i stället för "kontrollera uppkopplingen".
-async function fillProfile() {
-  await p.getByRole("button", { name: "Länk" }).click()
-  await p.locator('input[placeholder^="https"]').fill("https://cdn.test/nils.jpg")
-  await p.locator('input[placeholder^="https"]').press("Enter")
-  await p.getByRole("button", { name: "Hyrox" }).click()
-}
-check(await save.isDisabled(), "steg 1: knappen är låst tills profilen är färdig")
+const save = p.getByTestId("onboarding-save-profile")
+const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==", "base64")
+// v31: steg 1 = förnamn, efternamn och profilbild (via bildfiltret) + PT:ns presentation.
+await save.click()
 check(/profilbild/.test(await p.locator("[data-testid=onboarding-missing]").innerText()), "steg 1: visar vad som saknas")
-await fillProfile()
+check(await p.locator("[data-testid=onboarding-profile]").isVisible(), "steg 1: ofärdig profil sparas inte")
+await p.setInputFiles("[data-testid=profile-step] input[type=file]", { name: "nils.png", mimeType: "image/png", buffer: png })
+await p.waitForSelector('[data-testid=profile-step] button:has-text("Byt bild")')
+await p.getByRole("button", { name: "Hyrox" }).click()
 await p.fill("#onb-bio", "Kort")
-check(await save.isDisabled(), "steg 1: presentationen måste vara minst 40 tecken")
+await save.click()
+check(await p.locator("[data-testid=onboarding-profile]").isVisible(), "steg 1: presentationen måste vara minst 40 tecken")
 await p.fill("#onb-bio", "Jag coachar Hyrox-atleter och nybörjare med fokus på teknik och hållbar progression.")
-await p.fill("#onb-name", "Nils Nyström")
-check(await save.isEnabled(), "steg 1: färdig profil kan sparas")
+await p.fill("#profile-firstName", "Nils")
+await p.fill("#profile-lastName", "Nyström")
 await p.route("**/rest/v1/rpc/my_payout_status", (r) =>
   r.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST202", message: "Could not find the function public.my_payout_status without parameters in the schema cache" }) })
 )
@@ -95,8 +94,10 @@ await p.screenshot({ path: `${out}/v22-onboarding-steg1.png`, fullPage: true })
 await save.click()
 await p.waitForSelector("[data-testid=onboarding-payouts]")
 const writes = await mockLog()
-check(writes.some((e) => e.table === "profiles" && e.method === "PATCH" && e.body?.full_name === "Nils Nyström"), "namnet sparas i profiles")
-check(writes.some((e) => e.table === "trainers" && e.method === "PATCH" && e.body?.avatar_url === "https://cdn.test/nils.jpg" && e.body?.specialties?.includes("hyrox")), "bild, inriktning och presentation sparas i trainers")
+const step1 = writes.filter((e) => e.table === "save_profile_step").at(-1)?.body
+check(step1?.p_first_name === "Nils" && step1.p_last_name === "Nyström", "förnamn och efternamn sparas (save_profile_step)")
+check(step1?.p_avatar_url?.includes("/storage/v1/object/public/avatars/11111111-0000-4000-8000-000000000002/avatar.webp"), "profilbilden kommer från bildfiltret (egen mapp i Storage)")
+check(writes.some((e) => e.table === "trainers" && e.method === "PATCH" && e.body?.specialties?.includes("hyrox") && e.body?.bio?.length >= 40), "inriktning och presentation sparas i trainers")
 
 // ---------------------------------------------------- steg 2: utbetalningar ---
 const payoutsText = await p.locator("[data-testid=onboarding-payouts]").innerText()
@@ -138,9 +139,19 @@ await p.screenshot({ path: `${out}/v22-onboarding-granskas.png`, fullPage: true 
 await fetch(`${stripe}/__connect/${acct}/active`)
 await p.waitForSelector("[data-testid=onboarding-waiting]")
 await p.getByRole("button", { name: "Kontrollera igen" }).click()
-await p.waitForURL(/\/pt$/)
+// v31: Stripe klart → steg 3, villkor och avtal, innan portalen öppnas.
+await p.waitForSelector("[data-testid=onboarding-terms]")
 const applied = (await mockLog()).filter((e) => e.table === "apply_stripe_account").at(-1)?.body
 check(applied?.p_account === acct && applied.p_details === true && applied.p_charges === true, "callback: statusen hämtas från Stripe (inte från länken)")
+await p.goto(base + "/pt/kalender")
+check(new URL(p.url()).pathname === "/pt/onboarding", "Stripe klart men avtalen inte godkända: portalen fortfarande stängd")
+await p.waitForSelector("[data-testid=onboarding-terms]")
+check(await p.getByTestId("activate-account").isDisabled(), "steg 3: kontot aktiveras inte utan godkända avtal")
+await p.screenshot({ path: `${out}/v31-onboarding-villkor.png`, fullPage: true })
+await p.getByTestId("accept-all").click()
+await p.getByTestId("activate-account").click()
+await p.waitForURL(/\/pt$/)
+check((await mockLog()).some((e) => e.table === "finish_onboarding"), "finish_onboarding aktiverar kontot")
 await p.waitForSelector("text=Välkommen till Coavira, Nils!")
 ok("klart: in i PT-portalen med ett välkomstmeddelande")
 check(new URL(p.url()).search === "", "välkomstparametern tas bort ur adressen")
@@ -148,8 +159,8 @@ await p.screenshot({ path: `${out}/v22-onboarding-valkommen.png` })
 await p.goto(base + "/pt/kalender")
 check(new URL(p.url()).pathname === "/pt/kalender", "portalen är öppen (ny JWT med pt_ready)")
 await p.goto(base + "/pt/onboarding")
-await p.waitForSelector("[data-testid=onboarding-done]")
-ok("onboardingen visar \"Allt klart\" om PT:n går tillbaka dit")
+await p.waitForURL(/\/pt$/)
+ok("klar PT som går tillbaka till onboardingen skickas till portalen")
 
 // Från appen: Stripe skickar tillbaka via /app-retur (lämnar över till appen).
 const native = await p.request.post(`${base}/api/stripe/connect/onboard`, { headers: { "user-agent": APP_UA } })

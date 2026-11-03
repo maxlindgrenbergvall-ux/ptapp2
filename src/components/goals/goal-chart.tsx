@@ -26,15 +26,25 @@ export function GoalProjectionChart({
   points,
   series,
   reachedWeek,
+  actual,
   className,
 }: {
   points: ProjectionPoint[]
   series: ChartSeries[]
   reachedWeek?: number | null
+  /** Faktiska vägningar (förändring i kg från start) per vecka – ritas ovanpå planen (Framsteg). */
+  actual?: { week: number; delta: number }[]
   className?: string
 }) {
-  const config = Object.fromEntries(series.map((s) => [s.key, { label: s.label, color: COLOR[s.key] }])) satisfies ChartConfig
-  const values = points.flatMap((p) => series.map((s) => p[s.key]))
+  const config = {
+    ...Object.fromEntries(series.map((s) => [s.key, { label: s.label, color: COLOR[s.key] }])),
+    ...(actual?.length ? { actualDelta: { label: "Faktisk vikt", color: "var(--chart-3)" } } : {}),
+  } satisfies ChartConfig
+  const rows: (ProjectionPoint & { actualDelta?: number })[] = points.map((p) => {
+    const a = actual?.find((x) => x.week === p.week)
+    return a ? { ...p, actualDelta: a.delta } : p
+  })
+  const values = [...points.flatMap((p) => series.map((s) => p[s.key])), ...(actual ?? []).map((a) => a.delta)]
   const lo = Math.min(0, ...values)
   const hi = Math.max(0, ...values)
   const pad = Math.max(0.3, (hi - lo) * 0.08)
@@ -46,12 +56,12 @@ export function GoalProjectionChart({
       <ChartFrame
         caption={`Förväntad utveckling i ${points.length - 1} veckor: ${series.map((s) => `${s.label.toLowerCase()} ${kg(last?.[s.key] ?? 0)}`).join(", ")}`}
         table={{
-          head: ["Vecka", ...series.map((s) => `${s.label} (kg)`), "Vikt (kg)"],
-          rows: points.map((p) => [String(p.week), ...series.map((s) => kg(p[s.key])), p.weightKg.toFixed(1)]),
+          head: ["Vecka", ...series.map((s) => `${s.label} (kg)`), "Vikt (kg)", ...(actual?.length ? ["Faktisk (kg)"] : [])],
+          rows: rows.map((p) => [String(p.week), ...series.map((s) => kg(p[s.key])), p.weightKg.toFixed(1), ...(actual?.length ? [p.actualDelta === undefined ? "–" : kg(p.actualDelta)] : [])]),
         }}
       >
         <ChartContainer config={config} className="aspect-auto h-56 w-full sm:h-64">
-          <LineChart data={points} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
+          <LineChart data={rows} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} tickFormatter={(w) => (w === 0 ? "Start" : `v${w}`)} minTickGap={20} />
             <YAxis tickLine={false} axisLine={false} tickMargin={6} fontSize={12} width={40} domain={domain} allowDecimals={false} tickCount={5} tickFormatter={(v: number) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0")} />
@@ -67,14 +77,14 @@ export function GoalProjectionChart({
                   }}
                   formatter={(value, name) => (
                     <span className="flex w-full justify-between gap-3">
-                      <span className="text-muted-foreground">{config[name as SeriesKey]?.label ?? name}</span>
+                      <span className="text-muted-foreground">{config[name as keyof typeof config]?.label ?? name}</span>
                       <span className="font-medium tabular">{kg(Number(value))}</span>
                     </span>
                   )}
                 />
               }
             />
-            {series.length > 1 && <ChartLegend content={<ChartLegendContent />} />}
+            {series.length + (actual?.length ? 1 : 0) > 1 && <ChartLegend content={<ChartLegendContent />} />}
             {series.map((s) => (
               <Line
                 key={s.key}
@@ -87,6 +97,9 @@ export function GoalProjectionChart({
                 animationDuration={250}
               />
             ))}
+            {actual?.length ? (
+              <Line dataKey="actualDelta" type="monotone" stroke="var(--color-actualDelta)" strokeWidth={2} dot={{ r: 3 }} connectNulls animationDuration={250} />
+            ) : null}
           </LineChart>
         </ChartContainer>
       </ChartFrame>

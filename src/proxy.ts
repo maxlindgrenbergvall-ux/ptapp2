@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 import { DASHBOARD_PATH } from "@/lib/auth-redirect"
+import { allowedDuringOnboarding, ONBOARDING_PATH_FOR, onboardingRequired } from "@/lib/onboarding"
 import { hostRoute, START_PATH } from "@/lib/site"
 import {
   HOME_FOR_ROLE,
@@ -138,6 +139,15 @@ export async function proxy(request: NextRequest) {
   if (role === "trainer" && amr.some((a) => a.method === "oauth")) {
     await supabase.auth.signOut()
     return redirect(`${PT_LOGIN_PATH}?fel=social`)
+  }
+  // Intro-flödet (v31): steg 1 (namn, profilbild) och rollens steg innan resten av
+  // appen öppnas. Flaggan står i JWT:n (app_metadata.onboarding_completed) och
+  // sätts av databasen (finish_onboarding) – inget extra databasanrop här.
+  if (onboardingRequired(claims as { app_metadata?: Record<string, unknown> })) {
+    const intro = ONBOARDING_PATH_FOR[role]
+    if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH || path === DASHBOARD_PATH) return redirect(intro)
+    if (isProtected && !allowedDuringOnboarding(role, path)) return redirect(intro)
+    return response
   }
   if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH || path === DASHBOARD_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)

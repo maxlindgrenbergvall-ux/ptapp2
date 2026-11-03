@@ -11,6 +11,9 @@ const W1 = "33333333-0000-4000-8000-000000000001"
 const N1 = "77777777-0000-4000-8000-000000000001"
 // v22: ny PT som inte gjort klart onboardingen (profil + Stripe Connect).
 const T2 = "11111111-0000-4000-8000-000000000002"
+// v31: befintliga konton som tvingas genom det nya intro-flödet (onboarding_completed = false i JWT:n).
+const C_INTRO = "22222222-0000-4000-8000-00000000a001"
+const T_INTRO = "11111111-0000-4000-8000-00000000a002"
 
 const users = {
   "sara@test.se": { id: C1, email: "sara@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Sara Test" }, app_metadata: { role: "client" } },
@@ -26,6 +29,8 @@ const users = {
   "fejk@test.se": { id: "77777777-0000-4000-8000-000000000002", email: "fejk@test.se", password: "hemligt123", user_metadata: { role: "trainer", name: "Fejk" }, app_metadata: {} },
   // v20: klient som raderar sitt konto (Auth admin-API:t och Storage) och ett konto vars data inte går att ladda.
   "radera@test.se": { id: "22222222-0000-4000-8000-00000000dead", email: "radera@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Rut Radera" }, app_metadata: { role: "client" } },
+  "intro@test.se": { id: C_INTRO, email: "intro@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Ida Intro" }, app_metadata: { role: "client", onboarding_completed: false } },
+  "intropt@test.se": { id: T_INTRO, email: "intropt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Per Intro" }, app_metadata: { role: "trainer", pt_ready: false, onboarding_completed: false } },
   "trasig@test.se": { id: "22222222-0000-4000-8000-00000000beef", email: "trasig@test.se", password: "hemligt123", user_metadata: { role: "client", full_name: "Trasig Data" }, app_metadata: { role: "client" } },
 }
 const RADERA = users["radera@test.se"]
@@ -144,14 +149,49 @@ function resetV22() {
   payouts[T1] = { trainer_id: T1, stripe_account_id: "acct_1ElinTest", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
 }
 resetV22()
+
+// v31: intro-flödets tillstånd per konto (som profiles + client_goals + legal_acceptances).
+const PT_DOCS = ["terms", "privacy", "pt_agreement", "gdpr_dpa"]
+const onboarding = {}
+function resetV31() {
+  for (const k of Object.keys(onboarding)) delete onboarding[k]
+  onboarding[C_INTRO] = { first_name: "Ida", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false }
+  // Befintlig PT: Stripe och presentation klara sedan tidigare, men saknar profilbild och avtal.
+  onboarding[T_INTRO] = { first_name: "Per", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false }
+  payouts[T_INTRO] = { trainer_id: T_INTRO, stripe_account_id: "acct_1PerIntro", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
+  byId[C_INTRO].app_metadata.onboarding_completed = false
+  byId[T_INTRO].app_metadata.onboarding_completed = false
+  byId[T_INTRO].app_metadata.pt_ready = false
+}
+resetV31()
+function onboardingStatus(uid) {
+  const o = onboarding[uid]
+  const role = byId[uid].app_metadata.role ?? null
+  const trainer = role === "trainer"
+  return {
+    role, first_name: o.first_name, last_name: o.last_name, avatar_url: o.avatar_url,
+    profile_done: Boolean(o.first_name && o.last_name && (!trainer || o.avatar_url)),
+    goals_done: o.goals_done,
+    pt_profile_done: trainer ? Boolean(o.avatar_url) : null,
+    payouts_done: trainer ? Boolean(payouts[uid]?.complete) : null,
+    terms_version: "2026-11",
+    required_documents: trainer ? PT_DOCS : [],
+    accepted_documents: o.accepted,
+    terms_done: !trainer || PT_DOCS.every((d) => o.accepted.includes(d)),
+    completed: o.completed,
+  }
+}
 // Elins profil räknas som färdig (fixturen har kort bio och ingen bild av andra skäl).
 const profileComplete = (id) => {
   if (id === T1) return true
+  if (id === T_INTRO) return Boolean(onboarding[T_INTRO]?.avatar_url)
   const r = t2
   return (byId[id].user_metadata.full_name ?? "").trim().length >= 2 && (r.bio ?? "").trim().length >= 40 && (r.specialties ?? []).length >= 1 && Boolean(r.avatar_url)
 }
 const syncReady = (id) => {
-  byId[id].app_metadata.pt_ready = Boolean(profileComplete(id) && payouts[id]?.complete)
+  // v31: avtalen ingår i spärren (för konton som börjat det nya intro-flödet).
+  const terms = !onboarding[id] || PT_DOCS.every((d) => onboarding[id].accepted.includes(d))
+  byId[id].app_metadata.pt_ready = Boolean(profileComplete(id) && payouts[id]?.complete && terms)
   return byId[id].app_metadata.pt_ready
 }
 const payoutStatus = (id) => {
@@ -168,7 +208,7 @@ function fixtures(uid, table) {
   switch (table) {
     case "profiles": {
       const meta = byId[uid].user_metadata
-      return [{ id: uid, role: byId[uid].app_metadata.role ?? null, full_name: meta.full_name ?? meta.name }]
+      return [{ id: uid, role: byId[uid].app_metadata.role ?? null, full_name: meta.full_name ?? meta.name, ...(onboarding[uid] ? { onboarding_completed: onboarding[uid].completed } : {}) }]
     }
     case "exercises": return exercises
     case "scheduled_workouts": return [workout]
@@ -225,7 +265,8 @@ http.createServer(async (req, res) => {
     Object.assign(accounts[C1], { coavira_plus_until: null })
     return send(200, {})
   }
-  if (url.pathname === "/__reset_v22") { resetV22(); return send(200, {}) }
+  if (url.pathname === "/__reset_v22") { resetV22(); delete onboarding[T2]; return send(200, {}) }
+  if (url.pathname === "/__reset_v31") { resetV31(); return send(200, {}) }
   if (url.pathname === "/__reset_v20") {
     users[RADERA.email] = RADERA
     byId[RADERA.id] = RADERA
@@ -423,9 +464,48 @@ http.createServer(async (req, res) => {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
       if (p.p_role !== "client") return send(403, { code: "42501", message: "PT-konton skapas av Coavira och kan inte registreras i appen" })
-      Object.assign(byId[uid].user_metadata, { role: p.p_role, full_name: p.p_full_name, phone: p.p_phone })
+      Object.assign(byId[uid].user_metadata, { role: p.p_role, full_name: p.p_full_name ?? byId[uid].user_metadata.full_name ?? byId[uid].user_metadata.name, phone: p.p_phone })
       byId[uid].app_metadata.role = p.p_role
       return send(200, null)
+    }
+    // v31: intro-flödet (samma regler som databasen, förenklat).
+    if (m[1] && ["my_onboarding_status", "save_profile_step", "accept_legal_documents", "finish_onboarding"].includes(table)) {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: [], completed: byId[uid].app_metadata.onboarding_completed !== false })
+      const trainer = byId[uid].app_metadata.role === "trainer"
+      const err = (message, code = "23514") => send(400, { code, message, details: null, hint: null })
+      if (table === "save_profile_step") {
+        const first = String(p.p_first_name ?? "").trim()
+        const last = String(p.p_last_name ?? "").trim()
+        if (!first) return err("Ange ditt förnamn")
+        if (!last) return err("Ange ditt efternamn")
+        if (p.p_avatar_url && !String(p.p_avatar_url).includes(`/storage/v1/object/public/avatars/${uid}/`)) return err("Profilbilden måste laddas upp i appen (bildfiltret granskar den)", "42501")
+        if (trainer && !p.p_avatar_url && !o.avatar_url) return err("Lägg till en profilbild – klienterna ser den när de hittar dig")
+        Object.assign(o, { first_name: first, last_name: last, avatar_url: p.p_avatar_url || o.avatar_url })
+        byId[uid].user_metadata.full_name = `${first} ${last}`
+        // v22-PT:n Nils: profilbilden sitter på PT-profilen (spärren räknas om).
+        if (uid === T2) {
+          t2.avatar_url = o.avatar_url
+          t2.profile = { full_name: `${first} ${last}` }
+          syncReady(T2)
+        }
+      }
+      if (table === "accept_legal_documents") {
+        if (!trainer) return err("Inga avtal att godkänna för kontotypen")
+        if (!PT_DOCS.every((d) => (p.p_documents ?? []).includes(d))) return err("Godkänn alla villkor och avtal för att fortsätta")
+        o.accepted = [...PT_DOCS]
+      }
+      if (table === "finish_onboarding") {
+        const st = onboardingStatus(uid)
+        if (!st.profile_done) return err("Steg 1 (namn och profilbild) är inte klart")
+        if (!trainer && !st.goals_done) return err("Sätt dina mål först")
+        if (trainer && !(st.payouts_done && st.terms_done)) return err("Godkänn villkoren och avtalen först")
+        o.completed = true
+        byId[uid].app_metadata.onboarding_completed = true
+        if (trainer) byId[uid].app_metadata.pt_ready = uid === T2 ? syncReady(T2) : true
+      }
+      return send(200, onboardingStatus(uid))
     }
     if (m[1] && table === "create_checkout") {
       const p = JSON.parse(body || "{}")
@@ -511,6 +591,7 @@ http.createServer(async (req, res) => {
       return send(403, { code: "42501", message: 'new row violates row-level security policy for table "messages"', details: null, hint: null })
     }
     log.push(entry)
+    if (table === "client_goals" && req.method === "POST" && onboarding[uid]) onboarding[uid].goals_done = true
     // v22: Nils profil (onboardingens steg 1) – som databasens triggrar.
     if (uid === T2 && req.method === "PATCH" && table === "trainers") { Object.assign(t2, entry.body); syncReady(T2) }
     if (uid === T2 && req.method === "PATCH" && table === "profiles" && entry.body?.full_name !== undefined) {

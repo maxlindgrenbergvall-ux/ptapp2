@@ -34,6 +34,11 @@ await fetch(`${mock}/__reset`)
 
 await p.click("[data-testid=goal-intro-banner]")
 await p.waitForURL(/\/klient\/intro$/)
+// v31: steg 1 (namn och profilbild) först – förifyllt.
+await p.waitForSelector("[data-testid=profile-step]")
+await p.waitForFunction(() => document.querySelector("#profile-firstName")?.value)
+await p.click("[data-testid=intro-next]")
+await p.waitForSelector("text=Dina mått")
 await p.fill("#goal-weightKg", "")
 await p.fill("#goal-weightKg", "64")
 await p.fill("#goal-heightCm", "167")

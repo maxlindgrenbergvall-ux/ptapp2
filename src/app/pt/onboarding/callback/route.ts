@@ -17,7 +17,8 @@ interface ApplyResult {
  *    (trainers.stripe_onboarding_complete, apply_stripe_account).
  *  - Sessionen förnyas, så att JWT:n får app_metadata.pt_ready och proxy.ts
  *    släpper in PT:n i portalen direkt.
- *  - Klar → /pt?valkommen=1. Annars tillbaka till /pt/onboarding med besked.
+ *  - Klar → tillbaka till /pt/onboarding, där nästa steg (villkoren, v31) väntar –
+ *    eller portalen om intro-flödet redan är klart. Annars med besked.
  * Webhooken (account.updated) gör samma uppdatering om PT:n aldrig kommer tillbaka hit.
  */
 export async function GET(request: NextRequest) {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   if (!account?.stripe_account_id || !isStripeEnabled()) {
     // Undantaget demokonto eller inget konto ännu: bara spärren i JWT:n behöver vara aktuell.
     await supabase.auth.refreshSession()
-    return to(account?.exempt ? "/pt?valkommen=1" : "/pt/onboarding")
+    return to("/pt/onboarding")
   }
 
   let result: ApplyResult | null = null
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 
   // Ny token med app_metadata.pt_ready (proxy.ts läser spärren därifrån).
   await supabase.auth.refreshSession()
-  if (result?.pt_ready) return to("/pt?valkommen=1")
-  if (result?.complete) return to("/pt/onboarding")
+  // Stripe klart: villkoren (steg 3) – onboarding-sidan väljer rätt steg (eller portalen om allt är klart).
+  if (result?.complete || result?.pt_ready) return to("/pt/onboarding")
   return to("/pt/onboarding?stripe=ofullstandig")
 }

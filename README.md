@@ -47,7 +47,12 @@ npm run dev                  # http://localhost:3000
    28. `supabase/migrations/20261110000000_v28_recipe_photos.sql`. Riktiga matfoton (Pexels) för 34 av 40 biblioteksrecept. Skriver inte över foton som laddats upp till Storage.
    29. `supabase/migrations/20261111000000_v29_moderation_mealprep_templates.sql`. Bildfiltret (tabellen `moderation_events`, inga direkta bilduppladdningar till `avatars`/`chat-attachments`), receptkategorin `meal_prep` med hela biblioteket (44 recept) och klienternas passmallar (`workout_templates.client_id`).
    30. `supabase/migrations/20261112000000_v30_client_goals.sql`. Klientens mål, mått, takt (reglaget) och kalorimål från intro-flödet (`client_goals`, RLS: klienten själv, aktiva PT:er läser).
-   31. `supabase/seed.sql`
+   31. `supabase/migrations/20261113000000_v31_onboarding_roles.sql`. Nytt intro-flöde för alla. Migrationen gör följande:
+       - Sätter `onboarding_completed = false` för **alla** konton och speglar flaggan i JWT:n.
+       - **Loggar ut alla** genom att tömma `auth.sessions` och `auth.refresh_tokens`.
+       - Lägger till förnamn och efternamn, `legal_acceptances` och profilbilder som bara får ligga i den egna Storage-mappen.
+       - Lägger till RPC-funktionerna `save_profile_step`, `accept_legal_documents`, `finish_onboarding` och `my_onboarding_status`.
+   32. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -573,6 +578,28 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v31: rollbaserat intro-flöde, avtal och tvingad utloggning
+
+- **Tvingad utloggning och flaggan.**
+  - `profiles.onboarding_completed` är false tills intro-flödet är klart. En trigger speglar flaggan i JWT:n (`app_metadata.onboarding_completed`).
+  - Migrationen sätter flaggan till false för alla konton och tömmer `auth.sessions` och `auth.refresh_tokens`. Inloggningar kan då inte förnyas, så alla loggas in på nytt (redan utfärdade åtkomsttoken gäller som längst sin livslängd, standard 1 h) och går igenom det nya flödet.
+  - `proxy.ts` styr på flaggan.
+  - Appens skal läser dessutom flaggan från profilen, som skydd när en äldre token saknar den.
+  - Bara `finish_onboarding()` kan sätta flaggan. Användaren kan inte ändra den själv.
+- **Steg 1 för alla** (`ProfileStepFields`): förnamn, efternamn och profilbild.
+  - Bilden laddas upp via servern och granskas av bildfiltret (v29). En stoppad bild visas med ett tydligt besked vid bilden.
+  - Länkalternativet är borttaget. Databasen godtar bara bilder i den egna mappen (`avatars/{uid}/`), så filtret går inte att kringgå.
+  - PT:er måste ha en profilbild. För klienter är den valfri.
+- **Rollroutern** (`nextOnboardingStep` i `src/lib/onboarding.ts`):
+  - **Klient:** profil → mål och kostplan (`/klient/intro`).
+  - **PT:** profil (inklusive presentation) → Stripe Connect med delad betalning (`application_fee_amount`) → villkor och avtal (`/pt/onboarding`).
+- **Avtal för PT:** användarvillkor, integritetspolicy, PT-avtal (`/villkor/pt`, utkast) och GDPR-åtagandet för hälsodata.
+  - Godkännandena sparas med version i `legal_acceptances`.
+  - PT:ns spärr (`pt_ready`), och därmed synligheten i Hitta PT, kräver nu även godkända avtal.
+  - Höjs `legal_version()` måste alla PT:er godkänna den nya versionen.
+- **Välkomststeget** frågar inte längre efter namnet. Det anges i steg 1.
+- **Framsteg:** med satta mål ersätts den gamla viktgrafen av de nya interaktiva graferna. De visar planen från startdagen med de faktiska vägningarna ovanpå (före eller efter planen) och friskrivningen under.
+
 ## Nytt i v30: intro-flöde och mål (kalorimål, takt och prognos)
 
 - **Intro-flödet** (`/klient/intro`) visas efter välkomststeget och går att hoppa över. Klienter utan mål får i stället ett kort på startsidan. Flödet har fyra steg:
@@ -934,6 +961,8 @@ node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.
 node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
 node e2e/connect-onboarding-demo.test.mjs # (demo) PT-onboardingen med simulerad Stripe-koppling
 npx tsx --tsconfig tsconfig.json e2e/goals.unit.ts # BMR/TDEE, reglaget, energigolv, makron och prognos
+node e2e/v31-intro-demo.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Välkomststeget utan namn, steg 1 med bildfiltret, klientens mål, Framsteg mot plan
+node e2e/v31-supabase.test.mjs  # Befintliga konton tvingas genom intro-flödet; klient: steg 1 → mål → klar; PT: steg 1 → villkor → aktiverat
 node e2e/v30-mal-intro.test.mjs  # (demo) Intro-flödet, reglaget räknar om i realtid, två grafer, Profil → Mål, PT:ns vy, friskrivning
 node e2e/v30-supabase.test.mjs   # Intro-flödet sparar i client_goals (eget id, födelseår, kalorimål) och loggar vikten
 node e2e/v29-filter-mealprep-mallar.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Bildfiltret, kostsökningen stängs utanför, Mealprep, spara/läsa in mallar

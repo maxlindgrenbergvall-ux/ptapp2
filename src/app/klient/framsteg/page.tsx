@@ -6,6 +6,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
+import { GoalProgressChart } from "@/components/goals/goal-progress-card"
 import { RequirePlus, usePlus } from "@/components/plus/require-plus"
 import { ProgressKpis } from "@/components/progress/kpis"
 import { MetricsGrid } from "@/components/progress/metrics"
@@ -82,7 +83,8 @@ export default function ProgressPage() {
           <CardDescription>Väg dig gärna samma tid och dag varje vecka.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <WeightChart entries={client.weightLog} />
+          {/* v31: med mål visas de nya interaktiva graferna (plan mot verklighet) i stället för den gamla viktgrafen. */}
+          {data.goalProfiles.some((g) => g.clientId === client.id) ? <GoalProgressChart clientId={client.id} /> : <WeightChart entries={client.weightLog} />}
           <form
             className="flex gap-2"
             onSubmit={(e) => {

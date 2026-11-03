@@ -25,8 +25,9 @@ import { START_PATH } from "@/lib/site"
 const GOAL_INTRO_PATH = "/klient/intro"
 
 /**
- * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta namn
- * och telefon och lämna samtycke till hälsodata. Självregistrerade konton blir
+ * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta
+ * telefon och lämna samtycke till hälsodata. Namn och profilbild anges i steg 1
+ * i intro-flödet som följer (v31). Självregistrerade konton blir
  * alltid klientkonton – PT-konton skapas av Coavira och loggar in via
  * PT-inloggningen.
  *
@@ -97,7 +98,6 @@ export function OnboardingForm() {
       router.push(GOAL_INTRO_PATH)
       return
     }
-    if (!name.trim()) return setError("Ange ditt namn.")
     const normalized = normalizePhone(phone)
     if (!normalized) return setError("Ange ett giltigt telefonnummer, t.ex. 070-123 45 67.")
 
@@ -105,7 +105,8 @@ export function OnboardingForm() {
     const sb = getSupabase()
     const { error: rpcError } = await sb.rpc("complete_onboarding", {
       p_role: "client",
-      p_full_name: name.trim(),
+      // Namnet anges i steg 1 i intro-flödet (v31); här skickas bara det vi redan vet (Apple/Google/registreringen).
+      p_full_name: name.trim() || null,
       p_phone: normalized,
       p_health_data_consent: consent,
     })
@@ -166,7 +167,7 @@ export function OnboardingForm() {
   return (
     <AuthCard
       title="Välkommen till Coavira"
-      description="Bekräfta dina uppgifter så kommer du igång med träningen."
+      description="Bekräfta ditt telefonnummer och godkänn villkoren. Sedan får du ange namn, profilbild och dina mål."
       footer={
         isSupabaseEnabled ? (
           <button
@@ -194,10 +195,6 @@ export function OnboardingForm() {
 
         {isSupabaseEnabled && (
           <>
-            <div className="space-y-2">
-              <Label htmlFor="name">Namn</Label>
-              <Input id="name" autoComplete="name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefonnummer</Label>
               <Input

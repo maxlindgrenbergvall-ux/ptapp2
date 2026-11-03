@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
+import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 
 const NAV = [
   { href: "/klient", label: "Idag", icon: Home, exact: true },
@@ -33,8 +34,10 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const nowIso = new Date().toISOString()
   // Prick på Kalender när ett preliminärt pass väntar (på PT:n eller på mitt svar).
   const pendingCount = data.events.filter((e) => e.clientId === me.id && e.status === "pending" && e.end > nowIso).length
+  // Intro-flödet inte klart enligt databasen (äldre token utan flaggan): dit först (v31).
+  const blocked = useOnboardingGuard()
   // Under ett pågående pass (och i intro-flödet) tar vyn hela skärmen – inga distraktioner.
-  const focusMode = pathname.startsWith("/klient/pass/") || pathname === "/klient/intro"
+  const focusMode = pathname.startsWith("/klient/pass/") || pathname === "/klient/intro" || blocked
 
   return (
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x md:border-border/60">
@@ -80,7 +83,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       {/* Luft under innehållet för bottenmenyn (4rem) + hemindikatorn. */}
-      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{children}</main>
+      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{blocked ? null : children}</main>
       {!focusMode && (
         <nav
           aria-label="Huvudmeny"

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAppData } from "@/lib/data/store"
 import { PT_ONBOARDING_PATH } from "@/lib/supabase/config"
+import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 import { cn } from "@/lib/utils"
 
 const NAV = [
@@ -28,13 +29,15 @@ const NAV = [
 export function PtShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const pathname = usePathname()
-  // Den obligatoriska onboardingen (v22) visas utan portalens meny: PT:n kan inte
-  // navigera vidare förrän profilen och utbetalningarna är klara.
-  if (pathname.startsWith(PT_ONBOARDING_PATH)) {
+  // Intro-flödet inte klart enligt databasen (äldre token utan flaggan): till onboardingen.
+  const blocked = useOnboardingGuard()
+  // Den obligatoriska onboardingen (v22/v31) visas utan portalens meny: PT:n kan inte
+  // navigera vidare förrän profil, utbetalningar och avtal är klara.
+  if (pathname.startsWith(PT_ONBOARDING_PATH) || blocked) {
     return (
       <>
         <div className="app-backdrop" aria-hidden />
-        {children}
+        {blocked ? null : children}
       </>
     )
   }

@@ -36,6 +36,10 @@ await p.waitForURL(/\/klient\/intro$/)
 await p.waitForSelector("[data-testid=goal-intro]")
 ok("efter välkomststeget kommer klienten till intro-flödet")
 check((await p.locator("nav[aria-label=Huvudmeny]").count()) === 0, "intro-flödet tar hela skärmen (ingen bottenmeny)")
+// v31: steg 1 (namn och profilbild) först – förifyllt från profilen.
+await p.waitForSelector("[data-testid=profile-step]")
+await p.click("[data-testid=intro-next]")
+await p.waitForSelector("text=Dina mått")
 check((await p.locator("[data-testid=goal-disclaimer]").innerText()).includes(DISCLAIMER), "friskrivningen syns längst ned i intro-flödet")
 
 // ------------------------------------------------------------ 2. mått ---

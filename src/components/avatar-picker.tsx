@@ -1,45 +1,50 @@
 "use client"
 
-import { Camera, Link2, Loader2 } from "lucide-react"
+import { Camera, Loader2, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { ACCEPT, uploadFile } from "@/lib/storage"
+import { cn } from "@/lib/utils"
 
-/** Profilbild: ladda upp (bucket avatars/{uid}/…) eller ange en https-länk. Används av både PT och klient. */
+/**
+ * Profilbild för PT och klient. Bilden laddas upp via servern
+ * (/api/uploads/image): bildfiltret (v29) granskar den innan den sparas i
+ * avatars/{uid}/. Externa bildlänkar går inte att använda – de skulle kringgå
+ * filtret, och databasen stoppar dem (v31).
+ */
 export function AvatarPicker({
   name,
   value,
   userId,
   onChange,
+  size = "md",
+  className,
 }: {
   name: string
   value: string
   userId: string
   onChange: (url: string) => void
+  size?: "md" | "lg"
+  className?: string
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [busy, setBusy] = React.useState(false)
-  const [showUrl, setShowUrl] = React.useState(false)
-  const [url, setUrl] = React.useState("")
-
-  const applyUrl = () => {
-    if (!/^https:\/\/\S+$/.test(url.trim())) return toast.error("Ange en https-länk till en bild")
-    onChange(url.trim())
-    setShowUrl(false)
-    setUrl("")
-  }
+  const [blocked, setBlocked] = React.useState<string | null>(null)
 
   const upload = async (file: File | undefined) => {
     if (!file) return
     setBusy(true)
+    setBlocked(null)
     try {
       onChange(await uploadFile("avatars", `${userId}/avatar.webp`, file))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Uppladdningen misslyckades")
+      const message = e instanceof Error ? e.message : "Uppladdningen misslyckades"
+      // Stoppad av bildfiltret: visas vid bilden (inte bara som toast) så att det syns tydligt.
+      if (/innehållsfilter/.test(message)) setBlocked(message)
+      else toast.error(message)
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ""
@@ -47,53 +52,41 @@ export function AvatarPicker({
   }
 
   return (
-    <div className="flex items-center gap-4 sm:flex-col sm:items-center">
-      <div className="relative">
-        <PersonAvatar name={name} src={value || undefined} className="size-24 text-2xl ring-2 ring-primary/30 ring-offset-2 ring-offset-card" />
+    <div className={cn("flex items-center gap-4 sm:flex-col sm:items-center", className)} data-testid="avatar-picker">
+      <div className="relative shrink-0">
+        <PersonAvatar
+          name={name}
+          src={value || undefined}
+          className={cn(size === "lg" ? "size-28 text-3xl" : "size-24 text-2xl", "ring-2 ring-primary/30 ring-offset-2 ring-offset-card")}
+        />
         {busy && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-background/80 text-[10px] font-medium">
             <Loader2 className="size-5 animate-spin" />
+            Granskar…
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-1.5 sm:items-center">
-        <input ref={inputRef} type="file" accept={ACCEPT.avatars} className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
-        <Button type="button" size="sm" variant="secondary" onClick={() => inputRef.current?.click()} disabled={busy}>
-          <Camera /> {value ? "Byt bild" : "Ladda upp bild"}
-        </Button>
-        <div className="flex gap-1">
-          <Button type="button" size="xs" variant="ghost" onClick={() => setShowUrl((s) => !s)}>
-            <Link2 /> Länk
+      <div className="flex min-w-0 flex-col gap-1.5 sm:items-center">
+        <input ref={inputRef} type="file" accept={ACCEPT.avatars} className="sr-only" onChange={(e) => upload(e.target.files?.[0])} aria-label="Välj profilbild" />
+        <div className="flex flex-wrap gap-1.5">
+          <Button type="button" size="sm" variant="secondary" onClick={() => inputRef.current?.click()} disabled={busy}>
+            <Camera /> {value ? "Byt bild" : "Ladda upp bild"}
           </Button>
           {value && (
-            <Button type="button" size="xs" variant="ghost" onClick={() => onChange("")}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => onChange("")} disabled={busy}>
               Ta bort
             </Button>
           )}
         </div>
-        {/* Ingen egen <form>: väljaren ligger ofta inuti ett profilformulär (nästlade formulär fungerar inte). */}
-        {showUrl && (
-          <div className="flex gap-1">
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  applyUrl()
-                }
-              }}
-              placeholder="https://…"
-              className="h-8 w-44 text-xs"
-              aria-label="Bildlänk"
-            />
-            <Button type="button" size="sm" variant="outline" onClick={applyUrl}>
-              OK
-            </Button>
-          </div>
+        <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <ShieldCheck className="size-3.5 shrink-0" /> Granskas automatiskt av vårt bildfilter
+        </p>
+        {blocked && (
+          <p className="max-w-64 text-xs text-destructive" role="alert" data-testid="avatar-blocked">
+            {blocked}
+          </p>
         )}
       </div>
     </div>
   )
 }
-

@@ -594,6 +594,11 @@ export interface Me {
   role: UserRole
   name: string
   email?: string
+  /**
+   * Intro-flödet (v31) klart? false = användaren skickas till intro-flödet.
+   * undefined = okänt (demoläget eller databasen före v31) – ingen spärr.
+   */
+  onboardingCompleted?: boolean
 }
 
 export interface AppData {

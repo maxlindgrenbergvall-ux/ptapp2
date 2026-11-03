@@ -526,6 +526,25 @@ const toGoalProfile = (r: GoalRow): GoalProfile => ({
   updatedAt: r.updated_at,
 })
 
+/** client_goals-raden för klientens mål (v30). Används även av intro-flödet, som sparar direkt. */
+export const goalRow = (clientId: string, g: GoalProfile) => ({
+  client_id: clientId,
+  goals: g.goals,
+  sex: g.sex,
+  birth_year: g.birthYear,
+  height_cm: g.heightCm,
+  start_weight_kg: g.startWeightKg,
+  current_weight_kg: g.currentWeightKg,
+  target_weight_kg: g.targetWeightKg ?? null,
+  activity_level: g.activity,
+  weekly_change_kg: g.weeklyChangeKg,
+  started_at: g.startedAt,
+  target_kcal: g.targets.kcal,
+  target_protein_g: g.targets.protein,
+  target_carbs_g: g.targets.carbs,
+  target_fat_g: g.targets.fat,
+})
+
 const toTemplate = (r: TemplateRow): WorkoutTemplate => ({
   id: r.id,
   // Ägaren: PT:n eller (v29) klienten som sparat passet som mall.
@@ -779,7 +798,10 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
 
   const profile = must<ProfileRow>(await sb.from("profiles").select("id, role, full_name, interests, focus, avatar_url").eq("id", uid).single(), "profil")
   if (!profile.role) throw new OnboardingRequired("Välj kontotyp")
-  const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email }
+  // Intro-flödet (v31). Egen fråga: saknas kolumnen (databasen före v31) är flaggan okänd – ingen spärr.
+  const onboarding = await sb.from("profiles").select("onboarding_completed").eq("id", uid).maybeSingle()
+  const onboardingCompleted = onboarding.error ? undefined : (onboarding.data as { onboarding_completed?: boolean } | null)?.onboarding_completed
+  const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email, onboardingCompleted }
   const since = addDays(todayISO(), -HISTORY_DAYS)
 
   const trainerSelect = TRAINER_SELECT
@@ -1352,28 +1374,8 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     }
     case "deleteRecipe":
       return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
-    case "saveGoalProfile": {
-      const g = action.profile
-      return result(
-        sb.from("client_goals").upsert({
-          client_id: me.id,
-          goals: g.goals,
-          sex: g.sex,
-          birth_year: g.birthYear,
-          height_cm: g.heightCm,
-          start_weight_kg: g.startWeightKg,
-          current_weight_kg: g.currentWeightKg,
-          target_weight_kg: g.targetWeightKg ?? null,
-          activity_level: g.activity,
-          weekly_change_kg: g.weeklyChangeKg,
-          started_at: g.startedAt,
-          target_kcal: g.targets.kcal,
-          target_protein_g: g.targets.protein,
-          target_carbs_g: g.targets.carbs,
-          target_fat_g: g.targets.fat,
-        })
-      )
-    }
+    case "saveGoalProfile":
+      return result(sb.from("client_goals").upsert(goalRow(me.id, action.profile)))
     case "setFavoriteRecipe":
       return result(
         action.favorite

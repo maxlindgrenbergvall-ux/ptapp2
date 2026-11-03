@@ -1,25 +1,28 @@
 "use client"
 
-import { ArrowRight, BadgeCheck, Banknote, Check, Clock, Loader2, Lock, RefreshCw, ShieldCheck, UserRound } from "lucide-react"
+import { ArrowRight, BadgeCheck, Banknote, Check, Clock, ExternalLink, FileCheck2, Loader2, Lock, RefreshCw, ShieldCheck, UserRound } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { AvatarPicker } from "@/components/avatar-picker"
 import { BrandMark } from "@/components/brand"
+import { profileDraft, type ProfileDraft, profileErrors, ProfileStepFields } from "@/components/onboarding/profile-step"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppData } from "@/lib/data/store"
 import { openCheckout } from "@/lib/native/checkout"
 import { EXISTING_CLIENT_FEE_PERCENT, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
+import { LEGAL_DOCUMENTS, type LegalDocument, nextOnboardingStep, type OnboardingStatus, TRAINER_STEPS, STEP_LABEL } from "@/lib/onboarding"
+import { acceptLegalDocuments, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveProfileStep } from "@/lib/onboarding-client"
 import { MIN_BIO_LENGTH, missingProfileParts, type PayoutStatus } from "@/lib/pt-onboarding"
 import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { SPECIALTIES, SPECIALTY_LABEL, type Specialty } from "@/types/domain"
 
-type Step = 1 | 2
+type Step = 1 | 2 | 3
+const ALL_DOCUMENTS = Object.keys(LEGAL_DOCUMENTS) as LegalDocument[]
 
 const STRIPE_MESSAGES: Record<string, { kind: "info" | "error"; text: string }> = {
   forny: { kind: "info", text: "Länken till Stripe hann gå ut. Tryck på knappen igen för att fortsätta där du var." },
@@ -28,29 +31,38 @@ const STRIPE_MESSAGES: Record<string, { kind: "info" | "error"; text: string }> 
 }
 
 /**
- * /pt/onboarding: obligatoriskt innan PT-portalen öppnas (proxy.ts släpper in
- * PT:n först när app_metadata.pt_ready är satt).
- *  1. Profil: namn, profilbild, inriktningar och presentation.
- *  2. Utbetalningar: Stripe Connect (Express). Stripe skickar tillbaka till
- *     /pt/onboarding/callback, som kontrollerar kontot och öppnar portalen.
+ * /pt/onboarding: PT:ns intro-flöde (v22 + v31), obligatoriskt innan PT-portalen
+ * öppnas (proxy.ts: app_metadata.onboarding_completed och pt_ready).
+ *  1. Profil (steg 1 för alla): förnamn, efternamn, profilbild (bildfiltret) –
+ *     plus PT:ns inriktningar och presentation.
+ *  2. Utbetalningar: Stripe Connect (Express) med automatisk delning av
+ *     betalningen (application_fee_amount). Stripe skickar tillbaka till
+ *     /pt/onboarding/callback, som kontrollerar kontot.
+ *  3. Villkor och avtal: användarvillkor, integritetspolicy, PT-avtal och
+ *     GDPR-åtagandet. Sedan aktiverar finish_onboarding() kontot.
  */
 export function PtOnboarding() {
   const { data, me, actions, mode } = useAppData()
   const trainer = data.trainers.find((t) => t.id === me.id)
+  const [person, setPerson] = React.useState<ProfileDraft>(() => profileDraft(me.name, trainer?.avatarUrl))
   const [form, setForm] = React.useState(() => ({
-    name: me.name ?? "",
-    avatarUrl: trainer?.avatarUrl ?? "",
     specialties: trainer?.specialties ?? ([] as Specialty[]),
     bio: trainer?.bio ?? "",
   }))
+  const [onboarding, setOnboarding] = React.useState<OnboardingStatus | null>(null)
+  const [showErrors, setShowErrors] = React.useState(false)
+  const [accepted, setAccepted] = React.useState<LegalDocument[]>([])
+  const [activating, setActivating] = React.useState(false)
   const [status, setStatus] = React.useState<PayoutStatus | null>(null)
   const [step, setStep] = React.useState<Step>(1)
   const [saving, setSaving] = React.useState(false)
   const [connecting, setConnecting] = React.useState(false)
   const [demoConnected, setDemoConnected] = React.useState(false)
 
-  const missing = missingProfileParts(form)
-  const profileDone = missing.length === 0
+  const name = `${person.firstName} ${person.lastName}`.trim()
+  const missing = missingProfileParts({ name, avatarUrl: person.avatarUrl, ...form })
+  const personErrors = showErrors ? profileErrors(person, true) : {}
+  const profileDone = missing.length === 0 && Object.keys(profileErrors(person, true)).length === 0
 
   const loadStatus = React.useCallback(async (): Promise<PayoutStatus | null> => {
     if (mode === "demo") return null
@@ -60,17 +72,28 @@ export function PtOnboarding() {
     return s as PayoutStatus
   }, [mode])
 
-  // Första laddningen: hoppa till steg 2 om profilen redan är klar i databasen.
+  // Första laddningen: rollrouterns nästa steg utifrån databasen (profil → Stripe → villkor).
   React.useEffect(() => {
     let cancelled = false
     if (mode === "supabase") {
-      void getSupabase()
-        .rpc("my_payout_status")
-        .then(({ data: s }) => {
-          if (cancelled || !s) return
-          setStatus(s as PayoutStatus)
-          if ((s as PayoutStatus).profile_complete) setStep(2)
-        })
+      void Promise.all([fetchOnboardingStatus().catch(() => null), getSupabase().rpc("my_payout_status")]).then(([o, payout]) => {
+        if (cancelled) return
+        if (payout.data) setStatus(payout.data as PayoutStatus)
+        if (!o) return
+        setOnboarding(o)
+        setAccepted(o.accepted_documents)
+        setPerson((p) => ({ firstName: o.first_name ?? p.firstName, lastName: o.last_name ?? p.lastName, avatarUrl: o.avatar_url ?? p.avatarUrl }))
+        const next = nextOnboardingStep(o)
+        if (o.completed && next === "done") {
+          // Redan klar (t.ex. tillbaka från Stripe efter en ny kontroll): till portalen.
+          // Är något steg inte längre klart (t.ex. Stripe har stängt av kortbetalningar)
+          // stannar PT:n här på det steget – annars skulle proxy.ts skicka tillbaka hit.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.assign("/pt")
+          return
+        }
+        setStep(next === "payouts" ? 2 : next === "terms" || next === "done" ? 3 : 1)
+      })
     }
     const msg = STRIPE_MESSAGES[new URLSearchParams(window.location.search).get("stripe") ?? ""]
     if (msg) {
@@ -84,13 +107,17 @@ export function PtOnboarding() {
   }, [mode])
 
   const saveProfile = async () => {
-    if (!profileDone) return
+    if (!profileDone) {
+      setShowErrors(true)
+      return
+    }
     setSaving(true)
-    const patch = { name: form.name.trim(), avatarUrl: form.avatarUrl, specialties: form.specialties, bio: form.bio.trim() }
+    const patch = { name, avatarUrl: person.avatarUrl, specialties: form.specialties, bio: form.bio.trim() }
     if (mode === "supabase") {
       // Sparas direkt (inte via bakgrundskön), så att steg 2 vet att databasen har profilen
-      // och PT:n får det riktiga felet om något går fel.
-      const error = await saveProfileNow(me.id, patch)
+      // och PT:n får det riktiga felet om något går fel. Namn och bild via steg 1-funktionen
+      // (samma regler som för klienter), presentationen på PT-profilen.
+      const error = await saveProfileNow(me.id, person, patch)
       if (error) {
         setSaving(false)
         toast.error("Profilen kunde inte sparas", { description: error })
@@ -116,12 +143,26 @@ export function PtOnboarding() {
     // Uppdatera appens lokala data (i Supabase-läget skrivs samma värden igen – ofarligt).
     actions.updateTrainerProfile(patch)
     setSaving(false)
-    setStep(2)
+    setShowErrors(false)
+    // Stripe redan klart (t.ex. befintlig PT i det nya flödet): direkt till villkoren.
+    setStep(onboarding?.payouts_done || status?.stripe_onboarding_complete ? 3 : 2)
   }
 
-  /** Klart: förnya sessionen (ny JWT med pt_ready) och öppna portalen. */
-  const enterPortal = async () => {
-    if (mode === "supabase") await getSupabase().auth.refreshSession()
+  /**
+   * Steg 3: godkänn avtalen och aktivera kontot. Databasen kontrollerar att
+   * profil, Stripe och avtal är klara (finish_onboarding) och sätter flaggan;
+   * sessionen förnyas (ny JWT) och portalen öppnas.
+   */
+  const activate = async () => {
+    if (!ALL_DOCUMENTS.every((d) => accepted.includes(d))) return toast.error("Godkänn alla villkor och avtal för att fortsätta")
+    setActivating(true)
+    try {
+      await acceptLegalDocuments(ALL_DOCUMENTS)
+      await finishOnboarding()
+    } catch (e) {
+      setActivating(false)
+      return toast.error("Kontot kunde inte aktiveras", { description: e instanceof OnboardingError ? e.message : "Försök igen." })
+    }
     // Hel sidladdning: proxy.ts läser den nya JWT:n och PT-portalen laddar sina data.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign("/pt?valkommen=1")
@@ -139,7 +180,13 @@ export function PtOnboarding() {
     try {
       const res = await fetch("/api/stripe/connect/onboard", { method: "POST" })
       const body = (await res.json().catch(() => ({}))) as { url?: string; done?: boolean; error?: string }
-      if (body.done) return void (await enterPortal())
+      if (body.done) {
+        // Stripe-kontot är redan klart: vidare till villkoren.
+        await loadStatus()
+        setConnecting(false)
+        setStep(3)
+        return
+      }
       if (!res.ok || !body.url) {
         toast.error(body.error ?? "Kopplingen till Stripe kunde inte startas. Försök igen.")
         setConnecting(false)
@@ -160,7 +207,7 @@ export function PtOnboarding() {
   const payoutsDone = mode === "demo" ? demoConnected : Boolean(status?.stripe_onboarding_complete)
   const waitingForStripe = mode === "supabase" && Boolean(status?.details_submitted) && !status?.charges_enabled
   const allDone = profileDone && payoutsDone && step === 2
-  const firstName = form.name.trim().split(/\s+/)[0] || "där"
+  const firstName = person.firstName.trim() || "där"
 
   return (
     <main className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 pt-[calc(var(--safe-top)+1.5rem)] pb-[calc(var(--safe-bottom)+2rem)] sm:px-6">
@@ -168,9 +215,9 @@ export function PtOnboarding() {
         <BrandMark />
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Välkommen till Coavira, {firstName}!</h1>
-          <p className="text-muted-foreground">Två steg innan du kan ta emot klienter: din profil och utbetalningar till ditt bankkonto.</p>
+          <p className="text-muted-foreground">Tre steg innan du kan ta emot klienter: din profil, utbetalningar till ditt bankkonto och våra avtal.</p>
         </div>
-        <Stepper step={step} profileDone={profileDone && step === 2} payoutsDone={payoutsDone} />
+        <Stepper step={step} profileDone={profileDone && step > 1} payoutsDone={payoutsDone && step > 2} />
       </header>
 
       {step === 1 ? (
@@ -182,13 +229,13 @@ export function PtOnboarding() {
             <CardDescription>Det här ser klienter när de hittar dig i appen.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              <AvatarPicker name={form.name || me.name} value={form.avatarUrl} userId={me.id} onChange={(avatarUrl) => setForm({ ...form, avatarUrl })} />
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="onb-name">Namn</Label>
-                <Input id="onb-name" autoComplete="name" maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </div>
-            </div>
+            <ProfileStepFields
+              value={person}
+              onChange={(p) => setPerson((d) => ({ ...d, ...p }))}
+              userId={me.id}
+              errors={personErrors}
+              requireAvatar
+            />
 
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Inriktningar</legend>
@@ -233,12 +280,12 @@ export function PtOnboarding() {
                 Kvar att fylla i: {missing.join(", ")}.
               </p>
             )}
-            <Button className="w-full sm:w-auto" size="lg" disabled={!profileDone || saving} onClick={() => void saveProfile()}>
+            <Button className="w-full sm:w-auto" size="lg" disabled={saving} onClick={() => void saveProfile()} data-testid="onboarding-save-profile">
               {saving ? <Loader2 className="animate-spin" /> : <ArrowRight />} Spara och fortsätt
             </Button>
           </CardContent>
         </Card>
-      ) : (
+      ) : step === 2 ? (
         <Card data-testid="onboarding-payouts">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -263,10 +310,10 @@ export function PtOnboarding() {
             {allDone ? (
               <div className="space-y-3 rounded-xl border border-success/40 bg-success/10 p-4" data-testid="onboarding-done">
                 <p className="flex items-center gap-2 font-medium">
-                  <BadgeCheck className="size-5 text-success" /> Allt klart! Utbetalningarna är kopplade.
+                  <BadgeCheck className="size-5 text-success" /> Utbetalningarna är kopplade.
                 </p>
-                <Button size="lg" className="w-full sm:w-auto" onClick={() => void enterPortal()}>
-                  <ArrowRight /> Gå till PT-portalen
+                <Button size="lg" className="w-full sm:w-auto" onClick={() => setStep(3)} data-testid="onboarding-to-terms">
+                  <ArrowRight /> Fortsätt till villkoren
                 </Button>
               </div>
             ) : waitingForStripe ? (
@@ -295,7 +342,7 @@ export function PtOnboarding() {
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <Lock className="size-3.5" /> Resten av PT-portalen öppnas när båda stegen är klara.
+                <Lock className="size-3.5" /> Resten av PT-portalen öppnas när alla tre stegen är klara.
               </span>
               <button type="button" className="underline underline-offset-2 hover:text-foreground" onClick={() => setStep(1)}>
                 Ändra profilen
@@ -303,16 +350,22 @@ export function PtOnboarding() {
             </div>
           </CardContent>
         </Card>
+      ) : (
+        <TermsStep
+          accepted={accepted}
+          onChange={setAccepted}
+          activating={activating}
+          onActivate={() => void activate()}
+          onBack={() => setStep(payoutsDone ? 1 : 2)}
+          version={onboarding?.terms_version}
+        />
       )}
     </main>
   )
 }
 
 function Stepper({ step, profileDone, payoutsDone }: { step: Step; profileDone: boolean; payoutsDone: boolean }) {
-  const items = [
-    { n: 1, label: "Din profil", done: profileDone },
-    { n: 2, label: "Utbetalningar", done: payoutsDone },
-  ]
+  const items = TRAINER_STEPS.map((key, i) => ({ n: i + 1, label: STEP_LABEL[key], done: key === "profile" ? profileDone : key === "payouts" ? payoutsDone : false }))
   return (
     <ol className="flex items-center gap-3" aria-label="Steg i onboardingen">
       {items.map((it, i) => (
@@ -325,7 +378,7 @@ function Stepper({ step, profileDone, payoutsDone }: { step: Step; profileDone: 
           >
             {it.done ? <Check className="size-4" /> : it.n}
           </span>
-          <span className={cn("text-sm", step === it.n ? "font-medium" : "text-muted-foreground")}>{it.label}</span>
+          <span className={cn("text-sm leading-tight", step === it.n ? "font-medium" : "text-muted-foreground", step !== it.n && "max-sm:sr-only")}>{it.label}</span>
           {i < items.length - 1 && <span className="h-px flex-1 bg-border" aria-hidden />}
         </li>
       ))}
@@ -347,22 +400,89 @@ function Point({ icon: Icon, title, children }: { icon: React.ComponentType<{ cl
   )
 }
 
-/** Sparar steg 1 direkt i databasen. Returnerar ett läsbart fel eller null. */
+/**
+ * Sparar steg 1 direkt i databasen: namn och profilbild via save_profile_step
+ * (samma regler som för klienter, bilden måste ha gått genom bildfiltret),
+ * inriktningar och presentation på PT-profilen. Returnerar ett läsbart fel eller null.
+ */
 async function saveProfileNow(
   userId: string,
-  p: { name: string; avatarUrl: string; specialties: Specialty[]; bio: string }
+  person: ProfileDraft,
+  p: { specialties: Specialty[]; bio: string }
 ): Promise<string | null> {
-  const sb = getSupabase()
   try {
-    const [named, profile] = await Promise.all([
-      sb.from("profiles").update({ full_name: p.name }).eq("id", userId),
-      sb.from("trainers").update({ avatar_url: p.avatarUrl || null, specialties: p.specialties, bio: p.bio }).eq("id", userId),
-    ])
-    const error = named.error ?? profile.error
+    await saveProfileStep(person.firstName, person.lastName, person.avatarUrl || null)
+    const { error } = await getSupabase().from("trainers").update({ specialties: p.specialties, bio: p.bio }).eq("id", userId)
     return error ? error.message : null
-  } catch {
-    return "Ingen uppkoppling – försök igen."
+  } catch (e) {
+    return e instanceof OnboardingError ? e.message : "Ingen uppkoppling – försök igen."
   }
+}
+
+/** Steg 3: villkor och avtal. Alla måste godkännas; länkarna öppnar dokumenten. */
+function TermsStep({
+  accepted,
+  onChange,
+  activating,
+  onActivate,
+  onBack,
+  version,
+}: {
+  accepted: LegalDocument[]
+  onChange: (docs: LegalDocument[]) => void
+  activating: boolean
+  onActivate: () => void
+  onBack: () => void
+  version?: string
+}) {
+  const all = ALL_DOCUMENTS.every((d) => accepted.includes(d))
+  const toggle = (d: LegalDocument, on: boolean) => onChange(on ? [...new Set([...accepted, d])] : accepted.filter((x) => x !== d))
+  return (
+    <Card data-testid="onboarding-terms">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileCheck2 className="size-5 text-primary" /> Steg 3: Villkor och avtal
+        </CardTitle>
+        <CardDescription>Läs igenom och godkänn för att aktivera ditt PT-konto{version ? ` (version ${version})` : ""}.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ul className="divide-y rounded-xl border" aria-label="Avtal att godkänna">
+          {ALL_DOCUMENTS.map((d) => {
+            const doc = LEGAL_DOCUMENTS[d]
+            const id = `legal-${d}`
+            return (
+              <li key={d} className="flex gap-3 p-3">
+                <Checkbox id={id} checked={accepted.includes(d)} onCheckedChange={(v) => toggle(d, v === true)} className="mt-0.5 size-5" />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <Label htmlFor={id} className="text-sm leading-snug font-medium">
+                    {doc.accept}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">{doc.summary}</p>
+                  <a href={doc.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
+                    {doc.read} <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+        <label className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2.5 text-sm font-medium">
+          <Checkbox checked={all} onCheckedChange={(v) => onChange(v === true ? ALL_DOCUMENTS : [])} className="size-5" data-testid="accept-all" /> Godkänn alla
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Ditt godkännande sparas med datum och avtalsversion. Ändras avtalen ber vi dig godkänna den nya versionen.
+        </p>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+          <Button variant="ghost" onClick={onBack}>
+            Tillbaka
+          </Button>
+          <Button size="lg" disabled={!all || activating} onClick={onActivate} data-testid="activate-account">
+            {activating ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Godkänn och aktivera kontot
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 /** Funktionen finns inte i databasen (migrationen är inte körd). */
