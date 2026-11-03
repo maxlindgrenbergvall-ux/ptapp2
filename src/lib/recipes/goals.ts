@@ -4,7 +4,7 @@
  */
 import type { MacroTotals, MealItem, MealType, Recipe, RecipeGoal } from "@/types/domain"
 
-export const RECIPE_GOALS: RecipeGoal[] = ["high_protein", "weight_loss", "pre_workout", "post_workout", "quick_easy"]
+export const RECIPE_GOALS: RecipeGoal[] = ["high_protein", "weight_loss", "pre_workout", "post_workout", "quick_easy", "meal_prep"]
 
 export const GOAL_INFO: Record<RecipeGoal, { label: string; hint: string }> = {
   high_protein: { label: "Högt protein", hint: "Muskeltillväxt: minst 25 g protein eller 30 % av energin per portion" },
@@ -12,6 +12,7 @@ export const GOAL_INFO: Record<RecipeGoal, { label: string; hint: string }> = {
   pre_workout: { label: "Före passet", hint: "Energi: kolhydratrikt (minst halva energin), lite fett" },
   post_workout: { label: "Efter passet", hint: "Återhämtning: minst 20 g protein och 30 g kolhydrater" },
   quick_easy: { label: "Snabbt & enkelt", hint: "Klart på 20 minuter eller mindre" },
+  meal_prep: { label: "Mealprep", hint: "Matlådor: lagas i större sats (4–6 portioner) och håller 3–4 dagar i kylen" },
 }
 
 export const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"]

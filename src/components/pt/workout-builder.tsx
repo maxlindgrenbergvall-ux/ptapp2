@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { ArrowDown, ArrowUp, Copy, Dumbbell, GripVertical, ListOrdered, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, Dumbbell, FilePlus2, LayoutTemplate, GripVertical, ListOrdered, Loader2, Plus, Save, Search, Send, Trash2, Upload, Video } from "lucide-react"
 import * as React from "react"
 import { sv } from "react-day-picker/locale"
 import { toast } from "sonner"
@@ -25,6 +25,7 @@ import { toast } from "sonner"
 import { EmptyState, PageHeader } from "@/components/common"
 import { AddCustomExerciseButton, CustomBadge, MUSCLE_GROUPS } from "@/components/exercises/custom-exercise-dialog"
 import { VideoEmbed } from "@/components/video-embed"
+import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -38,6 +39,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
@@ -56,6 +65,7 @@ import { parseVideo } from "@/lib/video"
 import { matchesExercise } from "@/lib/exercises/search"
 import { type ExerciseDraft, finalizeExercises, MAX_REST_SEC, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
 import { exerciseName } from "@/lib/data/selectors"
+import { copyExercises, myTemplates } from "@/lib/templates"
 import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutSection, WorkoutTemplate } from "@/types/domain"
 
 
@@ -64,7 +74,7 @@ type TemplateDraft = Omit<WorkoutTemplate, "exercises"> & { exercises: ExerciseD
 
 export function WorkoutBuilder() {
   const { data, actions, me } = useAppData()
-  const templates = data.templates.filter((t) => t.trainerId === me.id)
+  const templates = myTemplates(data, me.id)
   const [selectedId, setSelectedId] = React.useState<string | null>(templates[0]?.id ?? null)
   const [draft, setDraft] = React.useState<TemplateDraft | null>(() => templates[0] ?? null)
   const saved = templates.find((t) => t.id === draft?.id)
@@ -76,14 +86,15 @@ export function WorkoutBuilder() {
     setDraft(tpl)
   }
 
-  const createNew = async () => {
-    if (dirty && !(await confirmDialog({ title: "Skapa en ny mall?", description: "Du har osparade ändringar som försvinner.", confirmLabel: "Skapa ny" }))) return
+  /** Nytt pass – tomt eller med en mall som utgångspunkt ("Ny från mall"). Sparas först med Spara. */
+  const createNew = async (from?: WorkoutTemplate) => {
+    if (dirty && !(await confirmDialog({ title: "Skapa ett nytt pass?", description: "Du har osparade ändringar som försvinner.", confirmLabel: "Skapa nytt" }))) return
     const tpl: WorkoutTemplate = {
       id: actions.newId(),
       trainerId: me.id,
-      name: "Nytt pass",
-      description: "",
-      exercises: [],
+      name: from ? `${from.name} (ny)` : "Nytt pass",
+      description: from?.description ?? "",
+      exercises: from ? copyExercises(from.exercises, actions.newId) : [],
     }
     setSelectedId(tpl.id)
     setDraft(tpl)
@@ -126,9 +137,32 @@ export function WorkoutBuilder() {
         title="Passbyggare"
         description="Bygg mallar, dra för att ändra ordning och tilldela dem till klienter."
         actions={
-          <Button variant="outline" onClick={createNew}>
-            <Plus /> Ny mall
-          </Button>
+          templates.length ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" data-testid="new-workout-menu">
+                  <Plus /> Nytt pass <ChevronDown className="size-4 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-80 w-64 overflow-y-auto">
+                <DropdownMenuItem onSelect={() => createNew()}>
+                  <FilePlus2 /> Tomt pass
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Ny från mall</DropdownMenuLabel>
+                {templates.map((t) => (
+                  <DropdownMenuItem key={t.id} onSelect={() => createNew(t)}>
+                    <LayoutTemplate /> <span className="truncate">{t.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground tabular">{t.exercises.length}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="outline" onClick={() => createNew()}>
+              <Plus /> Nytt pass
+            </Button>
+          )
         }
       />
 
@@ -168,21 +202,21 @@ export function WorkoutBuilder() {
                 />
                 {dirty && <Badge variant="outline">Osparat</Badge>}
                 <div className="ml-auto flex flex-wrap gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Duplicera mall"
-                    onClick={() => {
+                  <SaveAsTemplateDialog
+                    size="sm"
+                    defaultName={saved ? `${draft.name.trim()} (kopia)` : draft.name.trim()}
+                    description={draft.description}
+                    disabled={draft.exercises.length === 0}
+                    getExercises={() => {
                       const tpl = finalize(draft)
-                      if (!tpl) return
-                      const copy = { ...tpl, id: actions.newId(), name: `${tpl.name} (kopia)` }
-                      actions.saveTemplate(copy)
-                      setSelectedId(copy.id)
-                      setDraft(copy)
+                      return tpl ? copyExercises(tpl.exercises, actions.newId) : null
                     }}
-                  >
-                    <Copy />
-                  </Button>
+                    onSaved={(tpl) => {
+                      // Den nya mallen öppnas; ett osparat utkast har nu sparats som mallen.
+                      setSelectedId(tpl.id)
+                      setDraft(tpl)
+                    }}
+                  />
                   {saved && (
                     <Button
                       variant="ghost"
@@ -227,7 +261,7 @@ export function WorkoutBuilder() {
             </CardContent>
           </Card>
         ) : (
-          <EmptyState icon={Dumbbell} title="Ingen mall vald" text="Skapa en ny mall för att komma igång." />
+          <EmptyState icon={Dumbbell} title="Ingen mall vald" text="Skapa ett nytt pass och spara det som mall för att komma igång." />
         )}
 
         {/* Övningsbank (desktop) */}

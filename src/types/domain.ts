@@ -316,7 +316,7 @@ export interface Recipe {
 }
 
 /** Träningsmål för recept (v25). */
-export type RecipeGoal = "high_protein" | "weight_loss" | "pre_workout" | "post_workout" | "quick_easy"
+export type RecipeGoal = "high_protein" | "weight_loss" | "pre_workout" | "post_workout" | "quick_easy" | "meal_prep"
 
 /** Kalorier och makron (gram). */
 export interface MacroTotals {

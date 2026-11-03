@@ -1,7 +1,8 @@
 // Genererar Coaviras receptbibliotek (v26) från src/lib/recipes/library-source.ts:
 //   - src/lib/recipes/library.json        (appen och demoläget)
 //   - supabase/recipe-photos.csv           (checklista för riktiga matfoton, ett per rätt)
-//   - seed-SQL i v26-migrationen           (mellan BEGIN/END LIBRARY SEED)
+//   - seed-SQL i den senaste biblioteksmigrationen (mellan BEGIN/END LIBRARY SEED).
+//     Äldre migrationer (v26, v28) är frysta – de har redan körts i produktion.
 // Makrona räknas ur livsmedelsbasen (samma värden som resten av appen).
 //   node scripts/gen-recipe-library.mjs
 import { createHash } from "node:crypto"
@@ -17,7 +18,8 @@ const { FOOD_LIBRARY } = jiti("./src/lib/food-library.ts")
 const { setAmount, pieceWeight, VOLUME_ML } = jiti("./src/lib/nutrition/meal-items.ts")
 const { suggestGoals, RECIPE_GOALS } = jiti("./src/lib/recipes/goals.ts")
 
-const MIGRATION = path.join(root, "supabase/migrations/20261108000000_v26_recipe_library.sql")
+// Hela biblioteket upsertas i den senaste migrationen som har en seed-sektion (v29: Mealprep).
+const MIGRATION = path.join(root, "supabase/migrations/20261111000000_v29_moderation_mealprep_templates.sql")
 const round1 = (n) => Math.round(n * 10) / 10
 
 /** Stabilt uuid (v5-format) ur receptets slug – samma id i JSON, SQL och favoriter. */
@@ -109,33 +111,17 @@ ${rows}
 on conflict (id) do update set
   slug = excluded.slug, name = excluded.name, servings = excluded.servings, total_minutes = excluded.total_minutes,
   goal_types = excluded.goal_types, items = excluded.items, steps = excluded.steps,
-  -- Uppladdade foton (set-recipe-images.mjs) skrivs inte över av en tom bild här.
-  image_url = coalesce(excluded.image_url, library_recipes.image_url),
+  -- Pexels-länkar uppdateras; foton som laddats upp till Storage (set-recipe-images.mjs) skrivs aldrig över.
+  image_url = case
+    when excluded.image_url is null then library_recipes.image_url
+    when library_recipes.image_url is null or library_recipes.image_url like 'https://images.pexels.com/%' then excluded.image_url
+    else library_recipes.image_url
+  end,
   nutrition = excluded.nutrition, updated_at = now();
 -- END LIBRARY SEED`
 const sql = fs.readFileSync(MIGRATION, "utf8")
+if (!sql.includes("-- END LIBRARY SEED")) throw new Error(`Seed-sektionen saknas i ${MIGRATION}`)
 fs.writeFileSync(MIGRATION, sql.replace(/-- BEGIN LIBRARY SEED[\s\S]*?-- END LIBRARY SEED/, seed))
-
-// v28: fotolänkarna som egen migration – för databaser där v26 redan körts.
-// Skriver aldrig över ett foto som laddats upp till Storage (set-recipe-images.mjs).
-const photoUpdates = recipes
-  .filter((r) => r.imageUrl && /^https:\/\/images\.pexels\.com\//.test(r.imageUrl))
-  .map((r) => `update library_recipes set image_url = ${q(r.imageUrl)}, updated_at = now()\n  where slug = ${q(r.slug)} and (image_url is null or image_url like 'https://images.pexels.com/%');`)
-  .join("\n")
-fs.writeFileSync(
-  path.join(root, "supabase/migrations/20261110000000_v28_recipe_photos.sql"),
-  `-- ============================================================================
--- v28: riktiga matfoton i receptbiblioteket (Pexels, fri licens även för
--- kommersiellt bruk). Varje foto är granskat för att visa just den rätten;
--- rätter utan ett tillräckligt likt foto får ingen bild (appen visar då en
--- neutral reservbild). Foton som laddats upp till Storage skrivs inte över.
---
--- Genererad av scripts/gen-recipe-library.mjs. Körs efter v27. Kan köras om.
--- ============================================================================
-
-${photoUpdates}
-`
-)
 
 console.log(`${recipes.length} recept → library.json, fotolista i supabase/recipe-photos.csv, SQL i ${path.relative(root, MIGRATION)}`)
 for (const r of recipes) console.log(`  ${String(r.nutrition.kcal).padStart(4)} kcal P${String(r.nutrition.protein).padStart(5)} K${String(r.nutrition.carbs).padStart(5)} F${String(r.nutrition.fat).padStart(5)}  ${r.name}  [${r.goalTypes.join(", ")}]`)

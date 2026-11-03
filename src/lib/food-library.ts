@@ -111,6 +111,7 @@ const ROWS: Row[] = [
   ["Svarta bönor (kokta)", "Vegetariskt protein", 130, 8.5, 18, 0.5, 100],
   ["Kidneybönor (kokta)", "Vegetariskt protein", 115, 8, 16, 0.5, 100],
   ["Röda linser (kokta)", "Vegetariskt protein", 115, 9, 17, 0.4, 100, "linser"],
+  ["Gröna linser (kokta)", "Vegetariskt protein", 112, 9, 16, 0.5, 100, "linser bruna belugalinser"],
   ["Gröna ärtor", "Vegetariskt protein", 75, 5.5, 9, 0.4, 100, "ärter frysta"],
   ["Edamamebönor", "Vegetariskt protein", 125, 11, 5, 5, 100, "sojabönor"],
   ["Hummus", "Vegetariskt protein", 260, 7, 12, 19, 30],
@@ -225,6 +226,7 @@ const ROWS: Row[] = [
   ["Bearnaisesås", "Fett & såser", 560, 1, 3, 60, 30],
   ["Tzatziki", "Fett & såser", 90, 3.5, 4, 6.5, 30],
   ["Guacamole", "Fett & såser", 160, 2, 6, 14, 30],
+  ["Oliver (svarta)", "Fett & såser", 120, 1, 3, 11, 30, "oliv"],
   ["Salladsdressing (vinägrett)", "Fett & såser", 300, 0.3, 8, 30, 15, "dressing"],
   // --- Drycker
   ["Apelsinjuice", "Drycker", 45, 0.7, 10, 0.2, 200, "juice"],

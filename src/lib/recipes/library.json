@@ -7,7 +7,8 @@
   "totalMinutes": 30,
   "goalTypes": [
    "high_protein",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": "https://images.pexels.com/photos/1860208/pexels-photo-1860208.jpeg?auto=compress&cs=tinysrgb&w=1200",
   "items": [
@@ -140,7 +141,8 @@
    "Skär kycklingen i bitar och stek den gyllene i oljan, ca 6–8 minuter.",
    "Tillsätt pressad vitlök, ingefära och sojasås och låt det fräsa en minut.",
    "Ånga eller koka broccolin 3–4 minuter.",
-   "Fördela ris, kyckling och broccoli i skålar och strö över sesamfrön."
+   "Fördela ris, kyckling och broccoli och strö över sesamfrön.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 533,
@@ -157,7 +159,8 @@
   "totalMinutes": 30,
   "goalTypes": [
    "high_protein",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": "https://images.pexels.com/photos/128408/pexels-photo-128408.jpeg?auto=compress&cs=tinysrgb&w=1200",
   "items": [
@@ -315,7 +318,8 @@
    "Bryn färsen i oljan, tillsätt lök, vitlök och morot och fräs 3 minuter.",
    "Häll i krossade tomater och oregano och låt sjuda 15 minuter. Smaka av med salt och peppar.",
    "Koka pastan under tiden.",
-   "Servera såsen över pastan och riv parmesan på toppen."
+   "Servera såsen över pastan och riv parmesan på toppen.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 550,
@@ -964,7 +968,8 @@
   "totalMinutes": 35,
   "goalTypes": [
    "high_protein",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": "https://images.pexels.com/photos/2474661/pexels-photo-2474661.jpeg?auto=compress&cs=tinysrgb&w=1200",
   "items": [
@@ -1105,7 +1110,8 @@
    "Fräs hackad lök och vitlök i oljan, tillsätt resten av kryddan.",
    "Lägg i kycklingen och bryn 5 minuter.",
    "Häll i krossade tomater och låt sjuda 15 minuter. Rör ner resten av yoghurten.",
-   "Servera med ris och koriander."
+   "Servera med ris och koriander.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 484,
@@ -2679,22 +2685,23 @@
   "id": "7287a2dc-21fd-56ed-a89d-74d65995979a",
   "slug": "ugnskyckling-haricots-potatis",
   "name": "Ugnsbakad kyckling med haricots verts och potatis",
-  "servings": 2,
+  "servings": 4,
   "totalMinutes": 30,
   "goalTypes": [
    "high_protein",
    "weight_loss",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": "https://images.pexels.com/photos/2338407/pexels-photo-2338407.jpeg?auto=compress&cs=tinysrgb&w=1200",
   "items": [
    {
     "name": "Kycklingfilé",
-    "grams": 300,
-    "kcal": 330,
-    "protein": 69,
+    "grams": 600,
+    "kcal": 660,
+    "protein": 138,
     "carbs": 0,
-    "fat": 4.5,
+    "fat": 9,
     "per100": {
      "kcal": 110,
      "protein": 23,
@@ -2705,11 +2712,11 @@
    },
    {
     "name": "Haricots verts",
-    "grams": 300,
-    "kcal": 90,
-    "protein": 5.4,
-    "carbs": 13.5,
-    "fat": 0.6,
+    "grams": 600,
+    "kcal": 180,
+    "protein": 10.8,
+    "carbs": 27,
+    "fat": 1.2,
     "per100": {
      "kcal": 30,
      "protein": 1.8,
@@ -2720,11 +2727,11 @@
    },
    {
     "name": "Potatis (kokt)",
-    "grams": 300,
-    "kcal": 231,
-    "protein": 6,
-    "carbs": 51,
-    "fat": 0.3,
+    "grams": 600,
+    "kcal": 462,
+    "protein": 12,
+    "carbs": 102,
+    "fat": 0.6,
     "per100": {
      "kcal": 77,
      "protein": 2,
@@ -2735,11 +2742,11 @@
    },
    {
     "name": "Olivolja",
-    "grams": 14,
-    "kcal": 124,
+    "grams": 28,
+    "kcal": 248,
     "protein": 0,
     "carbs": 0,
-    "fat": 14,
+    "fat": 28,
     "per100": {
      "kcal": 884,
      "protein": 0,
@@ -2747,7 +2754,7 @@
      "fat": 100
     },
     "unit": "msk",
-    "qty": 1,
+    "qty": 2,
     "gPerMl": 0.92
    },
    {
@@ -2775,7 +2782,8 @@
    "Sätt ugnen på 200 °C.",
    "Lägg kyckling och potatisklyftor i en form, ringla över olja och krydda.",
    "Baka 20 minuter. Lägg i haricots verts de sista 8 minuterna.",
-   "Kontrollera att kycklingen är genomstekt och servera."
+   "Kontrollera att kycklingen är genomstekt och servera.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 388,
@@ -4562,21 +4570,22 @@
   "id": "f46722bf-05b3-5ca4-9323-464c91cd3c08",
   "slug": "burrito-bowl-svarta-bonor",
   "name": "Burrito bowl med svarta bönor",
-  "servings": 2,
+  "servings": 4,
   "totalMinutes": 25,
   "goalTypes": [
    "high_protein",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": "https://images.pexels.com/photos/2087748/pexels-photo-2087748.jpeg?auto=compress&cs=tinysrgb&w=1200",
   "items": [
    {
     "name": "Nötfärs 5 %",
-    "grams": 250,
-    "kcal": 325,
-    "protein": 52.5,
+    "grams": 500,
+    "kcal": 650,
+    "protein": 105,
     "carbs": 0,
-    "fat": 12.5,
+    "fat": 25,
     "per100": {
      "kcal": 130,
      "protein": 21,
@@ -4587,11 +4596,11 @@
    },
    {
     "name": "Fullkornsris (kokt)",
-    "grams": 300,
-    "kcal": 375,
-    "protein": 8.4,
-    "carbs": 75,
-    "fat": 3,
+    "grams": 600,
+    "kcal": 750,
+    "protein": 16.8,
+    "carbs": 150,
+    "fat": 6,
     "per100": {
      "kcal": 125,
      "protein": 2.8,
@@ -4602,11 +4611,11 @@
    },
    {
     "name": "Svarta bönor (kokta)",
-    "grams": 150,
-    "kcal": 195,
-    "protein": 12.8,
-    "carbs": 27,
-    "fat": 0.8,
+    "grams": 300,
+    "kcal": 390,
+    "protein": 25.5,
+    "carbs": 54,
+    "fat": 1.5,
     "per100": {
      "kcal": 130,
      "protein": 8.5,
@@ -4617,11 +4626,11 @@
    },
    {
     "name": "Majs (konserv)",
-    "grams": 100,
-    "kcal": 85,
-    "protein": 2.8,
-    "carbs": 15,
-    "fat": 1.2,
+    "grams": 200,
+    "kcal": 170,
+    "protein": 5.6,
+    "carbs": 30,
+    "fat": 2.4,
     "per100": {
      "kcal": 85,
      "protein": 2.8,
@@ -4632,11 +4641,11 @@
    },
    {
     "name": "Tomat",
-    "grams": 100,
-    "kcal": 19,
-    "protein": 0.9,
-    "carbs": 3,
-    "fat": 0.3,
+    "grams": 200,
+    "kcal": 38,
+    "protein": 1.8,
+    "carbs": 6,
+    "fat": 0.6,
     "per100": {
      "kcal": 19,
      "protein": 0.9,
@@ -4645,15 +4654,15 @@
     },
     "pieceG": 100,
     "unit": "st",
-    "qty": 1
+    "qty": 2
    },
    {
     "name": "Avokado",
-    "grams": 70,
-    "kcal": 112,
-    "protein": 1.4,
-    "carbs": 1.4,
-    "fat": 10.5,
+    "grams": 140,
+    "kcal": 224,
+    "protein": 2.8,
+    "carbs": 2.8,
+    "fat": 21,
     "per100": {
      "kcal": 160,
      "protein": 2,
@@ -4662,7 +4671,7 @@
     },
     "pieceG": 140,
     "unit": "st",
-    "qty": 0.5
+    "qty": 1
    },
    {
     "name": "Tacokrydda",
@@ -4679,13 +4688,14 @@
    "Bryn färsen med tacokryddan.",
    "Värm ris, bönor och majs.",
    "Tärna tomat och avokado.",
-   "Bygg skålar med allt och servera."
+   "Bygg skålar med allt och servera.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 556,
    "protein": 39.4,
    "carbs": 60.7,
-   "fat": 14.2
+   "fat": 14.1
   }
  },
  {
@@ -4814,7 +4824,8 @@
   "totalMinutes": 30,
   "goalTypes": [
    "pre_workout",
-   "post_workout"
+   "post_workout",
+   "meal_prep"
   ],
   "imageUrl": null,
   "items": [
@@ -4969,13 +4980,721 @@
    "Fräs lök och paprika i oljan med kryddorna.",
    "Tillsätt tomater, bönor och majs.",
    "Låt puttra 20 minuter.",
-   "Servera med ris."
+   "Servera med ris.",
+   "Fördela i matlådor och låt svalna innan locket sätts på. Håller 3–4 dagar i kylen eller 2 månader i frysen."
   ],
   "nutrition": {
    "kcal": 519,
    "protein": 21.5,
    "carbs": 85.7,
    "fat": 6
+  }
+ },
+ {
+  "id": "01c819d8-7381-5efc-a045-d7fb75d97c14",
+  "slug": "falafellador-ris-rotfrukter",
+  "name": "Falafellådor med ris, rostade rotfrukter och kikärtor",
+  "servings": 4,
+  "totalMinutes": 40,
+  "goalTypes": [
+   "meal_prep"
+  ],
+  "imageUrl": "https://images.pexels.com/photos/1640771/pexels-photo-1640771.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "items": [
+   {
+    "name": "Falafel",
+    "grams": 300,
+    "kcal": 990,
+    "protein": 39,
+    "carbs": 93,
+    "fat": 54,
+    "per100": {
+     "kcal": 330,
+     "protein": 13,
+     "carbs": 31,
+     "fat": 18
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Fullkornsris (kokt)",
+    "grams": 400,
+    "kcal": 500,
+    "protein": 11.2,
+    "carbs": 100,
+    "fat": 4,
+    "per100": {
+     "kcal": 125,
+     "protein": 2.8,
+     "carbs": 25,
+     "fat": 1
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Potatis (kokt)",
+    "grams": 300,
+    "kcal": 231,
+    "protein": 6,
+    "carbs": 51,
+    "fat": 0.3,
+    "per100": {
+     "kcal": 77,
+     "protein": 2,
+     "carbs": 17,
+     "fat": 0.1
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Morot",
+    "grams": 300,
+    "kcal": 111,
+    "protein": 2.4,
+    "carbs": 21,
+    "fat": 0.6,
+    "per100": {
+     "kcal": 37,
+     "protein": 0.8,
+     "carbs": 7,
+     "fat": 0.2
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Kikärtor (kokta)",
+    "grams": 200,
+    "kcal": 280,
+    "protein": 15,
+    "carbs": 36,
+    "fat": 5,
+    "per100": {
+     "kcal": 140,
+     "protein": 7.5,
+     "carbs": 18,
+     "fat": 2.5
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Paprika",
+    "grams": 300,
+    "kcal": 84,
+    "protein": 3,
+    "carbs": 15,
+    "fat": 0.9,
+    "per100": {
+     "kcal": 28,
+     "protein": 1,
+     "carbs": 5,
+     "fat": 0.3
+    },
+    "pieceG": 150,
+    "unit": "st",
+    "qty": 2
+   },
+   {
+    "name": "Grönkål",
+    "grams": 100,
+    "kcal": 45,
+    "protein": 4,
+    "carbs": 4,
+    "fat": 0.8,
+    "per100": {
+     "kcal": 45,
+     "protein": 4,
+     "carbs": 4,
+     "fat": 0.8
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Olivolja",
+    "grams": 14,
+    "kcal": 124,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 14,
+    "per100": {
+     "kcal": 884,
+     "protein": 0,
+     "carbs": 0,
+     "fat": 100
+    },
+    "unit": "msk",
+    "qty": 1,
+    "gPerMl": 0.92
+   },
+   {
+    "name": "Spiskummin",
+    "unit": "tsk",
+    "qty": 1,
+    "grams": 5,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Salt och peppar",
+    "unit": "krm",
+    "qty": 1,
+    "grams": 1,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   }
+  ],
+  "steps": [
+   "Sätt ugnen på 220 °C.",
+   "Tärna potatis och morötter, vänd dem i hälften av oljan och spiskummin och rosta 25 minuter.",
+   "Värm falafeln i ugnen de sista 10 minuterna.",
+   "Strimla paprikan och massera grönkålen med resten av oljan och en nypa salt.",
+   "Fördela ris, rotfrukter, kikärtor, paprika, grönkål och falafel i fyra lådor.",
+   "Låt svalna innan locket sätts på. Håller 4 dagar i kylen."
+  ],
+  "nutrition": {
+   "kcal": 591,
+   "protein": 20.2,
+   "carbs": 80,
+   "fat": 19.9
+  }
+ },
+ {
+  "id": "ae9ba622-b901-5fdd-9478-364a1960778d",
+  "slug": "kikartscurry-ris-avokado-lador",
+  "name": "Kikärtscurry med fullkornsris och avokado",
+  "servings": 4,
+  "totalMinutes": 35,
+  "goalTypes": [
+   "meal_prep"
+  ],
+  "imageUrl": "https://images.pexels.com/photos/1640769/pexels-photo-1640769.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "items": [
+   {
+    "name": "Kikärtor (kokta)",
+    "grams": 500,
+    "kcal": 700,
+    "protein": 37.5,
+    "carbs": 90,
+    "fat": 12.5,
+    "per100": {
+     "kcal": 140,
+     "protein": 7.5,
+     "carbs": 18,
+     "fat": 2.5
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Gröna ärtor",
+    "grams": 200,
+    "kcal": 150,
+    "protein": 11,
+    "carbs": 18,
+    "fat": 0.8,
+    "per100": {
+     "kcal": 75,
+     "protein": 5.5,
+     "carbs": 9,
+     "fat": 0.4
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Krossade tomater",
+    "grams": 400,
+    "kcal": 100,
+    "protein": 4.8,
+    "carbs": 16,
+    "fat": 0.8,
+    "per100": {
+     "kcal": 25,
+     "protein": 1.2,
+     "carbs": 4,
+     "fat": 0.2
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Kokosmjölk",
+    "grams": 200,
+    "kcal": 360,
+    "protein": 3,
+    "carbs": 6,
+    "fat": 36,
+    "per100": {
+     "kcal": 180,
+     "protein": 1.5,
+     "carbs": 3,
+     "fat": 18
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Lök (gul)",
+    "grams": 80,
+    "kcal": 30,
+    "protein": 0.9,
+    "carbs": 6,
+    "fat": 0.1,
+    "per100": {
+     "kcal": 38,
+     "protein": 1.1,
+     "carbs": 7.5,
+     "fat": 0.1
+    },
+    "pieceG": 80,
+    "unit": "st",
+    "qty": 1
+   },
+   {
+    "name": "Vitlök",
+    "grams": 10,
+    "kcal": 13,
+    "protein": 0.6,
+    "carbs": 2.6,
+    "fat": 0.1,
+    "per100": {
+     "kcal": 130,
+     "protein": 6,
+     "carbs": 26,
+     "fat": 0.5
+    },
+    "pieceG": 5,
+    "unit": "st",
+    "qty": 2
+   },
+   {
+    "name": "Fullkornsris (kokt)",
+    "grams": 600,
+    "kcal": 750,
+    "protein": 16.8,
+    "carbs": 150,
+    "fat": 6,
+    "per100": {
+     "kcal": 125,
+     "protein": 2.8,
+     "carbs": 25,
+     "fat": 1
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Avokado",
+    "grams": 140,
+    "kcal": 224,
+    "protein": 2.8,
+    "carbs": 2.8,
+    "fat": 21,
+    "per100": {
+     "kcal": 160,
+     "protein": 2,
+     "carbs": 2,
+     "fat": 15
+    },
+    "pieceG": 140,
+    "unit": "st",
+    "qty": 1
+   },
+   {
+    "name": "Rapsolja",
+    "grams": 14,
+    "kcal": 124,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 14,
+    "per100": {
+     "kcal": 884,
+     "protein": 0,
+     "carbs": 0,
+     "fat": 100
+    },
+    "unit": "msk",
+    "qty": 1,
+    "gPerMl": 0.92
+   },
+   {
+    "name": "Currypulver",
+    "unit": "msk",
+    "qty": 1,
+    "grams": 15,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Lime",
+    "unit": "st",
+    "qty": 1,
+    "grams": 0,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Färsk koriander",
+    "unit": "msk",
+    "qty": 2,
+    "grams": 30,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   }
+  ],
+  "steps": [
+   "Hacka lök och vitlök och fräs dem mjuka i oljan med currypulvret.",
+   "Tillsätt krossade tomater, kokosmjölk och 300 g av kikärtorna och låt sjuda 15 minuter.",
+   "Rör ned ärtorna de sista 3 minuterna och smaka av med salt och lime.",
+   "Fördela ris, curry och resten av kikärtorna i fyra lådor.",
+   "Låt svalna och ställ i kylen (4 dagar). Skiva avokado och toppa med koriander och lime samma dag du äter."
+  ],
+  "nutrition": {
+   "kcal": 613,
+   "protein": 19.3,
+   "carbs": 72.9,
+   "fat": 22.8
+  }
+ },
+ {
+  "id": "f583be1a-d48c-5866-80bb-54e0e533554d",
+  "slug": "linslador-ris-majs-oliver",
+  "name": "Linslådor med rött ris, majs och oliver",
+  "servings": 4,
+  "totalMinutes": 35,
+  "goalTypes": [
+   "meal_prep"
+  ],
+  "imageUrl": "https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "items": [
+   {
+    "name": "Gröna linser (kokta)",
+    "grams": 400,
+    "kcal": 448,
+    "protein": 36,
+    "carbs": 64,
+    "fat": 2,
+    "per100": {
+     "kcal": 112,
+     "protein": 9,
+     "carbs": 16,
+     "fat": 0.5
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Fullkornsris (kokt)",
+    "grams": 500,
+    "kcal": 625,
+    "protein": 14,
+    "carbs": 125,
+    "fat": 5,
+    "per100": {
+     "kcal": 125,
+     "protein": 2.8,
+     "carbs": 25,
+     "fat": 1
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Majs (konserv)",
+    "grams": 250,
+    "kcal": 213,
+    "protein": 7,
+    "carbs": 37.5,
+    "fat": 3,
+    "per100": {
+     "kcal": 85,
+     "protein": 2.8,
+     "carbs": 15,
+     "fat": 1.2
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Oliver (svarta)",
+    "grams": 100,
+    "kcal": 120,
+    "protein": 1,
+    "carbs": 3,
+    "fat": 11,
+    "per100": {
+     "kcal": 120,
+     "protein": 1,
+     "carbs": 3,
+     "fat": 11
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Gurka",
+    "grams": 200,
+    "kcal": 24,
+    "protein": 1.2,
+    "carbs": 4,
+    "fat": 0.2,
+    "per100": {
+     "kcal": 12,
+     "protein": 0.6,
+     "carbs": 2,
+     "fat": 0.1
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Körsbärstomater",
+    "grams": 250,
+    "kcal": 60,
+    "protein": 2.5,
+    "carbs": 10,
+    "fat": 0.8,
+    "per100": {
+     "kcal": 24,
+     "protein": 1,
+     "carbs": 4,
+     "fat": 0.3
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Olivolja",
+    "grams": 28,
+    "kcal": 248,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 28,
+    "per100": {
+     "kcal": 884,
+     "protein": 0,
+     "carbs": 0,
+     "fat": 100
+    },
+    "unit": "msk",
+    "qty": 2,
+    "gPerMl": 0.92
+   },
+   {
+    "name": "Salladslök",
+    "unit": "st",
+    "qty": 2,
+    "grams": 0,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Citron",
+    "unit": "st",
+    "qty": 1,
+    "grams": 0,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Salt och peppar",
+    "unit": "krm",
+    "qty": 1,
+    "grams": 1,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   }
+  ],
+  "steps": [
+   "Koka riset (gärna rött eller svart ris) och linserna om de inte är färdigkokta. Låt svalna.",
+   "Vänd linserna med olivolja, citronsaft, salt och peppar.",
+   "Tärna gurkan, halvera tomaterna och skiva oliver och salladslök.",
+   "Lägg ris, linser, majs, oliver, gurka och tomater i rader i fyra lådor.",
+   "Håller 4 dagar i kylen. Äts kall eller ljummen."
+  ],
+  "nutrition": {
+   "kcal": 435,
+   "protein": 15.4,
+   "carbs": 60.9,
+   "fat": 12.5
+  }
+ },
+ {
+  "id": "cfbbdb5a-91b2-5bb5-bd77-1ea2c97befa8",
+  "slug": "quinoasallad-i-burk-svamp-kikartor",
+  "name": "Quinoasallad i burk med champinjoner och kikärtor",
+  "servings": 4,
+  "totalMinutes": 30,
+  "goalTypes": [
+   "meal_prep"
+  ],
+  "imageUrl": "https://images.pexels.com/photos/1640767/pexels-photo-1640767.jpeg?auto=compress&cs=tinysrgb&w=1200",
+  "items": [
+   {
+    "name": "Quinoa (kokt)",
+    "grams": 600,
+    "kcal": 720,
+    "protein": 26.4,
+    "carbs": 126,
+    "fat": 11.4,
+    "per100": {
+     "kcal": 120,
+     "protein": 4.4,
+     "carbs": 21,
+     "fat": 1.9
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Kikärtor (kokta)",
+    "grams": 400,
+    "kcal": 560,
+    "protein": 30,
+    "carbs": 72,
+    "fat": 10,
+    "per100": {
+     "kcal": 140,
+     "protein": 7.5,
+     "carbs": 18,
+     "fat": 2.5
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Champinjoner",
+    "grams": 300,
+    "kcal": 72,
+    "protein": 9,
+    "carbs": 4.5,
+    "fat": 0.9,
+    "per100": {
+     "kcal": 24,
+     "protein": 3,
+     "carbs": 1.5,
+     "fat": 0.3
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Zucchini",
+    "grams": 150,
+    "kcal": 26,
+    "protein": 1.8,
+    "carbs": 3.8,
+    "fat": 0.5,
+    "per100": {
+     "kcal": 17,
+     "protein": 1.2,
+     "carbs": 2.5,
+     "fat": 0.3
+    },
+    "pieceG": 150,
+    "unit": "st",
+    "qty": 1
+   },
+   {
+    "name": "Paprika",
+    "grams": 150,
+    "kcal": 42,
+    "protein": 1.5,
+    "carbs": 7.5,
+    "fat": 0.5,
+    "per100": {
+     "kcal": 28,
+     "protein": 1,
+     "carbs": 5,
+     "fat": 0.3
+    },
+    "pieceG": 150,
+    "unit": "st",
+    "qty": 1
+   },
+   {
+    "name": "Rödlök",
+    "grams": 80,
+    "kcal": 32,
+    "protein": 0.9,
+    "carbs": 6.4,
+    "fat": 0.1,
+    "per100": {
+     "kcal": 40,
+     "protein": 1.1,
+     "carbs": 8,
+     "fat": 0.1
+    },
+    "pieceG": 80,
+    "unit": "st",
+    "qty": 1
+   },
+   {
+    "name": "Körsbärstomater",
+    "grams": 250,
+    "kcal": 60,
+    "protein": 2.5,
+    "carbs": 10,
+    "fat": 0.8,
+    "per100": {
+     "kcal": 24,
+     "protein": 1,
+     "carbs": 4,
+     "fat": 0.3
+    },
+    "unit": "g"
+   },
+   {
+    "name": "Olivolja",
+    "grams": 41,
+    "kcal": 362,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 41,
+    "per100": {
+     "kcal": 884,
+     "protein": 0,
+     "carbs": 0,
+     "fat": 100
+    },
+    "unit": "msk",
+    "qty": 3,
+    "gPerMl": 0.92
+   },
+   {
+    "name": "Citron",
+    "unit": "st",
+    "qty": 1,
+    "grams": 0,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   },
+   {
+    "name": "Färsk basilika",
+    "unit": "msk",
+    "qty": 2,
+    "grams": 30,
+    "kcal": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+   }
+  ],
+  "steps": [
+   "Skiva champinjonerna och stek dem gyllene i 1 msk olja.",
+   "Tärna zucchini, paprika och rödlök och fräs dem 5 minuter i 1 msk olja.",
+   "Vispa resten av oljan med citronsaft, salt och peppar och lägg dressingen i botten av fyra burkar.",
+   "Fyll på i lager: kikärtor, grönsaker, quinoa, svamp och överst tomater och basilika.",
+   "Skruva på locken. Håller 4 dagar i kylen – skaka eller häll upp i en skål när du ska äta."
+  ],
+  "nutrition": {
+   "kcal": 469,
+   "protein": 18,
+   "carbs": 57.6,
+   "fat": 16.3
   }
  }
 ]

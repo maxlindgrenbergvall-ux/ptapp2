@@ -259,6 +259,18 @@ http.createServer(async (req, res) => {
   const auth = req.headers.authorization?.split(" ")[1]
   let uid = null
   try { uid = JSON.parse(Buffer.from(auth.split(".")[1], "base64url")).sub } catch {}
+  // v29: bildfiltret – servern (service role) laddar upp granskade bilder; webbläsaren får inte.
+  if (url.pathname.startsWith("/storage/v1/object/") && !url.pathname.startsWith("/storage/v1/object/list/") && (req.method === "POST" || req.method === "PUT")) {
+    const [bucket, ...rest] = url.pathname.slice("/storage/v1/object/".length).split("/")
+    const service = req.headers.authorization === `Bearer ${SERVICE_KEY}`
+    log.push({ method: req.method, table: `storage.upload.${bucket}`, body: { path: rest.join("/"), service, contentType: req.headers["content-type"], upsert: req.headers["x-upsert"] } })
+    if (!service) return send(403, { statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" })
+    return send(200, { Key: `${bucket}/${rest.join("/")}`, Id: "obj-1" })
+  }
+  if (url.pathname === "/rest/v1/rpc/can_access_client") {
+    const p = JSON.parse(body || "{}")
+    return send(200, Boolean(uid) && p.p_client === uid)
+  }
   // v20: kontoradering – servern (service role) listar och tar bort filer och raderar användaren.
   if (url.pathname.startsWith("/storage/v1/object/list/")) {
     if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(403, { message: "permission denied" })
@@ -396,6 +408,12 @@ http.createServer(async (req, res) => {
       }
       return send(200, null)
     }
+  }
+  // v29: servern (service role) loggar stoppade/flaggade bilder.
+  if (url.pathname === "/rest/v1/moderation_events" && req.method === "POST") {
+    if (req.headers.authorization !== `Bearer ${SERVICE_KEY}`) return send(403, { code: "42501", message: "permission denied for table moderation_events" })
+    log.push({ method: "POST", table: "moderation_events", body: JSON.parse(body || "{}") })
+    return send(201, [])
   }
   const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?([a-z_]+)$/)
   if (m) {

@@ -45,7 +45,8 @@ npm run dev                  # http://localhost:3000
    26. `supabase/migrations/20261108000000_v26_recipe_library.sql`. Coaviras färdiga receptbibliotek (`library_recipes`, 40 recept med makron, bilder, tid, metriska ingredienser och steg – läsbart för inloggade, ingen kan skriva), favoriter för både biblioteks- och egna recept och `food_entries.library_recipe_id`. Kan köras om.
    27. `supabase/migrations/20261109000000_v27_recipe_photos.sql`. Tar bort de illustrerade receptbilderna och skapar bucketen `recipe-images` (publik läsning, max 2 MB) för riktiga matfoton.
    28. `supabase/migrations/20261110000000_v28_recipe_photos.sql`. Riktiga matfoton (Pexels) för 34 av 40 biblioteksrecept. Skriver inte över foton som laddats upp till Storage.
-   29. `supabase/seed.sql`
+   29. `supabase/migrations/20261111000000_v29_moderation_mealprep_templates.sql`. Bildfiltret (tabellen `moderation_events`, inga direkta bilduppladdningar till `avatars`/`chat-attachments`), receptkategorin `meal_prep` med hela biblioteket (44 recept) och klienternas passmallar (`workout_templates.client_id`).
+   30. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -571,6 +572,28 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v29: bildfilter, Mealprep och passmallar
+
+- **Bildfilter.** Profilbilder och bilder i chatten granskas på servern innan de sparas (`/api/uploads/image`). Granskningen använder [nsfwjs](https://github.com/infinitered/nsfwjs) (MobileNetV2, MIT-licens), som körs i Node med TensorFlow.js. Ingen tredje part ser bilderna. Bedömningen tar ungefär 1 s, plus ungefär 1 s första gången modellen laddas.
+  - **Stoppas** (svar 422 med ett vänligt felmeddelande): `Porn` ≥ 0,7, `Hentai` ≥ 0,7 eller summan av dem ≥ 0,8.
+  - **Flaggas** (sparas men loggas): `Porn`/`Hentai` ≥ 0,4 eller `Sexy` ≥ 0,95. Klassen `Sexy` stoppar aldrig ensam, eftersom vanliga porträtt och träningsbilder kan få höga värden där.
+  - Händelserna loggas i `moderation_events`, som bara servern och administratören kan läsa.
+  - Kan bilden inte granskas sparas den inte (503, "fail closed").
+  - Servern kodar om bilden till WebP, så EXIF-data som GPS-position följer inte med. Bilden laddas upp med service role i användarens egen mapp.
+  - Storage-reglerna (v29) stoppar direkta bilduppladdningar från webbläsaren, så filtret går inte att kringgå. PDF och video i chatten laddas upp som förut.
+  - **E2E:** `MODERATION_TEST_BLOCK_COLOR=ff00ff` gör att en enfärgad magentabild räknas som olämplig. Variabeln ignoreras när `VERCEL_ENV=production`.
+- **Kostsökningen** stängs när man trycker utanför sökpanelen eller trycker Escape. "Logga recept" stängs vid tryck på bakgrunden.
+- **Mealprep** är en ny receptkategori.
+  - Fyra nya matlådor har granskade Pexels-foton som visar just de lådorna: falafellådor (1640771), kikärtscurry (1640769), linslådor (1640775) och quinoasallad i burk (1640767).
+  - Sex storkok har fått kategorin och en rad om hållbarhet: kycklingbowl med ris, bolognese, tikka masala, chili, ugnsbakad kyckling och burrito bowl.
+  - Generatorn skriver nu bibliotekets seed i v29-migrationen. v26 och v28 är frysta. Pexels-länkar uppdateras, men foton som laddats upp till Storage skrivs aldrig över.
+- **Passmallar.** Både PT:er och klienter kan spara ett pass som mall och läsa in det igen:
+  - **Spara som mall** i passvyn, för både genomförda och planerade pass. De vikter som faktiskt lyftes blir mallens startvikter.
+  - **Spara som mall** i Eget pass och i PT:ns passbyggare.
+  - Om en mall med samma namn redan finns erbjuds **Ersätt**.
+  - I Eget pass läses en mall in med ett tryck på dess chip. I passbyggaren finns **Nytt pass → Ny från mall**.
+  - En mall ägs av antingen en PT (`trainer_id`) eller en klient (`client_id`), aldrig båda. Den får innehålla högst 60 övningar.
+
 ## Nytt i v28: matfoton i receptbiblioteket
 
 - 34 av 40 recept har ett riktigt matfoto från Pexels (fri licens, även kommersiellt; ingen attribution krävs men pop-upen visar "Foto: Pexels" med länk). Varje foto är granskat för att visa just den rätten – sex rätter utan ett tillräckligt likt foto (riskakor med banan, energibollar, proteinshake, chili sin carne, salladswraps, havregrynsgröt) visar reservbilden tills ett eget foto laddas upp med `scripts/set-recipe-images.mjs`.
@@ -881,6 +904,8 @@ node e2e/v22-app-checkout.test.mjs # (demo) Vilotimer −15/+15 s, /app-retur, d
 node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.open med Klar, knappen släpper när vyn stängs
 node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
 node e2e/connect-onboarding-demo.test.mjs # (demo) PT-onboardingen med simulerad Stripe-koppling
+node e2e/v29-filter-mealprep-mallar.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Bildfiltret, kostsökningen stängs utanför, Mealprep, spara/läsa in mallar
+node e2e/v29-supabase.test.mjs  # (MODERATION_TEST_BLOCK_COLOR=ff00ff) Uppladdning via servern (WebP, egen mapp), moderation_events, chattbehörighet, klientmall med client_id
 node e2e/connect-onboarding.test.mjs # Supabase-läge: onboardingspärren, profil + Stripe Connect, callback, delad betalning, account.updated
 node scripts/check-secrets.mjs  # inga hemliga nycklar i .next/static (bygg först med hemligheterna satta)
 # Supabase-läget kör även mot e2e/mock-stripe.mjs (STRIPE_API_BASE=http://localhost:54500)

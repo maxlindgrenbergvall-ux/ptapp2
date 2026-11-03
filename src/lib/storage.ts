@@ -56,11 +56,15 @@ export function safeName(name: string) {
   return `${base || "fil"}${ext}`
 }
 
+/** Bilder som granskas av bildfiltret (v29): profilbilder och bilder i chatten. */
+const moderated = (bucket: Bucket, file: File) => bucket === "avatars" || (bucket === "chat-attachments" && file.type.startsWith("image/"))
+
 /** Laddar upp och returnerar en ref att spara i databasen. */
 export async function uploadFile(bucket: Bucket, path: string, file: File): Promise<string> {
   if (file.size > MAX_BYTES[bucket]) {
     throw new UploadError(`Filen är för stor (max ${formatBytes(MAX_BYTES[bucket])}).`)
   }
+  if (moderated(bucket, file)) return uploadImage(bucket as "avatars" | "chat-attachments", path, file)
   if (!isSupabaseEnabled) {
     // Demoläge: profilbilder som liten data-URL (överlever omladdning), övrigt som blob-URL.
     return bucket === "avatars" ? resizeImage(file, 256) : URL.createObjectURL(file)
@@ -84,6 +88,56 @@ export async function uploadFile(bucket: Bucket, path: string, file: File): Prom
     return `${sb.storage.from(bucket).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`
   }
   return `storage:${bucket}/${path}`
+}
+
+/**
+ * Bilder går via servern (/api/uploads/image): bildfiltret granskar dem innan
+ * de sparas, och servern skalar om och tar bort EXIF-data. Storage tillåter
+ * inte längre direkta bilduppladdningar till de här bucketarna (v29).
+ * Bilden skalas ner här först så att den ryms i en request (max 4 MB).
+ */
+async function uploadImage(bucket: "avatars" | "chat-attachments", path: string, file: File): Promise<string> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) throw new UploadError("Bilder kan bara skickas när du är online.")
+  const small = bucket === "avatars" ? await dataUrlToBlob(await resizeImage(file, 512)) : await scaleImage(file, 2048)
+  const form = new FormData()
+  form.set("file", small, "bild")
+  form.set("bucket", bucket)
+  if (bucket === "chat-attachments" && isSupabaseEnabled) form.set("path", path)
+  let res: Response
+  try {
+    res = await fetch("/api/uploads/image", { method: "POST", body: form })
+  } catch {
+    throw new UploadError("Bilden kunde inte skickas. Kontrollera uppkopplingen.")
+  }
+  const body = (await res.json().catch(() => ({}))) as { ref?: string; error?: string }
+  if (!res.ok) throw new UploadError(body.error ?? "Bilden kunde inte laddas upp.")
+  if (body.ref) return body.ref
+  // Demoläget: servern har bara granskat bilden – den sparas lokalt.
+  return bucket === "avatars" ? resizeImage(file, 256) : URL.createObjectURL(small)
+}
+
+/** Skalar ner en bild till högst `max` px på längsta sidan (behåller proportionerna). */
+function scaleImage(file: File, max: number): Promise<Blob> {
+  return new Promise((resolveImg, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const f = Math.min(1, max / Math.max(img.width, img.height))
+      const canvas = document.createElement("canvas")
+      canvas.width = Math.round(img.width * f)
+      canvas.height = Math.round(img.height * f)
+      const ctx = canvas.getContext("2d")
+      URL.revokeObjectURL(url)
+      if (!ctx) return reject(new UploadError("Bilden kunde inte läsas."))
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((b) => (b ? resolveImg(b) : reject(new UploadError("Bilden kunde inte läsas."))), "image/jpeg", 0.88)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new UploadError("Filen är ingen bild som går att läsa."))
+    }
+    img.src = url
+  })
 }
 
 // --------------------------------------------------- visning (signerad URL) ---

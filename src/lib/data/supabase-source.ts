@@ -136,7 +136,9 @@ interface SetLogRow {
 }
 interface TemplateRow {
   id: string
-  trainer_id: string
+  /** PT:ns mall – eller null när mallen är en klients egen (v29: client_id). */
+  trainer_id: string | null
+  client_id?: string | null
   name: string
   description: string
   exercises: WorkoutExercise[]
@@ -488,7 +490,8 @@ export const toWorkout = (r: WorkoutRow): ScheduledWorkout => ({
 
 const toTemplate = (r: TemplateRow): WorkoutTemplate => ({
   id: r.id,
-  trainerId: r.trainer_id,
+  // Ägaren: PT:n eller (v29) klienten som sparat passet som mall.
+  trainerId: r.trainer_id ?? r.client_id ?? "",
   name: r.name,
   description: r.description,
   exercises: r.exercises ?? [],
@@ -868,7 +871,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -881,6 +884,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("client_recipes").select("*").eq("client_id", uid).order("name"),
     // Stjärnmarkerade recept (v25). Saknas tabellen blir listan tom.
     sb.from("user_favorite_recipes").select("recipe_id").eq("user_id", uid),
+    // Egna passmallar (v29). Saknas kolumnen (v29 inte körd än) blir listan tom.
+    sb.from("workout_templates").select("*").eq("client_id", uid).order("name"),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -913,7 +918,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       trainers: must<TrainerRow[]>(trainers, "tränare").map((t) => toTrainer(t)),
       clients: [self],
       cart: must<CartRow[]>(cart, "varukorg").map(toCart),
-      templates: [],
+      templates: templates.error ? [] : ((templates.data ?? []) as TemplateRow[]).map(toTemplate),
       availabilityRules: [],
       recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
       favoriteRecipes: favorites.error ? [] : ((favorites.data ?? []) as { recipe_id: string }[]).map((f) => f.recipe_id),
@@ -1011,7 +1016,9 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       return result(
         sb.from("workout_templates").upsert({
           id: t.id,
-          trainer_id: me.id,
+          // En klients mall ägs av klienten (v29), en PT:s av PT:n – aldrig båda.
+          // (client_id skickas bara för klienter, så PT:ns mallar fungerar även före v29.)
+          ...(me.role === "client" ? { trainer_id: null, client_id: me.id } : { trainer_id: me.id }),
           name: t.name,
           description: t.description,
           exercises: t.exercises,

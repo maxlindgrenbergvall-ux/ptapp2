@@ -1,6 +1,6 @@
 "use client"
 
-import { ChefHat, Drumstick, Dumbbell, Salad, Star, Timer, Zap } from "lucide-react"
+import { ChefHat, Drumstick, Dumbbell, Package, Salad, Star, Timer, Zap } from "lucide-react"
 import * as React from "react"
 
 import { useAppData } from "@/lib/data/store"
@@ -58,6 +58,7 @@ const FALLBACK: Record<RecipeGoal | "none", { icon: React.ComponentType<{ classN
   pre_workout: { icon: Zap, tone: "from-amber-100 to-yellow-100 text-amber-700/70 dark:from-amber-950/60 dark:to-yellow-950/60 dark:text-amber-300/70" },
   post_workout: { icon: Dumbbell, tone: "from-sky-100 to-indigo-100 text-sky-700/70 dark:from-sky-950/60 dark:to-indigo-950/60 dark:text-sky-300/70" },
   quick_easy: { icon: Timer, tone: "from-violet-100 to-fuchsia-100 text-violet-700/70 dark:from-violet-950/60 dark:to-fuchsia-950/60 dark:text-violet-300/70" },
+  meal_prep: { icon: Package, tone: "from-teal-100 to-cyan-100 text-teal-700/70 dark:from-teal-950/60 dark:to-cyan-950/60 dark:text-teal-300/70" },
   none: { icon: ChefHat, tone: "from-muted to-muted/60 text-muted-foreground" },
 }
 

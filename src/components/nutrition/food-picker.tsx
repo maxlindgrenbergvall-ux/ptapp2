@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { forGrams, isValidBarcode, searchLibrary, searchProducts } from "@/lib/food-search"
 import { POPULAR_BRANDS } from "@/lib/swedish-brands"
 import { cn } from "@/lib/utils"
+import { useClickOutside } from "@/lib/use-click-outside"
 import { allowedUnits, densityOf, foodKind, KIND_UNITS, pieceWeight, VOLUME_ML } from "@/lib/nutrition/meal-items"
 import { MEAL_UNIT_LABEL, type FoodEntry, type FoodProduct, type FoodUnit, type MealUnit } from "@/types/domain"
 
@@ -44,6 +45,9 @@ export function FoodPicker({
   /** Lägg till egen produkt direkt från sökningen (namnet förifylls med frågan). */
   const [manual, setManual] = React.useState<string | null>(null)
   const online = useOnlineSearch(query)
+  // Sökpanelen stängs när man trycker utanför (ingen "Stäng"-knapp behövs).
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  useClickOutside(rootRef, () => setOpen(false), open)
 
   const q = query.trim()
   const mine = q ? searchProducts(q, customFoods, 5) : customFoods.slice(0, 5)
@@ -116,7 +120,7 @@ export function FoodPicker({
   const showPanel = open
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

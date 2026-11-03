@@ -83,6 +83,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Bildfiltret (v29): TensorFlow.js och nsfwjs körs som vanliga Node-paket på
+  // servern, och modellfilerna följer med till serverfunktionen.
+  serverExternalPackages: ["@tensorflow/tfjs", "nsfwjs"],
+  outputFileTracingIncludes: {
+    "/api/uploads/image": ["./node_modules/nsfwjs/dist/models/mobilenet_v2/**"],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

@@ -6,6 +6,8 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { AddCustomExerciseButton, CustomBadge } from "@/components/exercises/custom-exercise-dialog"
+import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
+import { TemplatePicker } from "@/components/workouts/template-picker"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -16,16 +18,20 @@ import { todayISO } from "@/lib/date"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
 import { matchesExercise } from "@/lib/exercises/search"
 import { type ExerciseDraft, finalizeExercises, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
+import { copyExercises, myTemplates } from "@/lib/templates"
 import { cn } from "@/lib/utils"
+import type { WorkoutTemplate } from "@/types/domain"
 
 /**
  * Klientens eget pass: välj övningar och logga dem i samma passvy som PT:ns
  * pass. Passet syns för klientens PT:er som underlag men räknas aldrig som
- * ett betalt pass.
+ * ett betalt pass. Passet kan sparas som mall och mallar läses in med ett tryck.
  */
 export function OwnWorkoutDialog({ className }: { className?: string }) {
-  const { data, actions } = useAppData()
+  const { data, actions, me } = useAppData()
   const router = useRouter()
+  const templates = myTemplates(data, me.id)
+  const [templateId, setTemplateId] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
   const [date, setDate] = React.useState(todayISO())
@@ -47,15 +53,32 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
     setDate(todayISO())
     setQ("")
     setItems([])
+    setTemplateId(null)
+  }
+
+  const loadTemplate = (tpl: WorkoutTemplate) => {
+    setTemplateId(tpl.id)
+    setName(tpl.name)
+    setItems(copyExercises(tpl.exercises, () => crypto.randomUUID()))
+  }
+
+  /** Utkastet som färdiga övningar (för "Spara som mall"), eller null med ett felmeddelande. */
+  const finalized = () => {
+    const result = finalizeExercises(items, (id) => data.exercises.find((x) => x.id === id)?.name ?? "övningen")
+    if ("error" in result) {
+      toast.error(result.error)
+      return null
+    }
+    return result.exercises
   }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!items.length) return toast.error("Lägg till minst en övning")
     // Fälten får vara tomma medan man skriver – kontrolleras först här.
-    const result = finalizeExercises(items, (id) => data.exercises.find((x) => x.id === id)?.name ?? "övningen")
-    if ("error" in result) return toast.error(result.error)
-    const id = actions.createOwnWorkout(name, date, result.exercises)
+    const exercises = finalized()
+    if (!exercises) return
+    const id = actions.createOwnWorkout(name, date, exercises)
     setOpen(false)
     reset()
     toast.success("Passet är skapat", { description: "Logga seten – dina PT:er ser passet som underlag." })
@@ -75,6 +98,7 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
             <DialogTitle>Eget pass</DialogTitle>
             <DialogDescription>Träna på egen hand och följ din utveckling. Dina PT:er ser passet som underlag.</DialogDescription>
           </DialogHeader>
+          <TemplatePicker templates={templates} activeId={templateId} onPick={loadTemplate} />
           <div className="grid grid-cols-[1fr_auto] gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="own-name">Namn</Label>
@@ -159,10 +183,16 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Avbryt
             </Button>
+            <SaveAsTemplateDialog
+              defaultName={name.trim() || "Mitt pass"}
+              getExercises={finalized}
+              disabled={!items.length}
+              onSaved={(t) => setTemplateId(t.id)}
+            />
             <Button type="submit" disabled={!items.length}>
               Starta passet
             </Button>

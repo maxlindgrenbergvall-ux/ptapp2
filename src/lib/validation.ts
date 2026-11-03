@@ -48,3 +48,14 @@ export const revenueCatWebhookBody = z.object({
     environment: z.string().max(32).nullish(),
   }),
 })
+
+/** Bilduppladdning (v29): vilken bucket och – för chattbilder – sökvägen {klient}/{meddelande}/{fil}. */
+const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+export const imageUploadFields = z.discriminatedUnion("bucket", [
+  z.object({ bucket: z.literal("avatars") }),
+  z.object({
+    bucket: z.literal("chat-attachments"),
+    // Krävs med Supabase (kontrolleras i routen); demoläget sparar inget på servern.
+    path: z.string().regex(new RegExp(`^${UUID_RE}/${UUID_RE}/[\\w.-]{1,90}$`, "i"), "Ogiltig sökväg").optional(),
+  }),
+])

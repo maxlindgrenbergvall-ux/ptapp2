@@ -186,7 +186,7 @@ await p.fill("#cx-weight", "60")
 await dlg.locator("button:has-text('Spara och lägg i passet')").click()
 await dlg.waitFor({ state: "detached" })
 await p.waitForSelector("text=Kedjeböj mot låda")
-await p.locator("button:has-text('Spara'):visible").first().click()
+await p.getByRole("button", { name: "Spara", exact: true }).first().click()
 await p.waitForSelector("text=Mallen är sparad")
 const d5 = await demo()
 const tpl = d5.templates[0]

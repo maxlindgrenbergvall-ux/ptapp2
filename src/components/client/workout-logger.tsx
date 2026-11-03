@@ -10,6 +10,7 @@ import { CompletedWorkoutEditor } from "@/components/client/completed-workout-ed
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
+import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -26,6 +27,7 @@ import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
 import { hasSetReps, repsLabel, targetRepsFor } from "@/lib/exercises/draft"
+import { exercisesFromWorkout } from "@/lib/templates"
 import { findLog, lastPerformance, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
@@ -247,6 +249,19 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           <Button size="lg" className="h-14 w-full bg-brand text-base text-brand-foreground hover:bg-brand/90" onClick={() => setFinishOpen(true)}>
             <Check /> Alla set klara – avsluta passet
           </Button>
+        )}
+        {!preview && workout.exercises.length > 0 && (
+          // Spara passet (med vikterna som faktiskt lyftes) som mall – klienten bland sina mallar, PT:n bland sina.
+          <div className="flex flex-col items-center gap-1 pt-2 text-center">
+            <SaveAsTemplateDialog
+              className="w-full sm:w-auto"
+              defaultName={workout.name}
+              getExercises={() => exercisesFromWorkout(workout, actions.newId)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {trainerMode ? "Återanvänd passet i passbyggaren." : "Läs in mallen nästa gång under Logga eget pass."}
+            </p>
+          </div>
         )}
       </div>
 
