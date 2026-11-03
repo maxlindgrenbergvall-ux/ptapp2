@@ -11,6 +11,7 @@ import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
 import { InterestChips, MetricsGrid } from "@/components/progress/metrics"
 import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
+import { GoalSummaryCard } from "@/components/goals/goal-summary-card"
 import { ClientStatusBadge, EmptyState, PersonAvatar, StatTile } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -140,6 +141,8 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         </TabsList>
 
         <TabsContent value="progress" className="grid gap-6 pt-2 lg:grid-cols-2">
+          {/* v30: mål, kalorimål och prognos från klientens intro-flöde. */}
+          <GoalSummaryCard clientId={client.id} className="lg:col-span-2" />
           {/* Klientens egna mål och mätpunkter (styrs av intressena klienten valt). */}
           <Card className="lg:col-span-2">
             <CardHeader>

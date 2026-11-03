@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Utensils } from "lucide-react"
+import { CalendarCheck, Check, ChevronRight, Dumbbell, Play, Search, Target, Utensils } from "lucide-react"
 import Link from "next/link"
 
 import { SleepTracker, WaterTracker } from "@/components/client/trackers"
@@ -47,6 +47,24 @@ export default function TodayPage() {
         <p className="text-sm text-muted-foreground">{formatDay(today)}</p>
         <h1 className="text-2xl font-bold tracking-tight">Hej {firstName(client.name)}!</h1>
       </div>
+
+      {/* v30: intro-flödet inte gjort (eller överhoppat) – en vänlig påminnelse, ingen spärr. */}
+      {!data.goalProfiles.some((g) => g.clientId === client.id) && (
+        <Link
+          href="/klient/intro"
+          className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10"
+          data-testid="goal-intro-banner"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Target className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Sätt upp dina mål</span>
+            <span className="block text-sm text-muted-foreground">Få ett personligt kalorimål och se din utveckling vecka för vecka.</span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+        </Link>
+      )}
 
       <ol className="grid grid-cols-7 gap-1" aria-label="Veckan">
         {week.map((d, i) => {

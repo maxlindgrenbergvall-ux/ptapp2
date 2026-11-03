@@ -35,6 +35,10 @@ import type {
   MealType,
   Recipe,
   RecipeGoal,
+  ActivityLevel,
+  GoalKey,
+  GoalProfile,
+  Sex,
   Review,
   ScheduledWorkout,
   SetLog,
@@ -133,6 +137,24 @@ interface SetLogRow {
   kg: number | string
   reps: number
   done: boolean
+}
+interface GoalRow {
+  client_id: string
+  goals: GoalKey[]
+  sex: Sex
+  birth_year: number
+  height_cm: number | string
+  start_weight_kg: number | string
+  current_weight_kg: number | string
+  target_weight_kg: number | string | null
+  activity_level: ActivityLevel
+  weekly_change_kg: number | string
+  started_at: string
+  target_kcal: number
+  target_protein_g: number
+  target_carbs_g: number
+  target_fat_g: number
+  updated_at?: string
 }
 interface TemplateRow {
   id: string
@@ -488,6 +510,22 @@ export const toWorkout = (r: WorkoutRow): ScheduledWorkout => ({
   clientComment: r.client_comment ?? undefined,
 })
 
+const toGoalProfile = (r: GoalRow): GoalProfile => ({
+  clientId: r.client_id,
+  goals: r.goals,
+  sex: r.sex,
+  birthYear: r.birth_year,
+  heightCm: Number(r.height_cm),
+  startWeightKg: Number(r.start_weight_kg),
+  currentWeightKg: Number(r.current_weight_kg),
+  targetWeightKg: r.target_weight_kg === null ? undefined : Number(r.target_weight_kg),
+  activity: r.activity_level,
+  weeklyChangeKg: Number(r.weekly_change_kg),
+  startedAt: r.started_at,
+  targets: { kcal: r.target_kcal, protein: r.target_protein_g, carbs: r.target_carbs_g, fat: r.target_fat_g },
+  updatedAt: r.updated_at,
+})
+
 const toTemplate = (r: TemplateRow): WorkoutTemplate => ({
   id: r.id,
   // Ägaren: PT:n eller (v29) klienten som sparat passet som mall.
@@ -809,7 +847,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   if (me.role === "trainer") {
-    const [self, rels, weights, templates, rules, recipes, ptMeals, invites] = await Promise.all([
+    const [self, rels, weights, templates, rules, recipes, ptMeals, invites, goals] = await Promise.all([
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
@@ -824,6 +862,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       sb.from("meal_checks").select("client_id, date, meal_id").gte("date", addDays(todayISO(), -30)),
       // PT:ns koder till befintliga klienter (RLS: bara egna).
       sb.from("pt_invites").select("*").order("created_at", { ascending: false }).limit(200),
+      // Klienternas mål och kalorimål (v30, RLS: bara aktiva klienter). Saknas tabellen blir listan tom.
+      sb.from("client_goals").select("*"),
     ])
     const relRowsPt = must<RelationshipRow[]>(rels, "klienter")
     const weightRows = must<{ client_id: string; date: string; kg: number | string }[]>(weights, "vikt")
@@ -849,6 +889,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         availabilityRules: must<RuleRow[]>(rules, "tillgänglighet").map(toRule),
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
         favoriteRecipes: [],
+        goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
         relationships: clients.map((c) => ({
           trainerId: uid,
           clientId: c.id,
@@ -871,7 +912,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates, goals] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -886,6 +927,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("user_favorite_recipes").select("recipe_id").eq("user_id", uid),
     // Egna passmallar (v29). Saknas kolumnen (v29 inte körd än) blir listan tom.
     sb.from("workout_templates").select("*").eq("client_id", uid).order("name"),
+    // Mål och kalorimål från intro-flödet (v30). Saknas tabellen blir listan tom.
+    sb.from("client_goals").select("*").eq("client_id", uid),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -922,6 +965,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       availabilityRules: [],
       recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
       favoriteRecipes: favorites.error ? [] : ((favorites.data ?? []) as { recipe_id: string }[]).map((f) => f.recipe_id),
+      goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
       relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
@@ -1308,6 +1352,28 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
     }
     case "deleteRecipe":
       return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
+    case "saveGoalProfile": {
+      const g = action.profile
+      return result(
+        sb.from("client_goals").upsert({
+          client_id: me.id,
+          goals: g.goals,
+          sex: g.sex,
+          birth_year: g.birthYear,
+          height_cm: g.heightCm,
+          start_weight_kg: g.startWeightKg,
+          current_weight_kg: g.currentWeightKg,
+          target_weight_kg: g.targetWeightKg ?? null,
+          activity_level: g.activity,
+          weekly_change_kg: g.weeklyChangeKg,
+          started_at: g.startedAt,
+          target_kcal: g.targets.kcal,
+          target_protein_g: g.targets.protein,
+          target_carbs_g: g.targets.carbs,
+          target_fat_g: g.targets.fat,
+        })
+      )
+    }
     case "setFavoriteRecipe":
       return result(
         action.favorite

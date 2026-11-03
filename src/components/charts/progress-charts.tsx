@@ -217,7 +217,7 @@ function isoWeek(date: string) {
 }
 
 /** Graf + valbar tabellvy (tillgänglighet: identitet och värden finns även som text). */
-function ChartFrame({
+export function ChartFrame({
   caption,
   table,
   children,

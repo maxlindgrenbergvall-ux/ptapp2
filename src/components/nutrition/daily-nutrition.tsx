@@ -65,6 +65,26 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
   const extras = data.foodEntries.filter((e) => e.clientId === clientId && e.date === date)
   const eaten = sumMacros([...(plan?.meals ?? []).filter((m) => checked.has(m.id)).flatMap((m) => m.items), ...extras])
   const targets = plan?.targets
+  // v30: utan kostschema från en PT gäller klientens eget, beräknade dagsmål (intro-flödet / Profil → Mål).
+  const ownTargets = !targets ? data.goalProfiles.find((g) => g.clientId === clientId)?.targets : undefined
+  const ownGoal = ownTargets && (
+    <div className="space-y-4" data-testid="own-nutrition-goal">
+      <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{trainerView ? "Klientens beräknade dagsmål (från målen)" : "Ditt beräknade dagsmål"}</span>
+        {!trainerView && (
+          <Link href="/klient/profil/mal" className="font-medium text-primary underline-offset-4 hover:underline">
+            Ändra mål
+          </Link>
+        )}
+      </p>
+      <KcalMeter value={eaten.kcal} target={ownTargets.kcal} />
+      <div className="space-y-3">
+        {MACROS.map((m) => (
+          <MacroTargetRow key={m.key} macro={m.key} value={eaten[m.key]} target={ownTargets[m.key]} />
+        ))}
+      </div>
+    </div>
+  )
   const planOwner = plan ? data.trainers.find((t) => t.id === plan.trainerId)?.name : undefined
 
   return (
@@ -82,8 +102,8 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
       </div>
       {!trainerView && (plans.length > 1 || (plans.length === 1 && !plan)) && <PlanChooser plans={plans} current={plan?.id ?? null} />}
       {locked ? (
-        // Ingen kostcoaching: ren och snabb loggning – ingen betalvägg i vägen.
-        <DaySummary kcal={eaten.kcal} macros={eaten} />
+        // Ingen kostcoaching: ren och snabb loggning mot det egna dagsmålet – ingen betalvägg i vägen.
+        (ownGoal ?? <DaySummary kcal={eaten.kcal} macros={eaten} />)
       ) : targets ? (
         <>
           {trainerView && planOwner && (
@@ -98,6 +118,8 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
             ))}
           </div>
         </>
+      ) : ownGoal ? (
+        ownGoal
       ) : (
         <p className="text-sm text-muted-foreground">
           {trainerView

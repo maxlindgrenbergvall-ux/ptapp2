@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, Gift, Home, LogOut, Plug, RotateCcw, Settings, ShieldCheck, Sparkles, UserRound } from "lucide-react"
+import { ChevronDown, Gift, Home, LogOut, Plug, RotateCcw, Settings, ShieldCheck, Sparkles, Target, UserRound } from "lucide-react"
 import Link from "next/link"
 
 import { BrandMark } from "@/components/brand"
@@ -28,6 +28,7 @@ export function appMenuLinks(role: "client" | "trainer") {
       hint: role === "trainer" ? "Profil, utbud och tjänster" : "Intressen, mål och personuppgifter",
       icon: UserRound,
     },
+    ...(role === "client" ? [{ href: "/klient/profil/mal", label: "Mål", hint: "Kalorimål, takt och prognos", icon: Target }] : []),
     { href: `${base}/sekretess`, label: "Min data och sekretess", icon: ShieldCheck },
     {
       href: `${base}/anslutningar`,

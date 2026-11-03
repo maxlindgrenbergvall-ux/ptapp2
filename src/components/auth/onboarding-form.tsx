@@ -21,6 +21,9 @@ import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 import { START_PATH } from "@/lib/site"
 
+/** Intro-flödet efter välkomststeget (v30). */
+const GOAL_INTRO_PATH = "/klient/intro"
+
 /**
  * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta namn
  * och telefon och lämna samtycke till hälsodata. Självregistrerade konton blir
@@ -90,8 +93,8 @@ export function OnboardingForm() {
     if (pt && !PT_INVITE_CODE.test(pt)) return setError("PT:ns kod ser ut så här: EX-8FK29A. Lämna fältet tomt om du saknar kod.")
 
     if (!isSupabaseEnabled) {
-      // Demoläge: gå till klientdemon. Namn/telefon finns redan i demodatan.
-      router.push(HOME_FOR_ROLE.client)
+      // Demoläge: gå vidare till intro-flödet (mål och kostplan). Namn/telefon finns redan i demodatan.
+      router.push(GOAL_INTRO_PATH)
       return
     }
     if (!name.trim()) return setError("Ange ditt namn.")
@@ -140,7 +143,10 @@ export function OnboardingForm() {
       }
       forgetReferral()
     }
-    window.location.href = HOME_FOR_ROLE.client
+    // Vidare till intro-flödet: mått, aktivitet, mål och kostplan (v30). Kan hoppas över.
+    // Hel sidladdning med flit: proxy.ts ska läsa den nya JWT:n (rollen) från cookien.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = GOAL_INTRO_PATH
   }
 
   if (loading) {

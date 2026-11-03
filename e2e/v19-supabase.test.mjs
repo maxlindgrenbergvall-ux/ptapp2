@@ -116,7 +116,7 @@ async function login(email) {
   await p.fill("#phone", "0701234567")
   await p.click("#consent")
   await p.click("button[type=submit]")
-  await p.waitForURL(`${base}/klient`)
+  await p.waitForURL(`${base}/klient/intro`) // v30: intro-flödet efter välkomststeget
   await p.waitForLoadState("networkidle")
   const log = await getLog()
   const iOnb = log.findIndex((e) => e.table === "complete_onboarding")

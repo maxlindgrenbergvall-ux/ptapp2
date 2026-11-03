@@ -105,7 +105,7 @@ check((await fetch(`${base}/api/stripe/plus-checkout`, { method: "POST" })).stat
   await p.fill("#phone", "0701234567")
   await p.click("#consent")
   await p.click("button[type=submit]")
-  await p.waitForURL(`${base}/klient`)
+  await p.waitForURL(`${base}/klient/intro`) // v30: intro-flödet efter välkomststeget
   await p.waitForLoadState("networkidle")
   const log = await getLog()
   check(log.some((e) => e.table === "redeem_referral" && e.body.p_code === "SARA7KQ2"), "koden löses in med redeem_referral efter registreringen")

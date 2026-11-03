@@ -75,6 +75,7 @@ import type {
   WorkoutExercise,
   WorkoutStatus,
   WorkoutTemplate,
+  GoalProfile,
 } from "@/types/domain"
 import { START_PATH } from "@/lib/site"
 import { DELETE_CONFIRM_WORD } from "@/lib/account"
@@ -649,6 +650,19 @@ function createActions(ctx: {
       if (hasUnread) commit({ type: "markThreadRead", threadId, readerId: me.id, readAt: now(), trainerId: t })
     },
     addWeight: (clientId: ID, entry: WeightEntry) => commit({ type: "addWeight", clientId, entry }),
+    /**
+     * Spara mål och kroppsmått (intro-flödet och Profil → Mål). En ny nuvarande
+     * vikt loggas också i viktkurvan för dagens datum, så att grafen under
+     * Framsteg och relativ styrka använder samma vikt.
+     */
+    saveGoalProfile: (profile: GoalProfile) => {
+      commit({ type: "saveGoalProfile", profile })
+      // Senaste vägningen skiljer sig (eller saknas) → logga dagens vikt.
+      const logged = getData().clients.find((c) => c.id === profile.clientId)?.weightLog.at(-1)
+      if (logged?.kg !== profile.currentWeightKg) {
+        commit({ type: "addWeight", clientId: profile.clientId, entry: { date: todayISO(), kg: profile.currentWeightKg } })
+      }
+    },
     // ----- kalender
     /**
      * Klient: skicka en bokningsförfrågan på en ledig tid. Returnerar ett felmeddelande

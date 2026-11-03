@@ -42,6 +42,7 @@ import type {
   WorkoutStatus,
   WorkoutTemplate,
   TrainerService,
+  GoalProfile,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
 
@@ -57,6 +58,7 @@ export type PersistableAction =
   | { type: "addMessage"; message: Message }
   | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string; trainerId?: ID }
   | { type: "addWeight"; clientId: ID; entry: WeightEntry }
+  | { type: "saveGoalProfile"; profile: GoalProfile }
   | { type: "requestCoaching"; trainerId: ID; clientId: ID; goal: string }
   | { type: "addEvent"; event: CalendarEvent }
   | { type: "updateEvent"; eventId: ID; patch: EventPatch }
@@ -528,6 +530,9 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         foodEntries: data.foodEntries.map((e) => (e.recipeId === action.recipeId ? { ...e, recipeId: undefined } : e)),
       }
 
+    case "saveGoalProfile":
+      return { ...data, goalProfiles: upsertBy(data.goalProfiles, action.profile, (g) => g.clientId === action.profile.clientId) }
+
     case "setFavoriteRecipe": {
       const rest = data.favoriteRecipes.filter((id) => id !== action.recipeId)
       return { ...data, favoriteRecipes: action.favorite ? [...rest, action.recipeId] : rest }
@@ -692,6 +697,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
     purchases: list(d.purchases),
     recipes: list(d.recipes),
     favoriteRecipes: list<ID>(d.favoriteRecipes),
+    goalProfiles: list<GoalProfile>(d.goalProfiles),
     // v12: relationer (flera PT:er). Äldre data: härled från klienternas PT.
     relationships: Array.isArray(d.relationships)
       ? list<CoachingRelationship>(d.relationships)

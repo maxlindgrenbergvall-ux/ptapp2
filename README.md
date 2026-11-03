@@ -46,7 +46,8 @@ npm run dev                  # http://localhost:3000
    27. `supabase/migrations/20261109000000_v27_recipe_photos.sql`. Tar bort de illustrerade receptbilderna och skapar bucketen `recipe-images` (publik läsning, max 2 MB) för riktiga matfoton.
    28. `supabase/migrations/20261110000000_v28_recipe_photos.sql`. Riktiga matfoton (Pexels) för 34 av 40 biblioteksrecept. Skriver inte över foton som laddats upp till Storage.
    29. `supabase/migrations/20261111000000_v29_moderation_mealprep_templates.sql`. Bildfiltret (tabellen `moderation_events`, inga direkta bilduppladdningar till `avatars`/`chat-attachments`), receptkategorin `meal_prep` med hela biblioteket (44 recept) och klienternas passmallar (`workout_templates.client_id`).
-   30. `supabase/seed.sql`
+   30. `supabase/migrations/20261112000000_v30_client_goals.sql`. Klientens mål, mått, takt (reglaget) och kalorimål från intro-flödet (`client_goals`, RLS: klienten själv, aktiva PT:er läser).
+   31. `supabase/seed.sql`
 3. **Authentication → URL Configuration** (annars hamnar bekräftelselänkar på startsidan utan inloggning):
    - *Site URL*: appens adress, `https://ptapp2.vercel.app` (se "Domäner" nedan). Inte landningssidan, localhost eller en Vercel-förhandsadress.
    - *Redirect URLs*: `https://ptapp2.vercel.app/**`, `https://*-<ert-vercel-team>.vercel.app/**` (förhandsversioner), `com.coavira.app://**` (mobilappen) och `http://localhost:3000/**`.
@@ -572,6 +573,34 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v30: intro-flöde och mål (kalorimål, takt och prognos)
+
+- **Intro-flödet** (`/klient/intro`) visas efter välkomststeget och går att hoppa över. Klienter utan mål får i stället ett kort på startsidan. Flödet har fyra steg:
+  1. Mått: vikt, längd, ålder och kön.
+  2. Aktivitetsnivå.
+  3. Mål. Flera kan väljas: viktnedgång, ökad muskelmassa, body recomposition, styrkeökning, kondition & uthållighet och hälsosam livsstil.
+  4. Din plan.
+- **Beräkningar** (`src/lib/goals/metabolism.ts`, enhetstest i `e2e/goals.unit.ts`):
+  - **BMR:** Mifflin-St Jeor. "Annat kön" räknar med medelvärdet.
+  - **TDEE:** BMR × aktivitetsfaktor (1,2 / 1,375 / 1,55 / 1,725).
+  - **Takt:** reglaget i kg per vecka blir ett dagligt underskott (× 7 700 kcal/kg) eller överskott (× 5 500 kcal/kg).
+  - **Energigolv:** intaget går aldrig under BMR eller 1 200 kcal för kvinnor, 1 500 för män och 1 350 för "annat". Slår golvet till visas den takt som faktiskt blir av.
+  - **Protein:** 1,2–2,2 g/kg beroende på mål. Vid BMI över 30 räknas på referensvikten vid BMI 27,5.
+  - **Fett och kolhydrater:** fett 25–30 % av energin. Vid kondition får kolhydraterna minst ungefär 5 g/kg.
+- **Reglaget** styr kostplanen i realtid. Intervallet beror på målen:
+  - **Nedgång:** skonsam −0,25, standard −0,5, intensiv −1,0 kg/vecka.
+  - **Ökning:** +0,1 till +0,5 kg/vecka.
+  - **Rekomp:** 0 till −0,5 kg/vecka.
+  - **Energibalans:** kondition, styrka och hälsa har inget reglage.
+- **Framtidsgrafen** simulerar vecka för vecka. Energibehovet räknas om med den nya vikten, så kurvan planar ut.
+  - Målet viktnedgång visar vikten.
+  - Målet muskelmassa visar muskelmassan.
+  - Fett- och muskelmål samtidigt ger två linjer i samma diagram: fettmassa och muskelmassa.
+  - Med målvikt visas när den nås.
+- **Profil → Mål** (`/klient/profil/mal`): ändra mål, vikt, mått, aktivitet, reglage och målvikt. Kalorimål och graf uppdateras medan man ändrar. En ny vikt loggas också i viktkurvan.
+- **Kostdagboken:** utan kostschema från en PT gäller det beräknade dagsmålet. Ett schema från PT:n går alltid före. PT:n ser klientens mål, kalorimål och prognos under klientens Progress-flik.
+- **Friskrivningen** visas längst ned i intro-flödet och i Profil → Mål.
+
 ## Nytt i v29: bildfilter, Mealprep och passmallar
 
 - **Bildfilter.** Profilbilder och bilder i chatten granskas på servern innan de sparas (`/api/uploads/image`). Granskningen använder [nsfwjs](https://github.com/infinitered/nsfwjs) (MobileNetV2, MIT-licens), som körs i Node med TensorFlow.js. Ingen tredje part ser bilderna. Bedömningen tar ungefär 1 s, plus ungefär 1 s första gången modellen laddas.
@@ -904,6 +933,9 @@ node e2e/v22-app-checkout.test.mjs # (demo) Vilotimer −15/+15 s, /app-retur, d
 node e2e/v22-supabase.test.mjs  # Stripe i appen: retur via /app-retur, Browser.open med Klar, knappen släpper när vyn stängs
 node e2e/v23-safe-area.test.mjs # (demo) Stängknappar ≥ 44 px under statusfältet i dialoger/paneler, sitemap.xml-headers
 node e2e/connect-onboarding-demo.test.mjs # (demo) PT-onboardingen med simulerad Stripe-koppling
+npx tsx --tsconfig tsconfig.json e2e/goals.unit.ts # BMR/TDEE, reglaget, energigolv, makron och prognos
+node e2e/v30-mal-intro.test.mjs  # (demo) Intro-flödet, reglaget räknar om i realtid, två grafer, Profil → Mål, PT:ns vy, friskrivning
+node e2e/v30-supabase.test.mjs   # Intro-flödet sparar i client_goals (eget id, födelseår, kalorimål) och loggar vikten
 node e2e/v29-filter-mealprep-mallar.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Bildfiltret, kostsökningen stängs utanför, Mealprep, spara/läsa in mallar
 node e2e/v29-supabase.test.mjs  # (MODERATION_TEST_BLOCK_COLOR=ff00ff) Uppladdning via servern (WebP, egen mapp), moderation_events, chattbehörighet, klientmall med client_id
 node e2e/connect-onboarding.test.mjs # Supabase-läge: onboardingspärren, profil + Stripe Connect, callback, delad betalning, account.updated

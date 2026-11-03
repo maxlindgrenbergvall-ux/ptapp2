@@ -3,9 +3,12 @@
  * "idag", historik och kommande pass. Slumpen är seedad för stabila värden.
  */
 import { addDays, todayISO } from "@/lib/date"
+import { computePlan } from "@/lib/goals/metabolism"
 import exerciseLibrary from "@/lib/exercise-library.json"
 import { sessionBalance } from "@/lib/services/balance"
 import type {
+  GoalKey,
+  GoalProfile,
   AcquisitionType,
   AppData,
   AppNotification,
@@ -758,6 +761,8 @@ export function createSeedData(today = todayISO()): AppData {
       },
     ],
     favoriteRecipes: ["rc-c1-oats"],
+    // Mira har gjort intro-flödet (PT:n ser målen). Demoklienten Sara har inte – hon får kortet "Sätt dina mål".
+    goalProfiles: [miraGoals(today)],
     clients: makeClients(today),
     exercises,
     templates,
@@ -858,4 +863,23 @@ export function createSeedData(today = todayISO()): AppData {
   // PT Boost: David är utvald i några dagar till (syns först i Hitta PT och i klockan).
   data.trainers = data.trainers.map((t) => (t.id === "t6" ? { ...t, boostedUntil: `${addDays(today, 4)}T21:00:00.000Z` } : t))
   return data
+}
+
+/** Demo: Miras mål (viktnedgång + muskelmassa = rekomp). */
+function miraGoals(today: string): GoalProfile {
+  const input = { sex: "female" as const, age: 34, heightCm: 168, weightKg: 72.5, activity: "moderate" as const, goals: ["weight_loss", "muscle_gain"] as GoalKey[], weeklyChangeKg: -0.25 }
+  return {
+    clientId: "c3",
+    goals: input.goals,
+    sex: input.sex,
+    birthYear: Number(today.slice(0, 4)) - input.age,
+    heightCm: input.heightCm,
+    startWeightKg: 79,
+    currentWeightKg: input.weightKg,
+    targetWeightKg: 68,
+    activity: input.activity,
+    weeklyChangeKg: input.weeklyChangeKg,
+    startedAt: addDays(today, -120),
+    targets: computePlan(input).targets,
+  }
 }

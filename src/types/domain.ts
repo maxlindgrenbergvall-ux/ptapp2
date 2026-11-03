@@ -336,6 +336,33 @@ export interface Meal {
   items: MealItem[]
 }
 
+/** Mål i intro-flödet och under Profil → Mål (v30). */
+export type GoalKey = "weight_loss" | "muscle_gain" | "recomp" | "strength" | "endurance" | "health"
+export type Sex = "female" | "male" | "other"
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "very"
+
+/**
+ * Klientens mål och kroppsmått (v30). Kalorimålet räknas fram med
+ * src/lib/goals/metabolism.ts och sparas som en ögonblicksbild (targets), så
+ * att PT:n ser samma siffror som klienten.
+ */
+export interface GoalProfile {
+  clientId: ID
+  goals: GoalKey[]
+  sex: Sex
+  birthYear: number
+  heightCm: number
+  startWeightKg: number
+  currentWeightKg: number
+  targetWeightKg?: number
+  activity: ActivityLevel
+  /** Reglaget: önskad viktförändring per vecka (negativt = nedgång). */
+  weeklyChangeKg: number
+  startedAt: ISODate
+  targets: MacroTargets
+  updatedAt?: string
+}
+
 export interface MacroTargets {
   kcal: number
   protein: number
@@ -600,6 +627,8 @@ export interface AppData {
   recipes: Recipe[]
   /** Stjärnmarkerade recept (id:n) för inloggad användare. */
   favoriteRecipes: ID[]
+  /** Mål och kroppsmått (v30): klientens egna, eller PT:ns klienters. */
+  goalProfiles: GoalProfile[]
   /** PT–klient-relationer (klient: alla egna; PT: egna klienter). */
   relationships: CoachingRelationship[]
   /** Loggade mätpunkter för intressena (Framsteg). */

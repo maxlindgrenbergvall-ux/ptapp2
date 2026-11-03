@@ -33,8 +33,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const nowIso = new Date().toISOString()
   // Prick på Kalender när ett preliminärt pass väntar (på PT:n eller på mitt svar).
   const pendingCount = data.events.filter((e) => e.clientId === me.id && e.status === "pending" && e.end > nowIso).length
-  // Under ett pågående pass tar loggern hela skärmen – inga distraktioner.
-  const focusMode = pathname.startsWith("/klient/pass/")
+  // Under ett pågående pass (och i intro-flödet) tar vyn hela skärmen – inga distraktioner.
+  const focusMode = pathname.startsWith("/klient/pass/") || pathname === "/klient/intro"
 
   return (
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x md:border-border/60">
