@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, CalendarPlus, Check, Dumbbell, LayoutTemplate, Plus, Search, Trash2 } from "lucide-react"
+import { ArrowLeft, CalendarPlus, Check, LayoutTemplate, Plus, RefreshCw, Trash2 } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -12,11 +12,12 @@ import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
-import { matchesExercise } from "@/lib/exercises/search"
 import { buildSchedule, cloneSplit, customSplit, type Split, type SplitDay, type SplitExercise, SPLITS, WEEKDAY_SHORT } from "@/lib/splits"
 import { buildTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
 import { SortableList } from "@/components/workouts/sortable-list"
+import { ExercisePickerDialog } from "@/components/exercises/exercise-picker"
+import type { Exercise } from "@/types/domain"
 
 /** I editorn har varje övning ett id (för drag-and-drop); det tas bort när schemat skapas. */
 type EditExercise = SplitExercise & { id: string }
@@ -151,6 +152,10 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
                     name={nameOf(e.exerciseId)}
                     handle={handle}
                     onChange={(patch) => updateDay(i, { exercises: d.exercises.map((x) => (x.id === e.id ? { ...x, ...patch } : x)) })}
+                    onReplace={(next) => {
+                      updateDay(i, { exercises: d.exercises.map((x) => (x.id === e.id ? replaceSplitExercise(x, next) : x)) })
+                      toast.success(`Bytt till ${next.name}`)
+                    }}
                     onRemove={() => updateDay(i, { exercises: d.exercises.filter((x) => x.id !== e.id) })}
                   />
                 )}
@@ -158,7 +163,16 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
             ) : (
               <p className="rounded-xl border px-3 py-2 text-xs text-muted-foreground">Inga övningar än.</p>
             )}
-            <ExerciseAdder onAdd={(e) => updateDay(i, { exercises: [...d.exercises, { ...e, id: actions.newId() }] })} />
+            <ExercisePickerDialog
+              title={`Lägg till i ${d.name}`}
+              listLabel="Övningar att lägga till"
+              onPick={(e) => updateDay(i, { exercises: [...d.exercises, { ...splitExerciseFor(e), id: actions.newId() }] })}
+              trigger={
+                <Button variant="outline" size="sm" className="w-full border-dashed" data-testid="split-add-exercise">
+                  <Plus /> Lägg till övning
+                </Button>
+              }
+            />
           </li>
         ))}
       </ol>
@@ -237,18 +251,33 @@ function SplitExerciseRow({
   handle,
   onChange,
   onRemove,
+  onReplace,
 }: {
   exercise: EditExercise
   name: string
   handle: React.ReactNode
   onChange: (patch: Partial<SplitExercise>) => void
   onRemove: () => void
+  onReplace: (e: Exercise) => void
 }) {
   return (
     <div className="rounded-xl border bg-background px-2 py-1.5" data-testid="split-exercise">
       <div className="flex items-center gap-1">
         {handle}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+        {/* v38: tryck på namnet för att byta övning – set och reps ligger kvar. */}
+        <ExercisePickerDialog
+          title="Byt övning"
+          description={`Ersätt ${name}. Set och reps ligger kvar.`}
+          currentId={exercise.exerciseId}
+          listLabel="Övningar att byta till"
+          onPick={(e) => onReplace(e)}
+          trigger={
+            <button type="button" className="flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-md text-left text-sm font-medium hover:text-primary" aria-label={`Byt ${name}`} data-testid="replace-exercise">
+              <span className="truncate">{name}</span>
+              <RefreshCw className="size-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          }
+        />
         <Button variant="ghost" size="icon-sm" aria-label={`Ta bort ${name}`} onClick={onRemove}>
           <Trash2 />
         </Button>
@@ -294,39 +323,20 @@ function SplitExerciseRow({
   )
 }
 
-/** Lägg till en övning i en dag: sök i banken och tryck. */
-function ExerciseAdder({ onAdd }: { onAdd: (e: SplitExercise) => void }) {
-  const { data } = useAppData()
-  const [q, setQ] = React.useState("")
-  const query = q.trim().toLowerCase()
-  const matches = query ? data.exercises.filter((e) => matchesExercise(e, query)).slice(0, 5) : []
-  return (
-    <div className="space-y-1">
-      <div className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Lägg till övning…" className="h-9 pl-8 text-sm" aria-label="Sök övning att lägga till" />
-      </div>
-      {matches.length > 0 && (
-        <ul className="divide-y rounded-xl border">
-          {matches.map((e) => (
-            <li key={e.id}>
-              <button
-                type="button"
-                className="flex min-h-10 w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted/60"
-                onClick={() => {
-                  const compound = ["ben", "rygg", "bröst"].includes(e.muscleGroup) && /stång|trap/i.test(e.equipment ?? "")
-                  onAdd({ exerciseId: e.id, sets: 3, reps: e.muscleGroup === "kondition" ? "500 m" : compound ? "6–8" : "8–12", restSec: compound ? 150 : 90 })
-                  setQ("")
-                }}
-              >
-                <Dumbbell className="size-3.5 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                <Plus className="size-4 text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+/** Standardvärden när en övning läggs i en split: tunga baslyft 6–8 reps, annars 8–12, kondition 500 m. */
+export function splitExerciseFor(e: Exercise): SplitExercise {
+  const compound = ["ben", "rygg", "bröst"].includes(e.muscleGroup) && /stång|trap/i.test(e.equipment ?? "")
+  return { exerciseId: e.id, sets: 3, reps: e.muscleGroup === "kondition" ? "500 m" : compound ? "6–8" : "8–12", restSec: compound ? 150 : 90 }
+}
+
+/**
+ * Byt övning i en split (v38): set, reps, vila och anteckningar ligger kvar.
+ * Startvikten nollas (den gällde den gamla övningen). Byte till/från kondition
+ * får kondition-standarden (distans i stället för reps).
+ */
+export function replaceSplitExercise<T extends SplitExercise>(current: T, next: Exercise): T {
+  const wasCardio = /\d\s*(m|km|min|s)\b/i.test(current.reps)
+  const isCardio = next.muscleGroup === "kondition"
+  const defaults = splitExerciseFor(next)
+  return { ...current, exerciseId: next.id, targetKg: undefined, ...(wasCardio !== isCardio ? { reps: defaults.reps, restSec: defaults.restSec } : {}) }
 }

@@ -578,6 +578,16 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v38: smidigare övningar i splits och pass
+
+- **Övningslistan grupperas efter muskelgrupp** (`src/lib/exercises/groups.ts`, `src/components/exercises/exercise-picker.tsx`):
+  - Grupperna är Bröst, Rygg, Axlar, Biceps, Triceps, Underarmar, Ben, Baksida lår, Säte, Vader, Mage, Helkropp och Kondition. Indelningen görs utifrån övningens namn; databasen ändras inte.
+  - Snabbfilter med en chip per muskelgrupp. Grupperna fälls ut och in med ett tryck och visar antal övningar.
+  - Sökning ger träffar i muskelgruppsordning, med gruppen utskriven.
+  - Samma lista används i splitbyggaren, i passets "Lägg till övning" och i "Logga eget pass". På mobilen öppnas den som ett ark från nederkanten.
+- **Byt övning i en split med ett tryck på namnet:** den nuvarande övningen är markerad i sin grupp. Set, reps och vila ligger kvar; startvikten nollställs.
+- **Drag-and-drop** av övningar i splitbyggaren, under passet och nu även i "Logga eget pass" (tidigare med pilar). Dra i handtaget, eller fokusera det och tryck pil upp/ned.
+
 ## Nytt i v37: mobilstädning – samma funktioner, mindre brus
 
 All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tätt de sitter på mobilen.
@@ -1075,6 +1085,8 @@ npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan:
 npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
+npx tsx --tsconfig tsconfig.json e2e/exercise-groups.unit.ts # muskelgrupperna (Biceps/Triceps, Baksida lår/Säte/Vader …)
+node e2e/v38-ovningar.test.mjs # (demo) byt övning i split, muskelgrupper/filter/sök, drag-and-drop i split och eget pass, Lägg till övning i passet
 node e2e/v37-mobil.test.mjs   # (demo, 360 px) ingen overflow, viktfältet, Varför?, Ta bort passet längst ned, profilen som inställningsnav
 node e2e/v36-supabase.test.mjs # Pop-upen: syns bara för den som aldrig valt, Fråga mig senare → nästa inloggning, Ja → Resend-segmentet, Nej → ingen kontakt
 node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt

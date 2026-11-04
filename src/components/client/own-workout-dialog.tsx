@@ -1,11 +1,11 @@
 "use client"
 
-import { ArrowDown, ArrowUp, Plus, Search, Trash2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { AddCustomExerciseButton, CustomBadge } from "@/components/exercises/custom-exercise-dialog"
+import { AddCustomExerciseButton } from "@/components/exercises/custom-exercise-dialog"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { TemplatePicker } from "@/components/workouts/template-picker"
 import { Button } from "@/components/ui/button"
@@ -16,8 +16,9 @@ import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
-import { matchesExercise } from "@/lib/exercises/search"
-import { type ExerciseDraft, finalizeExercises, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
+import { ExercisePicker } from "@/components/exercises/exercise-picker"
+import { SortableList } from "@/components/workouts/sortable-list"
+import { type ExerciseDraft, finalizeExercises, MAX_SETS, resizeSetReps } from "@/lib/exercises/draft"
 import { copyExercises, myTemplates } from "@/lib/templates"
 import { cn } from "@/lib/utils"
 import type { WorkoutTemplate } from "@/types/domain"
@@ -38,13 +39,6 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
   const [q, setQ] = React.useState("")
   const [items, setItems] = React.useState<ExerciseDraft[]>([])
 
-  const query = q.trim().toLowerCase()
-  // Egna övningar först, sedan övningsbanken.
-  const matches = data.exercises
-    .filter((e) => !items.some((i) => i.exerciseId === e.id))
-    .filter((e) => matchesExercise(e, query))
-    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
-    .slice(0, 6)
 
   const update = (idx: number, patch: Partial<ExerciseDraft>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
 
@@ -92,7 +86,7 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
           <Plus /> Logga eget pass
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-md">
         <form onSubmit={submit} className="space-y-4" noValidate>
           <DialogHeader>
             <DialogTitle>Eget pass</DialogTitle>
@@ -111,18 +105,19 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
           </div>
 
           {items.length > 0 && (
-            <ol className="space-y-2" aria-label="Övningar i passet">
-              {items.map((it, idx) => (
-                <li key={it.id} className="space-y-2 rounded-xl border p-3">
+            // v38: dra i handtaget (eller pil upp/ned på handtaget) för att ändra ordningen.
+            <SortableList
+              items={items}
+              className="space-y-2"
+              aria-label="Övningar i passet"
+              itemLabel={(it) => data.exercises.find((x) => x.id === it.exerciseId)?.name ?? "Övningen"}
+              onReorder={(ids) => setItems((prev) => ids.map((id) => prev.find((x) => x.id === id)!))}
+              renderItem={(it, { handle, index: idx }) => (
+                <div className="space-y-2 rounded-xl border bg-background p-3">
                   <div className="flex items-center gap-2">
+                    {handle}
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular">{idx + 1}</span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{data.exercises.find((x) => x.id === it.exerciseId)?.name}</span>
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Flytta upp" disabled={idx === 0} onClick={() => setItems(moveItem(items, idx, -1))}>
-                      <ArrowUp />
-                    </Button>
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Flytta ned" disabled={idx === items.length - 1} onClick={() => setItems(moveItem(items, idx, 1))}>
-                      <ArrowDown />
-                    </Button>
                     <Button type="button" variant="ghost" size="icon-sm" aria-label="Ta bort övningen" onClick={() => setItems(items.filter((_, i) => i !== idx))}>
                       <Trash2 />
                     </Button>
@@ -141,36 +136,22 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
                       <NumberInput decimal min={0} max={1000} value={it.targetKg} onValueChange={(v) => update(idx, { targetKg: v })} aria-label="Kg" />
                     </label>
                   </div>
-                </li>
-              ))}
-            </ol>
+                </div>
+              )}
+            />
           )}
 
           <div className="space-y-2">
             <Label htmlFor="own-search">Lägg till övning</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input id="own-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning, t.ex. knäböj" className="pl-8" />
-            </div>
-            <ul className="divide-y rounded-xl border" aria-label="Övningar att välja">
-              {matches.map((e) => (
-                <li key={e.id}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60"
-                    onClick={() => {
-                      setItems([...items, workoutExerciseFor(e, crypto.randomUUID())])
-                      setQ("")
-                    }}
-                  >
-                    <span className="truncate">{e.name}</span>
-                    {e.custom && <CustomBadge className="ml-auto" />}
-                    <Plus className="size-4 shrink-0 text-muted-foreground" />
-                  </button>
-                </li>
-              ))}
-              {matches.length === 0 && <li className="px-3 py-3 text-center text-sm text-muted-foreground">Ingen övning hittades.</li>}
-            </ul>
+            {/* v38: grupperad efter muskelgrupp, med snabbfilter och sökning. */}
+            <ExercisePicker
+              searchId="own-search"
+              searchLabel="Sök övning till det egna passet"
+              listLabel="Övningar att välja"
+              onQueryChange={setQ}
+              excludeIds={items.map((i) => i.exerciseId)}
+              onPick={(e) => setItems((prev) => [...prev, workoutExerciseFor(e, crypto.randomUUID())])}
+            />
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed px-3 py-2">
               <span className="text-xs text-muted-foreground">Saknas övningen i biblioteket?</span>
               <AddCustomExerciseButton

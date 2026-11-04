@@ -1,19 +1,19 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, Search, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
-import { CustomBadge } from "@/components/exercises/custom-exercise-dialog"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { SortableList } from "@/components/workouts/sortable-list"
+import { ExercisePicker } from "@/components/exercises/exercise-picker"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,7 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { confirmDialog } from "@/components/ui/confirm"
@@ -32,7 +31,6 @@ import { useAppData } from "@/lib/data/store"
 import { formatDay, todayISO } from "@/lib/date"
 import { hasSetReps, repsLabel, targetRepsFor } from "@/lib/exercises/draft"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
-import { matchesExercise } from "@/lib/exercises/search"
 import { exercisesFromWorkout } from "@/lib/templates"
 import { nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
@@ -999,14 +997,7 @@ function ExerciseVideo({ source, title }: { source: string; title: string }) {
  * förval; dagens mål räknas ur historiken som för alla övningar.
  */
 function AddExerciseDialog({ onAdd }: { onAdd: (entry: Omit<WorkoutExercise, "id">) => boolean }) {
-  const { data } = useAppData()
   const [open, setOpen] = React.useState(false)
-  const [q, setQ] = React.useState("")
-  const query = q.trim().toLowerCase()
-  const matches = data.exercises
-    .filter((e) => matchesExercise(e, query))
-    .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
-    .slice(0, 8)
   const add = (e: Exercise) => {
     const base = workoutExerciseFor(e, "x")
     const { id: _id, ...entry } = base
@@ -1020,34 +1011,19 @@ function AddExerciseDialog({ onAdd }: { onAdd: (entry: Omit<WorkoutExercise, "id
     if (!ok) return toast.error("Passet har redan max antal övningar")
     toast.success(`${e.name} är tillagd`)
     setOpen(false)
-    setQ("")
   }
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), !o && setQ(""))}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="outline" className="h-12 w-full border-dashed" onClick={() => setOpen(true)} data-testid="add-exercise">
         <Plus /> Lägg till övning
       </Button>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] max-sm:top-auto max-sm:bottom-0 max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[calc(1rem+var(--safe-bottom))] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Lägg till övning</DialogTitle>
           <DialogDescription>Kör extra eller byt ut något – PT:ns program ligger kvar.</DialogDescription>
         </DialogHeader>
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning, t.ex. hip thrust" className="h-11 pl-8" aria-label="Sök övning" />
-        </div>
-        <ul className="max-h-[50vh] divide-y overflow-y-auto overscroll-contain rounded-xl border" aria-label="Övningar att lägga till">
-          {matches.map((e) => (
-            <li key={e.id}>
-              <button type="button" className="flex min-h-12 w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60" onClick={() => add(e)}>
-                <span className="min-w-0 flex-1 truncate">{e.name}</span>
-                {e.custom && <CustomBadge />}
-                <Plus className="size-4 shrink-0 text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-          {matches.length === 0 && <li className="px-3 py-4 text-center text-sm text-muted-foreground">Ingen övning hittades.</li>}
-        </ul>
+        {/* v38: grupperad efter muskelgrupp, med snabbfilter och sökning. */}
+        {open && <ExercisePicker listLabel="Övningar att lägga till" placeholder="Sök övning, t.ex. hip thrust" onPick={add} />}
       </DialogContent>
     </Dialog>
   )
