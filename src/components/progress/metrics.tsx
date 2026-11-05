@@ -37,7 +37,7 @@ export function InterestChips({ interests, className }: { interests?: string[]; 
 
 /**
  * Mätpunkterna för klientens intressen. Väljer klienten t.ex. Cykling visas
- * "Bästa tid på milen" och "Snitt-watt"; Styrkelyft visar uppskattat 1RM ur
+ * "Bästa tid på milen" och "Snitt-watt"; Styrkelyft visar tyngsta set ur
  * passloggen. `editable` = klienten själv (kan logga nya värden).
  */
 export function MetricsGrid({ clientId, interests, editable }: { clientId: ID; interests?: string[]; editable?: boolean }) {
@@ -52,7 +52,7 @@ export function MetricsGrid({ clientId, interests, editable }: { clientId: ID; i
         </p>
         <p className="text-muted-foreground">
           {editable
-            ? "Berätta vad du tränar för, så visar vi rätt mätpunkter här – t.ex. bästa tid på milen för cykling eller 1RM för styrkelyft."
+            ? "Berätta vad du tränar för, så visar vi rätt mätpunkter här – t.ex. bästa tid på milen för cykling eller tyngsta set i styrkelyft."
             : "Klienten har inte valt några intressen än."}
         </p>
         {editable && <InterestsDialog clientId={clientId} interests={interests ?? []} />}

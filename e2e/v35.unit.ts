@@ -55,7 +55,7 @@ check(cards.map((c) => c.key).join(",") === "weight_loss,bodybuilding,recomp,hea
 const wl = cards.find((c) => c.key === "weight_loss")!
 check(wl.value === "−4 kg" && wl.detail === "4 kg kvar till 82 kg" && wl.progress === 0.5 && wl.trend === "good", `viktnedgång: ${wl.value}, ${wl.detail}, förlopp ${wl.progress}`)
 const rc = cards.find((c) => c.key === "recomp")!
-check(rc.value === "+10 % styrka" && /Knäböj/.test(rc.detail), `rekomp: styrkan i knäböj (${rc.value} · ${rc.detail})`)
+check(rc.value === "+10 kg i knäböj" && rc.detail.startsWith("Knäböj: 100 kg × 5 → 110 kg × 5"), `rekomp: tyngsta set i knäböj, faktiska lyft (${rc.value} · ${rc.detail})`)
 const bb = cards.find((c) => c.key === "bodybuilding")!
 check(/pass\/v/.test(bb.value) && bb.detail.startsWith("3 avbockade set"), `bodybuilding: ${bb.value} · ${bb.detail}`)
 const h = cards.find((c) => c.key === "health")!

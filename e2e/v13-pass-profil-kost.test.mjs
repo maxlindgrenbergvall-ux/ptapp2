@@ -1,6 +1,6 @@
 // E2E för v13 i demoläge: förhandsgranska bokat pass, egna pass, PT:ns
 // klarmarkering, program kopplat i kalendern, klientens profilbild, borttagen
-// 1RM-ruta, flyttbar kameraruta, kostrekommendation, delad "Dagens kost" och
+// gamla maxlyftrutan borta, flyttbar kameraruta, kostrekommendation, delad "Dagens kost" och
 // köksmått (dl/msk/tsk).
 //   npm run build && npm start   (utan Supabase-variabler)
 //   BASE_URL=http://localhost:3000 node e2e/v13-pass-profil-kost.test.mjs [skärmdumpsmapp]
@@ -76,7 +76,7 @@ const balanceOk = await p.evaluate(() => {
 })
 check(balanceOk, "egna pass har ingen PT (räknas inte som betalda pass)")
 
-// --------------------------------------------- 3. profilbild och 1RM-ruta ---
+// ------------------------------------- 3. profilbild och gamla maxlyftrutan ---
 await p.goto(base + "/klient/profil")
 await p.waitForSelector("#profile-name")
 // En riktig (liten) PNG laddas upp – i demoläget sparas den som data-URL.
@@ -89,7 +89,7 @@ const avatar = (await demo()).clients.find((c) => c.id === "c1").avatarUrl
 check(avatar?.startsWith("data:image"), "klientens profilbild sparas")
 await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("text=Dina mål")
-check((await p.locator("text=Knäböj 1RM").count()) === 0, "den gamla fasta 1RM-rutan är borta")
+check(!/\b(e?1RM)\b/i.test(await p.locator("main").innerText()), "inga uppskattade maxlyft (1RM) i Framsteg")
 
 // ------------------------------------------------ 4. kostrekommendation ---
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))

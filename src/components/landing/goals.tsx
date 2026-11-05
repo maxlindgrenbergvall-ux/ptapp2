@@ -110,9 +110,9 @@ const PT_POOL = [
 type Range = { lo: number; hi: number; gain: readonly [number, number]; step: number }
 
 const RANGES: Record<string, Range> = {
-  e1rm_squat: { lo: 125, hi: 150, gain: [7.5, 15], step: 2.5 },
-  e1rm_bench: { lo: 85, hi: 105, gain: [5, 10], step: 2.5 },
-  e1rm_deadlift: { lo: 150, hi: 185, gain: [10, 20], step: 2.5 },
+  top_squat: { lo: 125, hi: 150, gain: [7.5, 15], step: 2.5 },
+  top_bench: { lo: 85, hi: 105, gain: [5, 10], step: 2.5 },
+  top_deadlift: { lo: 150, hi: 185, gain: [10, 20], step: 2.5 },
   cykling_10km: { lo: 1030, hi: 1140, gain: [40, 90], step: 1 },
   cykling_watt: { lo: 235, hi: 275, gain: [12, 25], step: 1 },
   cykling_ftp: { lo: 245, hi: 285, gain: [10, 22], step: 1 },

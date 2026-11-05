@@ -5,8 +5,8 @@
  *   Viktnedgång       vikt sedan start, kvar till målvikten (förlopp)
  *   Ökad muskelmassa  viktökning sedan start, pass per vecka
  *   Bodybuilding      pass per vecka, avbockade set senaste 7 dagarna
- *   Body recomposition vikt sedan start + styrkeutveckling (e1RM) i baslyften
- *   Styrka            e1RM-utveckling i bästa baslyftet sedan start
+ *   Body recomposition vikt sedan start + tyngsta set i baslyften (faktisk vikt)
+ *   Styrka            utvecklingen i tyngsta set i bästa baslyftet sedan start
  *   Kondition         aktiva minuter senaste 7 dagarna (mål 150), förbränning
  *   Hälsa             aktiva minuter senaste 7 dagarna (WHO: 150 min/vecka), pass
  *
@@ -15,7 +15,7 @@
 import { daySummary, dedupeActivities } from "@/lib/activity/summary"
 import { addDays } from "@/lib/date"
 import { GOAL_INFO, GOAL_KEYS } from "@/lib/goals/metabolism"
-import { oneRepMaxSeries } from "@/lib/training"
+import { topSetSeries } from "@/lib/training"
 import type { ActivityDay, ActivityLog, GoalKey, GoalProfile, ISODate, ScheduledWorkout, WeightEntry } from "@/types/domain"
 
 export interface GoalCard {
@@ -68,17 +68,19 @@ export function goalCards({ goal: g, weightLog, workouts, activities, activityDa
   const activeKcal = week.reduce((s, d) => s + d.activeKcal, 0)
   const sessions7 = mine.filter((w) => w.date >= since7).length
 
-  // Bästa förändringen i ett baslyft (e1RM) sedan målets start.
+  // Bästa förändringen i ett baslyft sedan målets start – tyngsta set (vikt × reps), inga uppskattningar.
   const lift = LIFTS.map((l) => {
-    const series = oneRepMaxSeries(l.id, mine)
+    const series = topSetSeries(l.id, mine)
     const before = [...series].reverse().find((p) => p.date < g.startedAt) ?? series.find((p) => p.date >= g.startedAt)
     const last = series.at(-1)
-    return before && last && last.date >= g.startedAt ? { ...l, from: before.e1rm, to: last.e1rm } : null
+    return before && last && last.date >= g.startedAt ? { ...l, from: before, to: last } : null
   })
-    .filter((x): x is { id: string; name: string; from: number; to: number } => Boolean(x))
-    .sort((a, b) => (b.to - b.from) / b.from - (a.to - a.from) / a.from)[0]
-  const liftText = lift ? `${lift.name} ${nf(lift.from, 0)} → ${nf(lift.to, 0)} kg (e1RM)` : "Logga baslyft (knäböj, bänk, marklyft) för att se styrkan"
-  const liftPct = lift ? Math.round(((lift.to - lift.from) / lift.from) * 100) : null
+    .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    .sort((a, b) => b.to.kg - b.from.kg - (a.to.kg - a.from.kg))[0]
+  const set = (x: { kg: number; reps: number }) => `${nf(x.kg)} kg × ${x.reps}`
+  const liftText = lift ? `${lift.name}: ${set(lift.from)} → ${set(lift.to)}` : "Logga baslyft (knäböj, bänk, marklyft) för att se styrkan"
+  /** Förändring i tyngsta setets vikt (kg) sedan start. */
+  const liftKg = lift ? Math.round((lift.to.kg - lift.from.kg) * 10) / 10 : null
   const freq = `${nf(sessionsPerWeek)} pass/vecka senaste 4 veckorna`
 
   const card = (key: GoalKey): GoalCard => {
@@ -125,17 +127,17 @@ export function goalCards({ goal: g, weightLog, workouts, activities, activityDa
         return {
           key,
           label,
-          value: liftPct !== null ? signed(liftPct, "% styrka") : signed(delta, "kg"),
-          detail: liftPct !== null ? `${liftText} · vikt ${signed(delta, "kg")}` : `Vikt sedan start · ${liftText}`,
-          trend: (liftPct ?? 0) > 0 ? "good" : "neutral",
+          value: liftKg !== null ? `${signed(liftKg, "kg")} i ${lift!.name.toLowerCase()}` : signed(delta, "kg"),
+          detail: liftKg !== null ? `${liftText} · kroppsvikt ${signed(delta, "kg")}` : `Kroppsvikt sedan start · ${liftText}`,
+          trend: (liftKg ?? 0) > 0 ? "good" : "neutral",
         }
       case "strength":
         return {
           key,
           label,
-          value: liftPct !== null ? signed(liftPct, "%") : "–",
+          value: liftKg !== null ? signed(liftKg, "kg") : "–",
           detail: liftText,
-          trend: (liftPct ?? 0) > 0 ? "good" : (liftPct ?? 0) < 0 ? "bad" : "neutral",
+          trend: (liftKg ?? 0) > 0 ? "good" : (liftKg ?? 0) < 0 ? "bad" : "neutral",
         }
       case "endurance":
         return {

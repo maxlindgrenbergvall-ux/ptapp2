@@ -101,7 +101,7 @@ npm run dev                  # http://localhost:3000
 **PT-panel (`/pt`)**
 - Översikt: nyckeltal, klientlista med status, senaste och nästa pass och följsamhet (4 v),
   "Behöver uppmärksamhet" (nya klienter, inaktiva klienter, kommentarer på pass) och bokningsförfrågningar.
-- Klientdetalj: vikt-, styrke- (uppskattat 1RM) och frekvensgrafer, passhistorik med loggade set,
+- Klientdetalj: vikt-, styrke- (tyngsta set) och frekvensgrafer, passhistorik med loggade set,
   feedback kopplad till ett pass, schemaläggning av pass, kostschema och chatt.
 - Passbyggare: mallar, övningsbank med sök och muskelgruppsfilter, dra och släpp för ordning
   (fungerar även med tangentbord), set/reps/kg/vila/RPE, instruktioner och videolänk, tilldelning till flera datum.
@@ -138,7 +138,7 @@ npm run dev                  # http://localhost:3000
   - sömnsteg och sömnpoäng från klocka
   - snitt för veckan
 - **Klocka och hälsoappar:** Fitbit via OAuth och webhook. Utan nycklar används en mock-enhet. Apple Health och Health Connect är förberedda men kräver en mobilapp, eftersom datan bara finns på telefonen.
-- **Historik:** en sida per övning med varje tillfälle (set, vikt, reps), personbästa och 1RM-kurva. Varje pass går att öppna.
+- **Historik:** en sida per övning med varje tillfälle (set, vikt, reps), personbästa och kurva över tyngsta set. Varje pass går att öppna.
 
 **Gemensamt**
 - **Chatt:** bilder, video (max 50 MB) och PDF, via gem-knappen, dra och släpp eller klistra in.
@@ -297,7 +297,7 @@ npm run dev                  # http://localhost:3000
   - Nya inriktningar: Cykling, Kondition och Kost.
 - **Intressen och Framsteg:**
   - Intressen och fokus väljs i välkomststeget och i Profilinställningar.
-  - `src/lib/interests.ts` kopplar varje intresse till mätpunkter, t.ex. Cykling → Bästa tid på milen och Snitt-watt, Styrkelyft → 1RM ur passloggen.
+  - `src/lib/interests.ts` kopplar varje intresse till mätpunkter, t.ex. Cykling → Bästa tid på milen och Snitt-watt, Styrkelyft → tyngsta set ur passloggen.
   - Loggade värden sparas i `progress_entries` och syns för klientens PT:er.
 - **Chatt och samtal:**
   - Samtal visas som brickor i chatten, och missade samtal har en röd markering och knappen *Ring upp*.
@@ -344,7 +344,7 @@ npm run dev                  # http://localhost:3000
   - Klientens PT:er ser dem som underlag, men de räknas aldrig som betalda pass och kan bara ändras av klienten.
 - **Profilbild för klienter:**
   - Bilden sparas i `profiles.avatar_url` och visas för PT:n i översikten, klientlistan, chatten, kalendern, samtalet och under "Senaste köp".
-  - Den fasta rutan "Knäböj 1RM" är borttagen; 1RM styrs nu av intressena.
+  - Den gamla fasta maxlyftrutan är borttagen (v39: inga uppskattade maxlyft alls).
 - **Videosamtal:** den egna kamerarutan kan dras fritt eller flyttas med piltangenterna.
 - **Dagens kost:**
   - `DailyNutrition` är samma komponent för klient och PT. PT:n ser exakt samma måltider, avbockningar (`meal_checks` i realtid) och extra mat, och kan bläddra mellan dagar.
@@ -396,7 +396,7 @@ npm run dev                  # http://localhost:3000
 **Coavira Plus.** Grunden är alltid gratis: dagens kostschema, bokning, att utföra pass och chatten. Plus låser upp fyra saker:
 1. sömntracking,
 2. historik äldre än 30 dagar (pass under Framsteg och per övning),
-3. djupgående grafer (1RM-utveckling),
+3. djupgående grafer (styrkeutveckling),
 4. export av träning och kost till CSV.
 
 Exporten av *all* egen data under Min data och sekretess (JSON) är alltid gratis. Den är en rättighet enligt GDPR (art. 15 och 20), så den låses inte. Därför är det en ny CSV-export som är Plus-funktionen.
@@ -578,6 +578,22 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v39: inga uppskattade maxlyft (1RM) – bara faktiska lyft
+
+- **Formlerna är borttagna:** Brzycki och Epley (`estimateOneRepMax`), e1RM-serien, relativ styrka (e1RM / kroppsvikt) och alla e1RM-fält.
+- **All statistik bygger nu på det som faktiskt lyfts** (`src/lib/training.ts`):
+  - `heavierSet`: tyngsta setet är det med högst vikt, och vid lika vikt flest reps;
+  - `topSetSeries`: tyngsta set per pass;
+  - `exerciseHistory`: varje tillfälles set, tyngsta set, volym och personbästa – tyngre än allt tidigare, eller samma vikt med fler reps;
+  - `liftKpis`: senaste tyngsta set, bästa set senaste 4 veckorna och förändringen i vikt.
+- **Gränssnittet visar tyngsta set (kg × reps):**
+  - Framsteg: styrkekortet och styrkegrafen;
+  - övningshistoriken: personbästa, kurva och listan med alla set;
+  - PT:ns klientvy;
+  - mätpunkterna för Styrkelyft (`top_squat`, `top_bench`, `top_deadlift`);
+  - målkorten för Body recomposition och Styrka.
+- Progressionen (v32/v34) använde redan bara faktiska set och raka set.
+
 ## Nytt i v38: smidigare övningar i splits och pass
 
 - **Övningslistan grupperas efter muskelgrupp** (`src/lib/exercises/groups.ts`, `src/components/exercises/exercise-picker.tsx`):
@@ -634,8 +650,8 @@ All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tä
   | Viktnedgång | kg sedan start och kvar till målvikten, med förlopp |
   | Ökad muskelmassa | kg sedan start och pass per vecka |
   | Bodybuilding | pass per vecka och avbockade set |
-  | Body recomposition | styrka (e1RM) och vikt |
-  | Styrka | e1RM-utveckling i baslyften |
+  | Body recomposition | tyngsta set i baslyften (kg) och vikt |
+  | Styrka | utveckling i tyngsta set i baslyften |
   | Kondition och Hälsa | aktiva minuter mot 150 min/vecka |
 - **Resend-segment för nyhetsbrev** (`src/lib/marketing/resend.ts`, `POST /api/marketing/sync`). Den som kryssar i nyhetsbrevet (i onboarding eller Inställningar) läggs som kontakt hos Resend:
   - klienter i segmentet **`Klient - Nyhetsbrev`**, PT:er i segmentet **`PT - Nyhetsbrev`** (namnen jämförs utan hänsyn till skiftläge, mellanslag och typ av bindestreck);
@@ -676,7 +692,7 @@ All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tä
   - Klarar toppsetet max-reps → nästa viktsteg och min-reps (140 × 8 → 142,5 × 6).
   - Annars samma vikt +1 rep; två pass i rad under min-reps → deload 10 %.
   - Viktsteget beror på utrustningen: skivstång 2,5, hantel 2, kettlebell 4, maskin 2,5 (ben 5), kroppsvikt = fler reps.
-  - De tidigare seten byggs som en pyramid upp mot toppsetet (Epley).
+  - Seten är raka set på dagens mål (v34).
 - **Splits** (`src/lib/splits.ts`, `/klient/schema`, PT: "Nytt pass → Från split"): PPL (3 och 6 dagar), Upper/Lower, 4-split, Bro split och Full Body. Alla kan anpassas. Klienten lägger ut passen i kalendern på valda veckodagar; PT:n får en mall per dag.
 - **Vilotid** (`src/lib/rest-timer.ts`): 45 s–3 min eller eget värde, som standard (Inställningar) eller under passet. Notis på låsskärmen i appen (`@capacitor/local-notifications`).
 - **Lägg till set / övning** under passet, även i PT:ns pass. PT:ns egna övningar kan inte tas bort eller ändras (databasregeln `exercises_only_extended`).
@@ -804,7 +820,7 @@ All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tä
 - **Navigering:** chatten ligger uppe till höger i headern (bredvid varukorg, aviseringar och profil). Bottenmenyns femte flik är **Recept** (`/klient/recept`).
 - **Recept:** klientens egna recept med ingredienser ur livsmedelsbasen, antal portioner och automatiskt uträknade kalorier, protein, kolhydrater och fett (totalt och per portion). *Logga en portion* lägger receptet i Dagens kost. Import från webben kommer senare.
 - **Ingen betalvägg i Idag/Kost:** matloggningen är ren och öppen. Utan kostcoaching visas dagens intag och en diskret länk till PT:er som erbjuder kostschema; sömnlåset (Plus) är en enkel rad.
-- **Framsteg gratis för alla:** e1RM per lyft (Brzycki upp till 10 reps, Epley 11–12), utveckling mot 4–8 veckor sedan, relativ styrka (e1RM / kroppsvikt) och veckovolym (effektiva set per muskelgrupp senaste 7 dagarna, riktmärke 10–20). "Djupgående grafer" är inte längre en Plus-funktion – Plus = full historik, sömn och export. Logik: `src/lib/training.ts`, vy: `src/components/progress/kpis.tsx`.
+- **Framsteg gratis för alla:** tyngsta set per lyft (vikt × reps), utveckling i vikt mot 4–8 veckor sedan och veckovolym (effektiva set per muskelgrupp senaste 7 dagarna, riktmärke 10–20). Sedan v39 räknas inga uppskattade maxlyft fram. "Djupgående grafer" är inte längre en Plus-funktion – Plus = full historik, sömn och export. Logik: `src/lib/training.ts`, vy: `src/components/progress/kpis.tsx`.
 - **Engelska övningsnamn** enligt branschnorm. De svenska namnen finns kvar som sökord (`src/lib/exercises/search.ts`) – "knäböj" hittar Back Squat.
 - **Tömbara sifferfält:** `NumberInput` och loggerns fält kan tömmas helt och få valfritt värde; inget hoppar tillbaka till ett standardvärde. Valideringen sker när setet bockas av eller passet/mallen sparas (`src/lib/exercises/draft.ts`).
 - **Rep-mål per set** (`WorkoutExercise.setReps`, t.ex. 12/10/8) i passbyggaren, eget pass och loggern – förslaget för varje set följer setets mål.

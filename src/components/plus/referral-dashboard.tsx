@@ -385,7 +385,7 @@ export function PlusPage() {
     ["Full historik", "Alla pass och all kost – inte bara de senaste 30 dagarna."],
     ["Export till CSV", "Ladda ner träning och kost till Excel eller Numbers."],
   ]
-  const free = ["Matloggning och recept", "Framsteg: e1RM, volym och relativ styrka", "Boka och utföra pass", "Chatt med din PT"]
+  const free = ["Matloggning och recept", "Framsteg: tyngsta set, volym och veckovolym", "Boka och utföra pass", "Chatt med din PT"]
 
   return (
     <div className="space-y-5">

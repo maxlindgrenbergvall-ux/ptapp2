@@ -179,7 +179,7 @@ const slides = [
     file: "05-framsteg",
     eyebrow: "Framsteg efter dina mål",
     title: `Se dina<br><span class="lime">resultat.</span>`,
-    sub: "1RM, vikt och mätpunkter räknas fram från dina pass.",
+    sub: "Tyngsta set, vikt och mätpunkter räknas fram från dina pass.",
     body:
       at(appPhone("app-2-framsteg"), { left: 186, top: 70, width: 228, rotate: 5, z: 1 }) +
       at(sitePhone("landing-progress-phone", 296), { left: 22, top: 0, width: 296, z: 2 }),

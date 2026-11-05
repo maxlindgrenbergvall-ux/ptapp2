@@ -1,5 +1,5 @@
 // E2E för v18 i demoläge: Coavira Plus-låsen (sömn, historik > 30 dagar,
-// 1RM-grafer, CSV-export), uppgraderingsrutan (frostat glas, texten, två
+// styrkegrafer, CSV-export), uppgraderingsrutan (frostat glas, texten, två
 // knappar), inbjudningsvyn för klient och PT, inlösen av kod, köp av Plus
 // (simulerat) och /ref/KOD → registreringen med inbjudningsbanner.
 //   npm run build && npm start   (utan Supabase-variabler)
@@ -63,10 +63,10 @@ await dialog.locator("text=Bjud in en vän & få 1 månad gratis").click()
 await p.waitForURL("**/klient/inbjudningar")
 ok("Bjud in-knappen leder till inbjudningsvyn")
 
-// Framsteg: e1RM och nyckeltal är gratis (v24) – bara historik äldre än 30 dagar är låst.
+// Framsteg: styrka och nyckeltal är gratis (v24) – bara historik äldre än 30 dagar är låst.
 await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("[data-testid=progress-kpis]")
-check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "e1RM och nyckeltal är gratis (v24)")
+check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "styrka och nyckeltal är gratis (v24)")
 const old = await p.locator("[data-testid=plus-lock][data-feature=history]").count()
 check(old >= 1, "pass äldre än 30 dagar är låsta")
 await p.screenshot({ path: `${out}/v18-las-framsteg.png`, fullPage: true })

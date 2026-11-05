@@ -13,7 +13,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { addDays, formatShort, parseISODate, todayISO } from "@/lib/date"
-import { oneRepMaxSeries } from "@/lib/training"
+import { topSetSeries } from "@/lib/training"
 import type { ScheduledWorkout, WeightEntry } from "@/types/domain"
 
 /*
@@ -58,7 +58,7 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
   )
 }
 
-/** En serie över tid i varumärkesgrönt (t.ex. uppskattat 1RM för en övning). */
+/** En serie över tid i varumärkesgrönt (t.ex. tyngsta set per pass för en övning). */
 export function TrendChart({
   points,
   label,
@@ -104,9 +104,10 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
   const data = React.useMemo(() => {
     const byDate = new Map<string, Record<string, number | string>>()
     for (const lift of LIFTS) {
-      for (const p of oneRepMaxSeries(lift.exerciseId, workouts)) {
-        const row = byDate.get(p.date) ?? { date: p.date }
-        row[lift.key] = p.e1rm
+      for (const p of topSetSeries(lift.exerciseId, workouts)) {
+        const row: Record<string, number | string> = byDate.get(p.date) ?? { date: p.date }
+        row[lift.key] = p.kg
+        row[`${lift.key}Reps`] = p.reps
         byDate.set(p.date, row)
       }
     }
@@ -125,10 +126,10 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
 
   return (
     <ChartFrame
-      caption="Uppskattat 1RM (kg)"
+      caption="Tyngsta set per pass (kg)"
       table={{
         head: ["Datum", ...LIFTS.map((l) => l.label)],
-        rows: data.map((d) => [formatShort(String(d.date)), ...LIFTS.map((l) => (d[l.key] ?? "–").toString())]),
+        rows: data.map((d) => [formatShort(String(d.date)), ...LIFTS.map((l) => (d[l.key] === undefined ? "–" : `${d[l.key]} kg × ${d[`${l.key}Reps`]}`))]),
       }}
     >
       <ChartContainer config={config} className="aspect-auto h-64 w-full">
@@ -137,10 +138,12 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} width={36} domain={yDomain} />
           <ChartTooltip
-            content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v, name) => (
+            content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v, name, item) => (
               <span className="flex w-full justify-between gap-4">
                 <span className="text-muted-foreground">{config[name as keyof typeof config]?.label}</span>
-                <span className="font-medium tabular">{v} kg</span>
+                <span className="font-medium tabular">
+                  {v} kg × {(item?.payload as Record<string, number> | undefined)?.[`${String(name)}Reps`] ?? "–"}
+                </span>
               </span>
             )} />}
           />

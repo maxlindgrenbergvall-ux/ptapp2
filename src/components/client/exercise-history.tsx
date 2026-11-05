@@ -12,7 +12,7 @@ import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { formatDay, formatShort, todayISO } from "@/lib/date"
 import { historyCutoff } from "@/lib/plus"
-import { exerciseHistory } from "@/lib/training"
+import { exerciseHistory, heavierSet } from "@/lib/training"
 
 const kgFmt = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 2 })
 
@@ -21,7 +21,8 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
   const { data, me } = useAppData()
   const name = exerciseName(data, exerciseId, me.id)
   const sessions = exerciseHistory(exerciseId, workoutsFor(data, me.id))
-  const best = sessions.reduce<(typeof sessions)[number] | null>((a, s) => (!a || s.e1rm > a.e1rm ? s : a), null)
+  // Personbästa = tyngsta set någonsin (högst vikt, vid lika vikt flest reps).
+  const best = sessions.reduce<(typeof sessions)[number] | null>((a, s) => (!s.topSet ? a : !a?.topSet || heavierSet(a.topSet, s.topSet) === s.topSet ? s : a), null)
   const usesWeight = sessions.some((s) => s.sets.some((l) => l.kg > 0))
   // Gratis: tillfällen de senaste 30 dagarna. Äldre kräver Coavira Plus.
   const { isPlus } = usePlus()
@@ -51,7 +52,7 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
                 label="Personbästa"
                 icon={Trophy}
                 value={`${kgFmt(best.topSet.kg)} kg × ${best.topSet.reps}`}
-                sub={`≈ ${kgFmt(best.e1rm)} kg 1RM · ${formatShort(best.date)}`}
+                sub={formatShort(best.date)}
               />
             ) : (
               <StatTile label="Bästa set" icon={Trophy} value={best?.topSet ? `${best.topSet.reps} reps` : "–"} />
@@ -59,12 +60,12 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
             <StatTile label="Tillfällen" value={sessions.length} sub={`Senast ${formatShort(sessions[0].date)}`} />
           </div>
 
-          {/* e1RM-utvecklingen är gratis för alla (v24). */}
+          {/* Utvecklingen i tyngsta set (faktiska lyft) – gratis för alla. */}
           {usesWeight && (
             <section className="space-y-2 rounded-2xl border bg-card p-4">
-              <h2 className="text-sm font-medium">Uppskattat 1RM (e1RM)</h2>
-              <TrendChart label="Uppskattat 1RM" unit="kg" points={[...sessions].reverse().map((s) => ({ date: s.date, value: s.e1rm }))} />
-              <p className="text-xs text-muted-foreground">Brzycki (upp till 10 reps) och Epley (11–12 reps) från ditt bästa set varje gång.</p>
+              <h2 className="text-sm font-medium">Tyngsta set per tillfälle</h2>
+              <TrendChart label="Tyngsta set" unit="kg" points={[...sessions].reverse().flatMap((s) => (s.topSet?.kg ? [{ date: s.date, value: s.topSet.kg }] : []))} />
+              <p className="text-xs text-muted-foreground">Vikten i ditt tyngsta set varje gång – reps och alla set finns i listan nedan.</p>
             </section>
           )}
 
@@ -84,7 +85,7 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
   )
 }
 
-/** Tillfällen med set, volym och uppskattat 1RM. */
+/** Tillfällen med alla set (vikt × reps), tyngsta set och volym. */
 function SessionList({ sessions, usesWeight }: { sessions: ReturnType<typeof exerciseHistory>; usesWeight: boolean }) {
   return (
     <ol className="space-y-2">
@@ -115,7 +116,7 @@ function SessionList({ sessions, usesWeight }: { sessions: ReturnType<typeof exe
             </ol>
             {usesWeight && (
               <p className="mt-2 text-xs text-muted-foreground tabular">
-                Volym {Math.round(s.volume).toLocaleString("sv-SE")} kg · ≈ {kgFmt(s.e1rm)} kg 1RM
+                {s.topSet ? `Tyngsta set ${kgFmt(s.topSet.kg)} × ${s.topSet.reps} · ` : ""}Volym {Math.round(s.volume).toLocaleString("sv-SE")} kg
               </p>
             )}
           </Link>

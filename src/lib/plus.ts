@@ -3,8 +3,8 @@
  * konstanterna här används för visning och i demoläget.
  *
  * Gratis för alla: matloggning och dagens kostschema, recept, boka pass,
- * utföra pass, chatt och all framstegsmätning (e1RM, volym per muskelgrupp,
- * relativ styrka – v24).
+ * utföra pass, chatt och all framstegsmätning (tyngsta set och volym per
+ * muskelgrupp – v24/v39).
  * Coavira Plus låser upp: sömntracking, historik äldre än 30 dagar och
  * CSV-export av träning och kost.
  * (Exporten av ALL egen data i Min data och sekretess är alltid gratis – GDPR.)

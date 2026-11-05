@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronRight, Dumbbell, Scale, TrendingDown, TrendingUp } from "lucide-react"
+import { ChevronRight, Dumbbell, TrendingDown, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,9 +29,9 @@ const GROUP_LABEL: Record<MuscleGroup, string> = {
 /**
  * Framstegens nyckeltal – gratis för alla (v24). Räknas fram ur loggade set,
  * inget behöver fyllas i:
- *  1. e1RM per lyft (Brzycki ≤ 10 reps, Epley 11–12) med utveckling mot 4–8 veckor sedan.
- *  2. Relativ styrka: e1RM / kroppsvikt (senaste vägningen före passet).
- *  3. Veckovolym: effektiva set per muskelgrupp och vecka.
+ *  1. Lyften (v39: bara faktiska lyft): senaste tyngsta set (vikt × reps),
+ *     bästa set senaste 4 veckorna och utvecklingen i vikt mot 4–8 veckor sedan.
+ *  2. Veckovolym: effektiva set per muskelgrupp och vecka.
  */
 export function ProgressKpis({ client, workouts }: { client: Client; workouts: ScheduledWorkout[] }) {
   return (
@@ -47,21 +47,20 @@ export function ProgressKpis({ client, workouts }: { client: Client; workouts: S
 
 function LiftTable({ client, workouts }: { client: Client; workouts: ScheduledWorkout[] }) {
   const { data } = useAppData()
-  const lifts = liftKpis(workouts, client.weightLog, todayISO()).slice(0, 6)
-  const hasWeight = client.weightLog.length > 0
+  const lifts = liftKpis(workouts, todayISO()).slice(0, 6)
   return (
     <Card data-testid="kpi-lifts">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Dumbbell className="size-4" /> Styrka (e1RM)
+          <Dumbbell className="size-4" /> Styrka
         </CardTitle>
-        <CardDescription>Uppskattat 1RM från dina bästa set senaste 4 veckorna och styrka i förhållande till kroppsvikten.</CardDescription>
+        <CardDescription>Ditt tyngsta set i varje lyft – vikt och reps som du faktiskt gjort.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {lifts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Logga set med vikt (1–12 reps) så räknas ditt e1RM ut automatiskt.</p>
+          <p className="text-sm text-muted-foreground">Logga set med vikt så visas dina lyft här.</p>
         ) : (
-          <ul className="divide-y divide-border/60" aria-label="e1RM per övning">
+          <ul className="divide-y divide-border/60" aria-label="Tyngsta set per övning">
             {lifts.map((l) => (
               <li key={l.exerciseId}>
                 <Link
@@ -71,11 +70,13 @@ function LiftTable({ client, workouts }: { client: Client; workouts: ScheduledWo
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{exerciseName(data, l.exerciseId, client.id)}</div>
                     <div className="text-xs text-muted-foreground">
-                      {l.sessions} pass · bäst {formatShort(l.date)}
+                      {l.sessions} pass · senast {formatShort(l.date)}: {kg(l.latest.kg)} × {l.latest.reps}
                     </div>
                   </div>
                   <div className="shrink-0 text-right tabular">
-                    <div className="text-sm font-semibold">{kg(l.e1rm)} kg</div>
+                    <div className="text-sm font-semibold" title="Tyngsta set senaste 4 veckorna">
+                      {kg(l.best.kg)} kg × {l.best.reps}
+                    </div>
                     <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
                       {l.change !== null && l.change !== 0 && (
                         <span
@@ -87,7 +88,6 @@ function LiftTable({ client, workouts }: { client: Client; workouts: ScheduledWo
                           {kg(Math.abs(l.change))}
                         </span>
                       )}
-                      {l.relative !== null && <span title="e1RM / kroppsvikt">{l.relative.toLocaleString("sv-SE", { minimumFractionDigits: 2 })} × kv</span>}
                     </div>
                   </div>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -95,11 +95,6 @@ function LiftTable({ client, workouts }: { client: Client; workouts: ScheduledWo
               </li>
             ))}
           </ul>
-        )}
-        {lifts.length > 0 && !hasWeight && (
-          <p className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            <Scale className="size-3.5 shrink-0" /> Logga din vikt nedan för att se relativ styrka (× kroppsvikt).
-          </p>
         )}
       </CardContent>
     </Card>

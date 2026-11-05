@@ -1,5 +1,5 @@
 // E2E för v24 i demoläge: chatten i headern, Recept-fliken, ren Dagens kost
-// utan betalvägg, gratis nyckeltal (e1RM, veckovolym, relativ styrka),
+// utan betalvägg, gratis nyckeltal (tyngsta set per lyft, veckovolym),
 // engelska övningsnamn, tömbara sifferfält, rep-mål per set, ordning på
 // övningar och redigering av ett genomfört pass.
 //   npm run build && npm start   (utan Supabase-variabler)
@@ -76,8 +76,8 @@ await p.screenshot({ path: `${out}/v24-idag-utan-betalvagg.png`, fullPage: true 
 await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("[data-testid=progress-kpis]")
 const lifts = await p.locator("[data-testid=kpi-lifts]").innerText()
-check(/Back Squat|Bench Press|Romanian Deadlift|Deadlift/.test(lifts) && /\d+(,\d)? kg/.test(lifts), "e1RM per lyft med engelska namn")
-check(/× kv/.test(lifts), "relativ styrka (× kroppsvikt) visas")
+check(/Back Squat|Bench Press|Romanian Deadlift|Deadlift/.test(lifts) && /\d+(,\d)? kg/.test(lifts), "tyngsta set per lyft med engelska namn")
+check(/\d+(,\d+)? kg × \d+/.test(lifts), "faktiska lyft: vikt × reps (inga uppskattade värden)")
 check(await p.locator("[data-testid=kpi-volume] [role=meter]").first().isVisible(), "veckovolym per muskelgrupp visas")
 check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "framstegen är gratis utan Plus")
 await p.screenshot({ path: `${out}/v24-framsteg.png`, fullPage: true })

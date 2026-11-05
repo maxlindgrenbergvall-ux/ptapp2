@@ -4,20 +4,12 @@ import { nextTarget, setPlan } from "@/lib/progression"
 import { sectionOf } from "@/lib/workout-rules"
 import type { Exercise, ISODate, MuscleGroup, ScheduledWorkout, SetLog, WeightEntry, WorkoutExercise } from "@/types/domain"
 
-/** Över 12 reps säger setet för lite om maxstyrkan – formlerna blir opålitliga. */
-export const E1RM_MAX_REPS = 12
-
 /**
- * Uppskattat 1RM (e1RM) från ett set. Brzycki (vikt × 36 / (37 − reps)) är
- * träffsäkrast upp till 10 reps; för 11–12 reps används Epley
- * (vikt × (1 + reps/30)). Fler reps än 12 räknas som 12.
+ * Tyngsta setet (v39): högst vikt – vid lika vikt flest reps. All statistik
+ * bygger på faktiska lyft (vikt × reps) – inget räknas fram eller uppskattas.
  */
-export function estimateOneRepMax(kg: number, reps: number): number {
-  if (reps <= 0 || kg <= 0) return 0
-  if (reps === 1) return kg
-  const r = Math.min(reps, E1RM_MAX_REPS)
-  const e1rm = r <= 10 ? (kg * 36) / (37 - r) : kg * (1 + r / 30)
-  return Math.round(e1rm * 10) / 10
+export function heavierSet<T extends { kg: number; reps: number }>(a: T, b: T): T {
+  return b.kg > a.kg || (b.kg === a.kg && b.reps > a.reps) ? b : a
 }
 
 /** Första talet i ett reps-fält ("8–10" → 8, "AMRAP" → 0). */
@@ -110,22 +102,17 @@ export function lastPerformance(
   return null
 }
 
-/** Bästa uppskattade 1RM per pass för en övning, i datumordning (för styrkegrafen). */
-export function oneRepMaxSeries(
-  exerciseId: string,
-  workouts: ScheduledWorkout[]
-): { date: string; e1rm: number }[] {
+/** Tyngsta setet per pass för en övning, i datumordning (för styrkegrafen). */
+export function topSetSeries(exerciseId: string, workouts: ScheduledWorkout[]): { date: string; kg: number; reps: number }[] {
   return workouts
     .filter((w) => w.status === "completed")
     .sort((a, b) => a.date.localeCompare(b.date))
     .flatMap((w) => {
-      const entryIds = new Set(
-        w.exercises.filter((e) => e.exerciseId === exerciseId).map((e) => e.id)
-      )
-      const best = w.logs
-        .filter((l) => l.done && entryIds.has(l.workoutExerciseId))
-        .reduce((max, l) => Math.max(max, estimateOneRepMax(l.kg, l.reps)), 0)
-      return best > 0 ? [{ date: w.date, e1rm: best }] : []
+      const entryIds = new Set(w.exercises.filter((e) => e.exerciseId === exerciseId).map((e) => e.id))
+      const sets = w.logs.filter((l) => l.done && entryIds.has(l.workoutExerciseId) && l.kg > 0)
+      if (!sets.length) return []
+      const top = sets.reduce(heavierSet)
+      return [{ date: w.date, kg: top.kg, reps: top.reps }]
     })
 }
 
@@ -134,16 +121,16 @@ export interface ExerciseSession {
   workoutName: string
   date: string
   sets: SetLog[]
+  /** Tyngsta setet (högst vikt, vid lika vikt flest reps). */
   topSet: { kg: number; reps: number } | null
-  e1rm: number
   volume: number
-  /** Nytt personbästa (uppskattat 1RM) jämfört med alla tidigare tillfällen. */
+  /** Personbästa: tyngre än allt tidigare (eller samma vikt med fler reps). */
   isPR: boolean
 }
 
 /** Alla genomförda tillfällen för en övning, nyast först. */
 export function exerciseHistory(exerciseId: string, workouts: ScheduledWorkout[]): ExerciseSession[] {
-  let best = 0
+  let best: { kg: number; reps: number } | null = null
   const chronological = workouts
     .filter((w) => w.status === "completed")
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -152,10 +139,9 @@ export function exerciseHistory(exerciseId: string, workouts: ScheduledWorkout[]
       if (ids.size === 0) return []
       const sets = w.logs.filter((l) => l.done && ids.has(l.workoutExerciseId)).sort((a, b) => a.setIndex - b.setIndex)
       if (sets.length === 0) return []
-      const top = sets.reduce((a, b) => (estimateOneRepMax(b.kg, b.reps) > estimateOneRepMax(a.kg, a.reps) ? b : a))
-      const e1rm = estimateOneRepMax(top.kg, top.reps)
-      const isPR = e1rm > best && best > 0
-      best = Math.max(best, e1rm)
+      const top = sets.reduce(heavierSet)
+      const isPR = Boolean(best && top.kg > 0 && heavierSet(best, top) === top && (top.kg !== best.kg || top.reps !== best.reps))
+      if (top.kg > 0 || top.reps > 0) best = best ? heavierSet(best, top) : { kg: top.kg, reps: top.reps }
       return [
         {
           workoutId: w.id,
@@ -163,7 +149,6 @@ export function exerciseHistory(exerciseId: string, workouts: ScheduledWorkout[]
           date: w.date,
           sets,
           topSet: top.kg || top.reps ? { kg: top.kg, reps: top.reps } : null,
-          e1rm,
           volume: sets.reduce((s, l) => s + l.kg * l.reps, 0),
           isPR,
         },
@@ -181,11 +166,6 @@ export function bodyweightOn(log: WeightEntry[], date: ISODate): number | null {
   return best?.kg ?? log.slice().sort((a, b) => a.date.localeCompare(b.date))[0]?.kg ?? null
 }
 
-/** Relativ styrka: e1RM delat med kroppsvikten (t.ex. 1,5 × kroppsvikten). */
-export function relativeStrength(e1rm: number, bodyweightKg: number | null): number | null {
-  if (!bodyweightKg || bodyweightKg <= 0 || e1rm <= 0) return null
-  return Math.round((e1rm / bodyweightKg) * 100) / 100
-}
 
 /**
  * Effektiva set: genomförda arbetsset i huvudpasset (inte uppvärmning eller
@@ -232,49 +212,47 @@ export function weeklySetsByMuscle(
 
 export interface LiftKpi {
   exerciseId: string
-  /** Bästa e1RM senaste 4 veckorna (annars senaste kända). */
-  e1rm: number
+  /** Senaste passets tyngsta set. */
+  latest: { kg: number; reps: number }
   date: ISODate
-  /** Förändring mot bästa e1RM 4–8 veckor tidigare (kg), om det finns. */
+  /** Tyngsta setet senaste 4 veckorna (annars senaste kända). */
+  best: { kg: number; reps: number }
+  /** Förändring i tyngsta vikt mot 4–8 veckor tidigare (kg), om det finns. */
   change: number | null
-  /** e1RM / kroppsvikt. */
-  relative: number | null
   sessions: number
 }
 
 /**
- * e1RM, utveckling och relativ styrka per lyft, sorterat på e1RM. Bara set
- * med vikt och högst 12 reps räknas (annars blir uppskattningen för osäker).
+ * Lyften med faktiska siffror (v39): senaste tyngsta set, bästa set senaste
+ * 4 veckorna och utvecklingen i vikt mot perioden innan. Sorterat på tyngsta vikt.
  */
-export function liftKpis(workouts: ScheduledWorkout[], weightLog: WeightEntry[], today: ISODate): LiftKpi[] {
+export function liftKpis(workouts: ScheduledWorkout[], today: ISODate): LiftKpi[] {
   const recentFrom = addDays(today, -28)
   const previousFrom = addDays(today, -56)
-  const best = new Map<string, { recent: number; recentDate: ISODate; previous: number; latest: number; latestDate: ISODate; sessions: Set<string> }>()
+  type Lift = { kg: number; reps: number }
+  const acc = new Map<string, { recent: Lift | null; previous: number; latest: Lift; latestDate: ISODate; sessions: Set<string> }>()
   for (const w of workouts) {
-    if (w.status !== "completed") continue
+    if (w.status !== "completed" || w.date > today) continue
     for (const { exercise, log } of effectiveSets(w)) {
-      if (log.kg <= 0 || log.reps > E1RM_MAX_REPS) continue
-      const e1rm = estimateOneRepMax(log.kg, log.reps)
-      const b = best.get(exercise.exerciseId) ?? { recent: 0, recentDate: "", previous: 0, latest: 0, latestDate: "", sessions: new Set<string>() }
+      if (log.kg <= 0) continue
+      const set = { kg: log.kg, reps: log.reps }
+      const b = acc.get(exercise.exerciseId) ?? { recent: null, previous: 0, latest: set, latestDate: "", sessions: new Set<string>() }
       b.sessions.add(w.id)
-      if (w.date >= recentFrom && e1rm > b.recent) Object.assign(b, { recent: e1rm, recentDate: w.date })
-      else if (w.date >= previousFrom && w.date < recentFrom) b.previous = Math.max(b.previous, e1rm)
-      if (w.date > b.latestDate || (w.date === b.latestDate && e1rm > b.latest)) Object.assign(b, { latest: e1rm, latestDate: w.date })
-      best.set(exercise.exerciseId, b)
+      if (w.date >= recentFrom) b.recent = b.recent ? heavierSet(b.recent, set) : set
+      else if (w.date >= previousFrom) b.previous = Math.max(b.previous, log.kg)
+      if (w.date > b.latestDate) Object.assign(b, { latest: set, latestDate: w.date })
+      else if (w.date === b.latestDate) b.latest = heavierSet(b.latest, set)
+      acc.set(exercise.exerciseId, b)
     }
   }
-  return [...best.entries()]
-    .map(([exerciseId, b]) => {
-      const e1rm = b.recent || b.latest
-      const date = b.recent ? b.recentDate : b.latestDate
-      return {
-        exerciseId,
-        e1rm,
-        date,
-        change: b.recent && b.previous ? Math.round((b.recent - b.previous) * 10) / 10 : null,
-        relative: relativeStrength(e1rm, bodyweightOn(weightLog, date)),
-        sessions: b.sessions.size,
-      }
-    })
-    .sort((a, b) => b.e1rm - a.e1rm)
+  return [...acc.entries()]
+    .map(([exerciseId, b]) => ({
+      exerciseId,
+      latest: b.latest,
+      date: b.latestDate,
+      best: b.recent ?? b.latest,
+      change: b.recent && b.previous ? Math.round((b.recent.kg - b.previous) * 10) / 10 : null,
+      sessions: b.sessions.size,
+    }))
+    .sort((a, b) => b.best.kg - a.best.kg)
 }

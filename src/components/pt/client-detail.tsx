@@ -129,7 +129,6 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           value={weightNow ? `${weightNow.kg.toFixed(1)} kg` : "–"}
           sub={weightChange === null ? "Inga vägningar" : `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(1)} kg sedan start`}
         />
-        {/* 1RM och andra mätpunkter styrs av klientens intressen (se "Mål och mätpunkter"). */}
         <StatTile label="Egna pass, 30 dagar" icon={Trophy} value={workouts.filter((w) => w.byClient && w.date >= addDays(today, -30)).length} sub="Klientens egen träning" />
         <StatTile label="Genomförda pass" value={completed} />
         <StatTile label="Följsamhet, 4 v" value={adh === null ? "–" : `${adh} %`} />
@@ -183,7 +182,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Styrkeutveckling</CardTitle>
-              <CardDescription>Uppskattat 1RM (Brzycki/Epley) från bästa setet per pass</CardDescription>
+              <CardDescription>Tyngsta set per pass i baslyften (vikt × reps)</CardDescription>
             </CardHeader>
             <CardContent>
               <StrengthChart workouts={workouts} />

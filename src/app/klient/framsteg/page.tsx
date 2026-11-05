@@ -18,7 +18,7 @@ import { exerciseName, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
 import { historyCutoff } from "@/lib/plus"
-import { exerciseHistory, oneRepMaxSeries, setsDone, workoutVolume } from "@/lib/training"
+import { exerciseHistory, setsDone, topSetSeries, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
 export default function ProgressPage() {
@@ -28,7 +28,7 @@ export default function ProgressPage() {
   const completed = workouts.filter((w) => w.status === "completed").sort((a, b) => b.date.localeCompare(a.date))
   const [kg, setKg] = React.useState("")
 
-  const squat = oneRepMaxSeries("e-squat", workouts)
+  const squat = topSetSeries("e-squat", workouts)
   // Styrkediagrammet visas för styrke- och muskelmål (eller när det finns lyft att visa).
   const goals = data.goalProfiles.find((g) => g.clientId === client.id)?.goals ?? []
   const showStrength = goals.some((g) => g === "strength" || g === "bodybuilding" || g === "muscle_gain" || g === "recomp") || squat.length > 0
@@ -56,14 +56,14 @@ export default function ProgressPage() {
         <StatTile label="Veckor i rad" icon={Flame} value={streak} sub="med minst ett pass" />
       </div>
 
-      {/* Framstegsmätning är gratis för alla (v24): e1RM, relativ styrka och veckovolym. */}
+      {/* Framstegsmätning är gratis för alla (v24): tyngsta set per lyft och veckovolym. */}
       <ProgressKpis client={client} workouts={workouts} />
 
       {showStrength && (
         <Card>
           <CardHeader>
             <CardTitle>Styrkeutveckling</CardTitle>
-            <CardDescription>Uppskattat 1RM (e1RM) per pass i baslyften</CardDescription>
+            <CardDescription>Tyngsta set per pass i baslyften (vikt × reps)</CardDescription>
           </CardHeader>
           <CardContent>
             <StrengthChart workouts={workouts} />

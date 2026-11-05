@@ -3,13 +3,13 @@
  *
  * Klienten väljer intressen i välkomststeget eller i profilen. Varje intresse
  * har en lista med mätpunkter: antingen räknade ur befintlig data (vikt,
- * uppskattat 1RM ur passloggen) eller loggade för hand (tid på milen, watt …).
+ * tyngsta set ur passloggen) eller loggade för hand (tid på milen, watt …).
  * Mätpunkternas nycklar sparas i progress_entries.metric.
  *
  * Nytt intresse = en rad i INTERESTS. Ingen databasändring behövs.
  */
 import type { AppData, ID, ScheduledWorkout } from "@/types/domain"
-import { oneRepMaxSeries } from "@/lib/training"
+import { topSetSeries } from "@/lib/training"
 
 export type MetricFormat = "time" | "number"
 
@@ -33,8 +33,9 @@ export interface InterestDef {
   metrics: MetricDef[]
 }
 
-const e1rm = (exerciseId: string) => (data: AppData, clientId: ID) =>
-  oneRepMaxSeries(exerciseId, data.workouts.filter((w: ScheduledWorkout) => w.clientId === clientId)).map((p) => ({ date: p.date, value: p.e1rm }))
+/** Tyngsta setets vikt per pass (bara faktiska lyft). */
+const topSet = (exerciseId: string) => (data: AppData, clientId: ID) =>
+  topSetSeries(exerciseId, data.workouts.filter((w: ScheduledWorkout) => w.clientId === clientId)).map((p) => ({ date: p.date, value: p.kg }))
 
 const weight = (data: AppData, clientId: ID) => (data.clients.find((c) => c.id === clientId)?.weightLog ?? []).map((w) => ({ date: w.date, value: w.kg }))
 
@@ -44,9 +45,9 @@ export const INTERESTS: InterestDef[] = [
     label: "Styrkelyft",
     emoji: "🏋️",
     metrics: [
-      { key: "e1rm_squat", label: "Back Squat, e1RM", unit: "kg", format: "number", auto: e1rm("e-squat") },
-      { key: "e1rm_bench", label: "Bench Press, e1RM", unit: "kg", format: "number", auto: e1rm("e-bench") },
-      { key: "e1rm_deadlift", label: "Deadlift, e1RM", unit: "kg", format: "number", auto: e1rm("e-deadlift") },
+      { key: "top_squat", label: "Back Squat, tyngsta set", unit: "kg", format: "number", auto: topSet("e-squat") },
+      { key: "top_bench", label: "Bench Press, tyngsta set", unit: "kg", format: "number", auto: topSet("e-bench") },
+      { key: "top_deadlift", label: "Deadlift, tyngsta set", unit: "kg", format: "number", auto: topSet("e-deadlift") },
     ],
   },
   {

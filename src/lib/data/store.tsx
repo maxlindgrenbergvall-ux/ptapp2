@@ -716,7 +716,7 @@ function createActions(ctx: {
     /**
      * Spara mål och kroppsmått (intro-flödet och Profil → Mål). En ny nuvarande
      * vikt loggas också i viktkurvan för dagens datum, så att grafen under
-     * Framsteg och relativ styrka använder samma vikt.
+     * Framsteg använder samma vikt.
      */
     saveGoalProfile: (profile: GoalProfile) => {
       commit({ type: "saveGoalProfile", profile })
