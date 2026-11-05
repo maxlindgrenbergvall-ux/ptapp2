@@ -101,5 +101,14 @@ await p.getByRole("button", { name: "Tillbaka" }).click()
 await p.waitForURL(new RegExp(`/klient/pass/${w.id}`))
 ok("Tillbaka leder till passet")
 
+// ----------------- 5. Mål-fliken (v41): samma två kort + stora grafen ---
+await p.goto(base + "/klient/profil/mal")
+await p.waitForSelector("[data-testid=goal-settings] [data-testid=progress-curve] .recharts-line")
+check((await p.locator("[data-testid=goal-settings] [data-testid=progress-cards] > div").count()) === 2, "Mål: två kort högst upp")
+check((await p.locator("[data-testid=adaptive-curve], [data-testid=goal-progress]").count()) === 0, "Mål: inga extra paneler runt grafen")
+check(!/\b(e?1RM)\b|Veckovolym|Styrkeutveckling/i.test(await p.locator("main").innerText()), "Mål: inga 1RM, veckovolym eller styrkeutveckling")
+check(await noOverflow(), "Mål: ingen horisontell overflow (390 px)")
+await p.screenshot({ path: `${out}/v41-mal.png`, fullPage: true })
+
 check(errors.length === 0, `inga sidfel${errors.length ? `: ${errors.join(" | ")}` : ""}`)
 await browser.close()

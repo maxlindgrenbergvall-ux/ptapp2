@@ -578,6 +578,14 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v41: Mål-fliken med samma rena vy
+
+- **Mål-fliken (`/klient/profil/mal`)** börjar nu med samma två kort som Framsteg, Viktnedgång (eller Tappat fett) och Ökad muskelmassa, med den stora kurvan direkt under (`ProgressOverview`).
+- Den gamla rutan "Din kurva" är borta, och med den den grå informationsrutan med förbränning, aktiv förbränning och pass per vecka. Samma uppgifter står nu på källraden under grafen.
+- Formulären för mål, mått, aktivitetsnivå och kostplan finns kvar under grafen, så målen kan fortfarande ändras.
+- PT:ns sammanfattning av klientens mål (`goal-summary-card`) är oförändrad.
+- Ingen databasändring.
+
 ## Nytt i v40: Framsteg – två kort och en stor graf
 
 - **Framsteg (`/klient/framsteg`) innehåller bara:**

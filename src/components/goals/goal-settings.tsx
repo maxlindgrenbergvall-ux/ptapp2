@@ -1,12 +1,12 @@
 "use client"
 
-import { Activity, Ruler, Save, Sparkles, Target, TrendingDown } from "lucide-react"
+import { Activity, Ruler, Save, Sparkles, Target } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { GoalProgressChart } from "@/components/goals/goal-progress-card"
 import { ActivityPicker, BodyFields, GoalDisclaimer, GoalPicker, GoalResults } from "@/components/goals/goal-editor"
+import { ProgressOverview } from "@/components/progress/progress-overview"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -68,6 +68,9 @@ export function GoalSettings() {
 
   return (
     <div className="space-y-5" data-testid="goal-settings">
+      {/* v41: samma rena vy som Framsteg – två kort och en stor kurva, inga extra paneler. */}
+      <ProgressOverview clientId={saved.clientId} />
+
       <Card className="gap-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -81,19 +84,6 @@ export function GoalSettings() {
         </CardHeader>
         <CardContent>
           <GoalPicker value={draft.goals} onChange={(goals) => patch({ goals })} error={errors.goals} />
-        </CardContent>
-      </Card>
-
-      {/* v34: den dynamiska viktkurvan – räknas om med uppmätt förbränning och träningsfrekvens. */}
-      <Card className="gap-3">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingDown className="size-4" /> Din kurva
-          </CardTitle>
-          <CardDescription>Planen (ljus linje), dina vägningar och den uppdaterade prognosen (streckad) från din faktiska träning och förbränning.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GoalProgressChart clientId={saved.clientId} disclaimer={false} />
         </CardContent>
       </Card>
 
@@ -127,7 +117,7 @@ export function GoalSettings() {
         <GoalResults draft={draft} onChange={patch} errors={draftErrors(draft, ["targetWeightKg"])} />
       </section>
 
-      <GoalDisclaimer />
+      {/* Friskrivningen står under kurvan högst upp (en gång per sida). */}
 
       {/* Spara-knappen ligger kvar ovanför bottenmenyn medan man skrollar. */}
       <div className="sticky bottom-[calc(4.75rem+var(--safe-bottom))] z-10 flex gap-2 rounded-2xl border border-border/70 bg-background/90 p-2 shadow-float backdrop-blur-xl">
