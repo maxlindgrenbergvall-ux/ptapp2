@@ -30,7 +30,7 @@ await m.goto(base + "/klient/hitta/t1"); await m.click('button:has-text("Boka")'
 await m.waitForSelector("text=Välj en ledig tid")
 await m.screenshot({ path: `${out}/klient-boka.png` })
 await m.keyboard.press("Escape")
-await m.goto(base + "/klient/framsteg"); await m.waitForSelector("text=Styrka"); await m.waitForTimeout(2200)
+await m.goto(base + "/klient/framsteg"); await m.waitForSelector("[data-testid=progress-curve]"); await m.waitForTimeout(2200)
 await m.screenshot({ path: `${out}/klient-framsteg.png`, fullPage: true })
 const md = await page({ width: 390, height: 844 }, "dark")
 await md.goto(base + "/klient"); await md.waitForSelector("text=Dagens träning")

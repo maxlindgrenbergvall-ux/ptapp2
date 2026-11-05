@@ -76,9 +76,8 @@ await m.screenshot({ path: `${out}/v2-klient-idag.png`, fullPage: true })
 void kcalBefore
 
 // Övningshistorik
-await m.goto(`${base}/klient/framsteg`)
-await m.click("a:has-text('Back Squat')")
-await m.waitForURL(/\/klient\/framsteg\/ovning\/e-squat/)
+// v40: historiken öppnas från passet ("Historik" vid övningen) – här direkt.
+await m.goto(`${base}/klient/framsteg/ovning/e-squat`)
 await m.waitForSelector("text=Alla tillfällen")
 const sessions = await m.locator("ol[aria-label=Set]").count()
 check(sessions >= 5, `historik: ${sessions} tillfällen med set för knäböj`)

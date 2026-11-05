@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ChevronRight, Dumbbell, Trophy } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import { TrendChart } from "@/components/charts/progress-charts"
 import { EmptyState, StatTile } from "@/components/common"
@@ -18,6 +19,7 @@ const kgFmt = (n: number) => n.toLocaleString("sv-SE", { maximumFractionDigits: 
 
 /** Historik för en övning: varje tillfälle med vikter, reps och set. */
 export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
+  const router = useRouter()
   const { data, me } = useAppData()
   const name = exerciseName(data, exerciseId, me.id)
   const sessions = exerciseHistory(exerciseId, workoutsFor(data, me.id))
@@ -32,10 +34,14 @@ export function ExerciseHistoryView({ exerciseId }: { exerciseId: string }) {
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-        <Link href="/klient/framsteg">
-          <ArrowLeft /> Framsteg
-        </Link>
+      {/* v40: historiken öppnas från passet – tillbaka dit (Framsteg om sidan öppnats direkt). */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 text-muted-foreground"
+        onClick={() => (window.history.length > 1 ? router.back() : router.push("/klient/framsteg"))}
+      >
+        <ArrowLeft /> Tillbaka
       </Button>
       <div>
         <p className="text-sm text-muted-foreground">Historik</p>

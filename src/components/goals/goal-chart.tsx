@@ -29,6 +29,7 @@ export function GoalProjectionChart({
   actual,
   adaptive,
   nowWeek,
+  size = "md",
   className,
 }: {
   points: ProjectionPoint[]
@@ -40,6 +41,8 @@ export function GoalProjectionChart({
   adaptive?: ProjectionPoint[]
   /** Markerar "Nu" på x-axeln. */
   nowWeek?: number
+  /** "lg" (v40): den stora grafen i Framsteg. */
+  size?: "md" | "lg"
   className?: string
 }) {
   const hasAdaptive = !!adaptive?.length
@@ -90,7 +93,7 @@ export function GoalProjectionChart({
           ]),
         }}
       >
-        <ChartContainer config={config} className="aspect-auto h-56 w-full sm:h-64">
+        <ChartContainer config={config} className={size === "lg" ? "aspect-auto h-72 w-full sm:h-96" : "aspect-auto h-56 w-full sm:h-64"}>
           <LineChart data={rows} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.5} />
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} tickFormatter={(w) => (w === 0 ? "Start" : `v${w}`)} minTickGap={20} />

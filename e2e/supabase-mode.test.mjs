@@ -366,7 +366,7 @@ await v.waitForURL(`${base}/klient`)
 await v.waitForSelector("text=Dagens kost")
 // v35: intressena är borta ur Framsteg – bara målen visas.
 await v.goto(`${base}/klient/framsteg`)
-await v.waitForSelector("[data-testid=goal-overview], [data-testid=goal-overview-empty]")
+await v.waitForSelector("[data-testid=progress-cards]")
 check((await v.locator("[data-testid=choose-interests]").count()) === 0, "Framsteg: inga intresse-element")
 // v13: eget pass sparas utan PT (trainer_id null) och räknas därför aldrig som betalt pass.
 await v.goto(`${base}/klient`)

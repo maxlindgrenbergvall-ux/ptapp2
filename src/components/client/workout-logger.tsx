@@ -385,7 +385,7 @@ function ExerciseCard({
   /** Handtag för drag-and-drop (saknas = ordningen är låst). */
   dragHandle?: React.ReactNode
 }) {
-  const { data } = useAppData()
+  const { data, me } = useAppData()
   // PT:ns eget namn för klienten om det finns.
   const name = exerciseName(data, exercise.exerciseId, workout.clientId)
   const last = lastPerformance(exercise.exerciseId, history)
@@ -451,9 +451,21 @@ function ExerciseCard({
               )}
               {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={name} />}
               {last && (
-                <p className="text-xs text-muted-foreground tabular">
-                  Förra gången: {last.kg ? `${last.kg} kg × ` : ""}
-                  {last.reps}
+                <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground tabular">
+                  <span>
+                    Förra gången: {last.kg ? `${last.kg} kg × ` : ""}
+                    {last.reps}
+                  </span>
+                  {/* v40: övningshistoriken nås härifrån (Framsteg visar bara korten och kurvan). */}
+                  {me.role === "client" && (
+                    <Link
+                      href={`/klient/framsteg/ovning/${encodeURIComponent(exercise.exerciseId)}`}
+                      className="-my-1 inline-flex min-h-8 shrink-0 items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                      data-testid="exercise-history-link"
+                    >
+                      <History className="size-3.5" aria-hidden /> Historik
+                    </Link>
+                  )}
                 </p>
               )}
             </div>

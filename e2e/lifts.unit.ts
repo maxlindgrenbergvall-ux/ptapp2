@@ -1,7 +1,7 @@
 // Enhetstest för styrkestatistiken (v39): bara faktiska lyft – inga uppskattade maxlyft.
 //   npx tsx --tsconfig tsconfig.json e2e/lifts.unit.ts
 import * as training from "@/lib/training"
-import { exerciseHistory, heavierSet, liftKpis, topSetSeries } from "@/lib/training"
+import { exerciseHistory, heavierSet, topSetSeries } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
 let failed = 0
@@ -33,10 +33,7 @@ check(sessions.map((s) => s.isPR).join(",") === "false,true,false,true", "person
 check(sessions[0].topSet?.kg === 100 && sessions[0].topSet.reps === 5 && sessions[0].volume === 90 * 8 + 100 * 5 + 100 * 4, "tillfället: tyngsta set och volym ur faktiska set")
 check(sessions.every((s) => !("e1rm" in s)), "inga e1RM-fält i historiken")
 
-const k = liftKpis([...hist, w("2026-09-01", [[95, 5]])], "2026-10-25")
-check(k[0].latest.kg === 105 && k[0].latest.reps === 3, "KPI: senaste tyngsta set 105 × 3")
-check(k[0].best.kg === 105 && k[0].change === 10, `KPI: bästa set senaste 4 v 105 kg, +${k[0].change} kg mot 95 kg 4–8 v tidigare`)
-check(!("relative" in k[0]) && !("e1rm" in k[0]), "KPI: ingen relativ styrka eller e1RM")
+check(!("liftKpis" in training) && !("weeklySetsByMuscle" in training), "v40: lyft-KPI:er och veckovolym är borttagna")
 
 console.log(failed ? `\n${failed} fel` : "\nLYFTEN GODKÄNDA (bara faktiska lyft)")
 process.exit(failed ? 1 : 0)

@@ -74,12 +74,13 @@ await p.screenshot({ path: `${out}/v24-idag-utan-betalvagg.png`, fullPage: true 
 
 // ------------------------------------------------ 4. nyckeltal (gratis) ---
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=progress-kpis]")
-const lifts = await p.locator("[data-testid=kpi-lifts]").innerText()
-check(/Back Squat|Bench Press|Romanian Deadlift|Deadlift/.test(lifts) && /\d+(,\d)? kg/.test(lifts), "tyngsta set per lyft med engelska namn")
-check(/\d+(,\d+)? kg × \d+/.test(lifts), "faktiska lyft: vikt × reps (inga uppskattade värden)")
-check(await p.locator("[data-testid=kpi-volume] [role=meter]").first().isVisible(), "veckovolym per muskelgrupp visas")
+// v40: Framsteg har bara korten och kurvan – lyften visas i övningshistoriken (engelska namn, vikt × reps).
+await p.waitForSelector("[data-testid=progress-cards]")
+check((await p.locator("[data-testid=kpi-lifts], [data-testid=kpi-volume]").count()) === 0, "inga lyft-KPI:er eller veckovolym i Framsteg (v40)")
 check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "framstegen är gratis utan Plus")
+await p.goto(base + "/klient/framsteg/ovning/e-squat")
+await p.waitForSelector("h1:has-text('Back Squat')")
+check(/\d+(,\d+)? kg × \d+/.test(await p.locator("main").innerText()), "faktiska lyft: vikt × reps (inga uppskattade värden)")
 await p.screenshot({ path: `${out}/v24-framsteg.png`, fullPage: true })
 
 // --------------------------------- 5. loggning: tomma fält och ordning ---

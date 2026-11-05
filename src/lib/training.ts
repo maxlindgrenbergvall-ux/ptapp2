@@ -1,8 +1,6 @@
-import { addDays, parseISODate } from "@/lib/date"
 import { targetRepsFor, hasSetReps } from "@/lib/exercises/draft"
 import { nextTarget, setPlan } from "@/lib/progression"
-import { sectionOf } from "@/lib/workout-rules"
-import type { Exercise, ISODate, MuscleGroup, ScheduledWorkout, SetLog, WeightEntry, WorkoutExercise } from "@/types/domain"
+import type { ISODate, MuscleGroup, ScheduledWorkout, SetLog, WeightEntry, WorkoutExercise } from "@/types/domain"
 
 /**
  * Tyngsta setet (v39): högst vikt – vid lika vikt flest reps. All statistik
@@ -166,93 +164,3 @@ export function bodyweightOn(log: WeightEntry[], date: ISODate): number | null {
   return best?.kg ?? log.slice().sort((a, b) => a.date.localeCompare(b.date))[0]?.kg ?? null
 }
 
-
-/**
- * Effektiva set: genomförda arbetsset i huvudpasset (inte uppvärmning eller
- * nedvarvning) med minst en rep. Konditionsövningar räknas inte.
- */
-function effectiveSets(w: ScheduledWorkout): { exercise: WorkoutExercise; log: SetLog }[] {
-  const byId = new Map(w.exercises.map((e) => [e.id, e]))
-  return w.logs.flatMap((log) => {
-    const exercise = byId.get(log.workoutExerciseId)
-    return exercise && log.done && log.reps > 0 && sectionOf(exercise) === "main" ? [{ exercise, log }] : []
-  })
-}
-
-export type MuscleSets = Partial<Record<MuscleGroup, number>>
-
-/**
- * Effektiva set per muskelgrupp i rullande 7-dagarsperioder, de senaste
- * `weeks` perioderna (äldst först). Sista perioden = de senaste 7 dagarna
- * t.o.m. idag – så att siffran aldrig nollställs en måndag.
- */
-export function weeklySetsByMuscle(
-  workouts: ScheduledWorkout[],
-  exercises: Exercise[],
-  today: ISODate,
-  weeks = 8
-): { week: ISODate; sets: MuscleSets; total: number }[] {
-  const group = new Map(exercises.map((e) => [e.id, e.muscleGroup]))
-  const first = addDays(today, -7 * weeks + 1)
-  const rows = Array.from({ length: weeks }, (_, i) => ({ week: addDays(first, 7 * i), sets: {} as MuscleSets, total: 0 }))
-  const DAY = 86_400_000
-  for (const w of workouts) {
-    if (w.status !== "completed" || w.date < first || w.date > today) continue
-    const row = rows[Math.floor(Math.round((parseISODate(w.date).getTime() - parseISODate(first).getTime()) / DAY) / 7)]
-    if (!row) continue
-    for (const { exercise } of effectiveSets(w)) {
-      const g = group.get(exercise.exerciseId)
-      if (!g || g === "kondition") continue
-      row.sets[g] = (row.sets[g] ?? 0) + 1
-      row.total += 1
-    }
-  }
-  return rows
-}
-
-export interface LiftKpi {
-  exerciseId: string
-  /** Senaste passets tyngsta set. */
-  latest: { kg: number; reps: number }
-  date: ISODate
-  /** Tyngsta setet senaste 4 veckorna (annars senaste kända). */
-  best: { kg: number; reps: number }
-  /** Förändring i tyngsta vikt mot 4–8 veckor tidigare (kg), om det finns. */
-  change: number | null
-  sessions: number
-}
-
-/**
- * Lyften med faktiska siffror (v39): senaste tyngsta set, bästa set senaste
- * 4 veckorna och utvecklingen i vikt mot perioden innan. Sorterat på tyngsta vikt.
- */
-export function liftKpis(workouts: ScheduledWorkout[], today: ISODate): LiftKpi[] {
-  const recentFrom = addDays(today, -28)
-  const previousFrom = addDays(today, -56)
-  type Lift = { kg: number; reps: number }
-  const acc = new Map<string, { recent: Lift | null; previous: number; latest: Lift; latestDate: ISODate; sessions: Set<string> }>()
-  for (const w of workouts) {
-    if (w.status !== "completed" || w.date > today) continue
-    for (const { exercise, log } of effectiveSets(w)) {
-      if (log.kg <= 0) continue
-      const set = { kg: log.kg, reps: log.reps }
-      const b = acc.get(exercise.exerciseId) ?? { recent: null, previous: 0, latest: set, latestDate: "", sessions: new Set<string>() }
-      b.sessions.add(w.id)
-      if (w.date >= recentFrom) b.recent = b.recent ? heavierSet(b.recent, set) : set
-      else if (w.date >= previousFrom) b.previous = Math.max(b.previous, log.kg)
-      if (w.date > b.latestDate) Object.assign(b, { latest: set, latestDate: w.date })
-      else if (w.date === b.latestDate) b.latest = heavierSet(b.latest, set)
-      acc.set(exercise.exerciseId, b)
-    }
-  }
-  return [...acc.entries()]
-    .map(([exerciseId, b]) => ({
-      exerciseId,
-      latest: b.latest,
-      date: b.latestDate,
-      best: b.recent ?? b.latest,
-      change: b.recent && b.previous ? Math.round((b.recent.kg - b.previous) * 10) / 10 : null,
-      sessions: b.sessions.size,
-    }))
-    .sort((a, b) => b.best.kg - a.best.kg)
-}

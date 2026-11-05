@@ -102,8 +102,8 @@ check((await p.locator("[data-testid=adaptive-curve] >> text=Strava").count()) >
 await p.locator("[data-testid=adaptive-curve]").scrollIntoViewIfNeeded()
 await p.screenshot({ path: `${out}/v34-viktkurva.png`, fullPage: true })
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=adaptive-curve]")
-ok("samma kurva under Framsteg")
+await p.waitForSelector("[data-testid=progress-curve] [data-testid=goal-chart][data-adaptive='1']")
+check(/Strava/.test(await p.locator("[data-testid=curve-sources]").innerText()), "samma kurva under Framsteg (källan Strava)")
 
 // ---------------------------------- 3. pass: drag-and-drop och raka set ---
 await p.goto(base + "/klient")

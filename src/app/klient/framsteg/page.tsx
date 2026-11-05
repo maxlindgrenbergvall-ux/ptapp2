@@ -1,221 +1,25 @@
 "use client"
 
-import { ChevronRight, Flame, Plus, ShieldCheck, Trophy } from "lucide-react"
-import Link from "next/link"
-import * as React from "react"
-import { toast } from "sonner"
-
-import { SessionsChart, StrengthChart, WeightChart } from "@/components/charts/progress-charts"
-import { GoalOverview } from "@/components/goals/goal-overview"
-import { GoalProgressChart } from "@/components/goals/goal-progress-card"
-import { RequirePlus, usePlus } from "@/components/plus/require-plus"
-import { ProgressKpis } from "@/components/progress/kpis"
-import { StatTile } from "@/components/common"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { exerciseName, workoutsFor } from "@/lib/data/selectors"
+import { ProgressOverview } from "@/components/progress/progress-overview"
 import { useAppData } from "@/lib/data/store"
-import { addDays, formatDay, formatShort, todayISO } from "@/lib/date"
-import { historyCutoff } from "@/lib/plus"
-import { exerciseHistory, setsDone, topSetSeries, workoutVolume } from "@/lib/training"
-import type { ScheduledWorkout } from "@/types/domain"
 
+/**
+ * Framsteg (v40): bara de två korten (Viktnedgång / Tappat fett och Ökad
+ * muskelmassa) och en stor viktkurva under – synkad med kaloriförbränning och
+ * träning (Apple Hälsa, Health Connect, Strava, passen i appen).
+ *
+ * Det som flyttats härifrån:
+ *   - Logga vikt      → knappen i grafens rubrik.
+ *   - Övningshistorik → "Historik" vid övningen i passet (/klient/framsteg/ovning/[id]).
+ *   - Genomförda pass → kalendern/schemat.
+ *   - Min data        → Profil.
+ */
 export default function ProgressPage() {
-  const { data, actions, me } = useAppData()
-  const client = data.clients.find((c) => c.id === me.id)!
-  const workouts = workoutsFor(data, client.id)
-  const completed = workouts.filter((w) => w.status === "completed").sort((a, b) => b.date.localeCompare(a.date))
-  const [kg, setKg] = React.useState("")
-
-  const squat = topSetSeries("e-squat", workouts)
-  // Styrkediagrammet visas för styrke- och muskelmål (eller när det finns lyft att visa).
-  const goals = data.goalProfiles.find((g) => g.clientId === client.id)?.goals ?? []
-  const showStrength = goals.some((g) => g === "strength" || g === "bodybuilding" || g === "muscle_gain" || g === "recomp") || squat.length > 0
-  const streak = weekStreak(completed.map((w) => w.date))
-  // Gratis: senaste 30 dagarna. Äldre historik kräver Coavira Plus.
-  const { isPlus } = usePlus()
-  const cutoff = historyCutoff(todayISO())
-  const recent = completed.filter((w) => w.date >= cutoff)
-  const older = completed.filter((w) => w.date < cutoff)
-
+  const { me } = useAppData()
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Framsteg</h1>
-
-      {/* v35: bara de aktiva målen – ett kort per mål med målets eget mått (intressena är borta). */}
-      <section className="space-y-3" aria-labelledby="goals-title">
-        <h2 id="goals-title" className="font-semibold">
-          Dina mål
-        </h2>
-        <GoalOverview clientId={client.id} />
-      </section>
-
-      <div className="grid grid-cols-2 gap-3">
-        <StatTile label="Genomförda pass" icon={Trophy} value={completed.length} sub={`${completed.filter((w) => w.byClient).length} egna pass`} />
-        <StatTile label="Veckor i rad" icon={Flame} value={streak} sub="med minst ett pass" />
-      </div>
-
-      {/* Framstegsmätning är gratis för alla (v24): tyngsta set per lyft och veckovolym. */}
-      <ProgressKpis client={client} workouts={workouts} />
-
-      {showStrength && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Styrkeutveckling</CardTitle>
-            <CardDescription>Tyngsta set per pass i baslyften (vikt × reps)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <StrengthChart workouts={workouts} />
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Vikt</CardTitle>
-          <CardDescription>Väg dig gärna samma tid och dag varje vecka.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* v31: med mål visas de nya interaktiva graferna (plan mot verklighet) i stället för den gamla viktgrafen. */}
-          {data.goalProfiles.some((g) => g.clientId === client.id) ? <GoalProgressChart clientId={client.id} /> : <WeightChart entries={client.weightLog} />}
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const value = Number(kg.replace(",", "."))
-              if (!Number.isFinite(value) || value < 25 || value > 350) {
-                toast.error("Ange en vikt mellan 25 och 350 kg")
-                return
-              }
-              actions.addWeight(client.id, { date: todayISO(), kg: Math.round(value * 10) / 10 })
-              setKg("")
-              toast.success("Vikten är sparad")
-            }}
-          >
-            <Input inputMode="decimal" placeholder="Dagens vikt (kg)" value={kg} onChange={(e) => setKg(e.target.value)} aria-label="Dagens vikt i kg" />
-            <Button type="submit" variant="secondary">
-              <Plus /> Logga
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Träningsfrekvens</CardTitle>
-          <CardDescription>Genomförda pass per vecka</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SessionsChart workouts={workouts} />
-        </CardContent>
-      </Card>
-
-      <ExerciseList workouts={workouts} />
-
-      <section className="space-y-2">
-        <h2 className="font-semibold">Senaste passen</h2>
-        <WorkoutList workouts={(isPlus ? completed : recent).slice(0, 10)} />
-        {/* Coavira Plus: historik äldre än 30 dagar. */}
-        {!isPlus && older.length > 0 && (
-          <RequirePlus feature="history" title={`${older.length} äldre pass`}>
-            <WorkoutList workouts={older.slice(0, 3)} />
-          </RequirePlus>
-        )}
-      </section>
-
-      <Link
-        href="/klient/sekretess"
-        className="flex items-center gap-3 rounded-xl border p-4 text-sm transition-colors hover:bg-muted/60"
-      >
-        <ShieldCheck className="size-4 text-muted-foreground" />
-        <span className="flex-1">Min data och sekretess</span>
-        <ChevronRight className="size-4 text-muted-foreground" />
-      </Link>
+      <ProgressOverview clientId={me.id} />
     </div>
   )
-}
-
-/** Genomförda pass med set och volym. */
-function WorkoutList({ workouts }: { workouts: ScheduledWorkout[] }) {
-  return (
-    <ul className="divide-y rounded-2xl border border-border/70 bg-card shadow-card">
-      {workouts.map((w) => (
-        <li key={w.id}>
-          <Link href={`/klient/pass/${w.id}`} className="flex items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-muted/60">
-            <div className="min-w-0">
-              <div className="truncate font-medium">{w.name}</div>
-              <div className="text-xs text-muted-foreground">{formatDay(w.date)}</div>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
-              <div className="text-right text-xs text-muted-foreground tabular">
-                {setsDone(w)} set
-                <br />
-                {Math.round(workoutVolume(w)).toLocaleString("sv-SE")} kg
-              </div>
-              <ChevronRight className="size-4 text-muted-foreground" />
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-/** Övningar som loggats, med senaste toppset. Varje rad leder till övningens historik. */
-function ExerciseList({ workouts }: { workouts: ScheduledWorkout[] }) {
-  const { data, me } = useAppData()
-  const ids = [...new Set(workouts.filter((w) => w.status === "completed").flatMap((w) => w.exercises.map((e) => e.exerciseId)))]
-  const rows = ids
-    .map((id) => ({
-      exercise: data.exercises.find((e) => e.id === id) && { id, name: exerciseName(data, id, me.id) },
-      sessions: exerciseHistory(id, workouts),
-    }))
-    .filter((r) => r.exercise && r.sessions.length > 0)
-    .sort((a, b) => b.sessions[0].date.localeCompare(a.sessions[0].date) || a.exercise!.name.localeCompare(b.exercise!.name))
-  if (rows.length === 0) return null
-  return (
-    <section className="space-y-2">
-      <h2 className="font-semibold">Övningar</h2>
-      <p className="text-xs text-muted-foreground">Tryck på en övning för att se vad du lyft varje gång.</p>
-      <ul className="divide-y rounded-2xl border border-border/70 bg-card shadow-card">
-        {rows.map(({ exercise, sessions }) => {
-          const last = sessions[0]
-          return (
-            <li key={exercise!.id}>
-              <Link
-                href={`/klient/framsteg/ovning/${encodeURIComponent(exercise!.id)}`}
-                className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/60"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{exercise!.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {sessions.length} gånger · senast {formatShort(last.date)}
-                  </div>
-                </div>
-                {last.topSet && (
-                  <span className="shrink-0 text-xs text-muted-foreground tabular">
-                    {last.topSet.kg > 0 ? `${last.topSet.kg.toLocaleString("sv-SE")} kg × ${last.topSet.reps}` : `${last.topSet.reps} reps`}
-                  </span>
-                )}
-                {sessions.some((s) => s.isPR && s === last) && <Trophy className="size-4 text-primary" aria-label="Personbästa senast" />}
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
-}
-
-/** Antal veckor i följd (bakåt från denna/förra veckan) med minst ett genomfört pass. */
-function weekStreak(dates: string[]) {
-  const today = todayISO()
-  const set = new Set(dates)
-  const hasWorkoutInWeek = (offsetWeeks: number) =>
-    Array.from({ length: 7 }, (_, d) => addDays(today, -7 * offsetWeeks - d)).some((d) => set.has(d))
-  let streak = 0
-  while (hasWorkoutInWeek(streak)) streak++
-  return streak
 }

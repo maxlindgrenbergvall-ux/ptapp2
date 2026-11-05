@@ -63,12 +63,14 @@ await dialog.locator("text=Bjud in en vän & få 1 månad gratis").click()
 await p.waitForURL("**/klient/inbjudningar")
 ok("Bjud in-knappen leder till inbjudningsvyn")
 
-// Framsteg: styrka och nyckeltal är gratis (v24) – bara historik äldre än 30 dagar är låst.
+// Framsteg (v40: korten och kurvan) är gratis – bara historik äldre än 30 dagar är låst (övningshistoriken).
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=progress-kpis]")
-check((await p.locator("[data-testid=plus-lock][data-feature=charts]").count()) === 0, "styrka och nyckeltal är gratis (v24)")
+await p.waitForSelector("[data-testid=progress-cards]")
+check((await p.locator("[data-testid=plus-lock]").count()) === 0, "Framsteg är gratis")
+await p.goto(base + "/klient/framsteg/ovning/e-squat")
+await p.waitForSelector("h1")
 const old = await p.locator("[data-testid=plus-lock][data-feature=history]").count()
-check(old >= 1, "pass äldre än 30 dagar är låsta")
+check(old >= 1, "tillfällen äldre än 30 dagar är låsta")
 await p.screenshot({ path: `${out}/v18-las-framsteg.png`, fullPage: true })
 
 // Export: CSV är låst, GDPR-exporten av all data är alltid gratis.

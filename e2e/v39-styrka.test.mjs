@@ -26,7 +26,7 @@ const noOverflow = () => p.evaluate(() => document.documentElement.scrollWidth <
 await p.goto(base + "/klient")
 await p.waitForSelector("text=Dagens träning")
 const pages = [
-  ["/klient/framsteg", "[data-testid=kpi-lifts]"],
+  ["/klient/framsteg", "[data-testid=progress-curve]"],
   ["/klient/framsteg/ovning/e-squat", "h1"],
   ["/klient/profil", "#profile-name"],
   ["/klient/profil/mal", "[data-testid=goal-settings], [data-testid=goals-empty]"],
@@ -42,12 +42,6 @@ for (const [path, sel] of pages) {
   check(await noOverflow(), `${path}: ingen horisontell overflow`)
 }
 
-await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=kpi-lifts]")
-const lifts = await p.locator("[data-testid=kpi-lifts]").innerText()
-check(/Styrka/.test(lifts) && /\d+(,\d+)? kg × \d+/.test(lifts), "Framsteg: styrkan som tyngsta set (kg × reps)")
-check(/Tyngsta set per pass/.test(await text()), "Framsteg: styrkegrafen visar tyngsta set per pass")
-await p.locator("[data-testid=kpi-lifts]").screenshot({ path: `${out}/v39-styrka.png` })
 
 await p.goto(base + "/klient/framsteg/ovning/e-squat")
 await p.waitForSelector("h1")

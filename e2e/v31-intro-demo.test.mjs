@@ -87,12 +87,12 @@ check((await demo()).goalProfiles.some((g) => g.clientId === "c1"), "målen spar
 
 // Framsteg: de nya interaktiva graferna (plan mot verklighet) ersätter den gamla viktgrafen.
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=goal-progress]")
-await p.locator("[data-testid=goal-progress]").scrollIntoViewIfNeeded()
-await p.waitForFunction(() => document.querySelectorAll("[data-testid=goal-progress] .recharts-line").length >= 5)
+await p.waitForSelector("[data-testid=progress-curve]")
+await p.locator("[data-testid=progress-curve]").scrollIntoViewIfNeeded()
+await p.waitForFunction(() => document.querySelectorAll("[data-testid=progress-curve] .recharts-line").length >= 5)
 // v34: plan (fett, muskler), uppdaterad prognos (fett, muskler – streckade) och faktisk vikt.
-check((await p.locator("[data-testid=goal-progress] .recharts-line").count()) === 5, "Framsteg: plan, uppdaterad prognos och faktisk vikt i samma graf")
-check((await p.locator("[data-testid=goal-progress] [data-testid=goal-disclaimer]").count()) === 1, "Framsteg: friskrivningen under grafen")
+check((await p.locator("[data-testid=progress-curve] .recharts-line").count()) === 5, "Framsteg: plan, uppdaterad prognos och faktisk vikt i samma graf")
+check((await p.locator("[data-testid=progress-curve] [data-testid=goal-disclaimer]").count()) === 1, "Framsteg: friskrivningen under grafen")
 await p.screenshot({ path: `${out}/v31-framsteg.png`, fullPage: true })
 
 check(errors.length === 0, `inga sidfel${errors.length ? `: ${errors.join(" | ")}` : ""}`)

@@ -88,7 +88,7 @@ await p.waitForSelector("text=Profilen är sparad")
 const avatar = (await demo()).clients.find((c) => c.id === "c1").avatarUrl
 check(avatar?.startsWith("data:image"), "klientens profilbild sparas")
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("text=Dina mål")
+await p.waitForSelector("[data-testid=progress-cards]")
 check(!/\b(e?1RM)\b/i.test(await p.locator("main").innerText()), "inga uppskattade maxlyft (1RM) i Framsteg")
 
 // ------------------------------------------------ 4. kostrekommendation ---

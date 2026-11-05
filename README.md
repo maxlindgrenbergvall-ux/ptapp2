@@ -578,6 +578,25 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v40: Framsteg – två kort och en stor graf
+
+- **Framsteg (`/klient/framsteg`) innehåller bara:**
+  - Två kort högst upp (`src/lib/goals/progress-summary.ts`, vy `src/components/progress/progress-overview.tsx`):
+    - **Viktnedgång** – de faktiska vägningarna sedan start, med förlopp och "X kg kvar" till målvikten. Visas vid viktnedgångsmål eller när inga mål är valda. Vid andra mål visas i stället **Tappat fett**, den beräknade fettförändringen enligt kurvan.
+    - **Ökad muskelmassa** – den beräknade muskeltillväxten enligt kurvan fram till idag, skalad med faktiska pass per vecka. Markeras med ≈.
+  - En stor graf direkt under: planen, vägningarna och den uppdaterade kurvan. Den räknas om med kaloriförbränning (Apple Hälsa, Health Connect, Strava) och passen i appen (`adaptiveProjection`).
+  - Källorna och friskrivningen står som en diskret textrad under grafen. Inga andra paneler.
+- **Borttaget:**
+  - lyft-KPI:er (styrka), veckovolym per muskelgrupp, Styrkeutveckling och Träningsfrekvens;
+  - statistikrutorna, målkorten från v35, övnings- och passlistorna.
+  - Kod: `kpis.tsx`, `goal-overview.tsx`, `lib/goals/overview.ts`, `liftKpis`, `weeklySetsByMuscle`.
+- **Flyttat:**
+  - Logga vikt är nu en knapp i grafens rubrik.
+  - Övningshistoriken nås via "Historik" vid övningen i passet ("Förra gången"). Tillbaka leder till passet.
+  - Passhistoriken finns i kalendern. Min data och sekretess finns i logomenyn.
+  - PT:ns klientvy har kvar sina styrke- och frekvensgrafer.
+- Ingen databasändring.
+
 ## Nytt i v39: inga uppskattade maxlyft (1RM) – bara faktiska lyft
 
 - **Formlerna är borttagna:** Brzycki och Epley (`estimateOneRepMax`), e1RM-serien, relativ styrka (e1RM / kroppsvikt) och alla e1RM-fält.
@@ -820,7 +839,7 @@ All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tä
 - **Navigering:** chatten ligger uppe till höger i headern (bredvid varukorg, aviseringar och profil). Bottenmenyns femte flik är **Recept** (`/klient/recept`).
 - **Recept:** klientens egna recept med ingredienser ur livsmedelsbasen, antal portioner och automatiskt uträknade kalorier, protein, kolhydrater och fett (totalt och per portion). *Logga en portion* lägger receptet i Dagens kost. Import från webben kommer senare.
 - **Ingen betalvägg i Idag/Kost:** matloggningen är ren och öppen. Utan kostcoaching visas dagens intag och en diskret länk till PT:er som erbjuder kostschema; sömnlåset (Plus) är en enkel rad.
-- **Framsteg gratis för alla:** tyngsta set per lyft (vikt × reps), utveckling i vikt mot 4–8 veckor sedan och veckovolym (effektiva set per muskelgrupp senaste 7 dagarna, riktmärke 10–20). Sedan v39 räknas inga uppskattade maxlyft fram. "Djupgående grafer" är inte längre en Plus-funktion – Plus = full historik, sömn och export. Logik: `src/lib/training.ts`, vy: `src/components/progress/kpis.tsx`.
+- **Framsteg gratis för alla:** tyngsta set per lyft (vikt × reps), utveckling i vikt mot 4–8 veckor sedan och veckovolym (effektiva set per muskelgrupp senaste 7 dagarna, riktmärke 10–20). Sedan v39 räknas inga uppskattade maxlyft fram. "Djupgående grafer" är inte längre en Plus-funktion – Plus = full historik, sömn och export. (v40: borttaget från Framsteg – se ovan.)
 - **Engelska övningsnamn** enligt branschnorm. De svenska namnen finns kvar som sökord (`src/lib/exercises/search.ts`) – "knäböj" hittar Back Squat.
 - **Tömbara sifferfält:** `NumberInput` och loggerns fält kan tömmas helt och få valfritt värde; inget hoppar tillbaka till ett standardvärde. Valideringen sker när setet bockas av eller passet/mallen sparas (`src/lib/exercises/draft.ts`).
 - **Rep-mål per set** (`WorkoutExercise.setReps`, t.ex. 12/10/8) i passbyggaren, eget pass och loggern – förslaget för varje set följer setets mål.
@@ -1098,7 +1117,9 @@ npx tsx --tsconfig tsconfig.json e2e/progression.unit.ts # progressiv överbelas
 npx tsx --tsconfig tsconfig.json e2e/splits.unit.ts      # splits och schemaläggning
 npx tsx --tsconfig tsconfig.json e2e/activity.unit.ts    # kalorimätaren: dubbletter, dagssumma, MET
 npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan: förbränning, förtroende, frekvens, förankring
-npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18) och målkorten i Framsteg
+npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18)
+npx tsx --tsconfig tsconfig.json e2e/progress-summary.unit.ts # Framstegskorten: Viktnedgång/Tappat fett och Ökad muskelmassa
+node e2e/v40-framsteg.test.mjs # (demo, 390 px) bara två kort + stor graf, logga vikt i grafen, Historik från passet
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
 npx tsx --tsconfig tsconfig.json e2e/exercise-groups.unit.ts # muskelgrupperna (Biceps/Triceps, Baksida lår/Säte/Vader …)

@@ -125,9 +125,10 @@ check(api.status === 503, "synk: prenumerationslänk kräver Supabase (503 i dem
 check((await fetch(`${base}/api/calendar/feed/hej.ics`)).status === 404, "synk: felformad länk ger 404")
 
 // ------------------------------------- 4. animationer som startar i bild ---
+// v40: Framsteg har bara en graf högt upp – PT:ns klientvy har flera diagram under varandra.
 await p.setViewportSize({ width: 390, height: 500 })
-await p.goto(`${base}/klient/framsteg`)
-await p.waitForSelector("text=Styrka")
+await p.goto(`${base}/pt/klienter/c1`)
+await p.waitForSelector("text=Styrkeutveckling")
 await p.waitForTimeout(400)
 const hidden = await p.locator('[data-revealed="false"]').count()
 check(hidden >= 1, `diagram utanför skärmen ritas inte direkt (${hidden} väntar)`)

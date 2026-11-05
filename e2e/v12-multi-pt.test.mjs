@@ -61,7 +61,7 @@ for (const [label, path, text] of pages) {
 
 // ------------------------------------ 2. Framsteg visar bara målen (v35) ---
 await p.goto(base + "/klient/framsteg")
-await p.waitForSelector("[data-testid=goal-overview], [data-testid=goal-overview-empty]")
+await p.waitForSelector("[data-testid=progress-cards]")
 check((await p.locator("[data-testid=choose-interests], [data-testid=metrics-grid]").count()) === 0, "inga intresse-mätpunkter i Framsteg")
 check((await p.locator("text=Ändra mätpunkter").count()) === 0, "\"Ändra mätpunkter\" är borta")
 await p.screenshot({ path: `${out}/v12-framsteg.png`, fullPage: true })
