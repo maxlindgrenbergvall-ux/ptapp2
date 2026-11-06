@@ -43,6 +43,9 @@ await p.waitForSelector("text=Dagens träning")
 
 // ------------------------------------------------------------- splitten ---
 await p.goto(base + "/klient/schema")
+// v43: demoklienten har ett aktivt schema – byt för att komma till splitbiblioteket.
+await p.waitForSelector("[data-testid=active-split], [data-testid=split-library]")
+if (await p.locator("[data-testid=change-split]").isVisible()) await p.click("[data-testid=change-split]")
 await p.click("[data-testid=split-ppl]")
 await p.waitForSelector("[data-testid=split-editor]")
 const push = p.locator("[data-testid=split-day]").first()
@@ -115,13 +118,12 @@ check((await names())[0] === "Skull Crusher", "Skull Crusher ligger nu överst")
 check(await noOverflow(), "splitten: ingen horisontell overflow")
 await p.screenshot({ path: `${out}/v38-split.png`, fullPage: true })
 const final = await names()
-await p.fill("#split-weeks", "1")
 await p.click("[data-testid=split-create]")
-await p.waitForURL(/\/klient\/kalender/)
+await p.waitForURL(/\/klient$/)
 const d = await demo()
-const created = d.workouts.find((w) => w.name.endsWith(": Push"))
+const created = d.activeSplits.find((s) => s.clientId === "c1").days[0]
 const createdNames = created.exercises.map((e) => d.exercises.find((x) => x.id === e.exerciseId)?.name)
-check(createdNames.join("|") === final.join("|"), "passen i kalendern får exakt den ordning och de övningar som valts")
+check(createdNames.join("|") === final.join("|"), "schemat får exakt den ordning och de övningar som valts")
 
 // --------------------------------------------------------- eget pass ---
 await p.goto(base + "/klient")

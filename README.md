@@ -578,6 +578,38 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v43: passbyggaren, övningsbanken och förenklat schema
+
+**1. Tomma fält.** Raderar man siffran i set (eller reps) blir fältet helt tomt – det faller aldrig tillbaka till 1. Användaren skriver sina egna siffror från grunden. Tomma fält kontrolleras först när schemat sparas: de markeras (`aria-invalid`) och sparandet stoppas med ett tydligt besked.
+- Splitbyggaren (`split-builder.tsx`): `EditExercise.sets` är `number | undefined`, och `incompleteExercises()` kontrollerar innan schemat sparas.
+- `NumberInput` och passbyggarna (PT:ns pass och eget pass) tillät redan tomma fält.
+
+**2. Skapa egen övning i passbyggaren.**
+- Varje dag i splitbyggaren har knappen **Skapa egen övning**. Övningslistan har samma knapp, där det man sökt på blir namnet och muskelgruppsfiltret blir förvald grupp.
+- Muskelgruppen väljs bland samma grupper som i listan (Bröst, Rygg, Axlar, Biceps, Triceps, Underarmar, Ben, Baksida lår, Säte, Vader, Mage, Helkropp, Kondition).
+- Övningen sparas i användarens övningsbibliotek (`custom_exercises.display_group`) och läggs direkt i dagen.
+
+**3. Övningsbanken** (`src/lib/exercise-library.json`, `supabase/seed.sql`):
+- nya: **EZ-Bar Curl** (Biceps), **Axelpress i maskin** (Axlar), **Hip Thrust i maskin** (Säte), **Kickbacks** (Triceps);
+- **Bulgarian Split Squats** heter så, utan hantlar eller skivstång;
+- övningsbanken kommer alltid från källan, även i sparad demodata.
+
+**4. Schemat: antal dagar per vecka** (`src/lib/active-split.ts`, tabellen `client_splits`).
+- Klienten väljer split och hur många dagar i veckan (2–6). Fälten för veckodagar, startdatum och antal veckor är borttagna.
+- Schemat sparas som det aktiva schemat (ett per klient). Passen ligger i ordning och roterar.
+- Träningsschema visar passen i ordning, vilket som står på tur, och dagar per vecka (går att ändra). Där finns också Byt schema och Avsluta schemat.
+
+**5. Nästa pass.**
+- En stor knapp överst på startsidan startar passet som står på tur: dagens pass skapas av schemats dag och öppnas direkt.
+- Är ett pass redan påbörjat öppnas det igen, i stället för att ett nytt skapas. När det är klart står nästa dag på tur.
+- Under knappen visas veckans pass mot målet, t.ex. "2 av 4 pass denna vecka".
+
+**Databas:** `supabase/migrations/20261117000000_v43_splits_exercises.sql`:
+- övningsbanken: 4 nya övningar och nytt namn på `e-bss`;
+- `custom_exercises.display_group`;
+- ny tabell `client_splits` med RLS: klienten äger sin rad, klientens aktiva PT:er kan läsa, och det kopplade passet måste vara klientens eget.
+- Test: `supabase/tests/rls_v43.test.sql`.
+
 ## Nytt i v42: inkorg, egen kostsida och låst sidledssvep
 
 **1. Inkorgen med olästa meddelanden** (`src/lib/chat/inbox.ts`, vy `src/components/chat/inbox.tsx`)
@@ -1162,6 +1194,8 @@ npx tsx --tsconfig tsconfig.json e2e/progress-summary.unit.ts # Framstegskorten:
 node e2e/v40-framsteg.test.mjs # (demo, 390 px) bara två kort + stor graf, logga vikt i grafen, Historik från passet
 npx tsx --tsconfig tsconfig.json e2e/chat-inbox.unit.ts # inkorgen: olästa, sortering, förhandsvisning, adresser
 npx tsx --tsconfig tsconfig.json e2e/quick-log.unit.ts  # snabbloggningen: måltid efter klockan, snabbval, gruppering
+npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts # aktivt schema: Nästa pass, rotation, veckans pass
+node e2e/v43-passbyggare.test.mjs # (demo, 390 px) tomma fält, egen övning i passbyggaren, nya övningar, dagar/vecka, Nästa pass
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

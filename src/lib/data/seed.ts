@@ -5,8 +5,10 @@
 import { addDays, todayISO } from "@/lib/date"
 import { computePlan } from "@/lib/goals/metabolism"
 import exerciseLibrary from "@/lib/exercise-library.json"
+import { SPLITS } from "@/lib/splits"
 import { sessionBalance } from "@/lib/services/balance"
 import type {
+  ActiveSplit,
   ActivityLog,
   GoalKey,
   GoalProfile,
@@ -764,6 +766,8 @@ export function createSeedData(today = todayISO()): AppData {
     favoriteRecipes: ["rc-c1-oats"],
     // Mira har gjort intro-flödet (PT:n ser målen). Demoklienten Sara har inte – hon får kortet "Sätt dina mål".
     goalProfiles: [miraGoals(today)],
+    // v43: Sara kör Push/Pull/Legs tre dagar i veckan – "Nästa pass" på startsidan.
+    activeSplits: [demoActiveSplit(today)],
     // v32: Saras löp- och cykelpass (som från Strava) – kalorimätaren i demon.
     activities: demoActivities(today),
     activityDays: [],
@@ -896,4 +900,19 @@ function demoActivities(today: string): ActivityLog[] {
     { id: "act-2", clientId: "c1", source: "strava", externalId: "1000", sport: "Ride", name: "Cykel till jobbet", startedAt: at(addDays(today, -1), "07:45"), date: addDays(today, -1), durationSec: 1500, distanceM: 9100, kcal: 210 },
     { id: "act-3", clientId: "c1", source: "strava", externalId: "999", sport: "Run", name: "Intervaller 6×800", startedAt: at(addDays(today, -3), "18:00"), date: addDays(today, -3), durationSec: 2700, distanceM: 7800, kcal: 540 },
   ]
+}
+
+/** v43: Saras aktiva schema (PPL, 3 dagar/vecka) – Pull står på tur. */
+function demoActiveSplit(today: string): ActiveSplit {
+  const ppl = SPLITS.find((x) => x.key === "ppl")!
+  return {
+    clientId: DEMO_CLIENT_ID,
+    name: ppl.name,
+    short: ppl.short,
+    key: ppl.key,
+    days: ppl.days.map((d) => ({ name: d.name, focus: d.focus, exercises: d.exercises.map((e) => ({ ...e })) })),
+    daysPerWeek: 3,
+    nextDay: 1,
+    updatedAt: `${today}T06:00:00.000Z`,
+  }
 }

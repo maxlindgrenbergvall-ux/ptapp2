@@ -7,6 +7,7 @@ import { SleepTracker, WaterTracker } from "@/components/client/trackers"
 import { NutritionShortcut } from "@/components/nutrition/daily-nutrition"
 import { ActivityCard } from "@/components/activity/activity-card"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
+import { NextWorkoutCard } from "@/components/workouts/next-workout"
 import { PersonAvatar } from "@/components/common"
 import { RequirePlus } from "@/components/plus/require-plus"
 import { Badge } from "@/components/ui/badge"
@@ -102,6 +103,9 @@ export default function TodayPage() {
           )
         })}
       </ol>
+
+      {/* v43: Nästa pass i det aktiva schemat – en tydlig knapp som startar passet direkt. */}
+      <NextWorkoutCard />
 
       {/* Dagens träning */}
       <section className="space-y-3">

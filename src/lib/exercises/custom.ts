@@ -2,7 +2,7 @@
  * Egna övningar (custom_exercises, v19): klienter och PT:er lägger till
  * övningar som saknas i övningsbanken, med startvikt (kg eller lbs), set och reps.
  */
-import type { Exercise, MuscleGroup, WeightUnit, WorkoutExercise } from "@/types/domain"
+import type { Exercise, ExerciseDisplayGroup, MuscleGroup, WeightUnit, WorkoutExercise } from "@/types/domain"
 
 export interface CustomExerciseInput {
   name: string
@@ -12,6 +12,8 @@ export interface CustomExerciseInput {
   defaultSets: number
   defaultReps: string
   muscleGroup?: MuscleGroup
+  /** v43: vald grupp i övningslistan (t.ex. "biceps", "sate"). Ger också muscleGroup. */
+  displayGroup?: ExerciseDisplayGroup
 }
 
 const KG_PER_LB = 0.45359237

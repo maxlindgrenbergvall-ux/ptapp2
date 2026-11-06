@@ -30,6 +30,8 @@ export function PrivacySettings() {
       mealChecks: data.mealChecks.filter((m) => m.clientId === me.id),
       progress: data.progressEntries.filter((e) => e.clientId === me.id),
       goals: data.goalProfiles.filter((g) => g.clientId === me.id),
+      // v43: aktivt träningsschema.
+      trainingSchedule: data.activeSplits.filter((s) => s.clientId === me.id),
       messages: data.messages.filter((m) => (mine ? m.threadId === me.id : m.trainerId === me.id)),
       calendar: data.events.filter((e) => (mine ? e.clientId === me.id : e.trainerId === me.id)),
       purchases: data.purchases.filter((p) => (mine ? p.clientId === me.id : p.trainerId === me.id)),

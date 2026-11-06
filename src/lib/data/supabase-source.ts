@@ -40,6 +40,7 @@ import type {
   ActivityLog,
   GoalKey,
   GoalProfile,
+  ActiveSplit,
   Sex,
   Review,
   ScheduledWorkout,
@@ -411,6 +412,8 @@ export interface CustomExerciseRow {
   default_sets: number
   default_reps: string
   muscle_group: Exercise["muscleGroup"]
+  /** v43: vald grupp i övningslistan (saknas före v43). */
+  display_group?: Exercise["displayGroup"] | null
   created_at: string
 }
 /** Egen övning → samma form som övningsbanken (syns i alla övningslistor). */
@@ -418,6 +421,7 @@ export const toCustomExercise = (r: CustomExerciseRow): Exercise => ({
   id: r.id,
   name: r.name,
   muscleGroup: r.muscle_group,
+  ...(r.display_group ? { displayGroup: r.display_group } : {}),
   equipment: "",
   custom: {
     ownerId: r.user_id,
@@ -570,6 +574,41 @@ const toGoalProfile = (r: GoalRow): GoalProfile => ({
   startedAt: r.started_at,
   targets: { kcal: r.target_kcal, protein: r.target_protein_g, carbs: r.target_carbs_g, fat: r.target_fat_g },
   updatedAt: r.updated_at,
+})
+
+// ------------------------------------------------ aktivt schema (v43) ---
+
+export interface SplitRow {
+  client_id: string
+  name: string
+  short: string
+  split_key: string
+  days: ActiveSplit["days"]
+  days_per_week: number
+  next_day: number
+  current_workout_id: string | null
+  updated_at: string
+}
+export const toActiveSplit = (r: SplitRow): ActiveSplit => ({
+  clientId: r.client_id,
+  name: r.name,
+  short: r.short,
+  key: r.split_key,
+  days: Array.isArray(r.days) ? r.days : [],
+  daysPerWeek: r.days_per_week,
+  nextDay: r.next_day,
+  currentWorkoutId: r.current_workout_id ?? undefined,
+  updatedAt: r.updated_at,
+})
+export const splitRow = (s: ActiveSplit) => ({
+  client_id: s.clientId,
+  name: s.name.trim().slice(0, 60) || "Mitt schema",
+  short: s.short.trim().slice(0, 20) || "Schema",
+  split_key: s.key,
+  days: s.days,
+  days_per_week: Math.min(7, Math.max(1, Math.round(s.daysPerWeek))),
+  next_day: Math.max(0, s.nextDay),
+  current_workout_id: s.currentWorkoutId ?? null,
 })
 
 /** client_goals-raden för klientens mål (v30). Används även av intro-flödet, som sparar direkt. */
@@ -915,7 +954,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   if (me.role === "trainer") {
-    const [self, rels, weights, templates, rules, recipes, ptMeals, invites, goals, ptActivities, ptActivityDays] = await Promise.all([
+    const [self, rels, weights, templates, rules, recipes, ptMeals, invites, goals, ptActivities, ptActivityDays, ptSplits] = await Promise.all([
       sb.from("trainers").select(trainerSelect).eq("id", uid).single(),
       sb
         .from("coaching_relationships")
@@ -935,6 +974,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       // Klienternas aktiviteter (v32, RLS). Saknas tabellerna blir listorna tomma.
       sb.from("activity_logs").select("*").gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(500),
       sb.from("activity_days").select("*").gte("date", addDays(todayISO(), -60)),
+      // Klienternas aktiva scheman (v43, RLS). Saknas tabellen blir listan tom.
+      sb.from("client_splits").select("*"),
     ])
     const relRowsPt = must<RelationshipRow[]>(rels, "klienter")
     const weightRows = must<{ client_id: string; date: string; kg: number | string }[]>(weights, "vikt")
@@ -963,6 +1004,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
         activities: ptActivities.error ? [] : ((ptActivities.data ?? []) as ActivityRow[]).map(toActivity),
         activityDays: ptActivityDays.error ? [] : ((ptActivityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
+        activeSplits: ptSplits.error ? [] : ((ptSplits.data ?? []) as SplitRow[]).map(toActiveSplit),
         relationships: clients.map((c) => ({
           trainerId: uid,
           clientId: c.id,
@@ -985,7 +1027,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   }
 
   // Klient
-  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates, goals, activities, activityDays] = await Promise.all([
+  const [trainers, rels, weights, meals, wearables, products, cart, recipes, favorites, templates, goals, activities, activityDays, splits] = await Promise.all([
     sb.from("trainers").select(trainerSelect),
     sb.from("coaching_relationships").select("*").eq("client_id", uid).neq("status", "ended").order("created_at", { ascending: false }),
     sb.from("weight_entries").select("date, kg").eq("client_id", uid).order("date"),
@@ -1005,6 +1047,8 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     // Aktiviteter (v32): Strava, Apple Health, Health Connect.
     sb.from("activity_logs").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(300),
     sb.from("activity_days").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)),
+    // Aktivt träningsschema (v43). Saknas tabellen (v43 inte körd än) blir listan tom.
+    sb.from("client_splits").select("*").eq("client_id", uid),
   ])
   // Aktiv relation går före en obesvarad förfrågan.
   const relRows = must<RelationshipRow[]>(rels, "relation")
@@ -1044,6 +1088,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
       activities: activities.error ? [] : ((activities.data ?? []) as ActivityRow[]).map(toActivity),
       activityDays: activityDays.error ? [] : ((activityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
+      activeSplits: splits.error ? [] : ((splits.data ?? []) as SplitRow[]).map(toActiveSplit),
       relationships,
       mealChecks: must<{ date: string; meal_id: string }[]>(meals, "måltider").map((m) => ({
         clientId: uid,
@@ -1432,6 +1477,11 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       return result(sb.from(me.role === "client" ? "client_recipes" : "recipes").delete().eq("id", action.recipeId))
     case "saveGoalProfile":
       return result(sb.from("client_goals").upsert(goalRow(me.id, action.profile)))
+    // v43: ett aktivt schema per klient (RLS: bara klientens egen rad).
+    case "saveActiveSplit":
+      return result(sb.from("client_splits").upsert(splitRow({ ...action.split, clientId: me.id })))
+    case "deleteActiveSplit":
+      return result(sb.from("client_splits").delete().eq("client_id", me.id))
     case "syncDeviceActivity":
       return persistDeviceActivity(sb, me, action.days, action.activities)
     case "setFavoriteRecipe":
@@ -1513,6 +1563,8 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           default_sets: x.custom?.defaultSets ?? 3,
           default_reps: x.custom?.defaultReps ?? "10",
           muscle_group: x.muscleGroup,
+          // v43: skickas bara när en grupp valts, så att insättningen fungerar även före v43.
+          ...(x.displayGroup ? { display_group: x.displayGroup } : {}),
         })
       )
     }

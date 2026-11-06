@@ -12,22 +12,9 @@
  *
  * Ren TypeScript – enhetstestad i e2e/exercise-groups.unit.ts.
  */
-import type { Exercise, MuscleGroup } from "@/types/domain"
+import type { Exercise, ExerciseDisplayGroup, MuscleGroup } from "@/types/domain"
 
-export type DisplayGroup =
-  | "brost"
-  | "rygg"
-  | "axlar"
-  | "biceps"
-  | "triceps"
-  | "underarmar"
-  | "ben"
-  | "baksida"
-  | "sate"
-  | "vader"
-  | "mage"
-  | "helkropp"
-  | "kondition"
+export type DisplayGroup = ExerciseDisplayGroup
 
 /** Ordningen i listan: överkropp, armar, underkropp, mage, helkropp, kondition. */
 export const DISPLAY_GROUPS: { key: DisplayGroup; label: string }[] = [
@@ -45,16 +32,35 @@ export const DISPLAY_GROUPS: { key: DisplayGroup; label: string }[] = [
   { key: "helkropp", label: "Helkropp" },
   { key: "kondition", label: "Kondition" },
 ]
+/** Övningsbankens grova muskelgrupp för en grupp i listan (egna övningar, v43). */
+export const MUSCLE_GROUP_OF: Record<DisplayGroup, MuscleGroup> = {
+  brost: "bröst",
+  rygg: "rygg",
+  axlar: "axlar",
+  biceps: "armar",
+  triceps: "armar",
+  underarmar: "armar",
+  ben: "ben",
+  baksida: "ben",
+  sate: "ben",
+  vader: "ben",
+  mage: "bål",
+  helkropp: "helkropp",
+  kondition: "kondition",
+}
 export const GROUP_LABEL = Object.fromEntries(DISPLAY_GROUPS.map((g) => [g.key, g.label])) as Record<DisplayGroup, string>
 
-const TRICEPS = /tricep|push-?down|skull|dip|close-?grip|french press|kickback.*(arm|tricep)|smal bänk/i
+// Inom armar är en kickback alltid triceps (säteskickbacks ligger under ben).
+const TRICEPS = /tricep|push-?down|skull|dip|close-?grip|french press|kickback|smal bänk/i
 const FOREARM = /wrist|forearm|underarm|handled|farmer/i
 const CALF = /calf|vad(er|press)?\b|tåhäv/i
 const GLUTE = /hip thrust|glute|bridge|abduct|kickback|säte|höftlyft|clamshell/i
 const HAMSTRING = /leg curl|nordic|romanian|stiff-?leg|good ?morning|hamstring|lårcurl|raka ben|rdl/i
 
 /** Visningsgruppen för en övning. */
-export function displayGroup(e: Pick<Exercise, "name" | "muscleGroup"> & { sv?: string }): DisplayGroup {
+export function displayGroup(e: Pick<Exercise, "name" | "muscleGroup"> & { sv?: string; displayGroup?: DisplayGroup }): DisplayGroup {
+  // v43: egna övningar kan ha en vald grupp.
+  if (e.displayGroup) return e.displayGroup
   const name = `${e.name} ${e.sv ?? ""}`
   const g: MuscleGroup = e.muscleGroup
   switch (g) {
@@ -88,7 +94,7 @@ export interface ExerciseGroup<T> {
  * övningar först, sedan i bankens ordning (vanligaste/baslyften först) – inte
  * alfabetiskt. Tomma grupper tas bort.
  */
-export function groupExercises<T extends Pick<Exercise, "name" | "muscleGroup"> & { custom?: unknown; sv?: string }>(list: T[]): ExerciseGroup<T>[] {
+export function groupExercises<T extends Pick<Exercise, "name" | "muscleGroup"> & { custom?: unknown; sv?: string; displayGroup?: DisplayGroup }>(list: T[]): ExerciseGroup<T>[] {
   const buckets = new Map<DisplayGroup, T[]>()
   for (const e of list) {
     const k = displayGroup(e)

@@ -8,6 +8,7 @@
  *  3. spelas upp igen ovanpå nyladdad data efter en omstart.
  */
 import type {
+  ActiveSplit,
   Account,
   AppData,
   Exercise,
@@ -47,6 +48,7 @@ import type {
   ActivityLog,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
+import exerciseLibrary from "@/lib/exercise-library.json"
 
 /** Ändringar som användaren gör och som ska sparas i backend. */
 export type PersistableAction =
@@ -61,6 +63,9 @@ export type PersistableAction =
   | { type: "markThreadRead"; threadId: ID; readerId: ID; readAt: string; trainerId?: ID }
   | { type: "addWeight"; clientId: ID; entry: WeightEntry }
   | { type: "saveGoalProfile"; profile: GoalProfile }
+  /** v43: klientens aktiva schema (ett per klient) – sparas eller tas bort. */
+  | { type: "saveActiveSplit"; split: ActiveSplit }
+  | { type: "deleteActiveSplit"; clientId: ID }
   /** Telefonens hälsodata (HealthKit / Health Connect): dagssummor och pass (v32). */
   | { type: "syncDeviceActivity"; days: ActivityDay[]; activities: ActivityLog[] }
   | { type: "requestCoaching"; trainerId: ID; clientId: ID; goal: string }
@@ -555,6 +560,12 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     case "saveGoalProfile":
       return { ...data, goalProfiles: upsertBy(data.goalProfiles, action.profile, (g) => g.clientId === action.profile.clientId) }
 
+    case "saveActiveSplit":
+      return { ...data, activeSplits: upsertBy(data.activeSplits, action.split, (s) => s.clientId === action.split.clientId) }
+
+    case "deleteActiveSplit":
+      return { ...data, activeSplits: data.activeSplits.filter((s) => s.clientId !== action.clientId) }
+
     case "setFavoriteRecipe": {
       const rest = data.favoriteRecipes.filter((id) => id !== action.recipeId)
       return { ...data, favoriteRecipes: action.favorite ? [...rest, action.recipeId] : rest }
@@ -689,7 +700,9 @@ export function normalizeAppData(raw: unknown): AppData | null {
       }
     }),
     clients: list<Client>(d.clients),
-    exercises: list(d.exercises),
+    // v43: övningsbanken kommer alltid från källan (nya övningar och namn även i
+    // sparad demodata); egna övningar och PT:ns övningar ligger kvar.
+    exercises: withLibrary(list<Exercise>(d.exercises)),
     templates: list(d.templates),
     workouts: list(d.workouts),
     nutritionPlans: list(d.nutritionPlans),
@@ -720,6 +733,7 @@ export function normalizeAppData(raw: unknown): AppData | null {
     recipes: list(d.recipes),
     favoriteRecipes: list<ID>(d.favoriteRecipes),
     goalProfiles: list<GoalProfile>(d.goalProfiles),
+    activeSplits: list<ActiveSplit>(d.activeSplits),
     activities: list<ActivityLog>(d.activities),
     activityDays: list<ActivityDay>(d.activityDays),
     // v12: relationer (flera PT:er). Äldre data: härled från klienternas PT.
@@ -768,4 +782,11 @@ function slotToRule(trainerId: ID, slot: string): AvailabilityRule {
   const start = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   const end = `${pad(Math.min(23, d.getHours() + 1))}:${pad(d.getMinutes())}`
   return { id: `rule-${trainerId}-${slot}`, trainerId, date, start, end, slotMinutes: 60 }
+}
+
+/** Övningsbanken (exercise-library.json) först, sedan sparade övningar som inte finns i den. */
+function withLibrary(saved: Exercise[]): Exercise[] {
+  const bank = exerciseLibrary as Exercise[]
+  const ids = new Set(bank.map((e) => e.id))
+  return [...bank, ...saved.filter((e) => !ids.has(e.id))]
 }

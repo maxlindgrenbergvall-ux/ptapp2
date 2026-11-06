@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
+import { DISPLAY_GROUPS, type DisplayGroup, GROUP_LABEL } from "@/lib/exercises/groups"
 import type { Exercise, MuscleGroup, WeightUnit } from "@/types/domain"
 
 export const MUSCLE_GROUPS: MuscleGroup[] = ["ben", "bröst", "rygg", "axlar", "armar", "bål", "helkropp", "kondition"]
@@ -52,11 +53,16 @@ export function CustomExerciseDialog({
   onOpenChange,
   initialName = "",
   onCreated,
+  initialGroup = "helkropp",
+  submitLabel = "Spara och lägg i passet",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialName?: string
   onCreated: (exercise: Exercise) => void
+  /** v43: förvald muskelgrupp (t.ex. gruppen man filtrerat på). */
+  initialGroup?: DisplayGroup
+  submitLabel?: string
 }) {
   const { actions } = useAppData()
   const [name, setName] = React.useState(initialName)
@@ -64,7 +70,8 @@ export function CustomExerciseDialog({
   const [unit, setUnit] = React.useState<WeightUnit>("kg")
   const [sets, setSets] = React.useState<number | undefined>(3)
   const [reps, setReps] = React.useState("10")
-  const [group, setGroup] = React.useState<MuscleGroup>("helkropp")
+  // v43: samma muskelgrupper som i övningslistan (Biceps, Säte, Vader …).
+  const [group, setGroup] = React.useState<DisplayGroup>(initialGroup)
   const [error, setError] = React.useState<string | null>(null)
 
   // Ny öppning: börja om med det användaren sökte på som namn.
@@ -77,7 +84,7 @@ export function CustomExerciseDialog({
       setUnit("kg")
       setSets(3)
       setReps("10")
-      setGroup("helkropp")
+      setGroup(initialGroup)
       setError(null)
     }
   }
@@ -86,7 +93,7 @@ export function CustomExerciseDialog({
     // Dialogen kan ligga i ett annat formulär (t.ex. Eget pass) – skicka inte det.
     e.preventDefault()
     e.stopPropagation()
-    const res = actions.addCustomExercise({ name, defaultWeight: weight, weightUnit: unit, defaultSets: sets ?? 3, defaultReps: reps, muscleGroup: group })
+    const res = actions.addCustomExercise({ name, defaultWeight: weight, weightUnit: unit, defaultSets: sets ?? 3, defaultReps: reps, displayGroup: group })
     if (res.error || !res.exercise) return setError(res.error ?? "Övningen kunde inte sparas.")
     toast.success(`${res.exercise.name} är tillagd`, { description: "Den finns nu bland dina övningar och i passet." })
     onCreated(res.exercise)
@@ -99,7 +106,7 @@ export function CustomExerciseDialog({
         <form onSubmit={submit} className="space-y-4" noValidate>
           <DialogHeader>
             <DialogTitle>Lägg till egen övning</DialogTitle>
-            <DialogDescription>Saknas övningen i biblioteket? Lägg till den – den sparas på ditt konto och läggs direkt i passet.</DialogDescription>
+            <DialogDescription>Saknas övningen i biblioteket? Lägg till den – den sparas i ditt övningsbibliotek och läggs direkt i passet.</DialogDescription>
           </DialogHeader>
 
           {error && (
@@ -157,31 +164,32 @@ export function CustomExerciseDialog({
 
           <div className="space-y-1.5">
             <Label>Muskelgrupp</Label>
-            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Muskelgrupp">
-              {MUSCLE_GROUPS.map((g) => (
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Muskelgrupp">
+              {DISPLAY_GROUPS.map((g) => (
                 <button
-                  key={g}
+                  key={g.key}
                   type="button"
                   role="radio"
-                  aria-checked={group === g}
-                  onClick={() => setGroup(g)}
+                  aria-checked={group === g.key}
+                  onClick={() => setGroup(g.key)}
                   className={cn(
-                    "rounded-full border px-2.5 py-0.5 text-xs capitalize transition-colors",
-                    group === g ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                    "min-h-8 rounded-full border px-3 text-xs transition-colors",
+                    group === g.key ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
                   )}
                 >
-                  {g}
+                  {g.label}
                 </button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">Övningen hamnar under {GROUP_LABEL[group]} i övningslistan.</p>
           </div>
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Avbryt
             </Button>
-            <Button type="submit" disabled={!name.trim()}>
-              Spara och lägg i passet
+            <Button type="submit" disabled={!name.trim()} data-testid="custom-exercise-save">
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>

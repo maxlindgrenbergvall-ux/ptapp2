@@ -21,6 +21,8 @@ import { extendBoost } from "@/lib/boost"
 import { MAX_CART_ITEMS } from "@/lib/cart"
 import { extendPlus, normalizeReferralCode, REFERRAL_CODE, REFERRAL_PLUS_DAYS } from "@/lib/plus"
 import type { CustomExerciseInput } from "@/lib/exercises/custom"
+import { advanceSplit, MAX_DAYS_PER_WEEK, MIN_DAYS_PER_WEEK, nextSplitAction } from "@/lib/active-split"
+import { MUSCLE_GROUP_OF } from "@/lib/exercises/groups"
 import { normalizePtInviteCode, PT_INVITE_CODE, PT_INVITE_DAYS, randomInviteCode } from "@/lib/pt-invites"
 import { canChooseQuantity, clampQuantity } from "@/lib/payments/fees"
 import { DEMO_CLIENT_ID, DEMO_TRAINER_ID, createSeedData } from "@/lib/data/seed"
@@ -78,6 +80,7 @@ import type {
   WorkoutStatus,
   WorkoutTemplate,
   GoalProfile,
+  ActiveSplit,
 } from "@/types/domain"
 import { START_PATH } from "@/lib/site"
 import { DELETE_CONFIRM_WORD } from "@/lib/account"
@@ -585,7 +588,8 @@ function createActions(ctx: {
       const exercise: Exercise = {
         id: `cx-${newId()}`,
         name,
-        muscleGroup: input.muscleGroup ?? "helkropp",
+        muscleGroup: input.displayGroup ? MUSCLE_GROUP_OF[input.displayGroup] : (input.muscleGroup ?? "helkropp"),
+        ...(input.displayGroup ? { displayGroup: input.displayGroup } : {}),
         equipment: "",
         custom: {
           ownerId: me.id,
@@ -718,6 +722,56 @@ function createActions(ctx: {
      * vikt loggas också i viktkurvan för dagens datum, så att grafen under
      * Framsteg använder samma vikt.
      */
+    // ----- aktivt träningsschema (v43)
+    /** Klient: gör en split till det aktiva schemat (ersätter ett tidigare). Första dagen står på tur. */
+    saveActiveSplit: (input: Omit<ActiveSplit, "clientId" | "nextDay" | "updatedAt" | "currentWorkoutId">) => {
+      const split: ActiveSplit = {
+        ...input,
+        clientId: me.id,
+        daysPerWeek: Math.min(MAX_DAYS_PER_WEEK, Math.max(MIN_DAYS_PER_WEEK, Math.round(input.daysPerWeek))),
+        nextDay: 0,
+        updatedAt: now(),
+      }
+      commit({ type: "saveActiveSplit", split })
+      return split
+    },
+    /** Klient: ändra antal dagar per vecka i det aktiva schemat. */
+    setSplitDaysPerWeek: (daysPerWeek: number) => {
+      const s = getData().activeSplits.find((x) => x.clientId === me.id)
+      if (!s) return
+      const n = Math.min(MAX_DAYS_PER_WEEK, Math.max(MIN_DAYS_PER_WEEK, Math.round(daysPerWeek)))
+      if (n !== s.daysPerWeek) commit({ type: "saveActiveSplit", split: { ...s, daysPerWeek: n, updatedAt: now() } })
+    },
+    stopActiveSplit: () => commit({ type: "deleteActiveSplit", clientId: me.id }),
+    /**
+     * "Nästa pass": öppna passet som redan startats från schemat (om det inte är
+     * klart), annars skapa dagens pass av dagen som står på tur och flytta fram
+     * schemat. Returnerar passets id (eller undefined utan aktivt schema).
+     */
+    startNextSplitWorkout: (): ID | undefined => {
+      const data = getData()
+      const split = data.activeSplits.find((x) => x.clientId === me.id)
+      const next = nextSplitAction(split, data.workouts)
+      if (next.kind === "none" || !split) return undefined
+      if (next.kind === "open") return next.workoutId
+      const id = newId()
+      commit({
+        type: "addWorkout",
+        workout: {
+          id,
+          clientId: me.id,
+          byClient: true,
+          templateId: null,
+          name: next.name.slice(0, 80),
+          date: todayISO(),
+          exercises: split.days[next.dayIndex].exercises.map((e) => ({ ...e, id: newId() })),
+          status: "planned",
+          logs: [],
+        },
+      })
+      commit({ type: "saveActiveSplit", split: advanceSplit(split, next.dayIndex, id, now()) })
+      return id
+    },
     saveGoalProfile: (profile: GoalProfile) => {
       commit({ type: "saveGoalProfile", profile })
       // Senaste vägningen skiljer sig (eller saknas) → logga dagens vikt.

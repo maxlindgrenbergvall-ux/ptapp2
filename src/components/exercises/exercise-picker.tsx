@@ -1,9 +1,10 @@
 "use client"
 
-import { Check, ChevronDown, Search, X } from "lucide-react"
+import { Check, ChevronDown, PencilLine, Search, X } from "lucide-react"
 import * as React from "react"
 
-import { CustomBadge } from "@/components/exercises/custom-exercise-dialog"
+import { CustomBadge, CustomExerciseDialog } from "@/components/exercises/custom-exercise-dialog"
+import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { useAppData } from "@/lib/data/store"
@@ -33,9 +34,12 @@ export function ExercisePicker({
   currentId,
   autoFocus = false,
   onQueryChange,
+  onFilterChange,
   excludeIds,
   className,
 }: {
+  /** Muskelgruppsfiltret ändras (t.ex. för att förvälja gruppen på en egen övning). */
+  onFilterChange?: (group: DisplayGroup | null) => void
   /** Övningar som redan finns (döljs i listan). */
   excludeIds?: string[]
   onPick: (exercise: Exercise) => void
@@ -58,7 +62,11 @@ export function ExercisePicker({
     onQueryChange?.(v)
   }
   const current = data.exercises.find((e) => e.id === currentId)
-  const [filter, setFilter] = React.useState<DisplayGroup | null>(null)
+  const [filter, setFilterState] = React.useState<DisplayGroup | null>(null)
+  const setFilter = (g: DisplayGroup | null) => {
+    setFilterState(g)
+    onFilterChange?.(g)
+  }
   const [open, setOpen] = React.useState<Set<DisplayGroup>>(() => new Set(current ? [displayGroup(current)] : []))
   const excluded = excludeIds?.join(",") ?? ""
   const groups = React.useMemo(() => {
@@ -92,8 +100,7 @@ export function ExercisePicker({
           <span className="min-w-0 flex-1">
             <span className="block truncate">{e.name}</span>
             <span className="block truncate text-[11px] text-muted-foreground">
-              {showGroup ? `${GROUP_LABEL[displayGroup(e)]} · ` : ""}
-              {e.equipment}
+              {[showGroup && GROUP_LABEL[displayGroup(e)], e.equipment].filter(Boolean).join(" · ")}
             </span>
           </span>
           {e.custom && <CustomBadge />}
@@ -210,6 +217,7 @@ export function ExercisePickerDialog({
   onPick,
   currentId,
   listLabel,
+  allowCustom = false,
 }: {
   trigger: React.ReactNode
   title: string
@@ -217,8 +225,13 @@ export function ExercisePickerDialog({
   onPick: (exercise: Exercise) => void
   currentId?: string
   listLabel?: string
+  /** v43: "Skapa egen övning" längst ned – sparas i övningsbiblioteket och väljs direkt. */
+  allowCustom?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
+  const [query, setQuery] = React.useState("")
+  const [group, setGroup] = React.useState<DisplayGroup | null>(null)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -231,11 +244,31 @@ export function ExercisePickerDialog({
           <ExercisePicker
             currentId={currentId}
             listLabel={listLabel}
+            onQueryChange={setQuery}
+            onFilterChange={setGroup}
             onPick={(e) => {
               onPick(e)
               setOpen(false)
             }}
           />
+        )}
+        {allowCustom && (
+          <>
+            <Button type="button" variant="outline" className="w-full border-dashed" onClick={() => setCreating(true)} data-testid="create-custom-exercise">
+              <PencilLine /> Skapa egen övning{query.trim() ? ` "${query.trim()}"` : ""}
+            </Button>
+            <CustomExerciseDialog
+              open={creating}
+              onOpenChange={setCreating}
+              initialName={query}
+              initialGroup={group ?? "helkropp"}
+              submitLabel="Spara och lägg till"
+              onCreated={(e) => {
+                onPick(e)
+                setOpen(false)
+              }}
+            />
+          </>
         )}
       </DialogContent>
     </Dialog>

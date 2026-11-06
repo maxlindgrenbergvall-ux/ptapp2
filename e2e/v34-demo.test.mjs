@@ -157,11 +157,16 @@ check(await noOverflow(), "passvyn: ingen horisontell overflow")
 
 // ------------------------------------- 4. splitbyggaren: dra och redigera ---
 await p.goto(base + "/klient/schema")
+// v43: demoklienten har ett aktivt schema – byt för att komma till splitbiblioteket.
+await p.waitForSelector("[data-testid=active-split], [data-testid=split-library]")
+if (await p.locator("[data-testid=change-split]").isVisible()) await p.click("[data-testid=change-split]")
 await p.click("[data-testid=split-ppl]")
 await p.waitForSelector("[data-testid=split-editor]")
 const push = p.locator("[data-testid=split-day]").first()
 const names = async () => push.locator("[data-testid=split-exercise] span.truncate").allInnerTexts()
 const before = await names()
+// Hela Push-dagen i bild (dragningen sker med skärmkoordinater).
+await push.evaluate((el) => el.scrollIntoView({ block: "start" }))
 await drag(push.locator("[data-testid=drag-handle]").nth(before.length - 1), push.locator("[data-sortable-id]").first())
 const after = await names()
 check(after[0] === before.at(-1), `split: sista övningen i Push dras överst (${after[0]})`)
@@ -169,13 +174,12 @@ await push.locator(`input[aria-label="Set för ${after[0]}"]`).fill("5")
 await push.locator(`input[aria-label="Reps för ${after[0]}"]`).fill("5–7")
 await push.locator(`input[aria-label="Startvikt (kg) för ${after[0]}"]`).fill("40")
 await p.screenshot({ path: `${out}/v34-split-redigera.png`, fullPage: true })
-await p.fill("#split-weeks", "1")
 await p.click("[data-testid=split-create]")
-await p.waitForURL(/\/klient\/kalender/)
-const created = (await demo()).workouts.find((w) => w.name.endsWith(": Push"))
+await p.waitForURL(/\/klient$/)
+const created = (await demo()).activeSplits.find((s) => s.clientId === "c1").days[0]
 const first = created?.exercises[0]
 check(first && first.sets === 5 && first.reps === "5–7" && first.targetKg === 40, `ordning, set, reps och startvikt följer med (${first?.sets} × ${first?.reps}, ${first?.targetKg} kg)`)
-check(created?.exercises.every((e) => !("_key" in e)), "inga interna fält i de skapade passen")
+check(created?.exercises.every((e) => !("_key" in e) && !("id" in e)), "inga interna fält i schemat")
 
 // ----------------------------------------------------------- 5. /avtal ---
 await p.goto(base + "/avtal")

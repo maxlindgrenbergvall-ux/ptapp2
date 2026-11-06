@@ -50,10 +50,10 @@
  },
  {
   "id": "e-bss",
-  "name": "Bulgarian Split Squat",
-  "sv": "Bulgarisk utfallsböj",
+  "name": "Bulgarian Split Squats",
+  "sv": "Bulgarisk utfallsböj (bulgarian split squat)",
   "muscleGroup": "ben",
-  "equipment": "Hantlar"
+  "equipment": ""
  },
  {
   "id": "e-lunge",
@@ -131,6 +131,13 @@
   "sv": "Höftlyft (hip thrust)",
   "muscleGroup": "ben",
   "equipment": "Skivstång"
+ },
+ {
+  "id": "e-machine-hipthrust",
+  "name": "Hip Thrust i maskin",
+  "sv": "Machine Hip Thrust (höftlyft i maskin)",
+  "muscleGroup": "ben",
+  "equipment": "Maskin"
  },
  {
   "id": "e-glutebridge",
@@ -441,6 +448,13 @@
   "equipment": "Hantlar"
  },
  {
+  "id": "e-machine-ohp",
+  "name": "Axelpress i maskin",
+  "sv": "Machine Shoulder Press (maskinpress för axlar)",
+  "muscleGroup": "axlar",
+  "equipment": "Maskin"
+ },
+ {
   "id": "e-pushpress",
   "name": "Push Press",
   "sv": "Push press",
@@ -525,6 +539,13 @@
   "equipment": "Skivstång"
  },
  {
+  "id": "e-ezcurl",
+  "name": "EZ-Bar Curl",
+  "sv": "Bicepscurl med EZ-stång (easy bar curl)",
+  "muscleGroup": "armar",
+  "equipment": "EZ-stång"
+ },
+ {
   "id": "e-hammer",
   "name": "Hammer Curl",
   "sv": "Hammercurl",
@@ -572,6 +593,13 @@
   "sv": "Liggande tricepspress (skullcrusher)",
   "muscleGroup": "armar",
   "equipment": "Skivstång"
+ },
+ {
+  "id": "e-kickback",
+  "name": "Kickbacks",
+  "sv": "Tricepskickback (triceps kickbacks)",
+  "muscleGroup": "armar",
+  "equipment": "Hantlar/kabel"
  },
  {
   "id": "e-benchdip",

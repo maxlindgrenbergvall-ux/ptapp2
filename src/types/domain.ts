@@ -168,7 +168,28 @@ export interface Exercise {
   videoUrl?: string
   /** Egen övning (custom_exercises) – saknas för övningsbanken. */
   custom?: CustomExerciseInfo
+  /**
+   * v43: muskelgruppen i övningslistan (Biceps, Säte, Vader …) som användaren
+   * valt för en egen övning. Saknas den räknas den fram ur namnet (exercises/groups.ts).
+   */
+  displayGroup?: ExerciseDisplayGroup
 }
+
+/** Muskelgrupperna i övningslistan (src/lib/exercises/groups.ts). */
+export type ExerciseDisplayGroup =
+  | "brost"
+  | "rygg"
+  | "axlar"
+  | "biceps"
+  | "triceps"
+  | "underarmar"
+  | "ben"
+  | "baksida"
+  | "sate"
+  | "vader"
+  | "mage"
+  | "helkropp"
+  | "kondition"
 
 export type WeightUnit = "kg" | "lbs"
 
@@ -208,6 +229,27 @@ export interface WorkoutExercise {
   videoUrl?: string
   /** Tillagd av klienten under passet (v32) – extra utöver PT:ns program. */
   extra?: boolean
+}
+
+/**
+ * Aktivt träningsschema (v43, client_splits): en split som roterar utan datum.
+ * Klienten väljer antal dagar per vecka; "Nästa pass" startar dagen på tur.
+ */
+export interface ActiveSplit {
+  clientId: ID
+  name: string
+  /** Kort namn i passens namn, t.ex. "PPL: Push". */
+  short: string
+  /** Splitens nyckel i biblioteket (ppl, upper_lower …) eller "custom". */
+  key: string
+  days: { name: string; focus: string; exercises: Omit<WorkoutExercise, "id">[] }[]
+  /** Mål: antal träningsdagar per vecka (1–7). */
+  daysPerWeek: number
+  /** Index i days för dagen som står på tur. */
+  nextDay: number
+  /** Passet som senast startades från schemat (öppnas igen tills det är klart). */
+  currentWorkoutId?: ID
+  updatedAt: ISODateTime
 }
 
 export interface WorkoutTemplate {
@@ -674,6 +716,8 @@ export interface AppData {
   favoriteRecipes: ID[]
   /** Mål och kroppsmått (v30): klientens egna, eller PT:ns klienters. */
   goalProfiles: GoalProfile[]
+  /** Aktiva träningsscheman (v43): klientens eget, eller PT:ns klienters. */
+  activeSplits: ActiveSplit[]
   /** PT–klient-relationer (klient: alla egna; PT: egna klienter). */
   relationships: CoachingRelationship[]
   /** Loggade mätpunkter för intressena (Framsteg). */

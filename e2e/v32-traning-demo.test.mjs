@@ -79,6 +79,9 @@ check((await demo()).workouts.find((x) => x.id === w.id).exercises.length === 1,
 
 // ------------------------------------------------- 4. splits och schema ---
 await p.goto(base + "/klient/schema")
+// v43: demoklienten har ett aktivt schema – byt för att komma till splitbiblioteket.
+await p.waitForSelector("[data-testid=active-split], [data-testid=split-library]")
+if (await p.locator("[data-testid=change-split]").isVisible()) await p.click("[data-testid=change-split]")
 await p.waitForSelector("[data-testid=split-library]")
 for (const s of ["ppl", "upper_lower", "four_split", "bro_split", "full_body"]) check((await p.locator(`[data-testid=split-${s}]`).count()) === 1, `split: ${s}`)
 await p.screenshot({ path: `${out}/v32-splits.png`, fullPage: true })
@@ -89,15 +92,18 @@ check((await p.locator("[data-testid=split-day]").count()) === 3, "PPL har tre d
 const pushExercises = await p.locator("[data-testid=split-day]").first().locator("li button[aria-label^='Ta bort']").count()
 await p.locator("[data-testid=split-day]").first().locator("li button[aria-label^='Ta bort']").last().click()
 check((await p.locator("[data-testid=split-day]").first().locator("li button[aria-label^='Ta bort']").count()) === pushExercises - 1, "en övning tas bort ur Push")
-await p.fill("#split-weeks", "2")
-check(/6 pass/.test(await p.locator("[data-testid=split-summary]").innerText()), "2 veckor PPL = 6 pass")
+// v43: antal dagar per vecka i stället för veckodagar, startdatum och antal veckor.
+check((await p.locator("#split-weeks, #split-start, [aria-labelledby=split-weekdays]").count()) === 0, "inga fält för veckodagar, startdatum eller antal veckor")
+await p.click("[data-testid=days-per-week] [aria-label='4 dagar per vecka']")
+check(/4 dagar i veckan/.test(await p.locator("[data-testid=split-summary]").innerText()), "4 dagar i veckan")
 const before = (await demo()).workouts.length
 await p.click("[data-testid=split-create]")
-await p.waitForURL(/\/klient\/kalender/)
+await p.waitForURL(/\/klient$/)
 d = await demo()
-const created = d.workouts.filter((x) => x.name.startsWith("Push/Pull/Legs:"))
-check(d.workouts.length - before === 6 && created.length === 6, "sex pass i kalendern")
-check(created.find((x) => x.name.endsWith("Push")).exercises.length === pushExercises - 1, "anpassningen följer med")
+const active = d.activeSplits.find((x) => x.clientId === "c1")
+check(active?.key === "ppl" && active.daysPerWeek === 4 && active.nextDay === 0, "PPL är det aktiva schemat, 4 dagar/vecka")
+check(d.workouts.length === before, "inga pass läggs ut i kalendern i förväg")
+check(active.days[0].exercises.length === pushExercises - 1, "anpassningen följer med")
 
 // PT: mallar från en split.
 await p.goto(base + "/pt/pass")
