@@ -59,8 +59,8 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const m = await ctx.newPage()
 m.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
-await m.goto(`${base}/klient`)
-await m.waitForSelector("text=Övrigt / extra")
+await m.goto(`${base}/klient/kost`)
+await m.waitForSelector("[data-testid=quick-log]")
 const search = m.locator('input[aria-label="Sök livsmedel eller märkesvara"]')
 
 // Snabbval för populära varumärken

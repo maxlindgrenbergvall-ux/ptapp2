@@ -102,7 +102,10 @@ export default function PtOverviewPage() {
           sub="Genomförda av schemalagda pass"
           icon={CalendarClock}
         />
-        <StatTile label="Olästa meddelanden" value={unread} icon={MessageSquare} />
+        {/* v42: leder till inkorgen (olästa överst). */}
+        <Link href="/pt/meddelanden" className="rounded-2xl outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.99]" data-testid="pt-unread-tile">
+          <StatTile label="Olästa meddelanden" value={unread} sub={unread > 0 ? "Tryck för att läsa och svara" : undefined} icon={MessageSquare} />
+        </Link>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">

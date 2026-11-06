@@ -304,8 +304,30 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /*
+   * v42: appen scrollar bara vertikalt – sidan kan inte svepas/dras i sidled.
+   *  - overflow-x: inget innehåll kan göra sidan bredare än skärmen. På html
+   *    (fönstret) räcker `hidden`; på body används `clip`, som till skillnad
+   *    från `hidden` inte gör body till en egen scrollbehållare (position:
+   *    sticky för sidhuvudet fortsätter att fungera).
+   *  - overscroll-behavior-x: ingen sidledsstuds och ingen bakåt-svepgest
+   *    (Android/Chrome) när man drar i kanten.
+   *  - touch-action: fingret panorerar bara vertikalt (plus nypzoom på webben).
+   *    Horisontella listor (chip-rader, flikar) är egna scrollbehållare och
+   *    kan fortfarande svepas – touch-action räknas bara fram till närmaste
+   *    scrollbehållare.
+   * Natively: CoaviraViewController (iOS) och MainActivity (Android).
+   */
+  html {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
   body {
     @apply bg-background text-foreground;
+    max-width: 100%;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    touch-action: pan-y pinch-zoom;
     /* Mobil: ingen grå blink vid tryck (knapparna har egen tryckeffekt). */
     -webkit-tap-highlight-color: transparent;
     /* Native-känsla: ingen "gummiband"-studs som drar med hela sidan eller laddar om den. */

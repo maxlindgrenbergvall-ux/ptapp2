@@ -32,8 +32,8 @@ async function page(viewport, scheme = "light", b = browser) {
 
 // --------------------------------------------------------- livsmedelssök ---
 const m = await page({ width: 390, height: 844 })
-await m.goto(`${base}/klient`)
-await m.waitForSelector("text=Övrigt / extra")
+await m.goto(`${base}/klient/kost`)
+await m.waitForSelector("[data-testid=quick-log]")
 const search = m.locator('input[aria-label="Sök livsmedel eller märkesvara"]')
 
 await search.fill("kvarg")
@@ -88,8 +88,8 @@ if (process.env.BARCODE_VIDEO) {
     args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-video-capture=${process.env.BARCODE_VIDEO}`],
   })
   const c = await page({ width: 390, height: 844 }, "dark", camBrowser)
-  await c.goto(`${base}/klient`)
-  await c.waitForSelector("text=Övrigt / extra")
+  await c.goto(`${base}/klient/kost`)
+  await c.waitForSelector("[data-testid=quick-log]")
   await c.click('button[aria-label="Skanna streckkod"]')
   await c.waitForSelector('video[aria-label="Kamerabild"]')
   await c.waitForTimeout(400)

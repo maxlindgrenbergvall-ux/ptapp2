@@ -67,7 +67,10 @@ check(log.filter((e) => e.path === "/api/v3/activities/:id").length <= 10, "deta
 // Kalorimätaren visar dagens löpning.
 await p.waitForFunction(() => document.querySelector("[data-testid=activity-kcal]")?.textContent?.includes("412"))
 check((await p.locator("[data-testid=activity-list]").innerText()).includes("Morgonlöpning"), "dagens Strava-pass i kalorimätaren")
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=energy-burned]")
 check((await p.locator("[data-testid=energy-burned]").innerText()).includes("412"), "kostdagboken visar förbränt (412 kcal)")
+await p.goto(base + "/klient")
 
 // ------------------------------------------------------------- synka ---
 await fetch(`${strava}/__reset`)

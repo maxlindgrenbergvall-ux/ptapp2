@@ -861,8 +861,12 @@ function createActions(ctx: {
     updateTrainerProfile: (patch: TrainerProfilePatch) => commit({ type: "updateTrainerProfile", trainerId: me.id, patch }),
 
     // ----- klientens trackers
-    addFoodEntry: (date: ISODate, food: Omit<FoodEntry, "id" | "clientId" | "date">) =>
-      commit({ type: "addFoodEntry", entry: { ...food, id: newId(), clientId: me.id, date } }),
+    /** Loggar mat och returnerar postens id (v42: för "Ångra" i snabbloggningen). */
+    addFoodEntry: (date: ISODate, food: Omit<FoodEntry, "id" | "clientId" | "date">) => {
+      const id = newId()
+      commit({ type: "addFoodEntry", entry: { ...food, id, clientId: me.id, date } })
+      return id
+    },
     deleteFoodEntry: (id: ID) => commit({ type: "deleteFoodEntry", id }),
     /** Ändrar dagens vattenmängd med `deltaMl` (kan vara negativt). */
     addWater: (date: ISODate, deltaMl: number) => {

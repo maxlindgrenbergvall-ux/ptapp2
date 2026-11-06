@@ -115,9 +115,11 @@ await p.goto(base + "/klient")
 await p.waitForSelector("[data-testid=activity-card]")
 check((await p.locator("[data-testid=activity-kcal]").innerText()).includes("382"), "förbränt i dag: 382 kcal (Strava-löpningen)")
 check((await p.locator("[data-testid=activity-list]").innerText()).includes("Morgonlöpning"), "dagens pass listas")
-check((await p.locator("[data-testid=energy-burned]").innerText()).includes("382"), "kostdagboken visar förbränt (382 kcal)")
 await p.locator("[data-testid=activity-card]").scrollIntoViewIfNeeded()
 await p.screenshot({ path: `${out}/v32-kalorimatare.png` })
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=energy-burned]")
+check((await p.locator("[data-testid=energy-burned]").innerText()).includes("382"), "kostdagboken visar förbränt (382 kcal)")
 
 // ------------------------------------------------------- 6. rensad profil ---
 await p.goto(base + "/klient/profil")

@@ -37,6 +37,9 @@ const config: CapacitorConfig = {
   // Låter webbappen känna igen att den körs i native-appen (inloggning, push).
   appendUserAgent: pushEnabled ? "CoaviraApp CoaviraPush" : "CoaviraApp",
   backgroundColor: "#ffffff",
+  // v42: ingen nypzoom i WebView – sidan kan då aldrig hamna bredare än skärmen
+  // och dras i sidled (horisontellt svep låses även i CSS och natively).
+  zoomEnabled: false,
   server: {
     url: serverUrl,
     // Klartext (http) bara mot en lokal utvecklingsserver, aldrig i produktion.
@@ -53,6 +56,8 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: "never",
+    // Scrollvyn måste vara på (vertikal scroll); sidledsstudsen stängs i CoaviraViewController (SceneDelegate.swift).
+    scrollEnabled: true,
     // Inga länkförhandsvisningar som "läcker" ut ur appen vid långtryck.
     allowsLinkPreview: false,
   },

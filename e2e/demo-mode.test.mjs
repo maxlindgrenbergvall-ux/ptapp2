@@ -47,7 +47,7 @@ await d.screenshot({ path: `${out}/pt-pass.png`, fullPage: true })
 await d.goto(base + "/pt/kost"); await d.waitForSelector("text=Dagssumma")
 await d.screenshot({ path: `${out}/pt-kost.png`, fullPage: true })
 const dd = await page({ width: 1440, height: 900 }, "dark")
-await dd.goto(base + "/pt/meddelanden"); await dd.click('button:has-text("Sara Lindqvist")'); await dd.waitForTimeout(300)
+await dd.goto(base + "/pt/meddelanden"); await dd.click('[data-testid=inbox-row]:has-text("Sara Lindqvist")'); await dd.waitForSelector('textarea[aria-label="Meddelande"]'); await dd.waitForTimeout(300)
 await dd.screenshot({ path: `${out}/pt-meddelanden-dark.png` })
 console.log(errors.length ? errors.join("\n") : "inga sidfel")
 if (errors.length) process.exitCode = 1

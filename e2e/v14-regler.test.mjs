@@ -96,8 +96,8 @@ await p.screenshot({ path: `${out}/v14-enheter-pt.png`, fullPage: true })
 
 // Klienten: samma regler i matloggen.
 await p.setViewportSize({ width: 390, height: 844 })
-await p.goto(base + "/klient")
-await p.waitForSelector("text=Dagens träning")
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=quick-log]")
 await p.fill('input[aria-label="Sök livsmedel eller märkesvara"]', "mellanmjölk")
 await p.click('role=option >> text="Mellanmjölk 1,5 %"')
 const unitRadios = p.locator('[role=radiogroup][aria-label=Enhet] [role=radio]')
@@ -185,7 +185,7 @@ await p.screenshot({ path: `${out}/v14-passbyggare-delar.png`, fullPage: true })
 
 // --------------------------------------------- 6. samtal kräver köp/bokning ---
 await p.setViewportSize({ width: 390, height: 844 })
-await p.goto(base + "/klient/chatt")
+await p.goto(base + "/klient/chatt/t1")
 await p.waitForSelector('button[aria-label^="Videosamtal med"]')
 ok("betalande klient kan ringa sin PT")
 await patchDemo((d) => ({
@@ -193,7 +193,7 @@ await patchDemo((d) => ({
   purchases: d.purchases.filter((x) => !(x.clientId === "c1" && x.trainerId === "t1")),
   events: d.events.map((e) => (e.clientId === "c1" && e.trainerId === "t1" && e.status !== "cancelled" ? { ...e, status: "pending" } : e)),
 }))
-await p.goto(base + "/klient/chatt")
+await p.goto(base + "/klient/chatt/t1")
 await p.waitForSelector("[data-testid=call-locked]")
 check((await p.locator('button[aria-label^="Videosamtal med"]').count()) === 0, "utan köp eller bokat pass finns inga ring-knappar")
 await p.click("[data-testid=call-locked]")

@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, ChevronLeft, ChevronRight, Flame, Lock, Search, Sparkles, Star } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Flame, Lock, Plus, Search, Sparkles, Star } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -380,4 +380,48 @@ function linkedDate(): string | undefined {
   if (typeof window === "undefined") return undefined
   const d = new URLSearchParams(window.location.search).get("datum")
   return d && /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= addDays(todayISO(), -30) && d <= addDays(todayISO(), 7) ? d : undefined
+}
+
+/**
+ * Genvägen på Idag (v42): dagens kalorier mot målet och en knapp till
+ * Kost-sidan, där all loggning sker. Samma underlag som Dagens kost: schemats
+ * avbockade måltider + loggad mat, mot kostschemats mål eller det egna dagsmålet.
+ */
+export function NutritionShortcut({ clientId }: { clientId: ID }) {
+  const { data } = useAppData()
+  const date = todayISO()
+  const trainers = myTrainers(data, clientId).filter((t) => hasNutritionAccess(data, t.id, clientId))
+  const { current, all } = nutritionPlansFor(data, clientId)
+  const plan = trainers.length && current && all.some((p) => p.id === current.id && trainers.some((t) => t.id === p.trainerId)) ? current : undefined
+  const checked = new Set(data.mealChecks.filter((m) => m.clientId === clientId && m.date === date).map((m) => m.mealId))
+  const extras = data.foodEntries.filter((e) => e.clientId === clientId && e.date === date)
+  const eaten = sumMacros([...(plan?.meals ?? []).filter((m) => checked.has(m.id)).flatMap((m) => m.items), ...extras])
+  const target = plan?.targets.kcal ?? data.goalProfiles.find((g) => g.clientId === clientId)?.targets.kcal
+  const left = plan ? plan.meals.filter((m) => !checked.has(m.id)).length : 0
+  const pct = target ? Math.min(100, Math.round((eaten.kcal / target) * 100)) : 0
+  return (
+    <Link
+      href="/klient/kost"
+      className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-card transition-colors hover:bg-muted/40 active:scale-[0.99]"
+      data-testid="nutrition-shortcut"
+    >
+      <span className="min-w-0 flex-1 space-y-2">
+        <span className="flex items-baseline justify-between gap-2">
+          <span className="text-lg font-bold tracking-tight tabular">
+            {Math.round(eaten.kcal).toLocaleString("sv-SE")}
+            {target ? <span className="text-sm font-medium text-muted-foreground"> / {target.toLocaleString("sv-SE")} kcal</span> : <span className="text-sm font-medium text-muted-foreground"> kcal idag</span>}
+          </span>
+          {plan && <span className="shrink-0 text-xs text-muted-foreground">{left ? `${left} måltider kvar` : "Alla måltider klara"}</span>}
+        </span>
+        {target ? (
+          <span className="block h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Kalorier idag" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+            <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
+          </span>
+        ) : null}
+      </span>
+      <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
+        <Plus className="size-4" /> Logga
+      </span>
+    </Link>
+  )
 }

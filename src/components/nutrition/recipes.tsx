@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
+import { KostTabs } from "@/components/nutrition/kost-tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
@@ -57,6 +58,8 @@ export function RecipesView() {
 
   return (
     <div className="space-y-4">
+      {/* v42: Recept ligger under Kost-fliken – växeln leder tillbaka till dagboken. */}
+      <KostTabs />
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Recept</h1>

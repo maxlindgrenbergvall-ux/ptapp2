@@ -4,7 +4,7 @@ import { CalendarCheck, CalendarRange, Check, ChevronRight, Dumbbell, Play, Sear
 import Link from "next/link"
 
 import { SleepTracker, WaterTracker } from "@/components/client/trackers"
-import { DailyNutrition } from "@/components/nutrition/daily-nutrition"
+import { NutritionShortcut } from "@/components/nutrition/daily-nutrition"
 import { ActivityCard } from "@/components/activity/activity-card"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { PersonAvatar } from "@/components/common"
@@ -183,12 +183,12 @@ export default function TodayPage() {
       {/* v32: kalorimätaren – Strava, Apple Hälsa och Health Connect. */}
       <ActivityCard clientId={client.id} />
 
-      {/* Dagens kost (kostdagboken – länkas från recepten med ?datum=…#dagens-kost) */}
-      <section id="dagens-kost" className="scroll-mt-20 space-y-3">
+      {/* v42: kostdagboken är en egen sida (Kost i bottenmenyn) – här bara dagens kalorier och en genväg. */}
+      <section className="space-y-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <Utensils className="size-4" /> Dagens kost
         </h2>
-        <DailyNutrition clientId={client.id} />
+        <NutritionShortcut clientId={client.id} />
       </section>
 
       {/* Vanor */}

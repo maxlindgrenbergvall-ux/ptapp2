@@ -121,6 +121,8 @@ check(d.clients.find((c) => c.id === "c1").weightLog.at(-1).kg === 82.5, "vikten
 
 // ------------------------------------------- 6. dagsmålet i kostdagboken ---
 check((await p.locator("[data-testid=goal-intro-banner]").count()) === 0, "påminnelsen om målen försvinner när de är satta")
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=daily-nutrition]")
 const own = p.locator("[data-testid=own-nutrition-goal]")
 if (await own.count()) {
   check((await own.innerText()).includes(String(saved.targets.kcal).replace(/\B(?=(\d{3})+(?!\d))/g, " ")) || (await own.innerText()).includes(String(saved.targets.kcal)), "kostdagboken använder det beräknade dagsmålet")

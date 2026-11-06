@@ -90,9 +90,11 @@ await toast("är loggat")
 const entry = (await demo()).foodEntries.find((e) => e.libraryRecipeId === libId)
 check(entry && entry.meal === "lunch" && entry.kcal === 1066 && entry.protein === 87.8, "makrona skickas till kostdagboken (lunch, 1066 kcal, 87,8 g protein)")
 await p.click('[data-sonner-toast] button:has-text("Visa kostdagboken")')
-await p.waitForURL(/\/klient\?datum=/)
-const row = p.locator("#dagens-kost li", { hasText: "Kycklingbowl" })
-check((await row.innerText()).includes("Lunch") && (await row.innerText()).includes("1066 kcal"), "posten syns under Lunch i Dagens kost")
+// v42: kostdagboken är en egen sida; posterna grupperas per måltid.
+await p.waitForURL(/\/klient\/kost\?datum=/)
+const lunch = p.locator("[data-testid=food-log] > div", { has: p.locator("h4", { hasText: "Lunch" }) })
+await lunch.waitFor()
+check((await lunch.locator("li", { hasText: "Kycklingbowl" }).innerText()).includes("1066 kcal"), "posten syns under Lunch i kostdagboken")
 
 // ----------------------------------------------------- 4. favoriter ---
 await p.goto(base + "/klient/recept")

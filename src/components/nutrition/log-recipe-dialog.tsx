@@ -76,7 +76,7 @@ export function LogRecipeDialog({
     onLogged?.()
     toast.success(`${MEAL_LABEL[meal]}: ${recipe.name} är loggat`, {
       description: `${total.kcal} kcal ${date === today ? "idag" : formatDay(date).toLowerCase()}.`,
-      action: { label: "Visa kostdagboken", onClick: () => router.push(`/klient?datum=${date}#dagens-kost`) },
+      action: { label: "Visa kostdagboken", onClick: () => router.push(`/klient/kost?datum=${date}`) },
     })
   }
 

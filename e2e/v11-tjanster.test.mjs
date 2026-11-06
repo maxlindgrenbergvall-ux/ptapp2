@@ -33,8 +33,8 @@ const patchDemo = (fn) =>
 const overlayGone = () => p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
 
 // ------------------------------------------------- 1. kostlås + mersälj ---
-await p.goto(base + "/klient")
-await p.waitForSelector("text=Dagens kost")
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=daily-nutrition]")
 // Sara har köpt kost i demodatan – ta bort den så att låset och mersäljet syns.
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))
 await p.reload()
@@ -73,8 +73,8 @@ check(after.purchases.filter((x) => x.status === "paid").length === before + 2, 
 check(after.purchases.some((x) => x.includesNutrition && x.status === "paid"), "kostcoaching är köpt")
 check((await p.locator("[data-testid=session-balance]").innerText()).includes("pass kvar"), "klienten ser hur många pass som är kvar")
 
-await p.goto(base + "/klient")
-await p.waitForSelector("text=Dagens kost")
+await p.goto(base + "/klient/kost")
+await p.waitForSelector("[data-testid=daily-nutrition]")
 check((await p.locator("[data-testid=nutrition-coaching-hint]").count()) === 0, "kostschemat är upplåst efter köpet")
 
 // "Nej tack" ger bara passet.

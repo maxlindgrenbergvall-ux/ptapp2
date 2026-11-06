@@ -16,95 +16,147 @@ import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { mockSleepRange } from "@/lib/wearables/mock"
 import { PROVIDER_LABEL } from "@/lib/wearables/types"
+import { groupByMeal, mealForTime, type NewFoodEntry, quickEntry, recentFoods } from "@/lib/nutrition/quick-log"
 import { MEAL_LABEL, MEAL_TYPES } from "@/lib/recipes/goals"
-import type { FoodProduct, ISODate, SleepLog, WearableProvider } from "@/types/domain"
+import type { ISODate, MealType, SleepLog, WearableProvider } from "@/types/domain"
 
 // ================================================================ extra mat ===
 
 /**
- * "Övrigt / Extra": mat utanför kostschemat. Sök i baslivsmedel, egna produkter
- * och märkesvaror, eller skanna streckkoden.
+ * Snabbloggning (v42, Kost-sidan /klient/kost) – så få tryck som möjligt:
+ *   1. Måltiden är förvald efter klockslaget (frukost/lunch/middag/mellanmål).
+ *   2. Snabbval: det du brukar äta – ett tryck på + loggar samma mängd som sist.
+ *   3. Sök eller skanna: träffarna visas direkt i sidan (ingen svävande meny).
+ *   4. "Bara kalorier" när du bara vet ungefär hur mycket.
+ * Dagens poster står under, grupperade per måltid, med ångra/ta bort.
  */
 export function ExtraFood({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
-  // Sorterat efter måltid (frukost → mellanmål), poster utan måltid sist.
-  const entries = data.foodEntries
-    .filter((e) => e.clientId === me.id && e.date === date)
-    .map((e, i) => ({ e, i, order: e.meal ? MEAL_TYPES.indexOf(e.meal) : MEAL_TYPES.length }))
-    .sort((a, b) => a.order - b.order || a.i - b.i)
-    .map((x) => x.e)
+  const entries = data.foodEntries.filter((e) => e.clientId === me.id && e.date === date)
+  const groups = groupByMeal(entries)
+  const [meal, setMeal] = React.useState<MealType>(() => mealForTime(new Date()))
   const [manual, setManual] = React.useState(false)
+  const recent = React.useMemo(() => recentFoods(data.foodEntries, me.id, 8), [data.foodEntries, me.id])
 
-  // Senaste: unika produkter som loggats med gram, nyast först – så att vanliga val går på ett tryck.
-  const recent = React.useMemo(() => {
-    const seen = new Set<string>()
-    const out: FoodProduct[] = []
-    for (const e of [...data.foodEntries].filter((x) => x.clientId === me.id && x.grams).reverse()) {
-      const key = e.barcode ?? e.productId ?? e.name
-      if (seen.has(key)) continue
-      seen.add(key)
-      const f = 100 / e.grams!
-      out.push({
-        id: e.productId ?? `recent:${key}`,
-        name: e.name,
-        barcode: e.barcode,
-        per100: { kcal: e.kcal * f, protein: e.protein * f, carbs: e.carbs * f, fat: e.fat * f },
-        servingG: e.grams,
-        unit: e.unit,
-        source: e.barcode ? "openfoodfacts" : "library",
-      })
-      if (out.length >= 12) break
-    }
-    return out
-  }, [data.foodEntries, me.id])
+  const add = (entry: NewFoodEntry, label = entry.name) => {
+    const id = actions.addFoodEntry(date, { ...entry, meal: entry.meal ?? meal })
+    toast.success(`${label} tillagd`, {
+      description: `${MEAL_LABEL[entry.meal ?? meal]} · ${entry.kcal} kcal`,
+      action: { label: "Ångra", onClick: () => actions.deleteFoodEntry(id) },
+    })
+  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Övrigt / extra</h3>
-        {!manual && (
-          <button className="text-xs text-muted-foreground underline-offset-4 hover:underline" onClick={() => setManual(true)}>
-            Egen rad (bara kcal)
-          </button>
-        )}
-      </div>
-
-      {entries.length > 0 && (
-        <ul className="divide-y rounded-xl bg-muted/50">
-          {entries.map((e) => (
-            <li key={e.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <div className="min-w-0 flex-1">
-                {e.meal && <div className="text-[11px] font-medium text-primary">{MEAL_LABEL[e.meal]}</div>}
-                <div className="flex min-w-0 items-baseline gap-1">
-                  <span className="truncate">{e.name}</span>
-                  {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} {e.unit ?? "g"}</span> : null}
-                </div>
-                <MacroInline value={e} />
-              </div>
-              <span className="shrink-0 tabular">{e.kcal} kcal</span>
-              <button className="touch-target shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={() => actions.deleteFoodEntry(e.id)}>
-                <X className="size-3.5" />
-              </button>
-            </li>
+    <div className="space-y-4" data-testid="quick-log">
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold">Logga mat</h3>
+        {/* Måltiden – förvald efter klockan, ett tryck för att byta. */}
+        <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Måltid" data-testid="meal-chips">
+          {MEAL_TYPES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={meal === m}
+              onClick={() => setMeal(m)}
+              className={cn(
+                "min-h-9 rounded-lg px-1 text-xs font-medium transition-colors",
+                meal === m ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {MEAL_LABEL[m]}
+            </button>
           ))}
-        </ul>
-      )}
+        </div>
+      </div>
 
       {manual ? (
         <ManualFoodForm
           onCancel={() => setManual(false)}
           onAdd={(f) => {
-            actions.addFoodEntry(date, f)
+            add(f)
             setManual(false)
           }}
         />
       ) : (
-        <FoodPicker
-          recent={recent}
-          customFoods={data.customFoods}
-          onSaveCustom={actions.saveCustomFood}
-          onAdd={(entry) => actions.addFoodEntry(date, entry)}
-        />
+        <>
+          <FoodPicker
+            inline
+            recent={recent.map((r) => r.product)}
+            customFoods={data.customFoods}
+            onSaveCustom={actions.saveCustomFood}
+            onAdd={(entry) => add(entry)}
+          />
+          <button type="button" className="text-xs font-medium text-primary underline-offset-4 hover:underline" onClick={() => setManual(true)} data-testid="quick-kcal">
+            Bara kalorier – skriv in kcal direkt
+          </button>
+        </>
+      )}
+
+      {/* Snabbval: ett tryck loggar samma mängd som förra gången. */}
+      {recent.length > 0 && (
+        <section className="space-y-1.5" aria-labelledby="quick-title">
+          <h4 id="quick-title" className="text-xs font-medium text-muted-foreground">
+            Snabbval · till {MEAL_LABEL[meal].toLowerCase()}
+          </h4>
+          <ul className="divide-y rounded-xl border" data-testid="quick-recent">
+            {recent.slice(0, 6).map(({ product, grams }) => {
+              const kcal = quickEntry(product, grams).kcal
+              return (
+                <li key={product.id} className="flex items-center gap-3 py-1 pr-1 pl-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{product.name}</span>
+                    <span className="block text-xs text-muted-foreground tabular">
+                      {grams.toLocaleString("sv-SE")} {product.unit ?? "g"} · {kcal} kcal
+                    </span>
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className="size-10 shrink-0 rounded-full"
+                    aria-label={`Lägg till ${product.name}, ${grams} ${product.unit ?? "g"}`}
+                    data-testid="quick-add"
+                    onClick={() => add(quickEntry(product, grams, meal))}
+                  >
+                    <Plus />
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* Dagens poster per måltid. */}
+      {groups.length > 0 && (
+        <section className="space-y-3" aria-label="Loggat" data-testid="food-log">
+          {groups.map((g) => (
+            <div key={g.meal ?? "other"} className="space-y-1">
+              <h4 className="flex items-baseline justify-between px-1 text-xs font-semibold text-muted-foreground">
+                <span>{g.label}</span>
+                <span className="tabular">{g.kcal} kcal</span>
+              </h4>
+              <ul className="divide-y rounded-xl bg-muted/50">
+                {g.entries.map((e) => (
+                  <li key={e.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-baseline gap-1">
+                        <span className="truncate">{e.name}</span>
+                        {e.grams ? <span className="shrink-0 text-xs text-muted-foreground tabular">· {e.grams.toLocaleString("sv-SE")} {e.unit ?? "g"}</span> : null}
+                      </div>
+                      <MacroInline value={e} />
+                    </div>
+                    <span className="shrink-0 tabular">{e.kcal} kcal</span>
+                    <button className="touch-target shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={() => actions.deleteFoodEntry(e.id)}>
+                      <X className="size-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
       )}
     </div>
   )

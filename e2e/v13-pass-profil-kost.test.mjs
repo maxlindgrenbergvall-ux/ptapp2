@@ -93,7 +93,7 @@ check(!/\b(e?1RM)\b/i.test(await p.locator("main").innerText()), "inga uppskatta
 
 // ------------------------------------------------ 4. kostrekommendation ---
 await patchDemo((d) => ({ ...d, purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })) }))
-await p.goto(base + "/klient")
+await p.goto(base + "/klient/kost")
 await p.click("[data-testid=nutrition-coaching-hint]")
 await p.waitForSelector("[data-testid=nutrition-lock]")
 check((await p.locator("[data-testid=nutrition-recommended]").first().innerText()).includes("din PT Elin"), "rekommenderar i första hand nuvarande PT som erbjuder kost")
@@ -115,13 +115,14 @@ await patchDemo((d) => ({
 }))
 
 // Klienten bockar av frukosten → PT:n ser samma "Dagens kost".
-await p.goto(base + "/klient")
+// v42: kostdagboken är en egen sida (Kost).
+await p.goto(base + "/klient/kost")
 await p.waitForSelector("[data-testid=daily-nutrition] ul[aria-label=Måltider]")
 await p.locator("[data-testid=daily-nutrition] ul[aria-label=Måltider] button").first().click()
 const mealName = (await p.locator("[data-testid=daily-nutrition] ul[aria-label=Måltider] button").first().innerText()).split("\n")[0]
 
 // ------------------------------------------------- 5. flyttbar kameraruta ---
-await p.goto(base + "/klient/chatt")
+await p.goto(base + "/klient/chatt/t1")
 await p.click('button[aria-label^="Videosamtal med"]')
 const pip = p.locator("[data-testid=self-view]")
 await pip.waitFor()

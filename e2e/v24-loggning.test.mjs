@@ -38,7 +38,7 @@ await p.waitForSelector("text=Dagens träning")
 check(await p.locator("header [data-testid=header-chat]").isVisible(), "chatten ligger uppe till höger i headern")
 check(await p.locator('header a[aria-label="Profilinställningar"]').isVisible(), "profilen ligger bredvid varukorgen")
 const nav = p.locator('nav[aria-label="Huvudmeny"]')
-check((await nav.locator("text=Recept").count()) === 1 && (await nav.locator("text=Chatt").count()) === 0, "Recept har ersatt Chatt i bottenmenyn")
+check((await nav.locator("text=Kost").count()) === 1 && (await nav.locator("text=Chatt").count()) === 0, "Kost (med Recept) har ersatt Chatt i bottenmenyn")
 await p.click("header [data-testid=header-chat]")
 await p.waitForURL("**/klient/chatt")
 ok("chattikonen öppnar chatten")
@@ -46,7 +46,10 @@ await p.screenshot({ path: `${out}/v24-header.png` })
 
 // ------------------------------------------------------------ 2. recept ---
 // (Receptbiblioteket testas i detalj i v26-receptbibliotek.)
-await nav.locator("text=Recept").click()
+// v42: Recept ligger under Kost-fliken (växeln Dagbok/Recept).
+await nav.locator("text=Kost").click()
+await p.waitForURL("**/klient/kost")
+await p.click("[data-testid=kost-tabs] a:has-text('Recept')")
 await p.waitForURL("**/klient/recept")
 await p.waitForSelector("text=Overnight oats med bär")
 check(/355 kcal/.test(await p.locator("[data-testid=recipe-card]", { hasText: "Overnight oats med bär" }).innerText()), "makron räknas per portion (710 kcal / 2 portioner)")
@@ -64,10 +67,14 @@ await patchDemo((d) => ({
   purchases: d.purchases.map((x) => ({ ...x, includesNutrition: false })),
   accounts: { ...d.accounts, c1: { ...d.accounts.c1, plusUntil: undefined, plusLifetime: false } },
 }))
-await p.goto(base + "/klient")
+// v42: kostdagboken är en egen sida – samma regel där: ingen betalvägg, bara en diskret länk.
+await p.goto(base + "/klient/kost")
 await p.waitForSelector("[data-testid=day-summary]")
-check((await p.locator("[data-testid=nutrition-lock]").count()) === 0, "ingen stor kostbetalvägg på startsidan")
+check((await p.locator("[data-testid=nutrition-lock]").count()) === 0, "ingen stor kostbetalvägg på kostsidan")
 check(await p.locator("[data-testid=nutrition-coaching-hint]").isVisible(), "kostcoaching erbjuds med en diskret länk")
+await p.goto(base + "/klient")
+await p.waitForSelector("[data-testid=nutrition-shortcut]")
+check((await p.locator("[data-testid=nutrition-lock]").count()) === 0, "ingen stor kostbetalvägg på startsidan")
 const sleepLock = p.locator("[data-testid=plus-lock][data-feature=sleep]")
 check((await sleepLock.boundingBox()).height < 80, "sömnlåset är en diskret rad, ingen suddig betalvägg")
 await p.screenshot({ path: `${out}/v24-idag-utan-betalvagg.png`, fullPage: true })

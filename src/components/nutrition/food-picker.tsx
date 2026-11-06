@@ -30,7 +30,13 @@ export function FoodPicker({
   recent,
   customFoods,
   onSaveCustom,
+  inline = false,
 }: {
+  /**
+   * v42 (Kost-sidan): träffarna visas i sidans flöde under sökfältet i stället
+   * för i en svävande panel – inget som täcker resten av sidan.
+   */
+  inline?: boolean
   onAdd: (entry: NewFoodEntry) => void
   /** Tidigare loggade produkter (med gram), senaste först. */
   recent: FoodProduct[]
@@ -157,7 +163,11 @@ export function FoodPicker({
         <div
           id="food-picker-results"
           role="listbox"
-          className="absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto overscroll-contain rounded-xl border bg-popover p-1 shadow-xl"
+          className={cn(
+            "rounded-xl border bg-popover p-1",
+            inline ? "mt-2" : "absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto overscroll-contain shadow-xl"
+          )}
+          data-inline={inline || undefined}
           onMouseDown={(e) => e.preventDefault()}
         >
           {!q && (

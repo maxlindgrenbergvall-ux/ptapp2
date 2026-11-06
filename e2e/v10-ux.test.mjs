@@ -145,8 +145,8 @@ await p.setViewportSize({ width: 390, height: 844 })
 
 // Staplar (kalorier/makron) växer fram från 0 när de syns.
 const fresh = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
-await fresh.goto(`${base}/klient`)
-await fresh.waitForSelector("text=Dagens kost")
+await fresh.goto(`${base}/klient/kost`)
+await fresh.waitForSelector("[data-testid=daily-nutrition]")
 const kcalBar = fresh.locator('[role=progressbar][aria-label="Kalorier"] > div')
 const widthBefore = await fresh.evaluate(() => {
   const el = document.querySelector('[role=progressbar][aria-label="Fett"] > div')

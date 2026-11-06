@@ -72,10 +72,16 @@ await p.waitForSelector("text=Dina PT:er")
 check(await p.locator("text=Elin Söderberg").first().isVisible(), "Elin finns bland Dina PT:er")
 check(await p.locator("text=Ahmed Rashid").first().isVisible(), "Ahmed finns bland Dina PT:er (två PT:er samtidigt)")
 
+// v42: inkorgen – en konversation per PT; ett tryck öppnar tråden.
 await p.goto(base + "/klient/chatt")
-await p.waitForSelector("[role=tablist][aria-label='Välj PT']")
+await p.waitForSelector("[data-testid=chat-inbox]")
+check((await p.locator("[data-testid=inbox-row]").count()) === 2, "inkorgen: en konversation per PT")
+await p.locator("[data-testid=inbox-row]", { hasText: "Elin" }).click()
+await p.waitForURL(/\/klient\/chatt\/t1$/)
+await p.waitForSelector('textarea[aria-label="Meddelande"]')
 check(!(await p.locator("text=SkiErg-intervaller").isVisible()), "Elins tråd innehåller inte Ahmeds meddelanden")
-await p.click("[role=tab]:has-text('Ahmed')")
+await p.goto(base + "/klient/chatt")
+await p.locator("[data-testid=inbox-row]", { hasText: "Ahmed" }).click()
 await p.waitForSelector("text=SkiErg-intervaller")
 ok("Ahmeds tråd visas när han väljs")
 await p.fill('textarea[aria-label="Meddelande"]', "Tack, kör imorgon!")
@@ -89,7 +95,6 @@ await patchDemo((d) => ({
   messages: [...d.messages, { id: "msg-missed", threadId: "c1", trainerId: "t2", senderId: "t2", body: "📵 Missat videosamtal", sentAt: new Date().toISOString() }],
 }))
 await p.reload()
-await p.click("[role=tab]:has-text('Ahmed')")
 const missed = p.locator("[data-testid=call-card][data-missed]").last()
 await missed.waitFor()
 check((await missed.innerText()).includes("Missat videosamtal"), "missat samtal visas som en tydlig bricka")
@@ -136,7 +141,7 @@ await patchDemo((d) => ({
     { id: "np-t7", trainerId: "t7", clientId: "c1", name: "Noras kostschema", targets: { kcal: 2100, protein: 130, carbs: 230, fat: 70 }, meals: [], active: false },
   ],
 }))
-await p.goto(base + "/klient")
+await p.goto(base + "/klient/kost")
 await p.waitForSelector("[data-testid=plan-chooser]")
 ok("med scheman från två PT:er väljer klienten vilket som gäller")
 await p.click("#active-plan")

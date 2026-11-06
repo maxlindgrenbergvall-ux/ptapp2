@@ -62,7 +62,7 @@ await p.waitForFunction(() => document.querySelector("img[src^='data:image']"))
 ok("en godkänd bild blir profilbild")
 
 // ----------------------------------- 3. kostsökningen stängs vid klick utanför ---
-await p.goto(base + "/klient")
+await p.goto(base + "/klient/kost")
 const search = p.locator('[aria-label="Sök livsmedel eller märkesvara"]').first()
 await search.scrollIntoViewIfNeeded()
 await search.click()

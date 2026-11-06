@@ -578,6 +578,38 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v42: inkorg, egen kostsida och låst sidledssvep
+
+**1. Inkorgen med olästa meddelanden** (`src/lib/chat/inbox.ts`, vy `src/components/chat/inbox.tsx`)
+- `/klient/chatt` och `/pt/meddelanden` är nu inkorgar med en rad per konversation: avatar, namn, tid och förhandsvisning av senaste meddelandet. Samtal och bilder skrivs ut som text, t.ex. "Missat videosamtal" eller "Bild".
+- Olästa konversationer ligger överst, står i fetstil, har en prick på avataren och en bricka med antalet. Filtret "Olästa" visar bara dem.
+- Ett tryck öppnar konversationen på en egen adress: `/klient/chatt/[ptId]` eller `/pt/meddelanden/[klientId]`.
+  - Mobil: ren chattvy i helskärm (tillbaka-pil, namn, samtalsknappar, meddelanden, skrivfält längst ned).
+  - Dator (PT): inkorgen till vänster och konversationen till höger.
+- Meddelandena markeras som lästa när konversationen öppnas (`markThreadRead`, samma `read_at` som tidigare).
+- På PT-översikten leder "Olästa meddelanden" till inkorgen.
+- Den gamla flikraden med PT:er i klientens chatt är ersatt av inkorgen.
+
+**2. Kost som egen sida** (`/klient/kost`, `src/components/nutrition/nutrition-page.tsx`, logik `src/lib/nutrition/quick-log.ts`)
+- **Navigering:** Kost har en egen flik i bottenmenyn och Recept ligger under samma flik (växeln Dagbok/Recept överst).
+- **Idag:** visar bara dagens kalorier mot målet och en Logga-genväg i stället för hela kostrutan.
+- **Snabbloggning:**
+  - måltiden är förvald efter klockslaget;
+  - Snabbval loggar samma mängd som förra gången med ett tryck (med Ångra i toasten);
+  - sökträffarna visas i sidans flöde i stället för i en svävande dropdown (`FoodPicker inline`);
+  - "Bara kalorier" för snabba uppskattningar;
+  - dagens poster grupperas per måltid.
+- **Djuplänk från recepten:** `/klient/kost?datum=YYYY-MM-DD`.
+
+**3. Sidledssvep låst**
+- CSS (`src/app/globals.css`): `overflow-x: hidden` på html, `overflow-x: clip` på body (sticky-sidhuvudet fungerar fortfarande), `overscroll-behavior-x: none` och `touch-action: pan-y pinch-zoom`. Horisontella chip-rader är egna scrollbehållare och kan fortfarande svepas.
+- Capacitor (`capacitor.config.ts`): `zoomEnabled: false`.
+- iOS (`ios/App/App/SceneDelegate.swift`, `CoaviraViewController`): scrollvyn studsar aldrig i sidled, och svepgester för bakåt/framåt är avstängda.
+- Android (`MainActivity.java`): `OVER_SCROLL_NEVER` och ingen horisontell rullningslist.
+- Kör `npx cap sync` efter uppdateringen så att konfigurationen kommer med i apparna.
+
+Ingen databasändring.
+
 ## Nytt i v41: Mål-fliken med samma rena vy
 
 - **Mål-fliken (`/klient/profil/mal`)** börjar nu med samma två kort som Framsteg, Viktnedgång (eller Tappat fett) och Ökad muskelmassa, med den stora kurvan direkt under (`ProgressOverview`).
@@ -1128,6 +1160,9 @@ npx tsx --tsconfig tsconfig.json e2e/adaptive.unit.ts    # dynamiska viktkurvan:
 npx tsx --tsconfig tsconfig.json e2e/v35.unit.ts # hälsningen (05/10/18)
 npx tsx --tsconfig tsconfig.json e2e/progress-summary.unit.ts # Framstegskorten: Viktnedgång/Tappat fett och Ökad muskelmassa
 node e2e/v40-framsteg.test.mjs # (demo, 390 px) bara två kort + stor graf, logga vikt i grafen, Historik från passet
+npx tsx --tsconfig tsconfig.json e2e/chat-inbox.unit.ts # inkorgen: olästa, sortering, förhandsvisning, adresser
+npx tsx --tsconfig tsconfig.json e2e/quick-log.unit.ts  # snabbloggningen: måltid efter klockan, snabbval, gruppering
+node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
 npx tsx --tsconfig tsconfig.json e2e/exercise-groups.unit.ts # muskelgrupperna (Biceps/Triceps, Baksida lår/Säte/Vader …)

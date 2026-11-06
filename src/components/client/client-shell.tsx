@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarDays, ChefHat, Home, LineChart, MessageCircle, Search } from "lucide-react"
+import { CalendarDays, Home, LineChart, MessageCircle, Search, Utensils } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
@@ -17,13 +17,13 @@ import { cn } from "@/lib/utils"
 import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 
-const NAV = [
+const NAV: { href: string; label: string; icon: typeof Home; exact?: boolean; also?: string[] }[] = [
   { href: "/klient", label: "Idag", icon: Home, exact: true },
   { href: "/klient/kalender", label: "Kalender", icon: CalendarDays },
   { href: "/klient/hitta", label: "Hitta PT", icon: Search },
   { href: "/klient/framsteg", label: "Framsteg", icon: LineChart },
-  // Chatten ligger i headern (uppe till höger) – platsen i menyn används av Recept.
-  { href: "/klient/recept", label: "Recept", icon: ChefHat },
+  // v42: Kost är en egen flik (kostdagboken) – Recept ligger under samma flik.
+  { href: "/klient/kost", label: "Kost", icon: Utensils, also: ["/klient/recept"] },
 ]
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
@@ -38,7 +38,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   // Intro-flödet inte klart enligt databasen (äldre token utan flaggan): dit först (v31).
   const blocked = useOnboardingGuard()
   // Under ett pågående pass (och i intro-flödet) tar vyn hela skärmen – inga distraktioner.
-  const focusMode = pathname.startsWith("/klient/pass/") || pathname === "/klient/intro" || blocked
+  // v42: en öppen konversation är en ren chattvy i helskärm (tillbaka-pilen leder till inkorgen).
+  const focusMode = pathname.startsWith("/klient/pass/") || pathname.startsWith("/klient/chatt/") || pathname === "/klient/intro" || blocked
 
   return (
     <div className="mx-auto flex min-h-svh max-w-lg flex-col md:border-x md:border-border/60">
@@ -90,8 +91,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           aria-label="Huvudmeny"
           className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t border-border/60 bg-background/75 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 md:border-x"
         >
-          {NAV.map(({ href, label, icon: Icon, exact }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href)
+          {NAV.map(({ href, label, icon: Icon, exact, also }) => {
+            const active = exact ? pathname === href : pathname.startsWith(href) || Boolean(also?.some((p) => pathname.startsWith(p)))
             return (
               <Link
                 key={href}
