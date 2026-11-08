@@ -57,6 +57,28 @@ const origin = (name: string, value: string) => {
 const siteUrl = origin("SITE_URL/NEXT_PUBLIC_SITE_URL", pick("NEXT_PUBLIC_SITE_URL", "SITE_URL") || "https://coavira.fit");
 const appUrl = origin("APP_URL/NEXT_PUBLIC_APP_URL", pick("NEXT_PUBLIC_APP_URL", "APP_URL") || "https://ptapp2.vercel.app");
 
+/**
+ * Säkerhetsheaders (v44, säkerhetsgranskningen):
+ *  - Clickjacking: sidan får aldrig visas i en iframe på en annan sajt
+ *    (frame-ancestors + X-Frame-Options för äldre webbläsare). Capacitor laddar
+ *    appen som toppsida och Stripe används via omdirigering – inget påverkas.
+ *  - nosniff: webbläsaren gissar inte filtyper (t.ex. en uppladdad fil som skript).
+ *  - Referrer-Policy: fullständiga adresser (med t.ex. ?session_id=) läcker inte till andra sajter.
+ *  - Permissions-Policy: kamera och mikrofon bara för appen själv (streckkodsläsaren,
+ *    videosamtal); position, USB m.m. av.
+ *  - HSTS: bara HTTPS i två år (webbläsare ignorerar den över http, t.ex. localhost).
+ * En fullständig CSP för skript kräver nonce-hantering för Next.js och Google
+ * Analytics – därför här bara de direktiv som inte kan bryta sidan.
+ */
+const SECURITY_HEADERS = [
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), usb=(), serial=(), hid=(), payment=()" },
+  { key: "Strict-Transport-Security", value: "max-age=63072000" },
+];
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
@@ -71,10 +93,13 @@ const nextConfig: NextConfig = {
       { source: "/terms", destination: "/villkor", permanent: true },
     ];
   },
-  // Appens domän ska inte synas i sökmotorer – den publika sidan är coavira.fit.
   async headers() {
-    if (new URL(appUrl).host === new URL(siteUrl).host) return [];
+    // v44 (säkerhetsgranskningen): säkerhetsheaders på alla svar.
+    const security = [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    // Appens domän ska inte synas i sökmotorer – den publika sidan är coavira.fit.
+    if (new URL(appUrl).host === new URL(siteUrl).host) return security;
     return [
+      ...security,
       {
         source: "/:path*",
         // value tolkas som reguljärt uttryck: punkterna escapas.

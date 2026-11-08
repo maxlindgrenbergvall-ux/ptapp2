@@ -79,7 +79,8 @@ export async function searchCache(query: string, limit = 20): Promise<FoodProduc
   if (!isSupabaseEnabled) return []
   const tokens = query
     .toLowerCase()
-    .replace(/[%_,()]/g, " ")
+    // v44: allt som har betydelse i PostgREST-filter (or=, ilike) bort – bara bokstäver, siffror och bindestreck kvar.
+    .replace(/[^\p{L}\p{N}-]+/gu, " ")
     .split(/\s+/)
     .filter((t) => t.length > 1)
     .slice(0, 5)

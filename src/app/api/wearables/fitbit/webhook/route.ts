@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto"
 import { after, NextResponse, type NextRequest } from "next/server"
 
 import { verifyFitbitSignature } from "@/lib/wearables/fitbit"
@@ -11,7 +12,9 @@ import { syncSleep, userForExternalId } from "@/lib/wearables/service"
 export async function GET(request: NextRequest) {
   const verify = request.nextUrl.searchParams.get("verify")
   const expected = process.env.FITBIT_SUBSCRIBER_VERIFY
-  return new NextResponse(null, { status: expected && verify === expected ? 204 : 404 })
+  // v44: jämförelse i konstant tid (koden ska inte kunna gissas tecken för tecken via svarstiden).
+  const ok = !!expected && !!verify && verify.length === expected.length && timingSafeEqual(Buffer.from(verify), Buffer.from(expected))
+  return new NextResponse(null, { status: ok ? 204 : 404 })
 }
 
 interface FitbitNotification {

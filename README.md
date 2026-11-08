@@ -578,6 +578,36 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Säkerhetsgranskning v44 (penetrationstest)
+
+Genomförd som en penetrationstestare med giltiga konton: en kopia av databasen med alla migrationer, inloggad som klient, som PT och oinloggad (anon), samt genomgång av alla 24 API-rutter. Inga attacker mot produktionen. Attackerna finns kvar som regressionstest i `supabase/tests/rls_v44.test.sql`.
+
+**Utfall:** 65 attacker. Ingen kritisk eller hög risk. 64 stoppades redan före åtgärderna. En informationsläcka (L1) täpptes till i v44.
+
+| Risk | Fynd | Åtgärd |
+|---|---|---|
+| Medium | Inga säkerhetsheaders – appen kunde bäddas in i en iframe på annan sajt (clickjacking mot t.ex. "Radera konto") | `next.config.ts`: `frame-ancestors 'none'`, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` (kamera/mikrofon bara för appen), HSTS |
+| Medium | Lösenordskrav (minst 8 tecken) och brute force-skydd finns bara i formuläret – Supabase Auth anropas direkt från webbläsaren | **Görs i Supabase:** Authentication → Providers → Email: minsta lösenordslängd 8. Attack Protection: CAPTCHA (Turnstile/hCaptcha) och "Leaked password protection". Granska Rate Limits |
+| Medium | TURN-uppgifter i `NEXT_PUBLIC_ICE_SERVERS` hamnar i webbläsarkoden – vem som helst kan använda TURN-servern | **Rekommendation:** korttidsuppgifter från en server-route (TURN REST API / leverantörens API) i stället för statiska |
+| Låg | `has_health_consent(id)` svarade för vilken användare som helst (om personen är klient och gett hälsosamtycke) | v44: bara för en själv, sina relationer och servern |
+| Låg | Certifikatfelet pekade på certifiering@**coavira.com** (appen använder coavira.fit) – personuppgifter kunde skickas till fel domän | v44: rätt adress |
+| Låg | Sökord byggdes in i ett PostgREST-filter (`.or()`) med ofullständig sanering (användarens egen session – ingen åtkomst utöver RLS) | `food-cache.ts`: bara bokstäver, siffror och bindestreck |
+| Låg | anon hade Supabases standardbehörigheter på alla tabeller (ingen policy släppte in anon) | v44: alla tabellbehörigheter för anon borttagna, även för framtida tabeller |
+| Låg | Stripe-verifieringen (3 rutter) saknade rate limit | 30 per minut och användare |
+| Info | Fitbit-verifieringen jämförde koden med `===` | `timingSafeEqual` |
+| Info | Rate limiting "fail open" om databasen inte svarar | Medvetet (tillgänglighet). Ingen ändring |
+
+**Redan skyddat (verifierat med attacker):**
+- RLS på alla tabeller. Tabeller utan policyer (OAuth-tokens, utbetalningskonton, butikskvitton, rate limits) nås bara av servern.
+- Rollen kan inte ändras: kolumnbehörigheter på `profiles`, och PT-konton skapas bara av Coavira.
+- Betalningar, köp, Plus, Boost, Stripe-status, certifikat och kundursprung (avgift 5/10 %) kan inte manipuleras.
+- Ingen IDOR i pass, chatt, vikt, mål, relationer eller bokningar.
+- Kalendertoken har 256 bitar. PT-koder har spärr efter 10 försök i timmen.
+- OAuth `state` skyddar mot CSRF. Webhooks har signaturer. Inga öppna omdirigeringar (`safeNext`).
+- Uppladdningar kontrolleras och kodas om, och sökvägen valideras.
+- Service role-nyckeln används bara i serverkod (`server-only`), och bygget stoppas om den används som publik nyckel.
+- Ingen rå SQL i koden. Dynamisk SQL i migrationerna använder `format(%I)`.
+
 ## Nytt i v43: passbyggaren, övningsbanken och förenklat schema
 
 **1. Tomma fält.** Raderar man siffran i set (eller reps) blir fältet helt tomt – det faller aldrig tillbaka till 1. Användaren skriver sina egna siffror från grunden. Tomma fält kontrolleras först när schemat sparas: de markeras (`aria-invalid`) och sparandet stoppas med ett tydligt besked.

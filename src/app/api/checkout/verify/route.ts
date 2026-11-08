@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
+
 import { getStripe, isStripeEnabled } from "@/lib/payments/stripe"
 import { createSupabaseAdmin, hasServiceRole } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
@@ -15,6 +17,8 @@ export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return NextResponse.json({ status: "unknown" }, { status: 401 })
+  // v44: verifieringen frågar Stripe – begränsa hur ofta (30 per minut och användare).
+  if (await rateLimited(`checkout-verify:${auth.user.id}`, 30, 60)) return tooManyRequests(60)
 
   // Kassan måste vara klientens egen (RLS).
   const { data: rows } = await supabase
