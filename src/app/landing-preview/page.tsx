@@ -6,7 +6,7 @@ import { LandingPreview } from "@/components/landing-preview/landing-preview"
 /**
  * FÖRHANDSGRANSKNING – inte en del av den publicerade sajten.
  *
- * Ett förslag på en ny landningssida, byggt för att jämföras med dagens (/).
+ * Hybrid av dagens landningssida (/) och det nya förslaget, för att jämföras med dagens.
  * Sidan indexeras aldrig och svarar 404 i Vercels produktionsmiljö, så den
  * kan inte nås på coavira.fit även om koden skulle hamna där av misstag.
  * Granska lokalt: http://localhost:3000/landing-preview
