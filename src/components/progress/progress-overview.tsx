@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { WeightChart } from "@/components/charts/progress-charts"
 import { GoalProjectionChart } from "@/components/goals/goal-chart"
+import { FillBar } from "@/components/motion"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -124,9 +125,7 @@ function StatCard({ card, icon: Icon, testId }: { card: SummaryCard; icon: typeo
         {card.value}
       </p>
       {card.progress !== undefined && (
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={`${card.title}: förlopp`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(card.progress * 100)}>
-          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(card.progress * 100)}%` }} />
-        </div>
+        <FillBar value={Math.round(card.progress * 100)} className="h-1.5" role="progressbar" aria-label={`${card.title}: förlopp`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(card.progress * 100)} />
       )}
       <p className="text-[11px] leading-snug text-muted-foreground">{card.detail}</p>
     </div>

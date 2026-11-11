@@ -1,12 +1,12 @@
 "use client"
 
-import { ArrowLeft, ChevronRight, MessageCircle } from "lucide-react"
+import { ArrowLeft, CheckCheck, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { CallButtons } from "@/components/calls/call-buttons"
 import { ChatThread } from "@/components/chat/chat-thread"
-import { PersonAvatar } from "@/components/common"
+import { EmptyState, PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { callThread } from "@/lib/calls/thread"
 import { unreadTotal, type InboxThread } from "@/lib/chat/inbox"
@@ -79,8 +79,19 @@ export function ChatInbox({ rows, activeKey, empty, className }: { rows: InboxTh
           </li>
         ))}
         {shown.length === 0 && (
-          <li className="flex flex-col items-center gap-2 px-4 py-8 text-center text-sm text-muted-foreground">
-            <MessageCircle className="size-5" /> Inga olästa meddelanden.
+          <li>
+            <EmptyState
+              compact
+              tone="done"
+              icon={CheckCheck}
+              title="Inga olästa meddelanden."
+              text="Du är i kapp – allt är läst."
+              action={
+                <Button variant="outline" size="sm" onClick={() => setOnlyUnread(false)}>
+                  Visa alla konversationer
+                </Button>
+              }
+            />
           </li>
         )}
       </ul>
@@ -128,7 +139,7 @@ export function ConversationView({
 }) {
   const { peer, pending } = thread
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-col bg-background", className)} data-testid="conversation">
+    <div className={cn("flex min-h-0 min-w-0 flex-col bg-background max-lg:page-push", className)} data-testid="conversation">
       <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-2 py-2 pt-[calc(0.5rem+var(--safe-top))] lg:pt-2">
         <Button asChild variant="ghost" size="icon" aria-label="Tillbaka till inkorgen">
           <Link href={backHref}>

@@ -30,7 +30,12 @@ import { cn } from "@/lib/utils"
  *   - Skärmläsare: svenska besked om vad som lyfts och var det hamnar.
  *   - Bara vertikal rörelse (kortet följer inte fingret i sidled).
  *   - Lätt vibration (där det stöds) när ett kort lyfts.
+ *   - v46: kortet lyfts (lätt förstoring + skugga) och glider på plats med en mjuk
+ *     fjäder när det släpps; korten runt om flyttar sig med samma kurva. Bara
+ *     transform/scale – inget som räknas om i layouten.
  */
+/** Fjäderlik kurva: en aning förbi målet och tillbaka, som något som landar. */
+const SPRING_TRANSITION = { duration: 320, easing: "cubic-bezier(0.25, 1.25, 0.5, 1)" }
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 })
 
 export function SortableList<T extends { id: string }>({
@@ -143,7 +148,7 @@ function SortableItem({
   onStep: (delta: -1 | 1) => void
   children: (handle: React.ReactNode, isDragging: boolean) => React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled, transition: SPRING_TRANSITION })
   const handle = disabled ? null : (
     <button
       type="button"
@@ -172,8 +177,10 @@ function SortableItem({
     <li
       ref={setNodeRef}
       data-sortable-id={id}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("relative list-none", isDragging && "z-20 rounded-2xl shadow-float ring-2 ring-primary/40")}
+      // `scale` är en egen CSS-egenskap och krockar inte med dnd-kits transform (förflyttningen).
+      style={{ transform: CSS.Translate.toString(transform), transition: [transition, "scale 200ms cubic-bezier(0.22, 1, 0.36, 1)", "box-shadow 200ms ease-out"].filter(Boolean).join(", ") }}
+      data-dragging={isDragging || undefined}
+      className={cn("relative list-none rounded-2xl motion-reduce:scale-100!", isDragging && "z-20 scale-[1.025] shadow-float ring-2 ring-primary/40")}
     >
       {children(handle, isDragging)}
     </li>

@@ -130,14 +130,39 @@ export function PageHeader({
   )
 }
 
-export function EmptyState({ icon: Icon, title, text }: { icon: React.ComponentType<{ className?: string }>; title: string; text?: string }) {
+/**
+ * Tomt läge (v46): säger vad som saknas, varför det är lugnt och – när det finns
+ * något vettigt att göra – en tydlig nästa handling (`action`, t.ex. en knapp).
+ * Tonar in mjukt och ikonen landar med en lätt fjäder (bara transform/opacity).
+ *   - `tone="done"`: något är avklarat (t.ex. inga olästa) – ikonen i accentfärg.
+ *   - `compact`: mindre luft, för tomma lägen inne i kort och listor.
+ */
+export function EmptyState({
+  icon: Icon,
+  title,
+  text,
+  action,
+  tone = "muted",
+  compact = false,
+  className,
+  ...rest
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  text?: string
+  action?: React.ReactNode
+  tone?: "muted" | "done"
+  compact?: boolean
+  className?: string
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "title">) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed bg-card/40 p-8 text-center">
-      <span className="mb-1 flex size-12 items-center justify-center rounded-full bg-muted">
-        <Icon className="size-5 text-muted-foreground" />
+    <div className={cn("rise-in flex flex-col items-center gap-2 text-center", compact ? "px-4 py-6" : "rounded-2xl border border-dashed bg-card/40 p-8", className)} {...rest}>
+      <span className={cn("settle-in mb-1 flex items-center justify-center rounded-full [animation-delay:80ms]", compact ? "size-10" : "size-12", tone === "done" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+        <Icon className="size-5" />
       </span>
       <p className="font-medium">{title}</p>
-      {text && <p className="max-w-sm text-sm text-muted-foreground">{text}</p>}
+      {text && <p className="max-w-sm text-sm text-pretty text-muted-foreground">{text}</p>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   )
 }

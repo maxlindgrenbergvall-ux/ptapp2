@@ -7,6 +7,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
+import { DrawnCheck } from "@/components/motion"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
@@ -36,6 +37,7 @@ import { nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
+import { prefersReducedMotion } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
 import type { Exercise, ScheduledWorkout, WorkoutExercise } from "@/types/domain"
 
@@ -126,7 +128,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   }
 
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="page-push flex min-h-svh flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/95 pt-[var(--safe-top)] backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-2">
           <Button
@@ -330,13 +332,16 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           workout={workout}
           onFinish={(comment) => {
             const error = actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
-            if (error) return toast.error(error)
+            if (error) {
+              toast.error(error)
+              return null
+            }
             // Kommentaren går till passets PT (egna pass har ingen PT).
             const pt = workout.trainerId ?? (workout.byClient ? undefined : data.clients.find((c) => c.id === me.id)?.trainerId ?? undefined)
             if (comment && pt) actions.sendMessage(me.id, comment, workout.id, { trainerId: pt })
-            toast.success("Snyggt jobbat! Passet är sparat.", { description: comment && pt ? "Din kommentar skickades till din PT." : undefined })
-            router.push(home)
+            return { commentSent: Boolean(comment && pt) }
           }}
+          onDone={() => router.push(home)}
         />
       )}
     </div>
@@ -396,6 +401,12 @@ function ExerciseCard({
   const target = workout.status === "completed" ? null : nextTarget(exercise, history, info)
   const doneCount = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length
   const complete = doneCount >= exercise.sets
+  // Räknar upp varje gång övningen går från ofärdig till klar (medan sidan är öppen).
+  const [completion, setCompletion] = React.useState({ complete, n: 0 })
+  if (completion.complete !== complete) setCompletion({ complete, n: complete ? completion.n + 1 : completion.n })
+  const justCompleted = completion.n
+  // Setet som står på tur: det första som inte är avbockat.
+  const nextSet = complete || readOnly ? -1 : Array.from({ length: exercise.sets }, (_, i) => i).find((i) => !findLog(workout.logs, exercise.id, i)?.done) ?? -1
   // Viktövningar (skivstång, hantlar, maskin …) visar alltid kg – vikten måste fyllas i.
   const usesWeight = usesWeights(data.exercises.find((x) => x.id === exercise.exerciseId)) || (exercise.targetKg ?? 0) > 0 || (last?.kg ?? 0) > 0
   const panelId = `ex-${exercise.id}`
@@ -404,13 +415,17 @@ function ExerciseCard({
     <section className={cn("rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
       <div className="flex items-center">
       <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left sm:p-4">
+        {/* v46: när övningens sista set bockas av ritas bocken och brickan får en ring – inte vid sidladdning. */}
         <span
+          key={justCompleted}
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular",
-            complete ? "bg-brand text-brand-foreground" : "bg-muted"
+            "relative flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular transition-colors duration-300",
+            complete ? "bg-brand text-brand-foreground" : "bg-muted",
+            complete && justCompleted > 0 && "animate-pop"
           )}
         >
-          {complete ? <Check className="size-4" strokeWidth={3} /> : index + 1}
+          {complete ? <DrawnCheck play={justCompleted} className="size-4" /> : index + 1}
+          {complete && justCompleted > 0 && <span aria-hidden className="ring-burst" />}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5">
@@ -511,6 +526,7 @@ function ExerciseCard({
                 info={info}
                 usesWeight={usesWeight}
                 readOnly={readOnly}
+                isNext={setIndex === nextSet}
                 onLog={onLog}
                 onDone={onSetDone}
               />
@@ -556,6 +572,7 @@ function SetRow({
   info,
   usesWeight,
   readOnly,
+  isNext,
   onLog,
   onDone,
 }: {
@@ -566,6 +583,8 @@ function SetRow({
   info?: { equipment?: string; muscleGroup?: Exercise["muscleGroup"] }
   usesWeight: boolean
   readOnly: boolean
+  /** Setet som står på tur – markeras diskret så att ögat hittar det efter en avbockning. */
+  isNext: boolean
   onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
   onDone: () => void
 }) {
@@ -613,9 +632,15 @@ function SetRow({
   }
 
   return (
-    <li className={cn("grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2", isDone && "bg-brand/15")}>
+    <li
+      data-next={isNext || undefined}
+      className={cn(
+        "grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2",
+        isDone && "bg-brand/15"
+      )}
+    >
       <span className="flex flex-col items-center text-center leading-tight">
-        <span className="text-sm font-semibold tabular">{setIndex + 1}</span>
+        <span className={cn("flex size-6 items-center justify-center rounded-full text-sm font-semibold tabular transition-colors duration-300", isNext && "bg-primary text-primary-foreground")}>{setIndex + 1}</span>
         {/* Eget rep-mål för setet (pyramid, drop-set …). */}
         {ownTarget && (
           <span className="text-[10px] text-muted-foreground tabular" aria-label={`Mål ${ownTarget} reps`}>
@@ -652,11 +677,13 @@ function SetRow({
         aria-pressed={isDone}
         aria-label={isDone ? `Ångra set ${setIndex + 1}` : `Bocka av set ${setIndex + 1}`}
         className={cn(
-          "flex h-12 items-center justify-center rounded-xl border-2 transition-all active:scale-95 disabled:active:scale-100",
-          isDone ? "border-brand bg-brand text-brand-foreground" : "border-muted-foreground/30 text-muted-foreground hover:border-foreground"
+          "relative flex h-12 items-center justify-center rounded-xl border-2 transition-[background-color,border-color,color,scale] duration-200 active:scale-90 disabled:active:scale-100",
+          isDone ? "border-brand bg-brand text-brand-foreground" : isNext ? "border-primary/60 text-primary" : "border-muted-foreground/30 text-muted-foreground hover:border-foreground"
         )}
       >
-        <Check key={pop} className={cn("size-6", pop > 0 && isDone && "animate-pop")} strokeWidth={3} />
+        {/* v46: bocken ritas och knappen får en ring när setet bockas av (inte vid sidladdning). */}
+        {isDone ? <DrawnCheck play={pop} className="size-6" /> : <Check className="size-6" strokeWidth={3} />}
+        {isDone && pop > 0 && <span key={pop} aria-hidden className="ring-burst" />}
       </button>
     </li>
   )
@@ -868,41 +895,85 @@ function FinishDialog({
   onOpenChange,
   workout,
   onFinish,
+  onDone,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   workout: ScheduledWorkout
-  onFinish: (comment: string) => void
+  /** Sparar passet. Returnerar null om det inte gick (felet har då visats). */
+  onFinish: (comment: string) => { commentSent: boolean } | null
+  /** Efter kvittot: vidare till startsidan. */
+  onDone: () => void
 }) {
   const [comment, setComment] = React.useState("")
+  const [saved, setSaved] = React.useState<{ commentSent: boolean } | null>(null)
   const done = setsDone(workout)
   const total = setsTotal(workout)
   const quick = ["Kändes lätt 💪", "Lagom tungt", "Tungt idag", "Ont någonstans – vill prata"]
 
+  // v46: ett kort kvitto – bocken ritas, sedan går appen vidare av sig själv.
+  // Med "minska rörelse" går den vidare direkt.
+  const doneRef = React.useRef(onDone)
+  React.useEffect(() => {
+    doneRef.current = onDone
+  })
+  React.useEffect(() => {
+    if (!saved) return
+    const id = window.setTimeout(() => doneRef.current(), prefersReducedMotion() ? 0 : 1300)
+    return () => window.clearTimeout(id)
+  }, [saved])
+
+  const save = () => {
+    const result = onFinish(comment.trim())
+    if (!result) return
+    navigator.vibrate?.([12, 60, 18])
+    setSaved(result)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Avsluta passet?</DialogTitle>
-          <DialogDescription>
-            {done} av {total} set är avbockade.{done < total && " Set som inte bockats av räknas som ej gjorda."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {quick.map((q) => (
-              <button key={q} onClick={() => setComment(q)} className="rounded-full border px-3 py-1 text-sm hover:bg-muted">
-                {q}
-              </button>
-            ))}
+    <Dialog open={open} onOpenChange={(o) => (saved ? doneRef.current() : onOpenChange(o))}>
+      <DialogContent showCloseButton={!saved}>
+        {saved ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="workout-saved" role="status">
+            <span className="settle-in relative flex size-16 items-center justify-center rounded-full bg-brand text-brand-foreground">
+              <DrawnCheck play={1} className="size-8" />
+              <span aria-hidden className="ring-burst [animation-delay:120ms]" />
+            </span>
+            <DialogTitle className="rise-in text-xl [animation-delay:120ms]">Snyggt jobbat!</DialogTitle>
+            <DialogDescription className="rise-in [animation-delay:200ms]">
+              Passet är sparat – {done} av {total} set.{saved.commentSent && " Din kommentar skickades till din PT."}
+            </DialogDescription>
           </div>
-          <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Kommentar till din PT (valfritt)" rows={3} maxLength={1000} />
-        </div>
-        <DialogFooter>
-          <Button size="lg" className="w-full bg-brand text-brand-foreground hover:bg-brand/90 sm:w-auto" onClick={() => onFinish(comment.trim())}>
-            <Check /> Spara pass
-          </Button>
-        </DialogFooter>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Avsluta passet?</DialogTitle>
+              <DialogDescription>
+                {done} av {total} set är avbockade.{done < total && " Set som inte bockats av räknas som ej gjorda."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {quick.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => setComment(q)}
+                    aria-pressed={comment === q}
+                    className={cn("rounded-full border px-3 py-1 text-sm transition-[background-color,border-color,scale] duration-200 active:scale-95", comment === q ? "border-primary bg-primary/10" : "hover:bg-muted")}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+              <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Kommentar till din PT (valfritt)" rows={3} maxLength={1000} />
+            </div>
+            <DialogFooter>
+              <Button size="lg" className="w-full bg-brand text-brand-foreground hover:bg-brand/90 sm:w-auto" onClick={save}>
+                <Check /> Spara pass
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )

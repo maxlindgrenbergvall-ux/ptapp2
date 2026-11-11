@@ -147,17 +147,18 @@ await p.setViewportSize({ width: 390, height: 844 })
 const fresh = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
 await fresh.goto(`${base}/klient/kost`)
 await fresh.waitForSelector("[data-testid=daily-nutrition]")
-const kcalBar = fresh.locator('[role=progressbar][aria-label="Kalorier"] > div')
+// v46: stapeln fylls med transform (FillBar) – fyllnadsgraden står i data-fill (0–100).
+const kcalBar = fresh.locator('[role=progressbar][aria-label="Kalorier"]')
 const widthBefore = await fresh.evaluate(() => {
-  const el = document.querySelector('[role=progressbar][aria-label="Fett"] > div')
-  const r = el.parentElement.getBoundingClientRect()
-  return r.top > window.innerHeight * 0.9 ? el.style.width : "synlig"
+  const el = document.querySelector('[role=progressbar][aria-label="Fett"]')
+  const r = el.getBoundingClientRect()
+  return r.top > window.innerHeight * 0.9 ? `${el.dataset.fill}%` : "synlig"
 })
 await kcalBar.scrollIntoViewIfNeeded()
 await fresh.locator('[role=progressbar][aria-label="Fett"]').scrollIntoViewIfNeeded()
 await fresh.waitForTimeout(900)
-const kcalWidth = await kcalBar.evaluate((el) => el.style.width)
-check(kcalWidth !== "0%" && kcalWidth !== "", `kaloristapeln växer fram när den syns (${kcalWidth})`)
+const kcalWidth = await kcalBar.evaluate((el) => `${el.dataset.fill}%`)
+check(kcalWidth !== "0%" && kcalWidth !== "undefined%", `kaloristapeln växer fram när den syns (${kcalWidth})`)
 if (widthBefore !== "synlig") check(widthBefore === "0%", "stapel nedanför skärmen väntar på 0 % tills man scrollar dit")
 
 // Minska rörelse: inga animationer

@@ -110,6 +110,11 @@
   --macro-fat: #e87ba4;
   --water: #2a78d6;
   --radius: 0.75rem;
+  /* Appens rörelsekurvor (v46): mjuk inbromsning, och en lätt fjäder för sådant som "landar". */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  /* Bottenark och sidor som glider in – samma kurva som iOS egna ark. */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   --card-shadow: 0 1px 2px oklch(0.2 0.03 150 / 0.05), 0 8px 24px -14px oklch(0.2 0.03 150 / 0.18);
   --float-shadow: 0 12px 40px -12px oklch(0.2 0.03 150 / 0.3);
   /* Appens bakgrund: djup med mjuka färgfält i stället för platt vitt. */
@@ -132,32 +137,36 @@
 @media (prefers-color-scheme: dark) {
   :root {
     /*
-     * Mjukare mörkt läge: grafitgrå bas i stället för nästan svart, ljusare kort
-     * och komponenter, och vitare text. Ger högre läsbarhet utan hård svart/vit kontrast.
+     * Mörkt läge = Coaviras identitet (v46, samma palett som landningssidan):
+     *   bakgrund #131916 · text #f9fbf8 · accent #84cc16.
+     * Ytor (kort, popover, fält) är bakgrunden i ljusare steg och dämpad text är
+     * textfärgen nedtonad. Makro- och vattenfärgerna är funktionella (bär
+     * betydelse tillsammans med en textetikett) och ligger kvar.
      */
-    --background: oklch(0.205 0.01 160);
-    --card-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 10px 30px -14px oklch(0 0 0 / 0.55);
-    --float-shadow: 0 16px 48px -12px oklch(0 0 0 / 0.6);
-    --glow-1: oklch(0.87 0.21 128 / 0.09);
-    --glow-2: oklch(0.55 0.12 175 / 0.12);
-    --foreground: oklch(0.97 0.006 130);
-    --card: oklch(0.255 0.012 160);
-    --card-foreground: oklch(0.97 0.006 130);
-    --popover: oklch(0.27 0.012 160);
-    --popover-foreground: oklch(0.97 0.006 130);
-    --primary: oklch(0.88 0.2 130);
-    --primary-foreground: oklch(0.2 0.05 140);
-    --secondary: oklch(0.33 0.012 160);
-    --secondary-foreground: oklch(0.97 0.006 130);
-    --muted: oklch(0.31 0.01 160);
-    --muted-foreground: oklch(0.8 0.012 150);
-    --accent: oklch(0.34 0.035 150);
-    --accent-foreground: oklch(0.94 0.1 130);
+    --background: #131916;
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.55);
+    --float-shadow: 0 16px 48px -12px rgb(0 0 0 / 0.6);
+    --glow-1: rgb(132 204 22 / 0.07);
+    --glow-2: rgb(132 204 22 / 0.04);
+    --foreground: #f9fbf8;
+    --card: #1a221e;
+    --card-foreground: #f9fbf8;
+    --popover: #1f2823;
+    --popover-foreground: #f9fbf8;
+    --primary: #84cc16;
+    --primary-foreground: #131916;
+    --secondary: #26302b;
+    --secondary-foreground: #f9fbf8;
+    --muted: #232c27;
+    /* 8,4:1 mot bakgrunden, 7,6:1 mot kort. */
+    --muted-foreground: #aab2ad;
+    --accent: #26332a;
+    --accent-foreground: #f9fbf8;
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 14%);
-    --input: oklch(1 0 0 / 18%);
-    --ring: oklch(0.78 0.16 133);
-    --chart-brand: oklch(0.86 0.2 130);
+    --border: rgb(249 251 248 / 13%);
+    --input: rgb(249 251 248 / 18%);
+    --ring: #84cc16;
+    --chart-brand: #84cc16;
     --chart-1: #3987e5;
     --chart-2: #d95926;
     --chart-3: #199e70;
@@ -167,18 +176,18 @@
     --macro-carbs: #c98500;
     --macro-fat: #d55181;
     --water: #3987e5;
-    --brand: oklch(0.88 0.2 130);
-    --brand-foreground: oklch(0.18 0.04 140);
-    --success: oklch(0.78 0.17 140);
+    --brand: #84cc16;
+    --brand-foreground: #131916;
+    --success: #84cc16;
     --warning: oklch(0.8 0.15 80);
-    --sidebar: oklch(0.23 0.011 160);
-    --sidebar-foreground: oklch(0.97 0.006 130);
-    --sidebar-primary: oklch(0.88 0.2 130);
-    --sidebar-primary-foreground: oklch(0.2 0.05 140);
-    --sidebar-accent: oklch(0.32 0.03 150);
-    --sidebar-accent-foreground: oklch(0.94 0.1 130);
-    --sidebar-border: oklch(1 0 0 / 12%);
-    --sidebar-ring: oklch(0.78 0.16 133);
+    --sidebar: #161d19;
+    --sidebar-foreground: #f9fbf8;
+    --sidebar-primary: #84cc16;
+    --sidebar-primary-foreground: #131916;
+    --sidebar-accent: #26332a;
+    --sidebar-accent-foreground: #f9fbf8;
+    --sidebar-border: rgb(249 251 248 / 12%);
+    --sidebar-ring: #84cc16;
   }
 }
 
@@ -411,6 +420,21 @@
   animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * v46: en detaljvy som öppnas ur en lista (en konversation, ett pass) glider in från
+ * höger som i en native-app. Ingen fill-mode: när animationen är klar släpps
+ * transform helt, så att fasta element (sidhuvud, vilotimer) sitter rätt.
+ */
+@keyframes page-push {
+  from {
+    opacity: 0;
+    transform: translate3d(28px, 0, 0);
+  }
+}
+@utility page-push {
+  animation: page-push 320ms var(--ease-sheet);
+}
+
 /* Liten "pop" när något bockas av eller blir klart. */
 @keyframes pop {
   0% {
@@ -425,4 +449,94 @@
 }
 @utility animate-pop {
   animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+ * v46: mikroanimationer i appen. Allt nedan är transform och opacity (körs på
+ * kompositorn), är engångsrörelser och stängs av med "minska rörelse" via
+ * regeln i @layer base ovan.
+ */
+
+/* Bocken "ritas" från vänster till höger: yttre lagret glider in, det inre glider emot (bara transform). */
+@keyframes check-wipe-outer {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+@keyframes check-wipe-inner {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+.check-draw {
+  display: inline-flex;
+  overflow: hidden;
+  animation: check-wipe-outer 260ms var(--ease-out-soft) both;
+}
+.check-draw > * {
+  animation: check-wipe-inner 260ms var(--ease-out-soft) both;
+}
+
+/* En ring som vidgas och tonar ut en gång – kvittot på att något blev klart. */
+@keyframes ring-burst {
+  from {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+@utility ring-burst {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--brand);
+  pointer-events: none;
+  animation: ring-burst 520ms var(--ease-out-soft) both;
+}
+
+/* Tonar in och glider upp en aning (tomma lägen, kvitton, rader som kommer till). */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+@utility rise-in {
+  animation: rise-in 360ms var(--ease-out-soft) both;
+}
+
+/* Landar med en lätt fjäder (ikonen i ett tomt läge, den stora bocken när passet är sparat). */
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@utility settle-in {
+  animation: settle-in 420ms var(--ease-spring) both;
+}
+
+/* En rad som just lagts till lyser till en gång, så att ögat hittar den. */
+@keyframes row-flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@utility row-flash {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: color-mix(in oklab, var(--brand) 22%, transparent);
+    pointer-events: none;
+    animation: row-flash 900ms ease-out both;
+  }
 }

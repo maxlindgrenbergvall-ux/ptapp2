@@ -116,6 +116,22 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+/**
+ * v46: rutan följer fingret/pekaren tätt (160 ms, mjuk inbromsning) i stället för
+ * Recharts standard på 400 ms, som känns seg när man drar längs kurvan.
+ * Sprid in på <ChartTooltip {...TOOLTIP_MOTION} />.
+ */
+const TOOLTIP_MOTION = { animationDuration: 160, animationEasing: "ease-out" } as const
+
+/**
+ * v46: linjer ritas ut mjukt första gången (900 ms) och följer sedan ändringar
+ * snabbt (250 ms), t.ex. när man drar i ett reglage. Sprid in på <Line {...draw} />.
+ */
+function useDrawOnce() {
+  const [drawn, setDrawn] = React.useState(false)
+  return { animationDuration: drawn ? 250 : 900, animationEasing: "ease-out", onAnimationEnd: () => setDrawn(true) } as const
+}
+
 function ChartTooltipContent({
   active,
   payload,
@@ -191,7 +207,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
+        "grid min-w-[8rem] animate-in items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs shadow-xl duration-150 fade-in-0 zoom-in-95",
         className
       )}
     >
@@ -368,6 +384,8 @@ export {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  TOOLTIP_MOTION,
+  useDrawOnce,
   ChartLegend,
   ChartLegendContent,
   ChartStyle,

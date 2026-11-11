@@ -235,7 +235,7 @@ export function ExercisePickerDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] max-sm:top-auto max-sm:bottom-0 max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[calc(1rem+var(--safe-bottom))] sm:max-w-md" data-testid="exercise-picker-dialog">
+      <DialogContent className="min-w-0 grid-cols-[minmax(0,1fr)] max-sm:top-auto max-sm:bottom-0 max-sm:max-w-full max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[calc(1rem+var(--safe-bottom))] max-sm:ease-[var(--ease-sheet)] max-sm:data-[state=open]:duration-350 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=closed]:slide-out-to-bottom-[40%] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=open]:slide-in-from-bottom-[40%] sm:max-w-md" data-testid="exercise-picker-dialog">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

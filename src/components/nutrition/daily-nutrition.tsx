@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { ExtraFood } from "@/components/client/trackers"
 import { PersonAvatar } from "@/components/common"
+import { AnimatedNumber, FillBar } from "@/components/motion"
 import { KcalMeter, MacroInline, MACROS, MacroTargetRow, sumMacros } from "@/components/nutrition/macros"
 import { ServiceMenu } from "@/components/services/service-menu"
 import { Button } from "@/components/ui/button"
@@ -241,7 +242,7 @@ function DaySummary({ kcal, macros }: { kcal: number; macros: { protein: number;
       <div>
         <p className="text-xs text-muted-foreground">Idag</p>
         <p className="text-2xl font-bold tracking-tight tabular">
-          {Math.round(kcal)} <span className="text-sm font-medium text-muted-foreground">kcal</span>
+          <AnimatedNumber value={kcal} format={(n) => String(Math.round(n))} /> <span className="text-sm font-medium text-muted-foreground">kcal</span>
         </p>
       </div>
       <MacroInline value={macros} className="justify-end" />
@@ -408,15 +409,13 @@ export function NutritionShortcut({ clientId }: { clientId: ID }) {
       <span className="min-w-0 flex-1 space-y-2">
         <span className="flex items-baseline justify-between gap-2">
           <span className="text-lg font-bold tracking-tight tabular">
-            {Math.round(eaten.kcal).toLocaleString("sv-SE")}
+            <AnimatedNumber value={eaten.kcal} />
             {target ? <span className="text-sm font-medium text-muted-foreground"> / {target.toLocaleString("sv-SE")} kcal</span> : <span className="text-sm font-medium text-muted-foreground"> kcal idag</span>}
           </span>
           {plan && <span className="shrink-0 text-xs text-muted-foreground">{left ? `${left} måltider kvar` : "Alla måltider klara"}</span>}
         </span>
         {target ? (
-          <span className="block h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Kalorier idag" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-            <span className="block h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
-          </span>
+          <FillBar value={pct} role="progressbar" aria-label="Kalorier idag" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} />
         ) : null}
       </span>
       <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">

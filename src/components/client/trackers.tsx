@@ -1,9 +1,11 @@
 "use client"
 
-import { Droplet, Minus, Moon, Pencil, Plus, RefreshCw, Unplug, Watch, X } from "lucide-react"
+import { Droplet, Minus, Moon, Pencil, Plus, RefreshCw, Unplug, Utensils, Watch, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { EmptyState } from "@/components/common"
+import { AnimatedNumber, DrawnCheck } from "@/components/motion"
 import { FoodPicker } from "@/components/nutrition/food-picker"
 import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
@@ -34,6 +36,8 @@ export function ExtraFood({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
   const entries = data.foodEntries.filter((e) => e.clientId === me.id && e.date === date)
   const groups = groupByMeal(entries)
+  // Posterna som fanns när sidan öppnades. Allt som tillkommer efteråt är nytt och lyser till en gång.
+  const [seen] = React.useState(() => new Set(entries.map((e) => e.id)))
   const [meal, setMeal] = React.useState<MealType>(() => mealForTime(new Date()))
   const [manual, setManual] = React.useState(false)
   const recent = React.useMemo(() => recentFoods(data.foodEntries, me.id, 8), [data.foodEntries, me.id])
@@ -128,18 +132,29 @@ export function ExtraFood({ date }: { date: ISODate }) {
         </section>
       )}
 
-      {/* Dagens poster per måltid. */}
+      {/* Dagens poster per måltid. v46: tomt läge som pekar på hur man loggar, och nya rader lyser till en gång. */}
+      {groups.length === 0 && (
+        <EmptyState
+          compact
+          icon={Utensils}
+          title={date === todayISO() ? "Inget loggat idag än" : "Inget loggat den här dagen"}
+          text="Välj ett snabbval, sök eller skanna streckkoden här ovanför – det tar några sekunder."
+          data-testid="food-log-empty"
+        />
+      )}
       {groups.length > 0 && (
         <section className="space-y-3" aria-label="Loggat" data-testid="food-log">
           {groups.map((g) => (
             <div key={g.meal ?? "other"} className="space-y-1">
               <h4 className="flex items-baseline justify-between px-1 text-xs font-semibold text-muted-foreground">
                 <span>{g.label}</span>
-                <span className="tabular">{g.kcal} kcal</span>
+                <span className="tabular">
+                  <AnimatedNumber value={g.kcal} /> kcal
+                </span>
               </h4>
               <ul className="divide-y rounded-xl bg-muted/50">
                 {g.entries.map((e) => (
-                  <li key={e.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <li key={e.id} className={cn("flex items-center gap-3 rounded-xl px-3 py-2 text-sm", !seen.has(e.id) && "row-flash rise-in")}>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-baseline gap-1">
                         <span className="truncate">{e.name}</span>
@@ -220,6 +235,13 @@ function waterGoal(weightKg?: number) {
   return Math.min(4500, Math.max(1500, Math.round((weightKg * 35) / GLASS) * GLASS))
 }
 
+/**
+ * Vatten (v46): glasen fylls med en mjuk vätskerörelse i stället för att bara byta
+ * färg. Varje glas har en fyllning som glider upp (transform: translateY), och
+ * flera glas på en gång fylls i tur och ordning – som när man häller. Litrarna
+ * räknar mjukt till sitt nya värde. När målet nås ritas en bock och droppen får en
+ * ring. Ett halvfullt glas (t.ex. 125 ml) visas halvfullt.
+ */
 export function WaterTracker({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
   const ml = data.waterLogs.find((w) => w.clientId === me.id && w.date === date)?.ml ?? 0
@@ -228,47 +250,92 @@ export function WaterTracker({ date }: { date: ISODate }) {
   const glasses = goal / GLASS
   const filled = Math.floor(ml / GLASS)
   const pct = Math.min(100, Math.round((ml / goal) * 100))
+  const reached = ml >= goal
+
+  // Förra mängden: varifrån hällningen börjar (för fördröjningen glas för glas) och om målet
+  // nåddes just nu. Byter man dag ska inget firas eller hällas – glasen visar bara den dagens läge.
+  const [track, setTrack] = React.useState({ date, ml, from: ml, celebrate: 0 })
+  if (track.date !== date) setTrack({ date, ml, from: ml, celebrate: 0 })
+  else if (track.ml !== ml) setTrack({ date, ml, from: track.ml, celebrate: track.ml < goal && ml >= goal ? track.celebrate + 1 : track.celebrate })
+  const { from, celebrate } = track
+
+  const add = (delta: number) => {
+    if (delta > 0) navigator.vibrate?.(8)
+    actions.addWater(date, delta)
+  }
 
   return (
-    <section className="space-y-4 rounded-2xl border bg-card p-5" aria-labelledby="water-title">
+    <section className="space-y-4 rounded-2xl border bg-card p-5" aria-labelledby="water-title" data-testid="water-tracker">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 id="water-title" className="flex items-center gap-2 font-semibold">
-            <Droplet className="size-4 text-water" /> Vatten
+            <span className="relative flex">
+              <Droplet className={cn("size-4 text-water", reached && "fill-current")} />
+              {celebrate > 0 && <span key={celebrate} aria-hidden className="ring-burst -inset-1.5 rounded-full border-water" />}
+            </span>
+            Vatten
           </h2>
-          <p className="text-xs text-muted-foreground">Mål {(goal / 1000).toLocaleString("sv-SE")} l</p>
+          <p className="text-xs text-muted-foreground">
+            {reached ? (
+              <span key={celebrate} className={cn("inline-flex items-center gap-1 font-medium text-primary", celebrate > 0 && "rise-in")} data-testid="water-goal-reached">
+                <DrawnCheck play={celebrate} className="size-3.5" /> Dagens mål nått
+              </span>
+            ) : (
+              <>Mål {(goal / 1000).toLocaleString("sv-SE")} l</>
+            )}
+          </p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-semibold tabular">{(ml / 1000).toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} l</div>
-          <div className="text-xs text-muted-foreground tabular">{pct} %</div>
+          <div className="text-2xl font-semibold tabular">
+            <AnimatedNumber value={ml / 1000} format={(n) => n.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} /> l
+          </div>
+          <div className="text-xs text-muted-foreground tabular">
+            <AnimatedNumber value={pct} /> %
+          </div>
         </div>
       </div>
 
       {/* Ett glas per 250 ml – tryck på ett glas för att fylla upp till det. */}
       <div className="flex flex-wrap gap-1.5" role="group" aria-label={`${filled} av ${glasses} glas`}>
-        {Array.from({ length: glasses }, (_, i) => (
-          <button
-            key={i}
-            type="button"
-            aria-label={`${(i + 1) * GLASS} ml`}
-            onClick={() => actions.addWater(date, (i + 1) * GLASS - ml)}
-            className={cn(
-              "h-9 w-6 rounded-b-lg rounded-t-sm border-2 transition-colors",
-              i < filled ? "border-water bg-water" : "border-water/30 hover:border-water/60"
-            )}
-          />
-        ))}
+        {Array.from({ length: glasses }, (_, i) => {
+          // Hur fullt just det här glaset är (0–1).
+          const level = Math.max(0, Math.min(1, (ml - i * GLASS) / GLASS))
+          // Häller man flera glas fylls de i tur och ordning; tömmer man går det åt andra hållet.
+          const firstChanged = Math.floor(Math.min(from, ml) / GLASS)
+          const lastChanged = Math.ceil(Math.max(from, ml) / GLASS) - 1
+          const order = ml >= from ? i - firstChanged : lastChanged - i
+          const delay = i >= firstChanged && i <= lastChanged ? Math.max(0, order) * 120 : 0
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-label={`${(i + 1) * GLASS} ml`}
+              onClick={() => add((i + 1) * GLASS - ml)}
+              data-level={level}
+              className={cn(
+                "relative h-9 w-6 overflow-hidden rounded-t-sm rounded-b-lg border-2 transition-[border-color,scale] duration-300 active:scale-90",
+                level > 0 ? "border-water" : "border-water/30 hover:border-water/60"
+              )}
+            >
+              <span
+                aria-hidden
+                className="absolute inset-0 bg-water transition-transform duration-700 ease-[var(--ease-out-soft)] will-change-transform motion-reduce:transition-none"
+                style={{ transform: `translate3d(0, ${(1 - level) * 100}%, 0)`, transitionDelay: `${delay}ms` }}
+              />
+            </button>
+          )
+        })}
       </div>
 
       <div className="flex gap-2">
-        <Button variant="outline" size="icon" aria-label="Ta bort ett glas" onClick={() => actions.addWater(date, -GLASS)} disabled={ml === 0}>
+        <Button variant="outline" size="icon" aria-label="Ta bort ett glas" onClick={() => add(-GLASS)} disabled={ml === 0}>
           <Minus />
         </Button>
         {/* Smala mobiler: bara mängden, så att knapparna ryms bredvid varandra. */}
-        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till ett glas, 250 ml" onClick={() => actions.addWater(date, GLASS)}>
+        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till ett glas, 250 ml" onClick={() => add(GLASS)}>
           <Plus /> <span className="hidden min-[400px]:inline">Glas ·</span> 250 ml
         </Button>
-        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till en flaska, 500 ml" onClick={() => actions.addWater(date, 500)}>
+        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till en flaska, 500 ml" onClick={() => add(500)}>
           <Plus /> <span className="hidden min-[400px]:inline">Flaska ·</span> 500 ml
         </Button>
       </div>

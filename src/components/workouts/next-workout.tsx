@@ -75,8 +75,11 @@ export function NextWorkoutCard() {
       </div>
       <Button
         size="lg"
-        className="h-14 w-full bg-brand text-lg font-semibold text-brand-foreground shadow-float hover:bg-brand/90"
-        onClick={start}
+        className="h-14 w-full bg-brand text-lg font-semibold text-brand-foreground shadow-float transition-[background-color,scale] duration-200 ease-[var(--ease-out-soft)] hover:bg-brand/90 active:scale-[0.97]"
+        onClick={() => {
+          navigator.vibrate?.(10)
+          start()
+        }}
         data-testid="next-workout"
       >
         <Play className="size-5 fill-current" /> Nästa pass
@@ -85,7 +88,10 @@ export function NextWorkoutCard() {
       <div className="flex items-center gap-2" aria-label={`${week.done} av ${week.goal} pass denna vecka`} data-testid="week-progress">
         <div className="flex flex-1 gap-1" aria-hidden>
           {Array.from({ length: Math.max(week.goal, week.done) }, (_, i) => (
-            <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < week.done ? "bg-primary" : "bg-primary/15")} />
+            // v46: veckans avklarade pass fylls i ett i taget, från vänster.
+            <span key={i} className="h-1.5 flex-1 overflow-hidden rounded-full bg-primary/15">
+              {i < week.done && <span className="block h-full origin-left animate-in rounded-full bg-primary duration-500 ease-[var(--ease-out-soft)] fill-mode-backwards slide-in-from-left-full" style={{ animationDelay: `${150 + i * 90}ms` }} />}
+            </span>
           ))}
         </div>
         <span className="shrink-0 text-xs text-muted-foreground tabular">

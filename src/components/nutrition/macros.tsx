@@ -1,4 +1,4 @@
-import { useGrowOnView } from "@/components/motion"
+import { AnimatedNumber, FillBar } from "@/components/motion"
 import { cn } from "@/lib/utils"
 
 /**
@@ -57,7 +57,6 @@ export function MacroSplitBar({ value, className }: { value: Macros; className?:
 export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; value: number; target: number }) {
   const m = MACROS.find((x) => x.key === macro)!
   const pct = target > 0 ? Math.round((value / target) * 100) : 0
-  const [ref, shown] = useGrowOnView<HTMLDivElement>(Math.min(pct, 100))
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -66,44 +65,54 @@ export function MacroTargetRow({ macro, value, target }: { macro: MacroKey; valu
           {m.label}
         </span>
         <span className="tabular">
-          <span className="font-medium">{Math.round(value)}</span>
+          <AnimatedNumber value={value} className="font-medium" />
           <span className="text-muted-foreground"> / {target} g</span>
         </span>
       </div>
-      <div
-        ref={ref}
-        className="h-1.5 overflow-hidden rounded-full bg-muted"
+      <FillBar
+        value={pct}
+        className="h-1.5"
+        barClassName={m.dot}
         role="progressbar"
         aria-label={m.label}
         aria-valuenow={Math.round(value)}
         aria-valuemin={0}
         aria-valuemax={target}
-      >
-        <div className={cn("h-full rounded-full transition-[width] duration-700 ease-out motion-reduce:transition-none", m.dot)} style={{ width: `${shown}%` }} />
-      </div>
+      />
     </div>
   )
 }
 
-/** Kalorier mot mål, i varumärkesgrönt. */
+/**
+ * Kalorier mot mål, i varumärkesgrönt. När något loggas räknar siffrorna mjukt
+ * till sitt nya värde och stapeln glider mot målet (v46), så att man ser hur
+ * mycket utrymme som är kvar. Över målet byter "kvar" till "över" i varningsfärg.
+ */
 export function KcalMeter({ value, target, className }: { value: number; target: number; className?: string }) {
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0
-  const [ref, shown] = useGrowOnView<HTMLDivElement>(pct)
   const diff = target - value
+  const over = diff < 0
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-2", className)} data-testid="kcal-meter">
       <div className="flex items-end justify-between gap-2">
         <div>
-          <div className="text-3xl font-semibold tracking-tight tabular">{Math.round(value)}</div>
+          <AnimatedNumber value={value} format={(n) => String(Math.round(n))} className="block text-3xl font-semibold tracking-tight tabular" />
           <div className="text-xs text-muted-foreground tabular">av {target} kcal</div>
         </div>
-        <div className="text-right text-xs text-muted-foreground tabular">
-          {diff >= 0 ? `${Math.round(diff)} kvar` : `${Math.round(-diff)} över`}
+        <div className={cn("text-right text-xs tabular transition-colors duration-300", over ? "font-medium text-warning" : "text-muted-foreground")}>
+          <AnimatedNumber value={Math.abs(diff)} format={(n) => String(Math.round(n))} /> {over ? "över" : "kvar"}
         </div>
       </div>
-      <div ref={ref} className="h-2 overflow-hidden rounded-full bg-primary/15" role="progressbar" aria-label="Kalorier" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={target}>
-        <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${shown}%` }} />
-      </div>
+      <FillBar
+        value={pct}
+        className="bg-primary/15"
+        barClassName={cn("transition-[transform,background-color]", over && "bg-warning")}
+        role="progressbar"
+        aria-label="Kalorier"
+        aria-valuenow={Math.round(value)}
+        aria-valuemin={0}
+        aria-valuemax={target}
+      />
     </div>
   )
 }

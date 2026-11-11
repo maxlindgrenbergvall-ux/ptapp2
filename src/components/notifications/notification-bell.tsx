@@ -7,7 +7,7 @@ import { toast } from "sonner"
 
 import { BoostedBadge } from "@/components/boost/boost"
 import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
-import { PersonAvatar } from "@/components/common"
+import { EmptyState, PersonAvatar } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -113,9 +113,7 @@ export function NotificationBell({ align = "end" }: { align?: "start" | "end" })
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {groups.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Inga aviseringar än. Här hamnar avbokningar, ombokningar och bekräftelser.
-              </p>
+              <EmptyState compact icon={Bell} title="Inga aviseringar än" text="Här hamnar avbokningar, ombokningar och bekräftelser." />
             ) : (
               <ul className="divide-y" aria-label="Aviseringar">
                 {groups.map((g) => (

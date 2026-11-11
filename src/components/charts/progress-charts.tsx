@@ -10,6 +10,7 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
+  TOOLTIP_MOTION,
   type ChartConfig,
 } from "@/components/ui/chart"
 import { addDays, formatShort, parseISODate, todayISO } from "@/lib/date"
@@ -48,10 +49,11 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} domain={domain} width={36} />
           <ChartTooltip
+            {...TOOLTIP_MOTION}
             cursor={{ strokeDasharray: "3 3" }}
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} kg`} />}
           />
-          <Line dataKey="kg" type="monotone" stroke="var(--color-kg)" strokeWidth={2} dot={false} activeDot={{ r: 5 }} />
+          <Line dataKey="kg" type="monotone" stroke="var(--color-kg)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} animationDuration={900} animationEasing="ease-out" />
         </LineChart>
       </ChartContainer>
     </ChartFrame>
@@ -82,6 +84,7 @@ export function TrendChart({
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} width={36} domain={[Math.floor(Math.min(...values) - pad), Math.ceil(Math.max(...values) + pad)]} />
           <ChartTooltip
+            {...TOOLTIP_MOTION}
             cursor={{ strokeDasharray: "3 3" }}
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} ${unit}`} />}
           />
@@ -138,6 +141,7 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} width={36} domain={yDomain} />
           <ChartTooltip
+            {...TOOLTIP_MOTION}
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v, name, item) => (
               <span className="flex w-full justify-between gap-4">
                 <span className="text-muted-foreground">{config[name as keyof typeof config]?.label}</span>
@@ -202,7 +206,7 @@ export function SessionsChart({ workouts, weeks = 12 }: { workouts: ScheduledWor
           <CartesianGrid vertical={false} strokeOpacity={0.5} />
           <XAxis dataKey="week" {...axisProps} minTickGap={8} />
           <YAxis {...axisProps} allowDecimals={false} width={24} />
-          <ChartTooltip cursor={{ fillOpacity: 0.4 }} content={<ChartTooltipContent hideIndicator />} />
+          <ChartTooltip {...TOOLTIP_MOTION} cursor={{ fillOpacity: 0.4 }} content={<ChartTooltipContent hideIndicator />} />
           <Bar dataKey="done" fill="var(--color-done)" radius={[4, 4, 0, 0]} maxBarSize={28} />
         </BarChart>
       </ChartContainer>

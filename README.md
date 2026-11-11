@@ -578,6 +578,44 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v46: mikroanimationer och tomma lägen i appen
+
+Ingen ombyggnad och ingen ny affärslogik – samma data, actions, RLS och beräkningar som förut. Det som ändras är hur appen *svarar* när man gör något.
+
+**Regler (gäller nya animationer i appen):**
+
+- Bara `transform` och `opacity` (kompositorn). Staplar fylls med `translate`, inte `width`. Inga canvas-element, inga partiklar och inga ändlösa loopar.
+- Engångsrörelser som svarar på en handling. Allt stängs av med "minska rörelse" (regeln i `@layer base` i `globals.css`, och `prefersReducedMotion()` där JavaScript räknar).
+- Tre kurvor i `:root`: `--ease-out-soft` (mjuk inbromsning), `--ease-spring` (landar med lätt fjäder) och `--ease-sheet` (ark och vyer som glider in, samma kurva som iOS).
+- Tal räknar i en textnod via `requestAnimationFrame` (`AnimatedNumber`) – inga React-renderingar per bildruta.
+
+**Byggstenar** (`src/components/motion.tsx` och `globals.css`):
+
+| Byggsten | Vad den gör |
+|---|---|
+| `AnimatedNumber` | Tal som räknar mjukt till sitt nya värde (kalorier, liter, makron) |
+| `FillBar` | Stapel som fylls med transform och växer fram när den syns |
+| `DrawnCheck` + `.check-draw` | Bock som ritas från vänster till höger (två motriktade transform-animationer) |
+| `ring-burst` | En ring som vidgas och tonar ut en gång – kvittot på att något blev klart |
+| `rise-in`, `settle-in`, `row-flash` | Intoning, landning med fjäder, och en ny rad som lyser till en gång |
+| `page-push` | Detaljvy (konversation, pass) som glider in från höger som i en native-app |
+| `useDrawOnce`, `TOOLTIP_MOTION` (`ui/chart.tsx`) | Grafer ritas ut första gången (900 ms) och rutan följer fingret tätt (160 ms) |
+
+**Var det märks:**
+
+- **Vatten:** glasen fylls med en vätskerörelse, glas för glas när man lägger till flera (flaska 500 ml = två glas i tur och ordning). Litrarna räknar upp. När dagens mål nås ritas en bock och droppen får en ring. Halvfulla glas visas halvfulla.
+- **Pass:** avbockat set → bocken ritas och knappen får en ring; setet som står på tur markeras så att ögat hittar det. När övningens sista set bockas av får övningens bricka samma kvitto. "Spara pass" visar ett kort kvitto ("Snyggt jobbat!") och går sedan vidare till startsidan av sig själv (direkt med "minska rörelse").
+- **Kost:** kalorierna och "kvar" räknar mjukt mot dagens mål och stapeln glider dit. Över målet byter "kvar" till "över" i varningsfärg. En nyloggad rad lyser till en gång.
+- **Framsteg:** kurvorna ritas ut mjukt när sidan laddas (planen först, sedan uppdaterad prognos och faktiska vägningar). Rutan med värden följer fingret tätt när man drar längs grafen.
+- **Dra-och-släpp (splits och pass):** kortet lyfts (lätt förstoring + skugga) och glider på plats med en mjuk fjäder; korten runt om flyttar sig med samma kurva.
+- **"Nästa pass":** knappen svarar på trycket, veckans avklarade pass fylls i ett i taget.
+- **Tomma lägen:** `EmptyState` har nu en valfri nästa handling (`action`), en avklarad ton (`tone="done"`) och ett kompakt läge. Används i inkorgen (inga olästa → "Visa alla konversationer"), utan PT ("Hitta din PT"), PT utan klienter ("Bjud in en klient"), vilodag på startsidan, tom matlogg, aviseringar och PT:ns "Behöver uppmärksamhet".
+- **Övergångar:** bottenark och övningsväljaren på mobil glider upp med iOS-kurvan (stängningen är fortsatt snabb, 200 ms, så att ett nytt tryck direkt efteråt alltid tar).
+
+**Mörkt läge = paletten:** appens mörka tema använder nu exakt samma värden som landningssidan: bakgrund `#131916`, text `#f9fbf8`, accent `#84cc16`. Ytor är bakgrunden i ljusare steg. Makro- och vattenfärgerna är kvar (de bär betydelse tillsammans med en textetikett). Ljust läge är oförändrat – appen följer fortfarande systemtemat.
+
+Test: `node e2e/v46-mikro.test.mjs` (demo, 390 px, mörkt läge) kontrollerar mellanlägen (att rörelsen sker), slutvärden, att datan sparas som förut och att "minska rörelse" stänger av rörelsen.
+
 ## Säkerhetsgranskning v44 (penetrationstest)
 
 Genomförd som en penetrationstestare med giltiga konton: en kopia av databasen med alla migrationer, inloggad som klient, som PT och oinloggad (anon), samt genomgång av alla 24 API-rutter. Inga attacker mot produktionen. Attackerna finns kvar som regressionstest i `supabase/tests/rls_v44.test.sql`.
@@ -1230,6 +1268,7 @@ npx tsx --tsconfig tsconfig.json e2e/chat-inbox.unit.ts # inkorgen: olästa, sor
 npx tsx --tsconfig tsconfig.json e2e/quick-log.unit.ts  # snabbloggningen: måltid efter klockan, snabbval, gruppering
 npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts # aktivt schema: Nästa pass, rotation, veckans pass
 node e2e/v43-passbyggare.test.mjs # (demo, 390 px) tomma fält, egen övning i passbyggaren, nya övningar, dagar/vecka, Nästa pass
+node e2e/v46-mikro.test.mjs      # (demo, 390 px, mörkt läge) mikroanimationer, kvitton, tomma lägen, minska rörelse
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

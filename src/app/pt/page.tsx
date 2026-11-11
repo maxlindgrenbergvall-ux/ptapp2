@@ -1,6 +1,6 @@
 "use client"
 
-import { Activity, AlertCircle, CalendarClock, CalendarDays, ChevronRight, MessageSquare, Users, ShoppingBag } from "lucide-react"
+import { Activity, AlertCircle, CalendarClock, CalendarDays, CheckCheck, ChevronRight, MessageSquare, Users, ShoppingBag } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { RequestsPanel } from "@/components/calendar/requests-panel"
 import { ExistingClientBadge, InviteExistingClientButton, PtInvitesCard } from "@/components/pt/pt-invites"
 import { useUnreadCount } from "@/components/chat/chat-thread"
-import { ClientStatusBadge, PageHeader, PersonAvatar, StatTile } from "@/components/common"
+import { ClientStatusBadge, EmptyState, PageHeader, PersonAvatar, StatTile } from "@/components/common"
 import { formatSek } from "@/lib/money"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -217,7 +217,7 @@ export default function PtOverviewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {attention.length === 0 && <p className="text-sm text-muted-foreground">Allt lugnt just nu.</p>}
+              {attention.length === 0 && <EmptyState compact tone="done" icon={CheckCheck} title="Allt lugnt just nu" text="Inga klienter väntar på svar eller klarmarkering." />}
               {attention.map((a) => (
                 <Link
                   key={a.id}

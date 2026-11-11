@@ -4,7 +4,7 @@ import * as React from "react"
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts"
 
 import { ChartFrame } from "@/components/charts/progress-charts"
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, TOOLTIP_MOTION, useDrawOnce, type ChartConfig } from "@/components/ui/chart"
 import type { ChartSeries, ProjectionPoint, SeriesKey } from "@/lib/goals/metabolism"
 
 /** Färger: vikt i varumärkets grön, fett orange, muskler blå (validerade för färgblindhet, ljust och mörkt läge). */
@@ -46,6 +46,9 @@ export function GoalProjectionChart({
   className?: string
 }) {
   const hasAdaptive = !!adaptive?.length
+  // Planen ritas först, sedan den uppdaterade prognosen och sist de faktiska vägningarna.
+  const draw = useDrawOnce()
+  const drawn = draw.animationDuration === 250
   const config = {
     ...Object.fromEntries(series.map((s) => [s.key, { label: hasAdaptive ? `${s.label} (plan)` : s.label, color: COLOR[s.key] }])),
     ...(hasAdaptive ? Object.fromEntries(series.map((s) => [`adaptive_${s.key}`, { label: `${s.label} (uppdaterad)`, color: COLOR[s.key] }])) : {}),
@@ -102,6 +105,7 @@ export function GoalProjectionChart({
             {nowWeek ? <ReferenceLine x={nowWeek} stroke="var(--muted-foreground)" strokeOpacity={0.6} label={{ value: "Nu", position: "insideTopLeft", fontSize: 11, fill: "var(--muted-foreground)" }} /> : null}
             {reachedWeek ? <ReferenceLine x={reachedWeek} stroke="var(--muted-foreground)" strokeDasharray="4 4" label={{ value: "Målvikt", position: "insideTopRight", fontSize: 11, fill: "var(--muted-foreground)" }} /> : null}
             <ChartTooltip
+              {...TOOLTIP_MOTION}
               cursor={{ strokeDasharray: "3 3" }}
               content={
                 <ChartTooltipContent
@@ -129,7 +133,7 @@ export function GoalProjectionChart({
                 strokeOpacity={hasAdaptive ? 0.4 : 1}
                 dot={false}
                 activeDot={{ r: 5 }}
-                animationDuration={250}
+                {...draw}
               />
             ))}
             {hasAdaptive &&
@@ -144,11 +148,11 @@ export function GoalProjectionChart({
                   dot={false}
                   connectNulls
                   activeDot={{ r: 5 }}
-                  animationDuration={250}
+                  {...draw}
                 />
               ))}
             {actual?.length ? (
-              <Line dataKey="actualDelta" type="monotone" stroke="var(--color-actualDelta)" strokeWidth={2} dot={{ r: 3 }} connectNulls animationDuration={250} />
+              <Line dataKey="actualDelta" type="monotone" stroke="var(--color-actualDelta)" strokeWidth={2} dot={{ r: 3 }} connectNulls {...draw} animationBegin={drawn ? 0 : 400} />
             ) : null}
           </LineChart>
         </ChartContainer>

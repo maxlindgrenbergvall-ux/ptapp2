@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarCheck, CalendarRange, Check, ChevronRight, Dumbbell, Play, Search, Target, Utensils } from "lucide-react"
+import { CalendarCheck, CalendarRange, Check, ChevronRight, Dumbbell, Moon, Play, Search, Target, Utensils } from "lucide-react"
 import Link from "next/link"
 
 import { SleepTracker, WaterTracker } from "@/components/client/trackers"
@@ -8,7 +8,7 @@ import { NutritionShortcut } from "@/components/nutrition/daily-nutrition"
 import { ActivityCard } from "@/components/activity/activity-card"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { NextWorkoutCard } from "@/components/workouts/next-workout"
-import { PersonAvatar } from "@/components/common"
+import { EmptyState, PersonAvatar } from "@/components/common"
 import { RequirePlus } from "@/components/plus/require-plus"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -113,9 +113,9 @@ export default function TodayPage() {
           <Dumbbell className="size-4" /> Dagens träning
         </h2>
         {todays.length === 0 && (
-          <Card className="py-5">
-            <CardContent className="px-5 text-sm text-muted-foreground">
-              Vilodag. Återhämtning är också träning.
+          <Card className="py-2">
+            <CardContent className="px-2">
+              <EmptyState compact icon={Moon} title="Inget pass planerat idag" text="Vilodag. Återhämtning är också träning – och är du sugen ändå kan du köra ett eget pass här nedanför." data-testid="rest-day" />
             </CardContent>
           </Card>
         )}
