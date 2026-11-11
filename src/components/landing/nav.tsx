@@ -110,7 +110,7 @@ function ScrollProgress({ visible, reduce }: { visible: boolean; reduce: boolean
       animate={{ opacity: visible ? 1 : 0 }}
       transition={{ duration: 0.35, ease: EASE }}
       style={{ scaleX: reduce ? progress : smooth }}
-      className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-px origin-left transform-gpu bg-gradient-to-r from-brand via-emerald-300 to-emerald-500 shadow-[0_0_12px_1px] shadow-brand/50 md:block"
+      className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-px origin-left transform-gpu bg-brand md:block"
     />
   )
 }
@@ -182,12 +182,6 @@ function StartCta({
       }}
       className={cn("group/cta relative", className)}
     >
-      <span
-        aria-hidden
-        // animate-pulse: opacitet 1 → 0,5 → 1. Längre period för lugnare puls.
-        style={{ animationDuration: "3.2s" }}
-        className="pointer-events-none absolute -inset-1 transform-gpu animate-pulse rounded-full bg-brand/40 blur-lg motion-reduce:animate-none motion-reduce:opacity-60"
-      />
       <a
         href={LINKS.download}
         onClick={(e) => {
@@ -195,16 +189,11 @@ function StartCta({
           onNavigate?.()
         }}
         className={cn(
-          "relative inline-flex h-11 items-center justify-center gap-1.5 overflow-hidden rounded-full bg-brand px-5 text-sm font-semibold whitespace-nowrap text-brand-foreground shadow-[0_8px_30px_-6px] shadow-brand/50 transition-[filter] duration-300 hover:brightness-105",
+          "relative inline-flex h-11 items-center justify-center gap-1.5 overflow-hidden rounded-full bg-brand px-5 text-sm font-semibold whitespace-nowrap text-brand-foreground transition-[filter] duration-300 ease-[var(--landing-ease)] hover:brightness-110",
           FOCUS_RING,
           linkClassName
         )}
       >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -translate-x-full -skew-x-12 bg-gradient-to-r from-transparent via-white/60 to-transparent transition-none group-hover/cta:translate-x-[400%] group-hover/cta:transition-transform group-hover/cta:duration-700 group-hover/cta:ease-out"
-        />
-        <span aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
         <span className="relative">{label}</span>
         <ArrowDown aria-hidden className={cn("relative size-4 transition-transform duration-300 group-hover/cta:translate-y-0.5", arrowClassName)} />
       </a>
@@ -348,7 +337,7 @@ export function LandingNav() {
           initial={false}
           animate={{ opacity: solid ? 1 : 0 }}
           transition={{ duration: 0.35, ease: EASE }}
-          className="pointer-events-none absolute inset-0 transform-gpu border-b border-white/10 bg-[#0a0d12]/90 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.9)] md:bg-background/75 md:backdrop-blur-xl md:backdrop-saturate-150"
+          className="pointer-events-none absolute inset-0 transform-gpu border-b border-white/10 bg-[#131916]/90 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.9)] md:bg-background/75 md:backdrop-blur-xl md:backdrop-saturate-150"
         >
           <span className="absolute inset-x-0 top-0 h-px bg-white/[0.03]" />
         </motion.div>
@@ -360,7 +349,6 @@ export function LandingNav() {
             <motion.div {...enter(0.05)} className="flex flex-1 basis-0 items-center">
               <Link href="/" aria-label={`${BRAND.name} – startsidan`} className={cn("group/logo -m-1.5 flex items-center gap-2.5 rounded-xl p-1.5", FOCUS_RING)}>
                 <span className="relative">
-                  <span aria-hidden className="absolute inset-0 rounded-lg bg-brand opacity-0 blur-md transition-opacity duration-300 group-hover/logo:opacity-60" />
                   <BrandMark className="relative transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/logo:scale-105 group-hover/logo:-rotate-12" />
                 </span>
                 <span className="text-lg font-semibold tracking-tight">{BRAND.name}</span>
@@ -410,7 +398,7 @@ export function LandingNav() {
                               aria-hidden
                               layoutId="nav-dot"
                               transition={PILL_SPRING}
-                              className="absolute inset-x-0 bottom-1.5 mx-auto size-1 rounded-full bg-brand shadow-[0_0_10px_2px] shadow-brand/60"
+                              className="absolute inset-x-0 bottom-1.5 mx-auto size-1 rounded-full bg-brand"
                             />
                           )}
                         </a>
@@ -460,7 +448,7 @@ export function LandingNav() {
             )}
             {open && (
               <motion.div key="panel" variants={panelVariants} initial="hidden" animate="show" exit="exit" className="absolute inset-x-0 top-full origin-top px-3 pt-2 sm:px-6">
-                <div className="relative mx-auto max-h-[calc(100svh-var(--safe-top)-5rem)] max-w-6xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#0d1117] p-3 shadow-2xl shadow-black/60">
+                <div className="relative mx-auto max-h-[calc(100svh-var(--safe-top)-5rem)] max-w-6xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-3xl border border-white/10 bg-[#161d19] p-3 shadow-2xl shadow-black/60">
                   {/* Glöd som radiell gradient (billig) i stället för blur-3xl. */}
                   <div
                     aria-hidden
@@ -485,7 +473,7 @@ export function LandingNav() {
                             >
                               <span aria-hidden className={cn("w-6 font-mono text-xs tabular-nums", isActive ? "text-brand" : "text-muted-foreground")}>{String(i + 1).padStart(2, "0")}</span>
                               <span className="min-w-0 flex-1 text-2xl font-semibold tracking-tight">{item.label}</span>
-                              {isActive && <span aria-hidden className="size-1.5 rounded-full bg-brand shadow-[0_0_10px_2px] shadow-brand/60" />}
+                              {isActive && <span aria-hidden className="size-1.5 rounded-full bg-brand" />}
                               <ArrowUpRight
                                 aria-hidden
                                 className="size-5 shrink-0 text-muted-foreground transition-[translate,color] duration-300 group-hover/item:translate-x-0.5 group-hover/item:-translate-y-0.5 group-hover/item:text-brand"

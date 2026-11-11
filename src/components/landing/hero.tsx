@@ -2,14 +2,12 @@
 
 /**
  * Hjälten överst på landningssidan: sidans enda h1, butiksknappar och en
- * interaktiv telefon med Coavira-appens startsida (exempeldata). Längst ner ett
- * rullande band med fakta som pausas vid hovring och står still med "minska rörelse".
+ * interaktiv telefon med Coavira-appens startsida (exempeldata). Längst ner en
+ * stilla rad med appens kärna: träningssplits, hälsosynk och kontakten med PT:n.
  *
- * Prestanda: alla oändliga loopar (svävning, rotation, sken) är CSS-animationer på
- * transform/opacitet. De körs i kompositorn utan JavaScript per bildruta, står
- * still i dolda element (display:none) och pausas när hjälten inte syns.
- * Pekarlutning och scroll-parallax finns bara från md – på telefoner lutar
- * telefonen statiskt via CSS och ingen scroll-lyssnare kopplas in alls.
+ * Rörelse (v45): inga oändliga loopar. Rubriken och telefonen glider på plats en
+ * gång; därefter rör sig telefonen bara med pekaren och scrollen (från md).
+ * På telefoner lutar den statiskt via CSS och ingen scroll-lyssnare kopplas in.
  */
 import {
   AnimatePresence,
@@ -30,7 +28,6 @@ import {
   CalendarCheck,
   CalendarDays,
   CalendarPlus,
-  CalendarSync,
   ChartLine,
   Check,
   Dumbbell,
@@ -38,13 +35,9 @@ import {
   House,
   MessageCircle,
   MousePointer2,
-  Pause,
   PhoneMissed,
-  Play,
   Salad,
-  ScanBarcode,
   Search,
-  ShieldCheck,
   Smartphone,
   Utensils,
   Video,
@@ -56,7 +49,7 @@ import * as React from "react"
 import { BrandMark } from "@/components/brand"
 import { LINKS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
-import { EASE, Eyebrow, FloatingBadge, GlowOrb, GradientText, GridBackdrop, PhoneFrame, useConfetti } from "@/components/landing/primitives"
+import { EASE, Eyebrow, FloatingBadge, GlowOrb, PhoneFrame } from "@/components/landing/primitives"
 import { MACROS, type MacroKey } from "@/components/nutrition/macros"
 import { cn } from "@/lib/utils"
 
@@ -93,14 +86,12 @@ const TABS: { label: string; icon: LucideIcon; active?: boolean; dot?: boolean }
   { label: "Chatt", icon: MessageCircle, dot: true },
 ]
 
-/** Sanna fakta om appen för det rullande bandet – korta, max sex stycken. */
-const TRUST: { label: string; icon: LucideIcon }[] = [
-  { label: "Verifierade PT:er", icon: BadgeCheck },
-  { label: "Svenska livsmedel & streckkoder", icon: ScanBarcode },
-  { label: "Kalendersynk med Google, Outlook & Apple", icon: CalendarSync },
-  { label: "Apple Health, Garmin & Strava", icon: Watch },
-  { label: "Chatt & videosamtal med din PT", icon: Video },
-  { label: "Data lagras inom EU", icon: ShieldCheck },
+/** Appens kärna i fyra punkter – sanna fakta, inget rullande band. */
+const TRUST: { label: string; sub: string; icon: LucideIcon }[] = [
+  { label: "Träningssplits", sub: "Nästa pass ligger alltid redo", icon: Dumbbell },
+  { label: "Hälsosynk", sub: "Apple Hälsa, Health Connect, Strava", icon: Watch },
+  { label: "Chatt och videosamtal", sub: "Direkt med din PT, i samma tråd", icon: Video },
+  { label: "Verifierade PT:er", sub: "Certifikat granskas manuellt", icon: BadgeCheck },
 ]
 
 /* ------------------------------------------------------------------ */
@@ -186,11 +177,7 @@ export function Hero() {
         px.set(0)
         py.set(0)
       }}
-      className={cn(
-        "relative isolate flex flex-col overflow-hidden lg:min-h-svh",
-        // Utanför bild pausas alla CSS-loopar i hjälten. !important behövs mot .landing-float i globals.css (utanför lager).
-        !inView && "[&_.hero-loop]:[animation-play-state:paused]! [&_.landing-float]:[animation-play-state:paused]!"
-      )}
+      className="relative isolate flex flex-col overflow-hidden lg:min-h-svh"
     >
       {parallax && <ScrollProgress target={ref} progress={progress} />}
       <Backdrop y={parallax ? backdropY : undefined} />
@@ -198,7 +185,7 @@ export function Hero() {
         <HeroCopy />
         <AppShowcase sx={sx} sy={sy} progress={progress} desktop={desktop} reduce={reduce} active={active} />
       </div>
-      <TrustMarquee reduce={reduce} />
+      <TrustRow />
     </section>
   )
 }
@@ -220,16 +207,12 @@ function ScrollProgress({ target, progress }: { target: React.RefObject<HTMLElem
   return null
 }
 
-/** Rutnät, gröna glöd (radiella gradienter – inga blur-filter) och ett svagt ljus uppifrån. Parallax bara på dator. */
+/** Ett enda svagt ljus bakom telefonen (radiell gradient – inget blur-filter). Parallax bara på dator. */
 function Backdrop({ y }: { y?: MotionValue<number> }) {
   return (
     <>
       <motion.div aria-hidden style={y ? { y } : undefined} className={cn("pointer-events-none absolute inset-0 -z-10", y && "will-change-transform")}>
-        <GridBackdrop className="[mask-image:radial-gradient(ellipse_70%_60%_at_50%_35%,black_15%,transparent_75%)]" />
-        <GlowOrb className="-top-56 right-[-14%] size-[44rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_15%,transparent),transparent)]" />
-        <GlowOrb className="top-[28%] -left-64 size-[34rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--color-emerald-500)_13%,transparent),transparent)]" />
-        <GlowOrb className="-bottom-72 left-[38%] hidden size-[30rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--color-emerald-400)_10%,transparent),transparent)] md:block" />
-        <div className="absolute inset-x-0 top-0 h-[30rem] bg-[radial-gradient(ellipse_55%_100%_at_50%_0%,rgba(172,237,55,0.08),transparent)]" />
+        <GlowOrb className="-top-48 right-[-12%] size-[46rem]" />
       </motion.div>
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-48 bg-gradient-to-b from-transparent to-background" />
     </>
@@ -249,30 +232,16 @@ function Backdrop({ y }: { y?: MotionValue<number> }) {
 const ENTER = "animate-in fade-in-0 fill-mode-backwards ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:animate-none"
 const enterDelay = (s: number): React.CSSProperties => ({ animationDelay: `${s}s` })
 
-/**
- * "Träning och kost" i gradient. Varje ord animeras för sig och får därför en
- * egen del av gradienten (lime → mint → smaragd), så att den ser sammanhängande ut.
- */
-const LINE_ONE = [
-  { word: "Träning", stops: "via-[color-mix(in_oklab,var(--brand),var(--color-emerald-300))] to-emerald-300" },
-  {
-    word: "och",
-    stops:
-      "from-emerald-300 via-[color-mix(in_oklab,var(--color-emerald-300)_75%,var(--color-emerald-500))] to-[color-mix(in_oklab,var(--color-emerald-300),var(--color-emerald-500))]",
-  },
-  {
-    word: "kost",
-    stops: "from-[color-mix(in_oklab,var(--color-emerald-300),var(--color-emerald-500))] via-[color-mix(in_oklab,var(--color-emerald-300)_25%,var(--color-emerald-500))]",
-  },
-]
+/** Rad ett i accentfärgen, rad två i textfärgen – två rena färger, ingen gradient. */
+const LINE_ONE = ["Träning", "och", "kost."]
 const LINE_TWO = ["På", "dina", "villkor."]
 
-/** Ett ord som glider upp ur en osynlig mask (opacitet + y + lätt vridning). */
-function Word({ children, index, className }: { children: React.ReactNode; index: number; className?: string }) {
+/** Ett ord som glider upp ur en osynlig mask (opacitet + y). */
+function Word({ children, index }: { children: React.ReactNode; index: number }) {
   return (
     <span className="-my-[0.12em] inline-block overflow-hidden py-[0.12em] align-top">
-      <span className={cn(ENTER, "inline-block origin-bottom-left duration-[850ms] slide-in-from-bottom-[105%] spin-in-4")} style={enterDelay(0.1 + index * 0.06)}>
-        {className ? <span className={className}>{children}</span> : children}
+      <span className={cn(ENTER, "inline-block duration-[900ms] slide-in-from-bottom-[105%]")} style={enterDelay(0.08 + index * 0.07)}>
+        {children}
       </span>
     </span>
   )
@@ -283,41 +252,21 @@ function Headline() {
   return (
     <h1
       id="hero-title"
-      className="text-[2.375rem] leading-[1.02] font-extrabold tracking-[-0.035em] text-balance min-[420px]:text-[2.75rem] sm:text-6xl md:text-[4rem] lg:text-[3.25rem] xl:text-[4.25rem]"
+      className="text-[2.375rem] leading-[1.02] font-bold tracking-[-0.04em] text-balance min-[420px]:text-[2.75rem] sm:text-6xl md:text-[4rem] lg:text-[3.25rem] xl:text-[4.25rem]"
     >
-      <span className="block">
-        <span className="relative inline-block">
-          {LINE_ONE.map(({ word, stops }, i) => (
-            <React.Fragment key={word}>
-              {i > 0 && " "}
-              <Word index={i}>
-                <GradientText className={stops}>{word}</GradientText>
-                {i === LINE_ONE.length - 1 && "."}
-              </Word>
-            </React.Fragment>
-          ))}
-          <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.06em] left-0 h-[0.2em] w-[92%] text-brand/80">
-            <motion.path
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 1.1, ease: EASE, delay: 0.75 }}
-              d="M3 15 C 70 5, 160 2, 297 9"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-        </span>{" "}
+      <span className="block text-brand">
+        {LINE_ONE.map((w, i) => (
+          <React.Fragment key={w}>
+            {i > 0 && " "}
+            <Word index={i}>{w}</Word>
+          </React.Fragment>
+        ))}
       </span>
       <span className="block">
         {LINE_TWO.map((w, i) => (
           <React.Fragment key={w}>
             {i > 0 && " "}
-            <Word index={i + LINE_ONE.length} className="bg-gradient-to-b from-foreground via-foreground/80 to-foreground/50 bg-clip-text text-transparent">
-              {w}
-            </Word>
+            <Word index={i + LINE_ONE.length}>{w}</Word>
           </React.Fragment>
         ))}
       </span>
@@ -347,18 +296,11 @@ function HeroCopy() {
         )}
         style={enterDelay(0.4)}
       >
-        <div className="group relative flex justify-center lg:justify-start">
-          {/* Sken bakom butiksknapparna: radiell gradient i stället för blur-filter. Pulserar (CSS, opacitet) bara från md. */}
-          <span
-            aria-hidden
-            className="hero-loop pointer-events-none absolute -inset-x-8 -inset-y-6 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_30%,transparent),transparent)] opacity-80 md:motion-safe:animate-[pulse_3.4s_ease-in-out_infinite]"
-          />
-          <StoreBadges size="lg" align="center" className="relative lg:justify-start" />
-        </div>
+        <StoreBadges size="lg" align="center" className="lg:justify-start" />
         {/* Mobil: en kompakt textlänk så att huvudknappen får all tyngd. Från sm: en kantad knapp bredvid. */}
         <a
           href={LINKS.ptApply}
-          className="group/pt inline-flex h-11 items-center justify-center gap-2 self-center rounded-full px-2 text-sm font-semibold text-foreground transition-[background-color,border-color,translate] duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:h-14 sm:self-auto sm:border sm:border-white/15 sm:bg-white/[0.04] sm:px-6 sm:text-base sm:backdrop-blur-md sm:hover:-translate-y-0.5 sm:hover:border-white/25 sm:hover:bg-white/[0.08]"
+          className="group/pt inline-flex h-11 items-center justify-center gap-2 self-center rounded-full px-2 text-sm font-semibold text-foreground transition-[background-color,border-color,translate] duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:h-14 sm:self-auto ease-[var(--landing-ease)] sm:border sm:border-white/15 sm:bg-white/[0.03] sm:px-6 sm:text-base sm:hover:-translate-y-0.5 sm:hover:border-white/25 sm:hover:bg-white/[0.07]"
         >
           <BadgeCheck aria-hidden className="size-5 text-brand" />
           <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover/pt:decoration-brand sm:no-underline">Är du PT? Ansök</span>
@@ -411,14 +353,14 @@ function AppShowcase({
 
   // Djup (bara från md): telefonen lutar efter pekaren, bakre kortet och brickorna
   // förskjuts åt olika håll. Grundlutningen ligger i CSS (se nedan), så här är allt 0 i vila.
-  const rotateY = useTransform(sx, (x) => x * 16)
-  const rotateX = useTransform(sy, (y) => y * -10)
+  const rotateY = useTransform(sx, (x) => x * 9)
+  const rotateX = useTransform(sy, (y) => y * -6)
   const glareX = useTransform(sx, (v) => `${v * 50}%`)
   const phoneY = useTransform(progress, (v) => v * 90)
-  const backX = useTransform(sx, (v) => v * -28)
+  const backX = useTransform(sx, (v) => v * -16)
   const backY = useTransform(progress, (v) => v * 170)
-  const badgesX = useTransform(sx, (v) => v * 22)
-  const badgesY = useTransform([sy, progress], ([s, p]: number[]) => s * 16 + p * -60)
+  const badgesX = useTransform(sx, (v) => v * 12)
+  const badgesY = useTransform([sy, progress], ([s, p]: number[]) => s * 10 + p * -60)
 
   // "Nytt pass inbokat!"-brickan studsar till när man bokar i telefonen.
   const pulse = useMotionValue(1)
@@ -433,7 +375,7 @@ function AppShowcase({
       className={cn(
         ENTER,
         // Mobil: lägre scen (telefonen skalas ned nedan), från sm som förut.
-        "relative mx-auto flex h-[33rem] w-full max-w-[560px] items-center justify-center duration-[1100ms] zoom-in-[0.96] slide-in-from-bottom-10 sm:h-[700px]"
+        "relative mx-auto flex h-[33rem] w-full max-w-[560px] items-center justify-center duration-[1200ms] zoom-in-[0.97] slide-in-from-bottom-8 sm:h-[700px]"
       )}
       style={enterDelay(0.3)}
     >
@@ -456,8 +398,7 @@ function AppShowcase({
         <div className="[transform:perspective(1600px)_rotateX(4deg)_rotateY(-7deg)] lg:[transform:perspective(1600px)_rotateX(7deg)_rotateY(-13deg)]">
           {/* Lutning efter pekaren – bara från md. */}
           <motion.div style={desktop ? { rotateX, rotateY, transformPerspective: 1600 } : undefined}>
-            {/* Svävandet: CSS-animation på transform (.landing-float i globals.css) – kompositorn, ingen JS per bildruta. */}
-            <div style={{ "--float-y": "-14px", "--float-dur": "7s" } as React.CSSProperties} className="landing-float transform-gpu">
+            <div className="transform-gpu">
               <ClientHomeScreen
                 booked={booked}
                 tried={bookings > 0}
@@ -479,7 +420,7 @@ function AppShowcase({
         Flytande brickor (dekor – samma fakta finns i text på sidan). De ligger
         utanför telefonen så långt det går, så att de bara skär in i skärmens
         kantmarginal och aldrig döljer veckoremsan eller Dagens kost. På mobil
-        syns bara två. Dolda brickor (display:none) varken tonar in eller svävar.
+        syns bara två. Brickorna tonar in en gång och står sedan still.
       */}
       <motion.div aria-hidden style={desktop ? { x: badgesX, y: badgesY } : undefined} className="pointer-events-none absolute inset-0 z-20">
         <motion.div
@@ -492,18 +433,18 @@ function AppShowcase({
         </motion.div>
         {/* Bara där brickan får plats bredvid telefonen (md och 2xl); annars skulle den täcka Dagens kost. */}
         <div className="absolute top-[31%] -right-16 hidden md:block lg:hidden 2xl:block">
-          <FloatingBadge className="pointer-events-auto relative" delay={1.2} distance={12}>
-            <BadgeBody icon={Salad} tone="bg-emerald-400/15 text-emerald-300" title="Kostschema uppdaterat" emoji="🥗" sub="Elin la till nya recept" />
+          <FloatingBadge className="pointer-events-auto relative" delay={1.2}>
+            <BadgeBody icon={Salad} tone="bg-brand/15 text-brand" title="Kostschema uppdaterat" emoji="🥗" sub="Elin la till nya recept" />
           </FloatingBadge>
         </div>
         <div className="absolute -bottom-3 left-0 sm:bottom-[3%] sm:-left-10 lg:-left-24 xl:-left-16">
-          <FloatingBadge className="pointer-events-auto relative" delay={1.5} distance={8}>
+          <FloatingBadge className="pointer-events-auto relative" delay={1.5}>
             <BadgeBody icon={BadgeCheck} tone="bg-brand/15 text-brand" title="Verifierade PT:er" sub="Certifikat granskas manuellt" />
           </FloatingBadge>
         </div>
         <div className="absolute top-0 right-0 hidden xl:block 2xl:-right-16">
-          <FloatingBadge className="pointer-events-auto relative" delay={1.8} distance={9}>
-            <BadgeBody icon={PhoneMissed} tone="bg-rose-400/15 text-rose-300" title="Missat samtal – ring upp" emoji="📞" sub="Elin Söderberg · 08:12" />
+          <FloatingBadge className="pointer-events-auto relative" delay={1.8}>
+            <BadgeBody icon={PhoneMissed} tone="bg-white/10 text-foreground" title="Missat samtal – ring upp" emoji="📞" sub="Elin Söderberg · 08:12" />
           </FloatingBadge>
         </div>
         {/* Tipset bara från xl. In-animationen är CSS, så den körs inte alls när tipset är dolt. */}
@@ -542,21 +483,12 @@ function BadgeBody({ icon: Icon, tone, title, emoji, sub }: { icon: LucideIcon; 
   )
 }
 
-/**
- * Glöd, en roterande ljusring och en omloppsbana med en grön prick bakom telefonen.
- * Rotationerna är CSS-animationer (kompositorn); `.hero-loop` pausar dem när hjälten
- * inte syns. Omloppsbanan snurrar bara från md – på telefoner står pricken still.
- */
+/** Två tunna, stilla ringar bakom telefonen – ger djup utan att något rör sig. */
 function Halo() {
   return (
     <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 size-[21rem] -translate-x-1/2 -translate-y-1/2 sm:size-[36rem]">
-      <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.2),transparent_78%)]" />
-      <div className="hero-loop absolute inset-0 transform-gpu rounded-full opacity-80 will-change-transform [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_70deg,transparent_150deg,#34d399_230deg,transparent_320deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))] motion-safe:animate-[spin_40s_linear_infinite]" />
-      <div className="absolute inset-[15%] rounded-full border border-white/[0.07]" />
-      <div className="hero-loop absolute inset-[15%] md:will-change-transform md:motion-safe:animate-[spin_16s_linear_infinite]">
-        <span className="absolute -top-1 left-1/2 size-2 -translate-x-1/2 rounded-full bg-brand shadow-[0_0_14px_3px] shadow-brand/60" />
-      </div>
-      <div className="absolute inset-[32%] rounded-full border border-dashed border-white/[0.06]" />
+      <div className="absolute inset-0 rounded-full border border-white/[0.06]" />
+      <div className="absolute inset-[15%] rounded-full border border-white/[0.05]" />
     </div>
   )
 }
@@ -564,7 +496,7 @@ function Halo() {
 /** PT:ns dag i kalendern – syns delvis bakom telefonen (dra och släpp för att boka om). */
 function PtCalendarCard() {
   return (
-    <div className="w-[13.5rem] -rotate-6 rounded-3xl border border-white/10 bg-[#0e1319]/95 p-3.5 text-left shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
+    <div className="w-[13.5rem] -rotate-6 rounded-3xl border border-white/10 bg-[#171e1a]/95 p-3.5 text-left shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
       <div className="flex items-center gap-2 text-[11px]">
         <span className="grid size-6 place-items-center rounded-lg bg-brand/15 text-brand">
           <CalendarDays className="size-3.5" />
@@ -583,7 +515,7 @@ function PtCalendarCard() {
         </li>
         <li className="flex items-center gap-2">
           <span className="w-8 text-muted-foreground tabular-nums">12:00</span>
-          <span className="flex-1 rounded-lg bg-emerald-400/15 px-2 py-1.5 text-emerald-200">Amir R. · Kostcoaching</span>
+          <span className="flex-1 rounded-lg bg-brand/15 px-2 py-1.5 text-brand">Amir R. · Kostcoaching</span>
         </li>
         <li className="relative flex items-center gap-2">
           <span className="w-8 text-muted-foreground tabular-nums">17:00</span>
@@ -622,9 +554,7 @@ function ClientHomeScreen({
   onUndo: () => void
 }) {
   const screenRef = React.useRef<HTMLDivElement>(null)
-  const bookRef = React.useRef<HTMLButtonElement>(null)
   const seen = useInView(screenRef, { once: true, margin: "0px 0px -15% 0px" })
-  const fire = useConfetti()
   const [lunch, setLunch] = React.useState(false)
   const [toast, setToast] = React.useState<number | null>(null)
   const [status, setStatus] = React.useState("")
@@ -652,7 +582,6 @@ function ClientHomeScreen({
     onBook()
     setToast((n) => (n ?? 0) + 1)
     setStatus(`Nytt pass inbokat torsdag 16 oktober 17.30 med Elin – väntar på bekräftelse. ${PASSES_LEFT - 1} pass kvar.`)
-    void fire(bookRef.current, { particles: 90, spread: 80 })
   }
 
   const toggleLunch = () => {
@@ -824,7 +753,6 @@ function ClientHomeScreen({
                   </AnimatePresence>
                 </div>
                 <motion.button
-                  ref={bookRef}
                   type="button"
                   onClick={book}
                   whileTap={{ scale: 0.94 }}
@@ -833,15 +761,15 @@ function ClientHomeScreen({
                     "relative h-11 w-[6.5rem] shrink-0 rounded-xl text-[12px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card focus-visible:outline-none",
                     booked
                       ? "border border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
-                      : "bg-brand text-brand-foreground shadow-[0_8px_24px_-8px] shadow-brand/70 hover:bg-brand/90"
+                      : "bg-brand text-brand-foreground hover:bg-brand/90"
                   )}
                 >
                   {/* Ringen visar var man trycker. Den pulserar (CSS, opacitet) bara medan hjälten syns och
-                      bara åtta gånger – sedan står den still, så att inget rör sig i onödan i vila. */}
+                      bara tre gånger – sedan står den still, så att inget rör sig i onödan i vila. */}
                   {!booked && !tried && (
                     <span
                       aria-hidden
-                      className={cn("absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50", active && "motion-safe:animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_8]")}
+                      className={cn("absolute -inset-1 rounded-[0.9rem] ring-2 ring-brand/50", active && "motion-safe:animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_3]")}
                     />
                   )}
                   <span className="relative inline-flex items-center justify-center gap-1.5">
@@ -887,7 +815,7 @@ function KcalRow({ kcal, eaten }: { kcal: MotionValue<number>; eaten: number }) 
         <motion.p className="text-[11px] text-muted-foreground tabular-nums">{left}</motion.p>
       </div>
       <div aria-hidden className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/15">
-        <motion.div style={{ scaleX }} className="h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-brand" />
+        <motion.div style={{ scaleX }} className="h-full origin-left rounded-full bg-brand" />
       </div>
     </>
   )
@@ -926,7 +854,7 @@ function BookedToast() {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -32, scale: 0.97 }}
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
-      className="absolute inset-x-2.5 top-2 z-20 flex items-center gap-2.5 rounded-2xl border border-white/10 bg-[#1b222b]/95 p-2.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]"
+      className="absolute inset-x-2.5 top-2 z-20 flex items-center gap-2.5 rounded-2xl border border-white/10 bg-[#222b26]/95 p-2.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.8)]"
     >
       <BrandMark size="sm" className="rounded-lg" />
       <span className="min-w-0 flex-1 leading-tight">
@@ -957,115 +885,30 @@ function TabBar() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Faktabandet                                                         */
+/* Faktaraden                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Fart för bandet i pixlar per sekund. */
-const MARQUEE_SPEED = 38
-
 /**
- * Rullande band med sanna fakta. Pausas vid hovring, med knappen eller när det
- * inte syns. Med "minska rörelse" står allt still och radbryts i stället.
- * Rullningen är en Web Animation på transform: den körs i kompositorn utan JS
- * per bildruta och står helt still (ingen loop alls) när den är pausad.
+ * Appens kärna i fyra punkter under hjälten. Raden står still (inget rullande
+ * band att pausa). Punkterna tonar in i tur och ordning efter rubriken – i ren
+ * CSS som resten av hjälten, så att de syns i serverns HTML även utan JS.
  */
-function TrustMarquee({ reduce }: { reduce: boolean }) {
-  const viewportRef = React.useRef<HTMLDivElement>(null)
-  const railRef = React.useRef<HTMLDivElement>(null)
-  const trackRef = React.useRef<HTMLUListElement>(null)
-  const animRef = React.useRef<Animation | null>(null)
-  // Hur långt (0–1) bandet hunnit, så att det fortsätter där det var om bredden ändras.
-  const progressRef = React.useRef(0)
-  const inView = useInView(viewportRef)
-  const [hovered, setHovered] = React.useState(false)
-  const [paused, setPaused] = React.useState(false)
-  const [width, setWidth] = React.useState(0)
-  const running = !reduce && !paused && !hovered && inView
-
-  // Bredden på en uppsättning (bandet hoppar tillbaka exakt så långt).
-  React.useEffect(() => {
-    const el = trackRef.current
-    if (!el) return
-    const measure = () => setWidth(el.offsetWidth)
-    measure()
-    if (typeof ResizeObserver === "undefined") return
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  // Skapa animationen (pausad) – inte alls med "minska rörelse".
-  React.useEffect(() => {
-    const rail = railRef.current
-    if (!rail || reduce || !width || typeof rail.animate !== "function") return
-    const duration = (width / MARQUEE_SPEED) * 1000
-    const anim = rail.animate([{ transform: "translateX(0px)" }, { transform: `translateX(${-width}px)` }], { duration, iterations: Infinity, easing: "linear" })
-    anim.pause()
-    anim.currentTime = progressRef.current * duration
-    animRef.current = anim
-    return () => {
-      progressRef.current = ((Number(anim.currentTime) || 0) % duration) / duration
-      anim.cancel()
-      animRef.current = null
-    }
-  }, [reduce, width])
-
-  // Spela bara när bandet syns och ingen har pausat det.
-  React.useEffect(() => {
-    const anim = animRef.current
-    if (!anim) return
-    if (running) anim.play()
-    else anim.pause()
-  }, [running, reduce, width])
-
+function TrustRow() {
   return (
-    <div className="relative z-10 border-y border-white/[0.06] bg-white/[0.02]">
-      <div className="mx-auto flex max-w-7xl items-center gap-2 px-2 sm:px-4">
-        <div
-          ref={viewportRef}
-          onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          className="relative min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] motion-reduce:[mask-image:none]"
-        >
-          {/* Rälsen animeras hela tiden (när den syns) – eget GPU-lager. Mobil: tunnare band. */}
-          <div ref={railRef} className="flex w-max transform-gpu will-change-transform motion-reduce:w-full motion-reduce:transform-none motion-reduce:will-change-auto">
-            <ul
-              ref={trackRef}
-              aria-label="Fakta om Coavira"
-              className="flex shrink-0 items-center gap-8 py-3 pr-8 motion-reduce:w-full motion-reduce:shrink motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-x-8 motion-reduce:gap-y-3 motion-reduce:pr-0 sm:gap-10 sm:py-5 sm:pr-10"
-            >
-              {TRUST.map((t) => (
-                <TrustItem key={t.label} {...t} />
-              ))}
-            </ul>
-            <ul aria-hidden className="flex shrink-0 items-center gap-8 py-3 pr-8 motion-reduce:hidden sm:gap-10 sm:py-5 sm:pr-10">
-              {TRUST.map((t) => (
-                <TrustItem key={t.label} {...t} />
-              ))}
-            </ul>
-          </div>
-        </div>
-        <button
-          type="button"
-          aria-pressed={paused}
-          aria-label="Pausa rullande fakta"
-          onClick={() => setPaused((p) => !p)}
-          className="grid size-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:bg-white/[0.08] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none motion-reduce:hidden"
-        >
-          {paused ? <Play aria-hidden className="size-4" /> : <Pause aria-hidden className="size-4" />}
-        </button>
-      </div>
+    <div className="relative z-10 border-y border-white/[0.06]">
+      <ul aria-label="Det här är Coavira" className="mx-auto grid max-w-7xl grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 sm:gap-x-8 sm:px-6 lg:grid-cols-4 lg:px-8">
+        {TRUST.map(({ label, sub, icon: Icon }, i) => (
+          <li key={label} className={cn(ENTER, "flex min-w-0 items-start gap-3 duration-700 slide-in-from-bottom-3")} style={enterDelay(0.55 + i * 0.07)}>
+            <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand sm:size-9">
+              <Icon aria-hidden className="size-4 sm:size-[18px]" />
+            </span>
+            <span className="min-w-0 leading-snug">
+              <span className="block text-[13px] font-semibold sm:text-sm">{label}</span>
+              <span className="block text-xs text-pretty text-muted-foreground sm:text-[13px]">{sub}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
-  )
-}
-
-function TrustItem({ label, icon: Icon }: { label: string; icon: LucideIcon }) {
-  return (
-    <li className="flex shrink-0 items-center gap-2 text-[13px] font-medium whitespace-nowrap text-foreground/85 sm:gap-2.5 sm:text-sm">
-      <span className="grid size-6 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-brand sm:size-7">
-        <Icon aria-hidden className="size-3.5" />
-      </span>
-      {label}
-    </li>
   )
 }

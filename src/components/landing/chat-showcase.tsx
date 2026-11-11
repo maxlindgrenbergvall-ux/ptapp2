@@ -38,7 +38,7 @@ import * as React from "react"
 
 import { BrandGlyph } from "@/components/brand"
 import { PersonAvatar } from "@/components/common"
-import { EASE, FloatingBadge, GlassCard, GradientText, PhoneFrame, Reveal, Section, Stagger, StaggerItem } from "@/components/landing/primitives"
+import { EASE, FloatingBadge, GlassCard, GradientText, PhoneFrame, Reveal, ScrollRise, Section, Stagger, StaggerItem } from "@/components/landing/primitives"
 import { cn } from "@/lib/utils"
 
 /* ------------------------------------------------------------------ */
@@ -256,15 +256,11 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
             <GlassCard
               onPointerEnter={(e) => e.pointerType === "mouse" && onSpot(f.spot)}
               onPointerLeave={() => onSpot(null)}
-              whileHover={{ y: -4 }}
-              transition={{ type: "spring", stiffness: 320, damping: 24 }}
-              className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 md:items-start md:gap-4 md:rounded-3xl md:p-5 lg:p-6"
+              whileHover={{ y: -2 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="group flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-colors duration-500 hover:border-white/20 md:items-start md:gap-4 md:rounded-3xl md:p-5 lg:p-6"
             >
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-              />
-              <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20 md:size-11 md:rounded-2xl">
+              <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand md:size-11 md:rounded-2xl">
                 <f.icon className="size-[18px] md:size-5" />
               </span>
               <div className="min-w-0 flex-1">
@@ -296,7 +292,7 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
           disabled={callOpen}
           onClick={(e) => onTry(e.currentTarget)}
           className={cn(
-            "group inline-flex h-12 shrink-0 items-center gap-2.5 rounded-full bg-brand pr-6 pl-2 text-sm font-semibold whitespace-nowrap text-brand-foreground shadow-[0_10px_40px_-10px] shadow-brand/60 transition-[translate,box-shadow,opacity] duration-300 hover:-translate-y-0.5 hover:shadow-brand/80 active:translate-y-0 disabled:opacity-70 motion-reduce:hover:translate-y-0",
+            "group inline-flex h-12 shrink-0 items-center gap-2.5 rounded-full bg-brand pr-6 pl-2 text-sm font-semibold whitespace-nowrap text-brand-foreground transition-[translate,filter,opacity] duration-300 ease-[var(--landing-ease)] hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0 disabled:opacity-70 motion-reduce:hover:translate-y-0",
             FOCUS
           )}
         >
@@ -318,36 +314,26 @@ function FeatureColumn({ callOpen, onSpot, onTry }: { callOpen: boolean; onSpot:
 function DemoStage({ phoneRef, callOpen, children }: { phoneRef: React.RefObject<HTMLDivElement | null>; callOpen: boolean; children: React.ReactNode }) {
   return (
     <div className="relative flex flex-col items-center">
-      {/* Bakgrund: grönt sken (starkare under samtal) och en roterande ring. Skenen är radiella
-          gradienter (inget blur-filter), ringen en CSS-animation som bara finns från md. */}
+      {/* Bakgrund: ett svagt sken (lite starkare under samtal) och en tunn, stilla ring från md.
+          Skenen är radiella gradienter – inget blur-filter. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="absolute size-[560px] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_18%,transparent),transparent)] md:size-[640px]" />
+        <div className="absolute size-[560px] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_8%,transparent),transparent)] md:size-[640px]" />
         <div
           className={cn(
-            "absolute size-[440px] bg-[radial-gradient(closest-side,oklch(0.765_0.177_163/0.28),transparent)] opacity-0 transition-opacity duration-700 ease-out",
+            "absolute size-[440px] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_14%,transparent),transparent)] opacity-0 transition-opacity duration-700 ease-out",
             callOpen && "opacity-100"
           )}
         />
-        <svg
-          viewBox="0 0 100 100"
-          className="absolute hidden size-[440px] transform-gpu text-white/[0.08] motion-safe:animate-[spin_90s_linear_infinite] md:block"
-        >
-          <circle cx="50" cy="50" r="49.5" fill="none" stroke="currentColor" strokeWidth="0.25" strokeDasharray="0.6 2.2" />
-        </svg>
-        <div className="absolute hidden size-[560px] rounded-full border border-white/[0.04] xl:block" />
+        <div className="absolute hidden size-[440px] rounded-full border border-white/[0.06] md:block" />
       </div>
 
       <div className="relative">
-        <motion.div
-          ref={phoneRef}
-          initial={{ opacity: 0, y: 60, rotateX: 14, scale: 0.94 }}
-          whileInView={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 1, ease: EASE }}
-          style={{ transformPerspective: 1200 }}
-        >
-          <PhoneFrame time="12:07">{children}</PhoneFrame>
-        </motion.div>
+        {/* Telefonen tonar in och glider upp i takt med scrollen (ScrollRise) – ingen 3D-vridning. */}
+        <ScrollRise>
+          <motion.div ref={phoneRef} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.8, ease: EASE }}>
+            <PhoneFrame time="12:07">{children}</PhoneFrame>
+          </motion.div>
+        </ScrollRise>
 
         {/* Dekorativa brickor runt telefonen: bara på breda skärmar (xl), aldrig på telefon. */}
         <div aria-hidden className={cn("pointer-events-none absolute inset-0 hidden transition-opacity duration-500 xl:block", callOpen && "opacity-0")}>
@@ -828,9 +814,9 @@ function RemoteFeed({ phase }: { phase: Phase }) {
             {/* Personen (stiliserad, i motljus) */}
             <div style={floatVars("-3px", "4.5s")} className="landing-float absolute inset-x-0 bottom-0 flex flex-col items-center">
               <div className="absolute bottom-[72px] size-72 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_12%,transparent),transparent)]" />
-              <div className="relative size-[84px] rounded-full bg-[radial-gradient(circle_at_38%_30%,#557a66,#1d2c25_72%)] ring-1 ring-emerald-100/15" />
+              <div className="relative size-[84px] rounded-full bg-[radial-gradient(circle_at_38%_30%,#557a66,#1d2c25_72%)] ring-1 ring-white/15" />
               <div className="relative -mt-1 h-4 w-9 bg-[#1f2f27]" />
-              <div className="relative -mt-1 h-[150px] w-[220px] rounded-t-[110px] bg-[linear-gradient(180deg,#2e4a3c,#121c17)] ring-1 ring-emerald-100/10">
+              <div className="relative -mt-1 h-[150px] w-[220px] rounded-t-[110px] bg-[linear-gradient(180deg,#2e4a3c,#121c17)] ring-1 ring-white/10">
                 {/* Coavira-märket på tröjan */}
                 <span className="absolute top-12 left-16 flex size-5 items-center justify-center rounded-md bg-brand/85 text-brand-foreground">
                   <BrandGlyph className="size-3.5" />
@@ -978,12 +964,12 @@ function SelfView({
       className="absolute right-3 bottom-3 z-10 aspect-[3/4] w-[84px] cursor-grab touch-none overflow-hidden will-change-transform rounded-2xl border border-white/25 shadow-2xl shadow-black/50 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-black active:cursor-grabbing"
     >
       {cameraOff ? (
-        <div aria-hidden className="flex h-full flex-col items-center justify-center gap-1 bg-[#161b21] text-white/75">
+        <div aria-hidden className="flex h-full flex-col items-center justify-center gap-1 bg-[#1a221e] text-white/75">
           <VideoOff className="size-5" />
           <span className="text-[10px]">Kamera av</span>
         </div>
       ) : (
-        <div aria-hidden className="relative h-full bg-[linear-gradient(160deg,var(--brand),#34d399_45%,#065f46)]">
+        <div aria-hidden className="relative h-full bg-[linear-gradient(160deg,var(--brand),#3f6212)]">
           <span className="absolute top-[24%] left-1/2 size-8 -translate-x-1/2 rounded-full bg-black/25" />
           <span className="absolute bottom-0 left-1/2 h-9 w-16 -translate-x-1/2 rounded-t-full bg-black/25" />
         </div>

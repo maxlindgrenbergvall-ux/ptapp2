@@ -49,19 +49,19 @@ import * as React from "react"
 
 import { LINKS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
-import { EASE, fadeUp, FloatingBadge, GlowOrb, GradientText, GridBackdrop, Reveal, Section, stagger, useConfetti } from "@/components/landing/primitives"
+import { EASE, fadeUp, FloatingBadge, GlowOrb, GradientText, Reveal, Section, stagger } from "@/components/landing/primitives"
 import { formatSek } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 const SPRING = { type: "spring", stiffness: 420, damping: 34 } as const
-const LIFT = { type: "spring", stiffness: 260, damping: 22 } as const
+const LIFT = { duration: 0.45, ease: EASE } as const
 const PRIMARY_BTN =
-  "group/btn inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-brand-foreground shadow-[0_14px_40px_-14px] shadow-brand/80 transition-[background-color,transform] hover:bg-brand/90 active:scale-[0.98] motion-reduce:active:scale-100"
+  "group/btn inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-brand px-6 text-sm font-semibold text-brand-foreground transition-[background-color,transform] duration-300 ease-[var(--landing-ease)] hover:bg-brand/90 active:scale-[0.98] motion-reduce:active:scale-100"
 const GHOST_BTN =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-foreground transition-colors hover:border-white/20 hover:bg-white/[0.08]"
 /** Appens panelbakgrund (kort i mörkt läge) för mockups inne i glaskorten. */
-const PANEL = "rounded-2xl border border-white/10 bg-[#0d1218]/90 shadow-2xl shadow-black/40"
+const PANEL = "rounded-2xl border border-white/10 bg-[#161d19]/90 shadow-2xl shadow-black/40"
 const DIVIDER = "h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
 /** Mjuk grön glöd som radiell gradient – samma känsla som blur, men utan filterpass vid scroll. */
 const GLOW = "bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)]"
@@ -210,45 +210,25 @@ const RING_MASK: React.CSSProperties = {
   maskComposite: "exclude",
 }
 
-/**
- * Gradientkant med en ljusstråle som roterar runt det framhävda kortet.
- * Strålen är en ren CSS-animation (rotate på kompositorn – ingen JS per
- * bildruta), finns bara från md, pausas när kortet är utanför bild och står
- * still med "minska rörelse". Under md syns bara den stillastående kanten.
- * Lagret är en kvadrat med kortets diagonal som sida (hypot via containerenheter)
- * – precis stort nog att täcka kanten i alla vinklar, så GPU-ytan hålls nere.
- */
-function BeamBorder() {
-  const ref = React.useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { margin: "-10% 0px" })
-  return (
-    <div ref={ref} aria-hidden style={RING_MASK} className="pointer-events-none absolute -inset-px overflow-hidden rounded-[inherit] p-px [container-type:size]">
-      <div className="absolute inset-0 bg-gradient-to-b from-brand/45 via-white/10 to-emerald-500/35" />
-      <div
-        className={cn(
-          "absolute top-1/2 left-1/2 hidden size-[hypot(100cqw,100cqh)] -translate-x-1/2 -translate-y-1/2 animate-[spin_8s_linear_infinite] [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_40deg,#6ee7b7_80deg,transparent_140deg,transparent_190deg,#10b981_240deg,transparent_300deg)] motion-reduce:animate-none md:block",
-          !inView && "[animation-play-state:paused]"
-        )}
-      />
-    </div>
-  )
+/** Stilla kant i accentfärgen runt det framhävda kortet – starkast upptill, tonar ut nedåt. */
+function AccentBorder() {
+  return <div aria-hidden style={RING_MASK} className="pointer-events-none absolute -inset-px rounded-[inherit] bg-gradient-to-b from-brand/55 via-brand/15 to-white/10 p-px" />
 }
 
 /**
- * Glaskort som lyfter vid hover och lyser grönt där muspekaren är (bara mus).
- * `highlight` ger gradientkanten med strålen och en grön ton uppifrån.
- * Suddig bakgrund bara från md – på telefon en något tätare bakgrund i stället.
+ * Kort som lyfter en aning vid hover och får ett svagt, neutralt ljus där
+ * muspekaren är (bara mus). `highlight` ger kanten i accentfärgen.
  */
 function PriceCard({
   children,
   className,
   highlight,
-  lift = -6,
+  lift = -4,
   ...rest
 }: { children: React.ReactNode; className?: string; highlight?: boolean; lift?: number } & Omit<HTMLMotionProps<"article">, "children">) {
   const mx = useMotionValue(-999)
   const my = useMotionValue(-999)
-  const spot = useMotionTemplate`radial-gradient(440px circle at ${mx}px ${my}px, rgba(172, 237, 55, 0.09), transparent 65%)`
+  const spot = useMotionTemplate`radial-gradient(440px circle at ${mx}px ${my}px, rgb(249 251 248 / 0.055), transparent 65%)`
   return (
     <motion.article
       whileHover={{ y: lift }}
@@ -260,18 +240,17 @@ function PriceCard({
         my.set(e.clientY - r.top)
       }}
       className={cn(
-        "group/card relative rounded-3xl border bg-white/[0.05] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset,0_40px_90px_-50px_rgba(0,0,0,0.9)] md:bg-white/[0.04] md:backdrop-blur-md",
+        "group/card relative rounded-3xl border bg-white/[0.04] shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]",
         highlight ? "border-transparent" : "border-white/10",
         className
       )}
       {...rest}
     >
-      {highlight && <BeamBorder />}
-      {highlight && <div aria-hidden className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-b from-brand/[0.08] via-transparent to-transparent" />}
+      {highlight && <AccentBorder />}
       <motion.div
         aria-hidden
         style={{ background: spot }}
-        className="pointer-events-none absolute inset-0 hidden rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover/card:opacity-100 md:block"
+        className="pointer-events-none absolute inset-0 hidden rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover/card:opacity-100 md:block"
       />
       <div className="relative">{children}</div>
     </motion.article>
@@ -335,7 +314,7 @@ function AudienceToggle({ value, onChange }: { value: Audience; onChange: (a: Au
       <div
         role="tablist"
         aria-label="Visa priser för"
-        className="relative flex w-full max-w-sm rounded-full border border-white/10 bg-white/[0.05] p-1 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] md:bg-white/[0.04] md:backdrop-blur-md"
+        className="relative flex w-full max-w-sm rounded-full border border-white/10 bg-white/[0.04] p-1 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]"
       >
         {AUDIENCES.map(({ id, label, icon: Icon }) => {
           const active = id === value
@@ -357,7 +336,7 @@ function AudienceToggle({ value, onChange }: { value: Audience; onChange: (a: Au
               )}
             >
               {active && (
-                <motion.span layoutId="pill" transition={SPRING} aria-hidden className="absolute inset-0 rounded-full bg-brand shadow-[0_8px_28px_-8px] shadow-brand/70" />
+                <motion.span layoutId="pill" transition={SPRING} aria-hidden className="absolute inset-0 rounded-full bg-brand" />
               )}
               <Icon aria-hidden className="relative size-4" />
               <span className="relative">{label}</span>
@@ -442,7 +421,7 @@ function ApplySteps() {
           whileInView={{ scaleX: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 1.2, ease: EASE, delay: 0.3 }}
-          className="absolute top-5 right-[16.66%] left-[16.66%] h-px origin-left bg-gradient-to-r from-brand to-emerald-400"
+          className="absolute top-5 right-[16.66%] left-[16.66%] h-px origin-left bg-brand/60"
         />
         <ol className="relative grid grid-cols-3 gap-2">
           {APPLY_STEPS.map(({ icon: Icon, label }, i) => (
@@ -454,7 +433,7 @@ function ApplySteps() {
               transition={{ duration: 0.5, ease: EASE, delay: 0.2 + i * 0.35 }}
               className="flex flex-col items-center gap-2 text-center"
             >
-              <span aria-hidden className="grid size-10 place-items-center rounded-full border border-brand/30 bg-[#0d1218] text-brand shadow-[0_0_24px_-6px] shadow-brand/60">
+              <span aria-hidden className="grid size-10 place-items-center rounded-full border border-brand/30 bg-[#161d19] text-brand">
                 <Icon className="size-4" />
               </span>
               <span className="text-xs leading-snug text-muted-foreground">
@@ -520,7 +499,7 @@ function PtIdentity() {
     <div className="flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-0.5 pr-3 pl-0.5 sm:gap-2.5 sm:py-1 sm:pr-3.5 sm:pl-1">
       <span
         aria-hidden
-        className="grid size-7 place-items-center rounded-full bg-gradient-to-br from-brand to-emerald-400 text-[10px] font-bold text-brand-foreground sm:size-9 sm:text-xs"
+        className="grid size-7 place-items-center rounded-full bg-brand text-[10px] font-bold text-brand-foreground sm:size-9 sm:text-xs"
       >
         ES
       </span>
@@ -565,7 +544,6 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
   // Ljussvepet startar en gång när mersälj-raden (inte kortets topp) syns.
   const shine = useInView(upsellRef, { once: true, margin: "0px 0px -20% 0px" })
   const reduce = !!useReducedMotion()
-  const fire = useConfetti()
   const [open, setOpen] = React.useState(false)
   const [say, setSay] = React.useState("")
 
@@ -597,7 +575,6 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
     onAddOn(true)
     setOpen(false)
     setSay(`Tillagt! Kostcoaching hos ${PT_FIRST}. Totalt ${formatSek(prices[selected] + prices.nutrition)}.`)
-    void fire(upsellRef.current, { particles: 80, spread: 75 })
     requestAnimationFrame(() => undoRef.current?.focus())
   }
 
@@ -638,11 +615,11 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
               <p className="mt-1 text-xs text-pretty text-muted-foreground sm:text-sm">
                 {pt ? (
                   <>
-                    <span className="font-medium text-emerald-300">Exempel – du sätter dina egna priser.</span> Ändra ett pris och se köpet ur klientens vy.
+                    <span className="font-medium text-brand">Exempel – du sätter dina egna priser.</span> Ändra ett pris och se köpet ur klientens vy.
                   </>
                 ) : (
                   <>
-                    <span className="font-medium text-emerald-300">Exempelpriser – PT:n sätter sina egna.</span> Välj en tjänst och testa mersäljet.
+                    <span className="font-medium text-brand">Exempelpriser – PT:n sätter sina egna.</span> Välj en tjänst och testa mersäljet.
                   </>
                 )}
               </p>
@@ -665,7 +642,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                       transition={SPRING}
                       style={{ borderRadius: 16 }}
                       aria-hidden
-                      className="absolute -inset-px border border-brand/60 bg-brand/[0.07] shadow-[0_0_32px_-12px] shadow-brand/70"
+                      className="absolute -inset-px border border-brand/60 bg-brand/[0.07]"
                     />
                   )}
                   <motion.button
@@ -693,7 +670,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="text-[13px] leading-tight font-semibold hyphens-auto sm:text-base">{s.title}</span>
                         {s.tag && (
-                          <span className="hidden rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-300 uppercase ring-1 ring-emerald-400/20 sm:inline-block">
+                          <span className="hidden rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-brand uppercase ring-1 ring-brand/20 sm:inline-block">
                             {s.tag}
                           </span>
                         )}
@@ -878,7 +855,7 @@ function ServicesCard({ audience, prices, onPrice, selected, onSelect, addOn, on
                           e.stopPropagation()
                           decline()
                         }}
-                        className="relative mt-2 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#141a22] p-3 shadow-2xl shadow-black/50 sm:p-4"
+                        className="relative mt-2 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#1f2823] p-3 shadow-2xl shadow-black/50 sm:p-4"
                       >
                         <div aria-hidden className={cn("pointer-events-none absolute -top-14 -right-14 size-44", GLOW)} />
                         <div className="relative flex items-start gap-3">
@@ -925,7 +902,7 @@ function ServicesColumn({ className, ...props }: ServicesProps & { className?: s
   return (
     <div className={cn("relative", className)}>
       <div aria-hidden className="absolute right-10 -bottom-8 z-10 hidden lg:block">
-        <FloatingBadge className="relative" delay={0.9} distance={8}>
+        <FloatingBadge className="relative" delay={0.9}>
           <Salad className="size-4 text-brand" /> Träning och kost hos samma PT
         </FloatingBadge>
       </div>
@@ -951,8 +928,8 @@ function Promises() {
         <motion.li
           key={title}
           variants={fadeUp}
-          whileHover={{ y: -3 }}
-          className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-white/20 md:backdrop-blur-md"
+          whileHover={{ y: -2 }}
+          className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors duration-500 hover:border-white/20"
         >
           <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand ring-1 ring-brand/20">
             <Icon className="size-5" />
@@ -967,13 +944,11 @@ function Promises() {
   )
 }
 
-/** Rutnät och gröna glödfält (radiella gradienter, inga blur-filter) bakom sektionen. */
+/** Ett svagt ljus bakom korten (radiell gradient, inget blur-filter). */
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-      <GridBackdrop className="opacity-50" />
-      <GlowOrb className="top-1/3 left-[6%] size-[26rem] max-w-[80vw]" />
-      <GlowOrb className="right-[6%] bottom-[12%] size-[22rem] max-w-[70vw] bg-[radial-gradient(closest-side,rgba(16,185,129,0.16),transparent)]" />
+      <GlowOrb className="top-1/4 left-1/2 size-[34rem] max-w-[90vw] -translate-x-1/2" />
     </div>
   )
 }

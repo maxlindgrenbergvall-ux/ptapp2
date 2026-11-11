@@ -7,9 +7,10 @@
  * fram ur mätpunktens nyckel (samma värden varje gång) – inga riktiga
  * användare eller siffror.
  *
- * Prestanda: ringen och omloppsbanan roterar med CSS (kompositorn, ingen
- * JavaScript per bildruta) och visas bara från md. Inga blur-filter – sken är
- * radiella gradienter. Scroll-parallaxen monteras bara från md.
+ * Rörelse (v45): ingenting snurrar eller pulserar. Telefonen glider på plats
+ * i takt med scrollen (ScrollRise), emojierna på ringen flyttar sig bara när
+ * man ändrar sina mål och scroll-parallaxen monteras bara från md. Inga
+ * blur-filter – skenet är en radiell gradient.
  */
 import {
   AnimatePresence,
@@ -51,7 +52,7 @@ import * as React from "react"
 
 import { LINKS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
-import { EASE, FloatingBadge, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Reveal, Section, useConfetti } from "@/components/landing/primitives"
+import { EASE, FloatingBadge, GlassCard, GlowOrb, GradientText, PhoneFrame, Reveal, ScrollRise, Section } from "@/components/landing/primitives"
 import { INTERESTS, formatSeconds, metricsFor, type InterestDef, type MetricDef } from "@/lib/interests"
 import { cn } from "@/lib/utils"
 import { SPECIALTIES } from "@/types/domain"
@@ -97,13 +98,13 @@ const FOCUS: Record<string, string> = {
 /** Påhittade PT:er för illustrationen. */
 const PT_POOL = [
   { name: "Elin Söderberg", tone: "bg-brand/20 text-brand" },
-  { name: "Jonas Ek", tone: "bg-emerald-400/20 text-emerald-300" },
-  { name: "Amira Haddad", tone: "bg-sky-400/20 text-sky-300" },
-  { name: "Viktor Lund", tone: "bg-amber-400/20 text-amber-300" },
-  { name: "Maja Berg", tone: "bg-rose-400/20 text-rose-300" },
-  { name: "Oskar Nyström", tone: "bg-violet-400/20 text-violet-300" },
-  { name: "Linnea Holm", tone: "bg-teal-400/20 text-teal-300" },
-  { name: "Sami Korhonen", tone: "bg-lime-400/20 text-lime-300" },
+  { name: "Jonas Ek", tone: "bg-white/10 text-foreground" },
+  { name: "Amira Haddad", tone: "bg-white/10 text-foreground" },
+  { name: "Viktor Lund", tone: "bg-brand/20 text-brand" },
+  { name: "Maja Berg", tone: "bg-white/10 text-foreground" },
+  { name: "Oskar Nyström", tone: "bg-brand/20 text-brand" },
+  { name: "Linnea Holm", tone: "bg-white/10 text-foreground" },
+  { name: "Sami Korhonen", tone: "bg-brand/20 text-brand" },
 ]
 
 /** Exempelintervall per mätpunkt: senaste värde (lo–hi), förbättring över perioden och avrundning. */
@@ -251,18 +252,6 @@ const useFromMd = () =>
     () => false
   )
 
-/**
- * Startar en nyss monterad emojis motrotation (CSS) i takt med omloppsbanans rotation –
- * annars står emojin snett om den läggs till efter att banan börjat snurra. Körs en gång
- * vid montering, aldrig per bildruta.
- */
-function syncSpin(el: HTMLElement | null) {
-  if (!el || typeof el.getAnimations !== "function") return
-  const lead = el.closest<HTMLElement>("[data-omlopp]")?.getAnimations()[0]
-  const own = el.getAnimations()[0]
-  if (own && lead && lead.startTime !== null) own.startTime = lead.startTime
-}
-
 /* ------------------------------------------------------------------ */
 /* Sektionen                                                           */
 /* ------------------------------------------------------------------ */
@@ -275,7 +264,6 @@ export function GoalShowcase() {
   const [pulse, setPulse] = React.useState<Pulse>({ n: 0, kind: "init", focus: null })
   const [denied, setDenied] = React.useState(0)
   const [notice, setNotice] = React.useState("")
-  const fire = useConfetti()
 
   const chosen = selected.flatMap((k) => INTERESTS.find((i) => i.key === k) ?? [])
   const groups = groupsFor(selected)
@@ -286,7 +274,7 @@ export function GoalShowcase() {
 
   const bump = (kind: Pulse["kind"], focus: string | null = null) => setPulse((p) => ({ n: p.n + 1, kind, focus }))
 
-  const toggle = (interest: InterestDef, from: HTMLElement) => {
+  const toggle = (interest: InterestDef) => {
     if (selected.includes(interest.key)) {
       const next = selected.filter((k) => k !== interest.key)
       setSelected(next)
@@ -306,7 +294,6 @@ export function GoalShowcase() {
     bump("add", interest.key)
     const full = next.length === MAX_GOALS
     setNotice(`${interest.label} tillagt. Framsteg visar nu ${interest.metrics.map((m) => m.label).join(", ")}.${full ? " Tre mål valda – full pott!" : ""}`)
-    if (full) void fire(from, { particles: 80, spread: 75 })
   }
 
   const clear = () => {
@@ -359,14 +346,12 @@ export function GoalShowcase() {
   )
 }
 
-/** Rutnät och gröna glöd bakom sektionen. */
+/** En tunn skiljelinje överst och ett svagt ljus bakom telefonen. */
 function Backdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <GridBackdrop className="opacity-70 [mask-image:radial-gradient(ellipse_55%_45%_at_70%_55%,black_10%,transparent_75%)]" />
-      <GlowOrb className="top-[30%] right-[-12%] size-[36rem] bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_12%,transparent),transparent)]" />
-      <GlowOrb className="top-[55%] left-[-14%] size-[30rem] bg-[radial-gradient(closest-side,rgb(16_185_129/0.1),transparent)]" />
+      <GlowOrb className="top-[28%] right-[-12%] size-[36rem] max-md:hidden" />
     </div>
   )
 }
@@ -391,7 +376,7 @@ function GoalPicker({
   selected: string[]
   denied: number
   onRole: (role: Role) => void
-  onToggle: (interest: InterestDef, from: HTMLElement) => void
+  onToggle: (interest: InterestDef) => void
   onClear: () => void
 }) {
   const n = selected.length
@@ -404,12 +389,6 @@ function GoalPicker({
   }
   return (
     <GlassCard className="rounded-[2rem] p-4 sm:p-7 lg:rounded-b-none lg:border-b-0 lg:pb-6">
-      <div aria-hidden className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/60 to-transparent" />
-      {/* Sken som gradient i stället för blur-filter. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -right-32 size-80 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_16%,transparent),transparent)]"
-      />
 
       <RoleToggle role={role} onChange={onRole} />
 
@@ -528,7 +507,7 @@ function RoleToggle({ role, onChange }: { role: Role; onChange: (role: Role) => 
               on ? "text-brand-foreground" : "text-muted-foreground hover:text-foreground"
             )}
           >
-            {on && <motion.span aria-hidden layoutId="mal-roll-markering" transition={SPRING} className="absolute inset-0 rounded-full bg-brand shadow-[0_0_24px_-6px] shadow-brand/70" />}
+            {on && <motion.span aria-hidden layoutId="mal-roll-markering" transition={SPRING} className="absolute inset-0 rounded-full bg-brand" />}
             <Icon aria-hidden className="relative hidden size-4 sm:block" />
             <span className="relative">{label}</span>
           </button>
@@ -570,7 +549,7 @@ function GoalCounter({ n, denied }: { n: number; denied: number }) {
       <div aria-hidden className="flex gap-1.5">
         {Array.from({ length: MAX_GOALS }, (_, i) => (
           <span key={i} className="h-1.5 w-6 overflow-hidden rounded-full bg-white/10 sm:w-9">
-            <motion.span initial={false} animate={{ scaleX: i < n ? 1 : 0 }} transition={SOFT_SPRING} className="block h-full origin-left rounded-full bg-gradient-to-r from-emerald-400 to-brand" />
+            <motion.span initial={false} animate={{ scaleX: i < n ? 1 : 0 }} transition={SOFT_SPRING} className="block h-full origin-left rounded-full bg-brand" />
           </span>
         ))}
       </div>
@@ -588,7 +567,7 @@ function GoalChip({
   interest: InterestDef
   order: number
   locked: boolean
-  onToggle: (interest: InterestDef, from: HTMLElement) => void
+  onToggle: (interest: InterestDef) => void
 }) {
   const on = order > 0
   return (
@@ -596,15 +575,15 @@ function GoalChip({
       type="button"
       aria-pressed={on}
       aria-disabled={locked || undefined}
-      onClick={(e) => onToggle(interest, e.currentTarget)}
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.93 }}
+      onClick={() => onToggle(interest)}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.96 }}
       transition={SPRING}
       className={cn(
-        "relative inline-flex h-12 shrink-0 snap-start items-center gap-2.5 rounded-2xl border pr-4 pl-1.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,opacity] duration-300 sm:text-[15px]",
+        "relative inline-flex h-12 shrink-0 snap-start items-center gap-2.5 rounded-2xl border pr-4 pl-1.5 text-sm font-semibold transition-[background-color,border-color,color,opacity] duration-300 sm:text-[15px]",
         FOCUS_RING,
         on
-          ? "border-brand/60 bg-brand/[0.12] text-foreground shadow-[0_0_28px_-10px] shadow-brand/70"
+          ? "border-brand/60 bg-brand/[0.12] text-foreground"
           : "border-white/10 bg-white/[0.03] text-foreground/85 hover:border-white/20 hover:bg-white/[0.06] hover:text-foreground",
         locked && "opacity-45"
       )}
@@ -781,16 +760,10 @@ function GoalCta({ role }: { role: Role }) {
 /* Telefonen: scen, sken, omloppsbana och flytande brickor             */
 /* ------------------------------------------------------------------ */
 
-/** Banans och emojins rotation – samma längd, så att motrotationen tar ut banans exakt. */
-const ORBIT_SPIN = "animate-[spin_40s_linear_infinite]"
-const ORBIT_COUNTER_SPIN = "animate-[spin_40s_linear_infinite_reverse]"
-
 function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen: InterestDef[]; groups: Group[]; spot?: InterestDef; pulse: Pulse }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const reduce = !!useReducedMotion()
   const fromMd = useFromMd()
-  // Ringen snurrar bara när telefonen är nära skärmen. Marginalen gör att omstarten aldrig syns.
-  const near = useInView(ref, { margin: "200px 0px" })
   const seen = useInView(ref, { once: true, margin: "0px 0px -20% 0px" })
 
   // Pekaren lutar telefonen (bara mus, inte med "minska rörelse").
@@ -798,8 +771,8 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
   const py = useMotionValue(0)
   const sx = useSpring(px, { stiffness: 90, damping: 18, mass: 0.8 })
   const sy = useSpring(py, { stiffness: 90, damping: 18, mass: 0.8 })
-  const rotateY = useTransform(sx, (v) => -6 + v * 14)
-  const rotateX = useTransform(sy, (v) => 3 - v * 10)
+  const rotateY = useTransform(sx, (v) => -5 + v * 8)
+  const rotateX = useTransform(sy, (v) => 2 - v * 6)
 
   // Parallax (ScrollDrift, bara från md). 0 annars, så att serverns HTML och klientens första rendering är lika.
   const phoneY = useMotionValue(0)
@@ -823,32 +796,27 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
         }}
       >
         <div className="mb-2 hidden justify-center md:flex">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground md:backdrop-blur-md">
-            <span aria-hidden className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand/70 motion-reduce:animate-none" />
-              <span className="relative size-2 rounded-full bg-brand" />
-            </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <span aria-hidden className="size-1.5 rounded-full bg-brand" />
             Live-förhandsvisning · {role === "pt" ? "PT-vy" : "klientvy"}
           </span>
         </div>
 
         <div className="relative flex justify-center py-1 sm:py-6 md:py-8">
-          <Halo spin={near && !reduce} chosen={chosen} reduce={reduce} />
-          {/* Mobil: ett mjukt sken bakom telefonen i stället för ringen (gradient, inget blur-filter). */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-1/2 h-80 -translate-y-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)] md:hidden"
-          />
+          <Halo chosen={chosen} reduce={reduce} />
           {/* Skugga under telefonen. */}
           <div aria-hidden className="pointer-events-none absolute bottom-0 left-1/2 h-20 w-72 -translate-x-1/2 bg-[radial-gradient(closest-side,rgba(0,0,0,0.7),transparent)]" />
 
-          <motion.div style={{ y: phoneY }} className="relative z-10">
-            <motion.div style={{ rotateX, rotateY, transformPerspective: 1400 }}>
-              <PhoneFrame time="07:42">
-                <FramstegScreen role={role} chosen={chosen} groups={groups} pulse={pulse} run={seen} reduce={reduce} />
-              </PhoneFrame>
+          {/* Telefonen glider upp och växer en aning medan den kommer in i bild (ScrollRise). */}
+          <ScrollRise className="relative z-10">
+            <motion.div style={{ y: phoneY }}>
+              <motion.div style={{ rotateX, rotateY, transformPerspective: 1400 }}>
+                <PhoneFrame time="07:42">
+                  <FramstegScreen role={role} chosen={chosen} groups={groups} pulse={pulse} run={seen} reduce={reduce} />
+                </PhoneFrame>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          </ScrollRise>
 
           {/*
             Flytande brickor (dekor – samma fakta står i texten bredvid, och de visas bara från md).
@@ -878,8 +846,8 @@ function PhoneStage({ role, chosen, groups, spot, pulse }: { role: Role; chosen:
                 </span>
               </FloatingBadge>
             )}
-            <FloatingBadge className="-bottom-1 -left-4" delay={0.7} distance={8}>
-              <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300">
+            <FloatingBadge className="-bottom-1 -left-4" delay={0.7}>
+              <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand/15 text-brand">
                 {role === "pt" ? <Target className="size-4" /> : <Eye className="size-4" />}
               </span>
               <span className="text-[13px] font-semibold whitespace-nowrap">{role === "pt" ? "Dina klienters mål 🎯" : "Syns för din PT 👀"}</span>
@@ -924,37 +892,27 @@ function ScrollDrift({ target, phoneY, badgesY }: { target: React.RefObject<HTML
 }
 
 /**
- * Glöd, en roterande ljusring och de valda målens emojis i omloppsbana runt telefonen. Bara
- * från md, och rotationen är ren CSS (kompositorn) – ingen JavaScript per bildruta.
+ * De valda målens emojis på en tunn, stilla ring runt telefonen. Ringen snurrar inte;
+ * emojierna glider till sin nya plats när ett mål läggs till eller tas bort. Bara från md.
  */
-function Halo({ spin, chosen, reduce }: { spin: boolean; chosen: InterestDef[]; reduce: boolean }) {
+function Halo({ chosen, reduce }: { chosen: InterestDef[]; reduce: boolean }) {
   return (
     <div aria-hidden className="pointer-events-none absolute top-1/2 left-1/2 hidden aspect-square w-[min(30rem,calc(100%_-_3.5rem))] -translate-x-1/2 -translate-y-1/2 md:block">
-      <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.17),transparent_76%)]" />
-      <div
-        className={cn(
-          "absolute inset-0 rounded-full opacity-80 [background:conic-gradient(from_0deg,transparent_0deg,var(--brand)_60deg,transparent_140deg,#34d399_220deg,transparent_310deg)] [mask-image:radial-gradient(closest-side,transparent_calc(100%_-_2px),black_calc(100%_-_1px))]",
-          spin && "animate-[spin_24s_linear_infinite] motion-reduce:animate-none"
-        )}
-      />
-      <div className="absolute inset-[13%] rounded-full border border-dashed border-white/[0.07]" />
-      <div data-omlopp className={cn("absolute inset-0", spin && ORBIT_SPIN)}>
-        <AnimatePresence>
-          {chosen.map((interest, i) => (
-            <Orbiter key={interest.key} emoji={interest.emoji} angle={55 + (i * 360) / chosen.length} spin={spin} reduce={reduce} />
-          ))}
-        </AnimatePresence>
-      </div>
+      <div className="absolute inset-0 rounded-full border border-white/[0.07]" />
+      <AnimatePresence>
+        {chosen.map((interest, i) => (
+          <Orbiter key={interest.key} emoji={interest.emoji} angle={55 + (i * 360) / chosen.length} reduce={reduce} />
+        ))}
+      </AnimatePresence>
     </div>
   )
 }
 
 /**
  * En emoji på ringen. Glider till sin nya plats när mål läggs till eller tas bort och står
- * alltid upprätt: banans CSS-rotation tas ut av samma rotation baklänges (i takt via syncSpin),
- * platsens vinkel av en motrotation som bara rör sig medan emojin byter plats.
+ * alltid upprätt: platsens vinkel tas ut av en motrotation som bara rör sig medan emojin byter plats.
  */
-function Orbiter({ emoji, angle, spin, reduce }: { emoji: string; angle: number; spin: boolean; reduce: boolean }) {
+function Orbiter({ emoji, angle, reduce }: { emoji: string; angle: number; reduce: boolean }) {
   const theta = useSpring(angle, { stiffness: 110, damping: 18 })
   React.useEffect(() => {
     if (reduce) theta.jump(angle)
@@ -963,14 +921,14 @@ function Orbiter({ emoji, angle, spin, reduce }: { emoji: string; angle: number;
   const upright = useTransform(theta, (t) => -t)
   return (
     <motion.div style={{ rotate: theta }} className="absolute inset-0">
-      <span ref={syncSpin} className={cn("absolute top-0 left-1/2 -mt-6 -ml-6 size-12", spin && ORBIT_COUNTER_SPIN)}>
+      <span className="absolute top-0 left-1/2 -mt-6 -ml-6 size-12">
         <motion.span
           style={{ rotate: upright }}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0, opacity: 0 }}
           transition={SPRING}
-          className="grid size-full place-items-center rounded-full border border-white/10 bg-[#11161d]/90 text-2xl shadow-lg shadow-black/50"
+          className="grid size-full place-items-center rounded-full border border-white/10 bg-card text-2xl shadow-lg shadow-black/30"
         >
           {emoji}
         </motion.span>
@@ -1031,8 +989,8 @@ function FramstegScreen({ role, chosen, groups, pulse, run, reduce }: { role: Ro
       <svg aria-hidden width="0" height="0" className="absolute">
         <defs>
           <linearGradient id="mal-spark-fyllning" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#aced37" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#aced37" stopOpacity="0" />
+            <stop offset="0%" stopColor="#84cc16" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#84cc16" stopOpacity="0" />
           </linearGradient>
         </defs>
       </svg>
@@ -1204,7 +1162,7 @@ function PtHeader({ chosen }: { chosen: InterestDef[] }) {
         <ArrowLeft aria-hidden className="size-3" /> Alla klienter
       </p>
       <div className="mt-2 flex items-center gap-2.5">
-        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-[13px] font-semibold text-emerald-300">
+        <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand/15 text-[13px] font-semibold text-brand">
           SL
         </span>
         <div className="min-w-0">
@@ -1257,7 +1215,7 @@ function Sweep({ n }: { n: number }) {
       initial={{ y: -120, opacity: 0 }}
       animate={{ y: 560, opacity: [0, 1, 1, 0] }}
       transition={{ duration: 1, ease: [0.4, 0, 0.2, 1] }}
-      className="pointer-events-none absolute inset-x-0 top-0 z-20 h-28 bg-[linear-gradient(to_bottom,transparent,rgba(172,237,55,0.08)_70%,rgba(172,237,55,0.32)_97%,transparent)]"
+      className="pointer-events-none absolute inset-x-0 top-0 z-20 h-28 bg-[linear-gradient(to_bottom,transparent,rgba(132,204,22,0.05)_70%,rgba(132,204,22,0.2)_97%,transparent)]"
     />
   )
 }

@@ -183,42 +183,54 @@
 }
 
 /*
- * Landningssidan (/): alltid mörk – djup onyx (#0A0D12) med elektriskt gröna
- * accenter – oavsett systemtema. Samma variabelnamn som appen, så att appens
- * egna komponenter (Button, Badge, BrandMark …) ser rätt ut även här.
+ * Landningssidan (/): alltid mörk, oavsett systemtema. Paletten är strikt (v45):
+ *   bakgrund #131916 · text #f9fbf8 · accent #84cc16.
+ * Ytor (kort, popover) är samma gröngrå ton ett steg ljusare och dämpad text är
+ * textfärgen nedtonad – inga andra kulörer. Undantag: makrofärgerna inne i
+ * app-mockuperna, som är appens egna och visar hur den faktiskt ser ut.
+ * Samma variabelnamn som appen, så att appens komponenter (Button, Badge,
+ * BrandMark …) ser rätt ut även här.
  */
 .landing {
   color-scheme: dark;
-  --background: #0a0d12;
-  --foreground: oklch(0.97 0.006 130);
-  --card: #11161d;
-  --card-foreground: oklch(0.97 0.006 130);
-  --popover: #141a22;
-  --popover-foreground: oklch(0.97 0.006 130);
-  --primary: oklch(0.88 0.2 130);
-  --primary-foreground: oklch(0.2 0.05 140);
-  --secondary: oklch(1 0 0 / 8%);
-  --secondary-foreground: oklch(0.97 0.006 130);
-  --muted: oklch(1 0 0 / 6%);
-  --muted-foreground: oklch(0.76 0.012 150);
-  --accent: oklch(1 0 0 / 8%);
-  --accent-foreground: oklch(0.94 0.1 130);
+  --background: #131916;
+  --foreground: #f9fbf8;
+  --card: #1a221e;
+  --card-foreground: #f9fbf8;
+  --popover: #1f2823;
+  --popover-foreground: #f9fbf8;
+  --primary: #84cc16;
+  --primary-foreground: #131916;
+  --secondary: rgb(249 251 248 / 8%);
+  --secondary-foreground: #f9fbf8;
+  --muted: rgb(249 251 248 / 6%);
+  /* Text nedtonad mot bakgrunden: 7,6:1 mot #131916. */
+  --muted-foreground: #a3aba6;
+  --accent: rgb(249 251 248 / 8%);
+  --accent-foreground: #f9fbf8;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.78 0.16 133);
-  --brand: oklch(0.88 0.2 130);
-  --brand-foreground: oklch(0.18 0.04 140);
-  --success: oklch(0.78 0.17 140);
+  --border: rgb(249 251 248 / 10%);
+  --input: rgb(249 251 248 / 14%);
+  --ring: #84cc16;
+  --brand: #84cc16;
+  --brand-foreground: #131916;
+  --success: #84cc16;
   --warning: oklch(0.8 0.15 80);
   --macro-protein: #3987e5;
   --macro-carbs: #c98500;
   --macro-fat: #d55181;
+  /* En enda kurva för all rörelse på sidan: snabb start, lång mjuk inbromsning. */
+  --landing-ease: cubic-bezier(0.22, 1, 0.36, 1);
   background-color: var(--background);
   color: var(--foreground);
 }
 
-/* Landningssidan: svävande brickor som ren CSS-animation (transform på GPU:n). */
+/*
+ * Landningssidans få CSS-animationer – bara transform och opacity (kompositorn).
+ * Inget av dem är bakgrundsdekor (v45): landing-float används inne i demoerna
+ * (skanningslinjen, videosamtalet) och bento-travel när en demo skickar en
+ * ljuspunkt mellan två saker.
+ */
 @keyframes landing-float {
   0%,
   100% {
@@ -232,7 +244,6 @@
   animation: landing-float var(--float-dur, 5s) ease-in-out var(--float-delay, 0s) infinite;
   will-change: transform;
 }
-/* Sektionernas CSS-loopar (bento, avslutande CTA) – bara transform och opacity, körs på kompositorn. */
 /* Ljuspunkt från --bento-from-x/y till --bento-to-x/y; tonar in och ut, vilar sista 20 %. */
 @keyframes bento-travel {
   0% {
@@ -247,44 +258,6 @@
   100% {
     transform: translate3d(var(--bento-to-x, 0), var(--bento-to-y, 0), 0);
     opacity: 0;
-  }
-}
-/* Pulsring som växer till --bento-ring-scale och tonar ut från --bento-ring-from. */
-@keyframes bento-ring {
-  0% {
-    transform: scale(1);
-    opacity: var(--bento-ring-from, 0.6);
-  }
-  100% {
-    transform: scale(var(--bento-ring-scale, 1.5));
-    opacity: 0;
-  }
-}
-@keyframes bento-blink {
-  0%,
-  100% {
-    opacity: 0.2;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-@keyframes cta-ring {
-  from {
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(1.08, 1.35);
-  }
-}
-@keyframes cta-drift {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 56px, 0);
   }
 }
 /* Telefoner: ingen backdrop-filter (dyrt vid scroll); korten har tät nog bakgrund ändå. */

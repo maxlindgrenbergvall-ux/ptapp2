@@ -49,7 +49,15 @@ check((await p.locator("text=Koppla samman med din PT").first().isVisible()), "u
 const heroText = await p.locator("#hero-title").evaluate((el) => el.closest("section")?.innerText ?? "")
 check(!/betalningskrångel|framtidens|sömlös/i.test(heroText), "hero utan betalningskrångel/AI-fraser")
 const bg = await p.evaluate(() => getComputedStyle(document.querySelector(".landing")).backgroundColor)
-check(/rgb\(10, 13, 18\)|#0a0d12/i.test(bg), `alltid mörk bakgrund även i ljust systemtema (${bg})`)
+check(/rgb\(19, 25, 22\)/.test(bg), `alltid mörk bakgrund (#131916) även i ljust systemtema (${bg})`)
+// v45: strikt palett – text #f9fbf8 och accent #84cc16, rubriken i en ren färg (ingen gradient).
+const palette = await p.evaluate(() => {
+  const root = getComputedStyle(document.querySelector(".landing"))
+  const accent = document.querySelector("#hero-title > span")
+  return { text: root.color, accent: getComputedStyle(accent).color, gradient: getComputedStyle(accent).backgroundImage }
+})
+check(palette.text === "rgb(249, 251, 248)", `textfärgen är #f9fbf8 (${palette.text})`)
+check(palette.accent === "rgb(132, 204, 22)" && palette.gradient === "none", `rubrikens accent är ren #84cc16 (${palette.accent}, ${palette.gradient})`)
 for (const id of ["funktioner", "mal", "kommunikation", "priser", "ladda-ned"]) {
   check((await p.locator(`#${id}`).count()) === 1, `sektionen #${id} finns`)
 }
@@ -64,6 +72,22 @@ check(!/(★|⭐|4,\d av 5|betyg \d)/i.test(text), "inga påhittade betyg")
 check(!/(ladda ner|finns) (i|på) (App Store|Google Play)/i.test(text), "påstår inte att appen finns i butikerna")
 check(!/(provision|plattformsavgift|månadsavgift|abonnemang)\D{0,20}\d/i.test(text), "inga påhittade PT-avgifter")
 check(!/betalningskrångel|krångel med betalning/i.test(text), "ingen betalningskrångel-retorik")
+// v45: appens kärna överst (splits, hälsosynk, kontakt med PT:n) och bara integrationer som finns.
+const core = await p.locator("ul[aria-label='Det här är Coavira']").innerText()
+check(/Träningssplits/.test(core) && /Hälsosynk/.test(core) && /Chatt och videosamtal/.test(core) && /Verifierade PT:er/.test(core), "faktaraden: splits, hälsosynk, chatt och verifierade PT:er")
+check(!/Garmin/i.test(text) && /Health Connect/.test(text) && /Apple Hälsa/.test(text), "hälsosynk: Apple Hälsa, Health Connect och Strava – inget Garmin")
+// v45: inga canvas-element (konfetti borta) och inget rullande band att pausa.
+check((await p.locator("canvas").count()) === 0, "inga canvas-element på sidan")
+check((await p.locator("button[aria-label='Pausa rullande fakta']").count()) === 0, "inget rullande faktaband")
+// v45: i vila snurrar, pulserar eller svävar ingenting i hjälten – bara engångsanimationer som är klara.
+await p.waitForTimeout(2500)
+const heroLoops = await p.evaluate(() =>
+  document
+    .getAnimations()
+    .filter((a) => a.playState === "running" && a.effect?.getComputedTiming().iterations === Infinity && a.effect.target?.closest("section")?.querySelector("#hero-title"))
+    .map((a) => a.animationName ?? "waapi")
+)
+check(heroLoops.length === 0, `inga ändlösa animationer i hjälten (${heroLoops.join(", ") || "inga"})`)
 
 // Länkar
 const hrefs = await p.$$eval("a[href]", (as) => as.map((a) => a.getAttribute("href")))
@@ -183,6 +207,11 @@ const op = await r.locator("#priser h2").evaluate((el) => {
   return o
 })
 check(op > 0.95, `med "minska rörelse" syns innehållet (opacitet ${op.toFixed(2)})`)
+// v45: den scrollkopplade telefonen står i viloläge (ingen förskjutning) med "minska rörelse".
+await r.locator("#mal-telefon").scrollIntoViewIfNeeded()
+await r.waitForTimeout(400)
+const rest = await r.locator("#mal-telefon .transform-gpu").first().evaluate((el) => getComputedStyle(el).transform)
+check(rest === "none", `med "minska rörelse" är den scrollkopplade telefonen stilla (${rest})`)
 await rc.close()
 
 // --------------------------------------- 4. appen, SEO och övriga sidor ---

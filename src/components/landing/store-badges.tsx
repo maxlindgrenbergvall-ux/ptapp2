@@ -15,7 +15,7 @@ import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
 import { LINKS, STORE_URLS } from "@/components/landing/links"
-import { EASE, useConfetti } from "@/components/landing/primitives"
+import { EASE } from "@/components/landing/primitives"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
@@ -30,21 +30,13 @@ const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-v
 
 // ------------------------------------------------------- "Släpps snart" ---
 
-const DownloadContext = React.createContext<(store: Store, from?: Element | null) => void>(() => {})
+const DownloadContext = React.createContext<(store: Store) => void>(() => {})
 
 /** Delad "Släpps snart"-ruta för alla brickor på sidan. */
 export function AppDownloadProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = React.useState<Store | null>(null)
-  const fire = useConfetti()
-  const open = React.useCallback(
-    (s: Store, from?: Element | null) => {
-      setStore(s)
-      void fire(from, { particles: 70, spread: 65 })
-    },
-    [fire]
-  )
   return (
-    <DownloadContext.Provider value={open}>
+    <DownloadContext.Provider value={setStore}>
       {children}
       <ComingSoonDialog store={store} onClose={() => setStore(null)} />
     </DownloadContext.Provider>
@@ -62,13 +54,13 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
         showCloseButton={false}
         // Dialogen renderas utanför .landing (portal) – klassen ger samma mörka tema.
         // Den är själv .landing, så globals.css regel för telefoner gäller inte: blur bara från md, tät bakgrund under.
-        className="landing max-w-[calc(100%-2rem)] overflow-hidden rounded-3xl border-white/10 bg-[#0d1117] p-0 text-center shadow-2xl shadow-black/60 sm:max-w-md md:bg-[#0d1117]/95 md:backdrop-blur-xl"
+        className="landing max-w-[calc(100%-2rem)] overflow-hidden rounded-3xl border-white/10 bg-[#161d19] p-0 text-center shadow-2xl shadow-black/60 sm:max-w-md md:bg-[#161d19]/95 md:backdrop-blur-xl"
         data-testid="coming-soon"
       >
         {/* Glöd som radiell gradient (billig) i stället för blur-3xl. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-36 left-1/2 size-96 -translate-x-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_25%,transparent),transparent)]"
+          className="pointer-events-none absolute -top-36 left-1/2 size-96 -translate-x-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_10%,transparent),transparent)]"
         />
         <button
           type="button"
@@ -85,7 +77,7 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
             transition={{ type: "spring", stiffness: 320, damping: 18 }}
             className="mx-auto w-fit"
           >
-            <BrandMark size="lg" className="shadow-[0_0_40px_-4px] shadow-brand/60" />
+            <BrandMark size="lg" />
           </motion.div>
           <div className="space-y-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-semibold tracking-wide text-brand uppercase">
@@ -117,7 +109,7 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
             <a
               href={LINKS.ptApply}
               className={cn(
-                "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-foreground shadow-[0_0_24px_-6px] shadow-brand/70 transition-transform hover:-translate-y-0.5",
+                "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-foreground transition-transform hover:-translate-y-0.5",
                 FOCUS
               )}
             >
@@ -170,11 +162,6 @@ export function StoreBadge({ store, size = "md", className }: { store: Store; si
   const url = STORE_URLS[store]
   const inner = (
     <>
-      <span
-        aria-hidden
-        // Ljussvep med translate (ingen layout per bild) i stället för att animera left.
-        className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition-[translate,opacity] duration-700 group-hover:translate-x-[430%] group-hover:opacity-100"
-      />
       {store === "ios" ? <AppleLogo className={size === "lg" ? "size-8" : "size-6"} /> : <PlayLogo className={size === "lg" ? "size-8" : "size-6"} />}
       <span className="flex flex-col items-start leading-none">
         <span className={cn("font-medium text-white/80", size === "lg" ? "text-[11px]" : "text-[10px]", store === "android" && "tracking-wide uppercase")}>{info.top}</span>
@@ -184,12 +171,12 @@ export function StoreBadge({ store, size = "md", className }: { store: Store; si
   )
   const cls = cn(
     // transform-gpu: brickan lyfts/trycks med transform vid hovring och tryck.
-    "group relative inline-flex shrink-0 transform-gpu items-center gap-2.5 overflow-hidden rounded-[14px] border border-white/25 bg-black text-left shadow-lg shadow-black/40 transition-[border-color,box-shadow] duration-300 hover:border-white/45 hover:shadow-[0_10px_40px_-10px] hover:shadow-brand/40",
+    "group relative inline-flex shrink-0 transform-gpu items-center gap-2.5 overflow-hidden rounded-[14px] border border-white/25 bg-black text-left transition-[border-color] duration-300 ease-[var(--landing-ease)] hover:border-white/50",
     size === "lg" ? "h-[60px] px-5" : "h-12 px-4",
     FOCUS,
     className
   )
-  const motionProps = { whileHover: { y: -3 }, whileTap: { scale: 0.96 }, transition: { type: "spring" as const, stiffness: 420, damping: 22 } }
+  const motionProps = { whileHover: { y: -2 }, whileTap: { scale: 0.97 }, transition: { duration: 0.35, ease: EASE } }
   if (url) {
     return (
       <motion.a href={url} target="_blank" rel="noopener noreferrer" aria-label={info.label} className={cls} data-store={store} {...motionProps}>
@@ -202,7 +189,7 @@ export function StoreBadge({ store, size = "md", className }: { store: Store; si
       type="button"
       aria-label={`${info.label} (släpps snart)`}
       aria-haspopup="dialog"
-      onClick={(e) => openSoon(store, e.currentTarget)}
+      onClick={() => openSoon(store)}
       className={cls}
       data-store={store}
       {...motionProps}

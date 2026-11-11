@@ -14,7 +14,7 @@
  * Mobil (under md): kompakt – betal- och anslutningskorten döljs, demona är
  * kortare och dekorpaneler göms. Desktop ser ut som förut.
  */
-import { animate, AnimatePresence, LayoutGroup, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion"
+import { animate, AnimatePresence, LayoutGroup, motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion"
 import {
   Activity,
   BadgeCheck,
@@ -50,7 +50,7 @@ import * as React from "react"
 import { BrandGlyph } from "@/components/brand"
 import { LINKS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
-import { EASE, GlassCard, GlowOrb, GradientText, GridBackdrop, PhoneFrame, Reveal, Section, TiltCard, useConfetti } from "@/components/landing/primitives"
+import { EASE, GlassCard, GradientText, PhoneFrame, Reveal, Section, SpotlightCard } from "@/components/landing/primitives"
 import { MACROS, MacroDot, sumMacros } from "@/components/nutrition/macros"
 import { BRAND } from "@/lib/brand"
 import { FOODS } from "@/lib/foods"
@@ -63,9 +63,9 @@ const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-v
 const SPRING = { type: "spring", stiffness: 420, damping: 32 } as const
 const SOFT_SPRING = { type: "spring", stiffness: 160, damping: 24 } as const
 /** Appens panelbakgrund (kort i mörkt läge) för mockups inne i glaskorten. */
-const PANEL = "rounded-2xl border border-white/10 bg-[#0d1218]/90 shadow-2xl shadow-black/40"
+const PANEL = "rounded-2xl border border-white/10 bg-[#161d19]/90 shadow-2xl shadow-black/40"
 const PRIMARY_BTN =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-foreground shadow-[0_10px_30px_-10px] shadow-brand/70 transition-colors hover:bg-brand/90"
+  "inline-flex h-11 items-center justify-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-brand-foreground transition-colors hover:bg-brand/90"
 const GHOST_BTN =
   "inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-foreground transition-colors hover:border-white/20 hover:bg-white/[0.08]"
 
@@ -73,8 +73,8 @@ const GHOST_BTN =
 const sv = (n: number, decimals?: number) => (decimals === undefined ? String(Math.round(n * 100) / 100) : Math.max(0, n).toFixed(decimals)).replace(".", ",")
 
 /**
- * Inline-stil med CSS-variabler för CSS-looparna (nyckelrutorna bento-travel,
- * bento-ring och bento-blink i globals.css – bara transform och opacity).
+ * Inline-stil med CSS-variabler för CSS-animationerna (nyckelrutan bento-travel
+ * i globals.css – bara transform och opacity).
  */
 const cssVars = (vars: Record<string, string>) => vars as React.CSSProperties
 
@@ -83,22 +83,6 @@ function useLive(ref: React.RefObject<Element | null>) {
   const reduce = useReducedMotion()
   const inView = useInView(ref, { margin: "-10% 0px" })
   return inView && !reduce
-}
-
-const MD_QUERY = "(min-width: 768px)"
-const subscribeMd = (onChange: () => void) => {
-  const mq = window.matchMedia(MD_QUERY)
-  mq.addEventListener("change", onChange)
-  return () => mq.removeEventListener("change", onChange)
-}
-
-/** Sant från md (768 px). Servern och första renderingen räknar med mobil, så hydreringen blir lika. */
-function useIsMd() {
-  return React.useSyncExternalStore(
-    subscribeMd,
-    () => window.matchMedia(MD_QUERY).matches,
-    () => false
-  )
 }
 
 /** Tal som räknar upp med fjäder när `start` blir sant – hoppar direkt med "minska rörelse". */
@@ -145,8 +129,8 @@ function Initials({ name, className, muted }: { name: string; className?: string
 // ------------------------------------------------------------ bentokort ---
 
 /**
- * Ett kort i rutnätet: lutar mot pekaren (TiltCard), lyfter vid hovring och
- * har en glödande överkant. Rubriken är h3 under sektionens h2.
+ * Ett kort i rutnätet: lyfter en aning vid hovring och får ett svagt ljus där
+ * pekaren är (SpotlightCard). Rubriken är h3 under sektionens h2.
  * Intoningen räknar bara marginal uppåt/nedåt, så att ett kort som sticker
  * fram i den svepbara raden på mobil syns direkt.
  */
@@ -158,7 +142,6 @@ function BentoCard({
   children,
   className,
   delay = 0,
-  tilt = 5,
 }: {
   icon: LucideIcon
   kicker: string
@@ -167,34 +150,25 @@ function BentoCard({
   children: React.ReactNode
   className?: string
   delay?: number
-  tilt?: number
 }) {
   return (
     <Reveal delay={delay} viewport={{ once: true, margin: "-80px 0px" }} className={cn("min-w-0", className)}>
-      <TiltCard max={tilt} className="h-full [&>div]:rounded-3xl">
-        <GlassCard
-          whileHover={{ y: -4 }}
-          transition={SOFT_SPRING}
-          className="flex h-full flex-col bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-5 transition-colors duration-300 group-hover:border-white/20 sm:p-7"
-        >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brand/70 to-transparent opacity-40 transition-opacity duration-500 group-hover:opacity-100"
-          />
+      <SpotlightCard className="h-full rounded-3xl transition-[translate] duration-500 ease-[var(--landing-ease)] hover:-translate-y-1 motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+        <GlassCard className="flex h-full flex-col p-5 transition-colors duration-500 group-hover:border-white/20 sm:p-8">
           {/* Mobil: mindre ikon, rubrik och luft – samma uttryck som desktop från sm. */}
           <div className="relative">
             <div className="flex items-center gap-2.5">
-              <span className="grid size-7 place-items-center rounded-lg bg-brand/10 text-brand ring-1 ring-brand/25 sm:size-9 sm:rounded-xl">
+              <span className="grid size-7 place-items-center rounded-lg bg-brand/10 text-brand sm:size-9 sm:rounded-xl">
                 <Icon aria-hidden className="size-4 sm:size-[18px]" />
               </span>
-              <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{kicker}</span>
+              <span className="text-xs font-medium tracking-[0.08em] text-muted-foreground uppercase">{kicker}</span>
             </div>
-            <h3 className="mt-3 text-xl leading-tight font-bold tracking-tight text-balance sm:mt-4 sm:text-[1.75rem]">{title}</h3>
-            <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-pretty text-muted-foreground sm:mt-2 sm:text-[15px]">{text}</p>
+            <h3 className="mt-4 text-xl leading-tight font-semibold tracking-[-0.02em] text-balance sm:mt-5 sm:text-[1.75rem]">{title}</h3>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-pretty text-muted-foreground sm:text-[15px]">{text}</p>
           </div>
-          <div className="relative mt-4 flex flex-1 flex-col sm:mt-6">{children}</div>
+          <div className="relative mt-5 flex flex-1 flex-col sm:mt-7">{children}</div>
         </GlassCard>
-      </TiltCard>
+      </SpotlightCard>
     </Reveal>
   )
 }
@@ -227,28 +201,22 @@ const SYNC_STEPS = ["Planera", "Synka", "Klarmarkera"] as const
 const rowsFor = (key: string, rows: PassRow[], step: SyncStep) => (key === "main" && step >= 1 ? [...rows, EXTRA_ROW] : rows)
 
 /**
- * Ljusstråle mellan PT-panelen och klientens telefon; `pulse` skickar en extra ljuspuls.
- * Ljuspunkterna är CSS-animationer (bento-travel) på ett lager lika stort som strålen,
- * så att -50 % → 50 % betyder strålens ena ände → den andra.
+ * Linjen mellan PT-panelen och klientens telefon. Varje steg i demon skickar en
+ * ljuspunkt längs linjen (CSS, bento-travel) – däremellan står den still.
+ * Lagret är lika stort som linjen, så att -50 % → 50 % betyder ena änden → den andra.
  */
-function Beam({ pulse, live, axis }: { pulse: number; live: boolean; axis: "x" | "y" }) {
+function Beam({ pulse, axis }: { pulse: number; axis: "x" | "y" }) {
   const horizontal = axis === "x"
-  const dot = "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
   const travel = cssVars(horizontal ? { "--bento-from-x": "-50%", "--bento-to-x": "50%" } : { "--bento-from-y": "-50%", "--bento-to-y": "50%" })
   return (
     <div aria-hidden className={cn("relative", horizontal ? "h-px w-full" : "h-5 w-px")}>
-      <div className={cn("absolute inset-0 rounded-full from-brand/10 via-brand/70 to-brand/10", horizontal ? "bg-gradient-to-r" : "bg-gradient-to-b")} />
-      <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -left-1 -translate-y-1/2" : "-top-1 left-1/2 -translate-x-1/2")} />
-      <span className={cn("absolute size-2 rounded-full bg-brand shadow-[0_0_12px_2px] shadow-brand/60", horizontal ? "top-1/2 -right-1 -translate-y-1/2" : "-bottom-1 left-1/2 -translate-x-1/2")} />
-      {live && (
-        <div style={travel} className="absolute inset-0 animate-[bento-travel_2.7s_ease-in-out_infinite_both] will-change-transform">
-          <span className={cn("absolute size-1.5 rounded-full bg-white shadow-[0_0_10px_3px] shadow-brand/70", dot)} />
-        </div>
-      )}
+      <div className="absolute inset-0 rounded-full bg-brand/35" />
+      <span className={cn("absolute size-1.5 rounded-full bg-brand", horizontal ? "top-1/2 -left-0.5 -translate-y-1/2" : "-top-0.5 left-1/2 -translate-x-1/2")} />
+      <span className={cn("absolute size-1.5 rounded-full bg-brand", horizontal ? "top-1/2 -right-0.5 -translate-y-1/2" : "-bottom-0.5 left-1/2 -translate-x-1/2")} />
       {/* Engångspuls vid varje steg – nyckeln startar om animationen. */}
       {pulse > 0 && (
-        <div key={pulse} style={travel} className="absolute inset-0 animate-[bento-travel_0.9s_cubic-bezier(0.22,1,0.36,1)_both]">
-          <span className={cn("absolute size-3 rounded-full bg-brand shadow-[0_0_24px_8px] shadow-brand/70", dot)} />
+        <div key={pulse} style={travel} className="absolute inset-0 animate-[bento-travel_0.9s_cubic-bezier(0.22,1,0.36,1)_both] motion-reduce:hidden">
+          <span className="absolute top-1/2 left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand" />
         </div>
       )}
     </div>
@@ -377,7 +345,7 @@ function PtChip({ step }: { step: SyncStep }) {
  * Klientens telefon: samma pass, synkat. Dold för skärmläsare – ändringarna läses upp via demons statusrad.
  * Mobil: lägre skärm utan flikrad (dekor), så att kortet inte blir en hel skärm långt.
  */
-function ClientPhone({ step, pulse, live }: { step: SyncStep; pulse: number; live: boolean }) {
+function ClientPhone({ step, pulse }: { step: SyncStep; pulse: number }) {
   return (
     <div aria-hidden className="flex justify-center">
       <PhoneFrame className="w-[248px] sm:w-[256px]" time={step === 2 ? "08:04" : "06:58"}>
@@ -394,10 +362,7 @@ function ClientPhone({ step, pulse, live }: { step: SyncStep; pulse: number; liv
               transition={{ type: "spring", stiffness: 500, damping: 18 }}
               className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-semibold text-brand"
             >
-              <span className="relative flex size-1.5">
-                {live && <span className="absolute inset-0 animate-ping rounded-full bg-brand/70 will-change-transform motion-reduce:animate-none" />}
-                <span className="relative size-1.5 rounded-full bg-brand" />
-              </span>
+              <span className="size-1.5 rounded-full bg-brand" />
               Synkat
             </motion.span>
           </div>
@@ -467,7 +432,7 @@ function ClientPhone({ step, pulse, live }: { step: SyncStep; pulse: number; liv
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ type: "spring", stiffness: 380, damping: 26, delay: 0.15 }}
-                className="mt-auto flex items-center gap-2 rounded-2xl bg-brand px-3 py-2.5 text-xs font-semibold text-brand-foreground shadow-lg shadow-brand/25"
+                className="mt-auto flex items-center gap-2 rounded-2xl bg-brand px-3 py-2.5 text-xs font-semibold text-brand-foreground"
               >
                 <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-foreground/15">
                   <Check aria-hidden className="size-3.5" />
@@ -491,13 +456,11 @@ function ClientPhone({ step, pulse, live }: { step: SyncStep; pulse: number; liv
 function SyncDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
   const reduce = useReducedMotion()
-  const live = useLive(ref)
   const seen = useInView(ref, { once: true, margin: "-25% 0px" })
   const [step, setStep] = React.useState<SyncStep>(0)
   const [pulse, setPulse] = React.useState(0)
   const [message, setMessage] = React.useState("")
   const timers = React.useRef<number[]>([])
-  const fire = useConfetti()
 
   const clearTimers = React.useCallback(() => {
     for (const t of timers.current) window.clearTimeout(t)
@@ -525,13 +488,9 @@ function SyncDemo() {
     return clearTimers
   }, [seen, reduce, goTo, clearTimers])
 
-  const next = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const next = () => {
     clearTimers()
-    if (step === 0) goTo(1)
-    else if (step === 1) {
-      goTo(2)
-      void fire(e.currentTarget, { particles: 70, spread: 65 })
-    } else goTo(0)
+    goTo(step === 0 ? 1 : step === 1 ? 2 : 0)
   }
 
   const label = step === 0 ? "Lägg till övning" : step === 1 ? "Klarmarkera passet" : "Spela igen"
@@ -540,19 +499,18 @@ function SyncDemo() {
   return (
     <div ref={ref} className="flex flex-1 flex-col">
       <div className="relative grid flex-1 items-center gap-1 md:grid-cols-[minmax(0,1fr)_4.5rem_auto] md:gap-0">
-        <GridBackdrop className="opacity-60 max-md:hidden" />
         {/* Mobil: PT-bricka + kort stråle i stället för hela passbyggaren, så att kortet inte blir två skärmar långt. */}
         <div className="hidden md:block">
           <PtPanel step={step} />
         </div>
         <div className="flex flex-col items-center gap-1 md:hidden">
           <PtChip step={step} />
-          <Beam pulse={pulse} live={live} axis="y" />
+          <Beam pulse={pulse} axis="y" />
         </div>
         <div className="hidden px-3 md:block">
-          <Beam pulse={pulse} live={live} axis="x" />
+          <Beam pulse={pulse} axis="x" />
         </div>
-        <ClientPhone step={step} pulse={pulse} live={live} />
+        <ClientPhone step={step} pulse={pulse} />
       </div>
       {/* Mobil: stegen läses bara av skärmläsare – knappen och telefonen visar redan var demon är. */}
       <div className="mt-4 flex flex-col gap-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -788,13 +746,13 @@ function NutritionDemo() {
         <div aria-hidden className="flex h-11 items-center gap-2.5 rounded-xl border border-white/10 bg-black/30 pr-1.5 pl-3 md:mt-3">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">Sök livsmedel eller skanna streckkod</span>
-          <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand/10 text-brand ring-1 ring-brand/25">
+          <span className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand/10 text-brand">
             <ScanBarcode className="size-4" />
             {/* Skanningslinjen: CSS-svävning (.landing-float i globals.css) 6 px → 26 px och tillbaka. */}
             {live && (
               <span
                 style={cssVars({ "--float-y": "20px", "--float-dur": "2.4s" })}
-                className="landing-float absolute inset-x-1 top-1.5 h-px bg-brand shadow-[0_0_8px_1px] shadow-brand"
+                className="landing-float absolute inset-x-1 top-1.5 h-px bg-brand"
               />
             )}
           </span>
@@ -894,7 +852,7 @@ const NEXT_LABEL = `${CAL_DAYS_LONG[4]} ${CAL_TIMES[2]}`
 const PAID = 5
 const CALENDARS = ["Google Kalender", "Outlook", "Apple Kalender"] as const
 
-function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; target: boolean; locked: boolean; fresh: boolean; live: boolean }) {
+function CalCell({ booked, target, locked, fresh }: { booked: boolean; target: boolean; locked: boolean; fresh: boolean }) {
   return (
     <div className="relative h-9 sm:h-12">
       <AnimatePresence initial={false} mode="popLayout">
@@ -905,7 +863,7 @@ function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; tar
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.6, opacity: 0 }}
             transition={{ type: "spring", stiffness: 460, damping: 20 }}
-            className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-brand text-brand-foreground shadow-[0_6px_20px_-8px] shadow-brand/80"
+            className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-brand text-brand-foreground"
           >
             <Dumbbell aria-hidden className="size-3.5" />
             <span className="hidden text-[10px] font-bold sm:inline">Pass</span>
@@ -925,10 +883,6 @@ function CalCell({ booked, target, locked, fresh, live }: { booked: boolean; tar
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Nästa lediga tid blinkar mjukt: CSS (bento-blink), bara opacity. */}
-      {target && !booked && live && (
-        <span aria-hidden className="pointer-events-none absolute inset-0 animate-[bento-blink_1.8s_ease-in-out_infinite] rounded-lg ring-1 ring-brand/70 will-change-[opacity]" />
-      )}
       {fresh && booked && (
         <motion.span
           aria-hidden
@@ -947,7 +901,6 @@ function CalendarDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
   const bookRef = React.useRef<HTMLButtonElement>(null)
   const reduce = useReducedMotion()
-  const live = useLive(ref)
   const [booked, setBooked] = React.useState(false)
   const [sync, setSync] = React.useState(0)
   const [message, setMessage] = React.useState("")
@@ -1004,7 +957,7 @@ function CalendarDemo() {
               {CAL_DAYS.map((d, di) => {
                 const id = `${di}-${ti}`
                 const isNext = id === NEXT_SLOT
-                return <CalCell key={d} booked={BOOKED.has(id) || (booked && isNext)} target={isNext} locked={full} fresh={isNext} live={live} />
+                return <CalCell key={d} booked={BOOKED.has(id) || (booked && isNext)} target={isNext} locked={full} fresh={isNext} />
               })}
             </React.Fragment>
           ))}
@@ -1104,15 +1057,7 @@ function CalendarDemo() {
                     transition={{ duration: 1.1, delay: 0.35 + i * 0.15, ease: "easeInOut" }}
                   />
                 )}
-                <span aria-hidden className="relative flex size-2">
-                  {live && (
-                    <span
-                      style={cssVars({ "--bento-ring-scale": "2.6", animationDelay: `${i * 0.5}s` })}
-                      className="absolute inset-0 animate-[bento-ring_2s_ease-out_infinite_both] rounded-full bg-brand will-change-transform"
-                    />
-                  )}
-                  <span className="relative size-2 rounded-full bg-brand" />
-                </span>
+                <span aria-hidden className="relative size-1.5 rounded-full bg-brand" />
                 <span className="relative">{c}</span>
               </li>
             ))}
@@ -1134,21 +1079,11 @@ const CHECKS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: KeyRound, title: "E-post + lösenord", text: "Enda sättet att logga in som PT" },
 ]
 
-/** Sköld med pulserande ringar (CSS, bento-ring). Dekor – visas från md. */
-function Shield({ live }: { live: boolean }) {
+/** Sköld bredvid PT:ns namn. Dekor – visas från md. */
+function Shield() {
   return (
-    <div aria-hidden className="relative hidden size-20 shrink-0 place-items-center md:grid">
-      {live &&
-        [0, 1].map((i) => (
-          <span
-            key={i}
-            style={cssVars({ "--bento-ring-scale": "1.45", "--bento-ring-from": "0.7", animationDelay: `${i * 1.3}s` })}
-            className="absolute inset-0 animate-[bento-ring_2.6s_ease-out_infinite_both] rounded-[1.6rem] border border-brand/50 will-change-transform"
-          />
-        ))}
-      <div className="relative grid size-20 place-items-center rounded-[1.6rem] border border-brand/30 bg-gradient-to-b from-brand/25 to-emerald-500/5 shadow-[0_0_50px_-12px] shadow-brand/70">
-        <ShieldCheck className="size-9 text-brand" strokeWidth={1.75} />
-      </div>
+    <div aria-hidden className="hidden size-20 shrink-0 place-items-center rounded-[1.6rem] border border-brand/25 bg-brand/10 md:grid">
+      <ShieldCheck className="size-9 text-brand" strokeWidth={1.75} />
     </div>
   )
 }
@@ -1203,14 +1138,13 @@ function CheckRow({
 /** Demo: verifierad PT-profil och granskningen som bockas av. Kan spelas upp igen. */
 function SecurityDemo() {
   const ref = React.useRef<HTMLDivElement>(null)
-  const live = useLive(ref)
   const seen = useInView(ref, { once: true, amount: 0.35 })
   const [run, setRun] = React.useState(0)
   return (
     // Mobil: profilen på en rad (avatar, namn, märke) utan sköld, och de två viktigaste kontrollerna.
     <div ref={ref} className="flex flex-1 flex-col gap-3 md:gap-4">
       <div className="flex items-center gap-3 md:gap-4">
-        <Shield live={live} />
+        <Shield />
         <Initials name="Elin Söderberg" className="md:hidden" />
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 md:block">
           <p className="truncate text-sm font-semibold">Elin Söderberg</p>
@@ -1257,7 +1191,7 @@ function PaymentDemo() {
           {/* Kvittot sticker upp snett bakom kortet och ger djup (dekor – köpet visas på kortets baksida). */}
           <div
             aria-hidden
-            className="absolute inset-x-5 -top-8 h-24 -rotate-3 rounded-xl border border-white/10 bg-[#141b24] px-3.5 pt-2.5 shadow-xl shadow-black/40"
+            className="absolute inset-x-5 -top-8 h-24 -rotate-3 rounded-xl border border-white/10 bg-[#1f2823] px-3.5 pt-2.5 shadow-xl shadow-black/40"
           >
             <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
               <span>Kvitto</span>
@@ -1279,7 +1213,7 @@ function PaymentDemo() {
             >
               {/* Glöd som radiella gradienter (ingen blur-filterpass) – samma mittpunkter som förut. */}
               <div className="absolute -top-24 -right-20 size-60 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_22%,transparent),transparent)]" />
-              <div className="absolute -bottom-28 -left-18 size-56 bg-[radial-gradient(closest-side,rgb(52_211_153/0.1),transparent)]" />
+              <div className="absolute -bottom-28 -left-18 size-56 bg-[radial-gradient(closest-side,rgb(132_204_22/0.1),transparent)]" />
               <div className="relative flex h-full flex-col justify-between">
                 <div className="flex items-start justify-between">
                   <span className="text-[11px] font-semibold tracking-wider text-white/70 uppercase">Kort</span>
@@ -1297,7 +1231,7 @@ function PaymentDemo() {
             </div>
             <div
               aria-hidden={!flipped}
-              className="absolute inset-0 flex flex-col rounded-2xl border border-white/15 bg-[#0d1218] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5"
+              className="absolute inset-0 flex flex-col rounded-2xl border border-white/15 bg-[#161d19] p-4 shadow-2xl shadow-black/60 [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-5"
             >
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Ditt köp</p>
@@ -1336,8 +1270,8 @@ function PaymentDemo() {
 
 /** Källor runt Coavira-märket (position i procent av den kvadratiska ytan). */
 const SOURCES: { label: string; icon: LucideIcon; x: number; y: number }[] = [
-  { label: "Apple Health", icon: Heart, x: 25, y: 18 },
-  { label: "Garmin", icon: Watch, x: 75, y: 18 },
+  { label: "Apple Hälsa", icon: Heart, x: 25, y: 18 },
+  { label: "Health Connect", icon: Watch, x: 75, y: 18 },
   { label: "Strava", icon: Activity, x: 50, y: 84 },
 ]
 /** SVG-ytan är 400 × 400 (samma proportioner som rutan), så procent → koordinat är × 4 och mitten 200. */
@@ -1390,20 +1324,14 @@ function ConnectionsDemo() {
             <div
               key={s.label}
               aria-hidden
-              style={cssVars({ "--bento-from-x": `${s.x - 50}%`, "--bento-from-y": `${s.y - 50}%`, animationDelay: `${i * 0.6}s` })}
-              className="pointer-events-none absolute inset-0 animate-[bento-travel_2.8s_ease-in-out_infinite_both] will-change-transform"
+              style={cssVars({ "--bento-from-x": `${s.x - 50}%`, "--bento-from-y": `${s.y - 50}%`, animationDelay: `${i * 1.2}s` })}
+              className="pointer-events-none absolute inset-0 animate-[bento-travel_3.6s_ease-in-out_infinite_both] will-change-transform motion-reduce:hidden"
             >
-              <span className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand shadow-[0_0_10px_2px] shadow-brand/60" />
+              <span className="absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand" />
             </div>
           ))}
         <div aria-hidden className="absolute top-1/2 left-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center">
-          {live && (
-            <span
-              style={cssVars({ "--bento-ring-from": "0.5" })}
-              className="absolute inset-0 animate-[bento-ring_2.4s_ease-out_infinite] rounded-2xl bg-brand/40 will-change-transform"
-            />
-          )}
-          <span className="relative grid size-16 place-items-center rounded-2xl bg-brand text-brand-foreground shadow-[0_0_40px_-6px] shadow-brand/80">
+          <span className="relative grid size-16 place-items-center rounded-2xl bg-brand text-brand-foreground">
             <BrandGlyph className="size-9" />
           </span>
         </div>
@@ -1412,7 +1340,7 @@ function ConnectionsDemo() {
             <li
               key={label}
               style={{ left: `${x}%`, top: `${y}%` }}
-              className="absolute inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-[#11161d]/95 px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap shadow-lg shadow-black/40"
+              className="absolute inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-[#1a221e]/95 px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap shadow-lg shadow-black/40"
             >
               <Icon aria-hidden className="size-3.5 text-brand" />
               {label}
@@ -1420,49 +1348,12 @@ function ConnectionsDemo() {
           ))}
         </ul>
       </div>
-      <p className="mt-4 text-center text-xs text-muted-foreground">I Coavira-appen för iPhone och Android</p>
+      <p className="mt-4 text-center text-xs text-pretty text-muted-foreground">Apple Hälsa på iPhone, Health Connect på Android – bara med ditt samtycke</p>
     </div>
   )
 }
 
 // ------------------------------------------------------- sektionen ---
-
-/** Smaragdgrönt sken (radiell gradient – ersätter GlowOrbs limegröna, ingen hård kant). */
-const EMERALD_ORB = "bg-[radial-gradient(closest-side,rgb(16_185_129/0.15),transparent)]"
-
-/** Mjuka gröna sken bakom rutnätet som glider i otakt med scrollen (parallax). Bara från md. */
-function ParallaxBackdrop() {
-  const ref = React.useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] })
-  const y1 = useTransform(scrollYProgress, [0, 1], [-80, 80])
-  const y2 = useTransform(scrollYProgress, [0, 1], [100, -100])
-  return (
-    <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0">
-      <motion.div style={{ y: y1 }} className="absolute inset-x-0 top-[6%] h-80">
-        <GlowOrb className="top-0 left-[8%] h-72 w-72 opacity-70" />
-      </motion.div>
-      <motion.div style={{ y: y2 }} className="absolute inset-x-0 bottom-[8%] h-80">
-        <GlowOrb className={cn("right-[6%] bottom-0 h-80 w-80", EMERALD_ORB)} />
-      </motion.div>
-    </div>
-  )
-}
-
-/**
- * Bakgrundsskenet. Telefoner och "minska rörelse": stillastående sken utan
- * scroll-lyssnare. Från md: parallax (useScroll monteras bara då).
- */
-function Backdrop() {
-  const isMd = useIsMd()
-  const reduce = useReducedMotion()
-  if (isMd && !reduce) return <ParallaxBackdrop />
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      <GlowOrb className="top-[6%] left-[8%] h-72 w-72 opacity-70" />
-      <GlowOrb className={cn("right-[6%] bottom-[8%] h-80 w-80", EMERALD_ORB)} />
-    </div>
-  )
-}
 
 /** Sektionen "Funktioner": bento-rutnätet med levande kort och en uppmaning under. */
 export function FeatureBento() {
@@ -1478,7 +1369,6 @@ export function FeatureBento() {
       intro="Pass, kost och bokning – testa direkt här."
     >
       <div className="relative">
-        <Backdrop />
         {/*
           Mobil (en kolumn): PT & klient, Kost, Kalender och Trygghet staplade – betal- och
           anslutningskorten syns först från md. På md flyttas Trygghet och Anslutningar sist (order),
@@ -1490,8 +1380,7 @@ export function FeatureBento() {
             icon={Dumbbell}
             kicker="PT + klient"
             title="Din PT. Din plan."
-            tilt={3}
-            text="PT:n bygger passet, du ser det direkt i appen. Klarmarkeras när vikterna är ifyllda."
+            text="PT:n bygger ditt split och du ser nästa pass direkt i appen. Passet klarmarkeras när vikterna är ifyllda."
           >
             <SyncDemo />
           </BentoCard>
@@ -1500,7 +1389,6 @@ export function FeatureBento() {
             icon={Utensils}
             kicker="Exklusiva kostscheman"
             title="Svensk matdatabas i fickan"
-            tilt={3}
             delay={0.08}
             text="Sök eller skanna streckkoden – svenska varor först. Ett aktivt kostschema åt gången."
           >
@@ -1511,7 +1399,6 @@ export function FeatureBento() {
             icon={CalendarDays}
             kicker="Kalender"
             title="Boka med din coach"
-            tilt={3}
             text="Synkas med Google, Outlook och Apple Kalender. Du bokar aldrig fler pass än du köpt."
           >
             <CalendarDemo />
@@ -1531,16 +1418,16 @@ export function FeatureBento() {
           <BentoCard
             className="hidden md:order-2 md:block lg:order-none"
             icon={Plug}
-            kicker="Anslutningar"
+            kicker="Hälsosynk"
             title="Koppla dina appar"
             delay={0.16}
-            text="Anslut Apple Health, Garmin och Strava till ditt konto."
+            text="Sömn, pass och förbränning från Apple Hälsa, Health Connect och Strava – samlat i appen."
           >
             <ConnectionsDemo />
           </BentoCard>
         </div>
 
-        <Reveal className="relative mt-6 flex flex-col items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-center sm:mt-10 sm:flex-row sm:gap-4 sm:p-6 sm:text-left md:backdrop-blur-md">
+        <Reveal className="relative mt-6 flex flex-col items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 text-center sm:mt-10 sm:flex-row sm:gap-4 sm:p-6 sm:text-left">
           <p className="text-sm text-pretty text-muted-foreground sm:text-base">
             <span className="font-semibold text-foreground">Redo att köra?</span> Ladda ned Coavira gratis
             <span className="hidden sm:inline"> till iPhone eller Android</span>.

@@ -965,28 +965,32 @@ Landningssidan på `coavira.fit` leder bara till nedladdning (App Store och Goog
 
 | Fil | Innehåll |
 |---|---|
-| `store-badges.tsx` | App Store-/Google Play-brickor ("Hämta i App Store", "Ladda ned på Google Play"), sidans primära CTA. Med `NEXT_PUBLIC_APP_STORE_URL` / `NEXT_PUBLIC_PLAY_STORE_URL` länkar de till butiken, annars öppnas en "Släpps snart"-ruta (med konfetti, PT-ansökan och kontakt). |
+| `store-badges.tsx` | App Store-/Google Play-brickor ("Hämta i App Store", "Ladda ned på Google Play"), sidans primära CTA. Med `NEXT_PUBLIC_APP_STORE_URL` / `NEXT_PUBLIC_PLAY_STORE_URL` länkar de till butiken, annars öppnas en "Släpps snart"-ruta (med PT-ansökan och kontakt). |
 | `nav.tsx` | Fast meny som blir glas vid scroll, ankarlänkar, "Ladda ned" (scrollar till brickorna) och mobilmeny med brickorna |
-| `hero.tsx` | Rubrik med ord-för-ord-animation, butiksbrickor, 3D-telefon med "Dagens kost" och "Schemalagda pass", flytande brickor, faktaremsa |
-| `bento.tsx` | Funktioner (#funktioner): PT ↔ klient, kostschema med appens riktiga enhetslogik, kalendersynk och passgräns, verifierade PT:er, betalning och anslutningar (de två sista bara från md) |
+| `hero.tsx` | Rubrik med ord-för-ord-animation, butiksbrickor, 3D-telefon med "Dagens kost" och "Schemalagda pass", brickor, och en stilla faktarad med appens kärna (träningssplits, hälsosynk, chatt och videosamtal, verifierade PT:er) |
+| `bento.tsx` | Funktioner (#funktioner): PT ↔ klient, kostschema med appens riktiga enhetslogik, kalendersynk och passgräns, verifierade PT:er, betalning och hälsosynk – Apple Hälsa, Health Connect och Strava (de två sista bara från md) |
 | `goals.tsx` | "Vad vill du uppnå?" (#mal): välj mål ur `INTERESTS` och se Framsteg-vyn byggas om |
 | `chat-showcase.tsx` | Chatt och samtal (#kommunikation): missat samtal, demo-videosamtal med flyttbar kameraruta |
 | `pricing.tsx` | Priser (#priser): appen 0 kr, exempel på PT-tjänster med mersälj av kostcoaching, PT-ansökan |
-| `final-cta.tsx` | Avslutande CTA (#ladda-ned) med pulserande butiksbrickor, och sidfot med Support, Sekretesspolicy, Användarvillkor och Kontakt |
-| `primitives.tsx` | Gemensamt: Reveal/Stagger, GlassCard, TiltCard, PhoneFrame, FloatingBadge, useConfetti |
+| `final-cta.tsx` | Avslutande CTA (#ladda-ned) med butiksbrickor och en horisont som följer scrollen, och sidfot med Support, Sekretesspolicy, Användarvillkor och Kontakt |
+| `primitives.tsx` | Gemensamt: rörelsekurvan `EASE`, Reveal/Stagger, GlassCard, SpotlightCard (ljus vid pekaren), ScrollRise (scrollkopplad telefon), PhoneFrame, FloatingBadge |
 
 - **När apparna publiceras:** sätt `NEXT_PUBLIC_APP_STORE_URL` (t.ex. `https://apps.apple.com/se/app/coavira/id…`) och `NEXT_PUBLIC_PLAY_STORE_URL` (`https://play.google.com/store/apps/details?id=com.coavira.app`) i Vercel och bygg om. Brickorna länkar då direkt till butikerna. `NEXT_PUBLIC_APP_STORE_ID` aktiverar dessutom Safaris Smart App Banner.
 - **Officiella brickor:** brickorna är ritade i App Store-/Google Play-stil. Apple och Google kräver att man använder deras officiella badge-grafik (Apple Marketing Guidelines, Google Play badge-generatorn). Byt till de officiella SVG-filerna innan lansering.
 - **Sidor som butikerna kräver:** `/support` (Support URL), `/integritet` (Privacy Policy) och `/villkor` (Terms). Integritet och villkor är utkast som ska granskas juridiskt.
 - **E-post:** `support@coavira.fit`, `kontakt@coavira.fit` och `certifiering@coavira.fit` (`src/lib/brand.ts`). Brevlådorna måste finnas.
-- **Tema och animationer:** alltid mörkt (`.landing` i `globals.css`), framer-motion 13.5.1 och canvas-confetti 1.9.4. `MotionConfig reducedMotion="user"`.
+- **Tema och animationer:** alltid mörkt (`.landing` i `globals.css`) och framer-motion 13.5.1. `MotionConfig reducedMotion="user"`.
+- **Palett (v45, strikt):** bakgrund `#131916`, text `#f9fbf8`, accent `#84cc16`. Ytor (kort `#1a221e`, popover `#1f2823`) är bakgrunden ett steg ljusare och dämpad text (`#a3aba6`, 7,6:1) är textfärgen nedtonad. Inga gradienter i rubriker och inga andra kulörer. Undantag: appens egna färger inne i mockuperna (makrofärgerna, "missat samtal") och butikernas logotyper.
+- **Rörelse (v45):** en enda kurva (`EASE` = `--landing-ease`, `cubic-bezier(0.22, 1, 0.36, 1)`), bara `transform` och `opacity`. Saker tonar in och glider på plats en gång (0,8 s, 20 px). Ingenting svävar, pulserar eller snurrar som dekor: bort med rutnät, norrsken, stjärnor, roterande ringar, pulserande sken, rullande faktaband, 3D-lutande kort och konfetti (canvas). Det som fortfarande rör sig visar något: demoerna (synk, skanning, samtal) och svar på det besökaren gör. Hover: korten lyfter 2–4 px och får ett svagt neutralt ljus vid pekaren.
 - **Prestanda (regler för nya animationer):**
-  - Ändlösa loopar görs i CSS (`landing-float`, `bento-*`, `cta-*` i `globals.css`, Tailwinds `animate-spin`/`animate-ping`), aldrig med framer-motion `repeat: Infinity`. De animerar bara `transform`/`opacity`, pausas när de inte syns och stängs av med "minska rörelse".
+  - Inga ändlösa loopar som dekor. De få som finns inne i demoerna görs i CSS (`landing-float`, `bento-travel` i `globals.css`, Tailwinds `animate-ping`/`animate-bounce`), aldrig med framer-motion `repeat: Infinity`. De animerar bara `transform`/`opacity` och stängs av med "minska rörelse".
+  - Inga canvas-element.
   - Inga `filter: blur()`-sken: använd radiella gradienter (`GlowOrb`). `backdrop-blur` bara från `md:` (stängs dessutom av för allt under `.landing` på telefoner).
-  - `whileInView` alltid med `viewport={{ once: true }}`. Scroll-parallax (`useScroll`) monteras bara från md, så att telefoner inte har några scroll-lyssnare som mäter layout.
+  - `whileInView` alltid med `viewport={{ once: true }}`. Scroll-parallax och `ScrollRise` (`useScroll`) monteras bara från md, så att telefoner inte har några scroll-lyssnare som mäter layout. Scrollkopplade element har viloläget som utgångspunkt (det servern skickar), så att de står rätt med "minska rörelse" och utan JavaScript.
   - `transform-gpu`/`will-change-transform` bara på element som rör sig hela tiden. Engångsanimationer i CSS använder `fill-mode-backwards`, så att inga lager blir kvar.
   - Mobil: sekundära block döljs under md (`hidden md:block`), sektioner har `py-12` på mobil.
   - Mät med `BASE_URL=http://localhost:3000 node e2e/landing-perf.mjs` (390×844, CPU strypt 4×): sektionshöjder, huvudtråden i vila och bildrutetider vid scroll.
+  - Mätning v45 mot föregående version (samma skript, samma maskin): animationer som går i vila på fem ställen på sidan 6/3/1/1/2 → 1/1/0/0/0, scroll på nyladdad sida p95 35,3 → 30,8 ms och bildrutor över 33 ms 15 → 8, scroll på uppvärmd sida p95 28,3 → 23,7 ms. Mobilsidan blev 190 px längre (8 914 → 9 104 px), mest för att faktaraden under hjälten är två rader i stället för ett rullande band.
 - **Fakta:** inga påhittade siffror, betyg eller avgifter. "0 kr" gäller appen och kontot, och inga gratispass utlovas (kontrolleras i `e2e/landing.test.mjs`).
 
 ## SEO och Google Analytics (coavira.fit)

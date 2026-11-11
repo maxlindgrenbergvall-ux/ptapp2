@@ -2,17 +2,16 @@
 
 /**
  * Avslutningen på landningssidan: en stor uppmaning (#ladda-ned) med
- * pulserande App Store-/Google Play-brickor, PT-ansökan och support,
- * flytande app-brickor (bara breda skärmar) – och sidfoten med support,
- * sekretesspolicy, användarvillkor och kontakt (det App Store och Google Play kräver).
+ * App Store-/Google Play-brickor, PT-ansökan och support, app-brickor
+ * vid sidan (bara breda skärmar) – och sidfoten med support, sekretesspolicy,
+ * användarvillkor och kontakt (det App Store och Google Play kräver).
  *
- * Prestanda: alla oändliga animationer är CSS på transform/opacitet (körs på
- * kompositorn utan JavaScript per bildruta) och startar bara när sektionen syns
- * och "minska rörelse" är av. Scrollkopplad parallax finns bara från md – telefoner
- * får en stilla, enklare bakgrund utan scrollyssnare, blur-filter eller stora skuggor.
+ * Rörelse (v45): inga oändliga bakgrundsanimationer. Rubriken glider på plats,
+ * och från md följer horisonten och brickorna scrollen (bara transform).
+ * Telefoner får en stilla bakgrund utan scrollyssnare.
  * Inga inloggningslänkar – Coavira är en mobilapp.
  */
-import { animate, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform, type MotionValue, type Variants } from "framer-motion"
+import { animate, motion, useInView, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform, type MotionValue, type Variants } from "framer-motion"
 import { ArrowUp, ArrowUpRight, BadgeCheck, CalendarCheck, Check, Dumbbell, LifeBuoy, ShieldCheck, Smartphone, Timer } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
@@ -28,22 +27,13 @@ import { cn } from "@/lib/utils"
 const SECTION_ID = "ladda-ned"
 const TITLE_ID = `${SECTION_ID}-title`
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-const SPOT_SPRING = { stiffness: 140, damping: 22, mass: 0.6 }
-const MAGNET_SPRING = { stiffness: 260, damping: 18, mass: 0.4 }
 
 /** Ingen butiksadress än = apparna är inte publicerade (brickorna visar "Släpps snart"). */
 const COMING_SOON = !STORE_URLS.ios && !STORE_URLS.android
 
-// Nyckelbilderna cta-ring och cta-drift ligger i globals.css (bara transform och opacitet).
-
 const WORD: Variants = {
   hidden: { opacity: 0, y: "105%" },
   show: { opacity: 1, y: "0%", transition: { duration: 0.9, ease: EASE } },
-}
-
-const SWOOSH: Variants = {
-  hidden: { pathLength: 0, opacity: 0 },
-  show: { pathLength: 1, opacity: 1, transition: { duration: 1.1, ease: EASE, delay: 0.55 } },
 }
 
 const LETTER: Variants = {
@@ -95,95 +85,40 @@ function jumpTo(e: React.MouseEvent<HTMLAnchorElement>, href: string, reduce: bo
 }
 
 /* ------------------------------------------------------------------ */
-/* Bakgrund: norrsken, rutnät, stjärnor och en glödande horisont       */
+/* Bakgrund: ett svagt ljus och en horisont                            */
 /* ------------------------------------------------------------------ */
 
-/** Små gnistor på fasta platser (deterministiskt – ingen slump i render). Bara från md. */
-const STARS = [
-  { top: "12%", left: "8%", size: 3, delay: "0s" },
-  { top: "22%", left: "88%", size: 2, delay: "0.8s" },
-  { top: "34%", left: "18%", size: 2, delay: "1.6s" },
-  { top: "9%", left: "62%", size: 2, delay: "0.4s" },
-  { top: "46%", left: "93%", size: 3, delay: "2.1s" },
-  { top: "58%", left: "5%", size: 2, delay: "1.2s" },
-  { top: "28%", left: "40%", size: 2, delay: "2.6s" },
-  { top: "16%", left: "30%", size: 2, delay: "1.9s" },
-  { top: "40%", left: "74%", size: 2, delay: "0.2s" },
-  { top: "64%", left: "84%", size: 2, delay: "2.9s" },
-] as const
-
-const GRID_BG =
-  "[background-image:linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:56px_56px]"
-
-function CtaBackdrop({ active, progress, parallax }: { active: boolean; progress: MotionValue<number>; parallax: boolean }) {
-  // Horisonten stiger in och norrskenet glider när sektionen scrollas fram (bara från md).
+function CtaBackdrop({ progress, parallax }: { progress: MotionValue<number>; parallax: boolean }) {
+  // Horisonten stiger in när sektionen scrollas fram (bara från md).
   const rise = useTransform(progress, [0, 0.55], ["22%", "0%"])
-  const auroraY = useTransform(progress, [0, 1], [80, -80])
 
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       {/* Mjuk övergång från sektionen ovanför. */}
       <div className="absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-background to-transparent sm:h-40" />
 
-      {/* Rutnät: stilla på telefoner; från md glider det nedåt med CSS (bara transform). Masken ligger still. */}
-      <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_75%_60%_at_50%_42%,black_10%,transparent_72%)]">
-        <div className={cn("absolute inset-x-0 -top-14 bottom-0", GRID_BG, active && "md:transform-gpu md:animate-[cta-drift_9s_linear_infinite]")} />
-      </div>
+      {/* Ett enda stilla ljus bakom rubriken (radiell gradient, inget blur-filter). */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_55%_42%_at_50%_40%,rgba(132,204,22,0.09),transparent_70%)]" />
 
-      {/* Telefoner: ett stilla färgfält i stället för roterande lager. */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_35%_32%,rgba(172,237,55,0.12),transparent_70%),radial-gradient(ellipse_60%_36%_at_72%_52%,rgba(16,185,129,0.1),transparent_70%)] md:hidden" />
-
-      {/* Norrsken från md: radiella fält (ingen blur) som roterar åt varsitt håll med CSS. */}
-      <motion.div style={parallax ? { y: auroraY } : undefined} className="absolute top-[40%] left-1/2 hidden size-[72rem] -translate-x-1/2 -translate-y-1/2 md:block">
-        <div
-          className={cn(
-            "absolute inset-0 rounded-full bg-[radial-gradient(ellipse_38%_30%_at_32%_34%,rgba(172,237,55,0.22),transparent_70%),radial-gradient(ellipse_34%_28%_at_70%_62%,rgba(16,185,129,0.2),transparent_70%)]",
-            active && "transform-gpu animate-[spin_70s_linear_infinite]"
-          )}
-        />
-        <div
-          className={cn(
-            "absolute inset-[12%] rounded-full bg-[radial-gradient(ellipse_40%_26%_at_62%_28%,rgba(110,231,183,0.16),transparent_70%),radial-gradient(ellipse_30%_34%_at_30%_72%,rgba(172,237,55,0.12),transparent_70%)]",
-            active && "transform-gpu animate-[spin_48s_linear_infinite_reverse]"
-          )}
-        />
-      </motion.div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_55%_42%_at_50%_42%,rgba(172,237,55,0.1),transparent_70%)]" />
-
-      {/* Gnistor från md: bara opaciteten pulserar (ingen skugga att måla om). */}
-      <div className="absolute inset-0 hidden md:block">
-        {STARS.map((s) => (
-          <span
-            key={`${s.top}-${s.left}`}
-            style={{ top: s.top, left: s.left, width: s.size, height: s.size, animationDelay: s.delay }}
-            className={cn("absolute rounded-full bg-brand/80", active && "animate-pulse")}
-          />
-        ))}
-      </div>
-
-      {/* Horisont: en jättecirkel i bakgrundsfärg med glödande överkant. */}
+      {/* Horisont: en jättecirkel i bakgrundsfärg med en tunn kant i accentfärgen. */}
       <motion.div
         style={parallax ? { y: rise } : undefined}
-        className="absolute top-[64%] left-1/2 aspect-square w-[max(150%,60rem)] -translate-x-1/2 rounded-full border-t border-brand/45 bg-[radial-gradient(ellipse_45%_12%_at_50%_0%,rgba(172,237,55,0.2),transparent),linear-gradient(#0a0d12,#0a0d12)] sm:top-[70%]"
-      >
-        {/* Skenet över kanten: radiell gradient i stället för en stor box-shadow. */}
-        <div className="absolute -top-28 left-1/2 h-56 w-[min(70rem,60%)] -translate-x-1/2 bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_20%,transparent),transparent)]" />
-      </motion.div>
+        className="absolute top-[90%] left-1/2 aspect-square w-[max(150%,60rem)] -translate-x-1/2 rounded-full border-t border-brand/35 bg-[radial-gradient(ellipse_45%_10%_at_50%_0%,rgba(132,204,22,0.12),transparent),linear-gradient(#131916,#131916)] sm:top-[84%]"
+      />
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ */
-/* Flytande app-brickor (exempeldata, bara på breda skärmar)           */
+/* App-brickor vid sidan (exempeldata, bara på breda skärmar)          */
 /* ------------------------------------------------------------------ */
 
-/** En bricka med parallax (djup), intoning i bild och en lugn svävning (CSS, .landing-float). */
+/** En bricka som tonar in en gång och sedan följer scrollen med lite djup (parallax). */
 function FloatTile({
   children,
   className,
   depth,
   delay,
-  active,
   progress,
   parallax,
 }: {
@@ -191,7 +126,6 @@ function FloatTile({
   className?: string
   depth: number
   delay: number
-  active: boolean
   progress: MotionValue<number>
   parallax: boolean
 }) {
@@ -199,21 +133,12 @@ function FloatTile({
   return (
     <motion.div style={parallax ? { y } : undefined} className={cn("absolute", className)}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 28 }}
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
         whileInView={{ opacity: 1, scale: 1, y: 0 }}
         viewport={{ once: true, margin: "-10% 0px" }}
         transition={{ duration: 0.9, ease: EASE, delay }}
       >
-        {/* Svävandet är transform (CSS), förstoringen vid hover CSS-egenskapen scale – de krockar inte. */}
-        <div
-          style={{ "--float-y": "-10px", "--float-dur": `${6 + delay * 4}s`, "--float-delay": `${delay}s` } as React.CSSProperties}
-          className={cn(
-            "pointer-events-auto overflow-hidden rounded-2xl border border-white/10 bg-[#0f141b]/85 text-foreground shadow-2xl shadow-black/50 transition-[scale] duration-300 hover:scale-[1.04] motion-reduce:transition-none md:backdrop-blur-md",
-            active && "landing-float"
-          )}
-        >
-          {children}
-        </div>
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-card text-foreground shadow-xl shadow-black/30">{children}</div>
       </motion.div>
     </motion.div>
   )
@@ -222,7 +147,7 @@ function FloatTile({
 function BookingTile() {
   return (
     <div className="flex items-center gap-3 p-3 pr-4">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground shadow-[0_8px_24px_-8px] shadow-brand/70">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
         <CalendarCheck className="size-5" />
       </span>
       <div className="min-w-0">
@@ -373,7 +298,7 @@ function ChatTile() {
   return (
     <div className="w-56 p-3.5">
       <div className="flex items-center gap-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emerald-300 to-brand text-[11px] font-bold text-brand-foreground">ES</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-bold text-brand-foreground">ES</span>
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold">Elin Söderberg</p>
           <p className="text-[10px] text-muted-foreground">Din PT · Chatt</p>
@@ -392,7 +317,7 @@ function ChatTile() {
  * utanför skärmen och inga dolda animationer körs på mobilen.
  */
 function FloatingTiles({ active, progress, parallax, reduce }: { active: boolean; progress: MotionValue<number>; parallax: boolean; reduce: boolean }) {
-  const shared = { active, progress, parallax }
+  const shared = { progress, parallax }
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 hidden xl:block">
       <FloatTile {...shared} className="top-[3%] left-0 -rotate-6" depth={70} delay={0.1}>
@@ -412,7 +337,7 @@ function FloatingTiles({ active, progress, parallax, reduce }: { active: boolean
 }
 
 /* ------------------------------------------------------------------ */
-/* Rubrik och de pulserande brickorna                                  */
+/* Rubriken                                                            */
 /* ------------------------------------------------------------------ */
 
 /** Ett ord som glider upp ur en osynlig mask. */
@@ -431,71 +356,17 @@ function Headline() {
     <motion.h2
       id={TITLE_ID}
       variants={stagger(0.09)}
-      className="text-[2.5rem] leading-[0.98] font-extrabold tracking-[-0.04em] text-balance sm:text-7xl md:text-8xl xl:text-[7.25rem]"
+      className="text-[2.5rem] leading-[0.98] font-bold tracking-[-0.045em] text-balance sm:text-7xl md:text-8xl xl:text-[7rem]"
     >
       <span className="block">
         <Word>Din</Word> <Word>resa</Word>
       </span>{" "}
-      <span className="relative inline-block">
+      <span className="inline-block">
         <Word>
           <GradientText>börjar nu.</GradientText>
         </Word>
-        <svg aria-hidden viewBox="0 0 300 20" preserveAspectRatio="none" className="pointer-events-none absolute -bottom-[0.04em] left-[4%] h-[0.16em] w-[92%] text-brand/80">
-          <motion.path variants={SWOOSH} d="M3 14 C 80 4, 180 2, 297 10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        </svg>
       </span>
     </motion.h2>
-  )
-}
-
-/**
- * Sidans sista och största uppmaning: butiksbrickorna i ett pulserande grönt
- * sken som dras en aning mot muspekaren. Klick öppnar butiken (eller
- * "Släpps snart" innan apparna är publicerade).
- */
-function DownloadBadges({ active, reduce, size }: { active: boolean; reduce: boolean; size: "md" | "lg" }) {
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
-  const x = useSpring(mx, MAGNET_SPRING)
-  const y = useSpring(my, MAGNET_SPRING)
-
-  return (
-    <motion.div
-      style={{ x, y }}
-      onPointerMove={(e) => {
-        if (reduce || e.pointerType !== "mouse") return
-        const r = e.currentTarget.getBoundingClientRect()
-        mx.set((e.clientX - (r.left + r.width / 2)) * 0.12)
-        my.set((e.clientY - (r.top + r.height / 2)) * 0.25)
-      }}
-      onPointerLeave={() => {
-        mx.set(0)
-        my.set(0)
-      }}
-      className="group relative"
-    >
-      {/* Skenet: radiell gradient (inget blur-filter) vars opacitet andas med CSS. */}
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute -inset-x-10 -inset-y-8 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--brand)_40%,transparent),transparent)] opacity-80",
-          active && "transform-gpu animate-[pulse_2.6s_cubic-bezier(0.4,0,0.6,1)_infinite]"
-        )}
-      />
-      {/* Ringar som vidgas och tonar ut – CSS på transform/opacitet, bara från md. */}
-      {active &&
-        [0, 1].map((i) => (
-          <span
-            key={i}
-            aria-hidden
-            style={{ animationDelay: `${i * 1.2}s` }}
-            className="pointer-events-none absolute -inset-2 hidden transform-gpu animate-[cta-ring_2.4s_ease-out_infinite] rounded-[24px] border-2 border-brand/60 opacity-0 md:block"
-          />
-        ))}
-      <div className="relative">
-        <StoreBadges size={size} align="center" />
-      </div>
-    </motion.div>
   )
 }
 
@@ -537,7 +408,7 @@ const TRUST = [
 /* FinalCta                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Sidans sista uppmaning: rubrik, pulserande butiksbrickor, PT/support och trygghetsrad. */
+/** Sidans sista uppmaning: rubrik, butiksbrickor, PT/support och trygghetsrad. */
 export function FinalCta() {
   const ref = React.useRef<HTMLElement>(null)
   // Hydreringssäkra: falska på servern och vid första renderingen, följer sedan inställningen live.
@@ -545,55 +416,20 @@ export function FinalCta() {
   const desktop = useMediaQuery("(min-width: 48rem)")
   const wide = useMediaQuery("(min-width: 80rem)")
   const inView = useInView(ref, { margin: "-10% 0px" })
-  // Oändliga animationer bara när sektionen syns; scrollkopplad parallax bara från md.
+  // Vilotimern i passbrickan räknar bara när sektionen syns; scrollkopplad parallax bara från md.
   const active = inView && !reduce
   const parallax = desktop && !reduce
   const progress = useMotionValue(0)
-  // Ett mjukt ljus som följer muspekaren (bara transform/opacitet, bara från md).
-  const px = useMotionValue(0)
-  const py = useMotionValue(0)
-  const spotX = useSpring(px, SPOT_SPRING)
-  const spotY = useSpring(py, SPOT_SPRING)
-  const spotOpacity = useMotionValue(0)
-
-  // Ladda konfetti-biblioteket i förväg så att det hinner synas vid första klicket.
-  React.useEffect(() => {
-    if (inView && !reduce) void import("canvas-confetti")
-  }, [inView, reduce])
 
   return (
     <section
       ref={ref}
       id={SECTION_ID}
       aria-labelledby={TITLE_ID}
-      onPointerEnter={(e) => {
-        if (reduce || e.pointerType !== "mouse") return
-        // Ljuset tänds där pekaren kom in, i stället för att glida in från hörnet.
-        const r = e.currentTarget.getBoundingClientRect()
-        px.jump(e.clientX - r.left)
-        py.jump(e.clientY - r.top)
-        spotX.jump(e.clientX - r.left)
-        spotY.jump(e.clientY - r.top)
-        animate(spotOpacity, 1, { duration: 0.4 })
-      }}
-      onPointerMove={(e) => {
-        if (reduce || e.pointerType !== "mouse") return
-        const r = e.currentTarget.getBoundingClientRect()
-        px.set(e.clientX - r.left)
-        py.set(e.clientY - r.top)
-      }}
-      onPointerLeave={() => {
-        animate(spotOpacity, 0, { duration: 0.5 })
-      }}
       className="relative isolate scroll-mt-24 overflow-hidden px-4 pt-16 pb-16 sm:px-6 sm:pt-28 sm:pb-32 md:pt-36 md:pb-40 lg:pt-44 lg:pb-48"
     >
       {parallax && <ScrollLink target={ref} progress={progress} />}
-      <CtaBackdrop active={active} progress={progress} parallax={parallax} />
-      <motion.div
-        aria-hidden
-        style={{ x: spotX, y: spotY, opacity: spotOpacity }}
-        className="pointer-events-none absolute top-0 left-0 -z-10 hidden size-[40rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.1),transparent)] md:block"
-      />
+      <CtaBackdrop progress={progress} parallax={parallax} />
 
       <div className="relative mx-auto max-w-7xl">
         {wide && <FloatingTiles active={active} progress={progress} parallax={parallax} reduce={reduce} />}
@@ -617,7 +453,7 @@ export function FinalCta() {
 
           <motion.div variants={fadeUp} className="flex w-full flex-col items-center gap-3 sm:gap-4">
             {/* Mindre brickor på telefoner så att båda ryms på en rad. */}
-            <DownloadBadges active={active} reduce={reduce} size={desktop ? "lg" : "md"} />
+            <StoreBadges size={desktop ? "lg" : "md"} align="center" />
             {COMING_SOON && <p className="text-sm text-muted-foreground">Appen släpps snart.</p>}
           </motion.div>
 
@@ -722,8 +558,7 @@ export function LandingFooter() {
   return (
     <footer className="relative isolate overflow-hidden px-4 pt-12 pb-[calc(1.5rem+var(--safe-bottom))] sm:px-6 sm:pt-24 sm:pb-[calc(2rem+var(--safe-bottom))]">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand/50 to-transparent" />
-        <div className="absolute -top-40 left-1/2 h-72 w-[min(56rem,100%)] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(172,237,55,0.1),transparent)]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       </div>
       <h2 className="sr-only">Sidfot</h2>
 
