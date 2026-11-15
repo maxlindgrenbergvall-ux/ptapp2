@@ -42,7 +42,18 @@ await m.goto(`${base}/klient`)
 await m.waitForSelector("text=Dagens kost")
 
 // Vatten
-const liters = async () => (await m.locator("#water-title").locator("xpath=../..").locator(".text-2xl").innerText()).trim()
+const litersNow = async () => (await m.locator("#water-title").locator("xpath=../..").locator(".text-2xl").innerText()).trim()
+// v46: siffran räknas upp med en kort animation – läs av när den stått still.
+const liters = async () => {
+  let prev = await litersNow()
+  for (let i = 0; i < 20; i++) {
+    await m.waitForTimeout(120)
+    const cur = await litersNow()
+    if (cur === prev) return cur
+    prev = cur
+  }
+  return prev
+}
 const before = await liters()
 await m.click('button[aria-label="Lägg till ett glas, 250 ml"]')
 await m.click('button[aria-label="Lägg till en flaska, 500 ml"]')
