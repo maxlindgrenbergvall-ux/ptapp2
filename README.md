@@ -578,6 +578,76 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v54: berikningsmotorn – bolagstyp och roll helt automatiskt
+
+När en lead läggs till eller får nya kontaktuppgifter avgör motorn **bolagstyp och roll** och kopplar den direkt till rätt regelverk. Importerade leads berikas i omgångar.
+
+**Bolagstyper** (`crm_leads.company_type`), som badges i tabellen:
+- *AB*
+- *Enskild firma*
+- *Gym-PT*, som visas med kedjans namn, till exempel "SATS PT"
+- *Influencer*
+- *Privatperson*
+- *Okänd*
+
+En grön bock på badgen betyder att uppgiften är bekräftad hos Bolagsverket.
+
+**Källor**, i ordning. En källa hoppas över när svaret redan är säkert. Kod: `src/lib/crm/enrichment/`.
+1. **Leadens egna fält:**
+   - e-post på en gymkedjas domän (@sats.se …) räknas som kedjans, alltså bolagets, adress,
+   - gym, segment, antal följare och ett angivet organisationsnummer.
+2. **Egen webbplats:**
+   - leadens adress, eller e-postens domän om det inte är en gratistjänst,
+   - startsidan och kontakt-/om-sidan läses, med samma hänsyn som förut (robots.txt, paus mellan anrop, inga interna adresser),
+   - organisationsnummer, "… AB", "aktiebolag", "enskild firma" och "ingen F-skatt" letas upp.
+   - En lead som läggs till från en webbsida läses inte en gång till.
+3. **Företagsregistrens utdrag via sök-API:t** (Brave, `BRAVE_SEARCH_API_KEY`):
+   - söker på "Förnamn Efternamn" + ort tillsammans med organisationsnummer/enskild firma/aktiebolag,
+   - bara registrens egna utdrag i sökresultatet används; inga registersidor hämtas eller skrapas,
+   - en träff räknas bara om både för- och efternamn finns med, och samma ort ger högre vikt, så att namnar inte blandas ihop.
+4. **Bolagsverket** (öppna API:t "Värdefulla datamängder"):
+   - ett hittat organisationsnummer slås upp för att bekräfta att det är ett aktivt aktiebolag. Ett avregistrerat bolag räknas inte,
+   - det finns ingen namnsökning, därför används källorna ovan för att hitta numret,
+   - kräver `BOLAGSVERKET_CLIENT_ID` och `BOLAGSVERKET_CLIENT_SECRET` (gratis klient på portal.api.bolagsverket.se); utan dem hoppas steget över,
+   - **inte verifierat mot Bolagsverket:** deras dokumentation gick inte att nå från utvecklingsmiljön. Anropet `POST /organisationer` med `identitetsbeteckning` bygger på tredjepartsbeskrivningar, och svaret tolkas tolerant. Ett oväntat svar ger "inget besked", aldrig ett påhittat AB.
+   - Valfritt: `BOLAGSVERKET_TOKEN_URL`, `BOLAGSVERKET_API_BASE` (testmiljö) och `BOLAGSVERKET_SCOPE`.
+
+**Organisationsnummer:**
+- Kontrollsiffran (Luhn) kontrolleras alltid.
+- 5… är ett aktiebolag.
+- Ett **personnummer** (ÅÅMMDD-NNNN) i rollen som "org.nr" betyder enskild firma. Det används bara som signal och sparas aldrig: inte i fälten, inte i bevisen och inte i loggar. Databasen spärrar det dessutom med en check-constraint.
+
+**Beslut och regelverk** (`decide.ts`):
+- Varje källa ger bevis med en vikt 0–100, och minst 70 krävs för att något ska räknas som säkert.
+- **Säljande B2B-mejl** tillåts bara för *AB* och för *Gym-PT på kedjans adress*. Grunden blir *Företagsadress* och B2B-mallen väljs.
+- **Allt annat låses** till den icke-säljande referensgruppsmallen eller Instagram-DM (grunden *Icke-säljande förfrågan*, marknadsföringslagen 19 §): enskild firma, privatperson, influencer utan AB, gym-PT på privat adress och okänt.
+- Osäkra fall får status *Granska* men är låsta under tiden.
+- **Samtycke ändras aldrig.**
+
+**Manuellt:**
+- En bolagstyp som sätts för hand i lead-panelen ändras aldrig av motorn.
+- *Automatisk* lämnar tillbaka beslutet till motorn.
+
+**Gränssnittet:**
+- Kolumnen *Bolag & roll* med badges. Medan motorn arbetar sveper ett ljus över badgen.
+- Knappen ✦ per rad kör motorn för en lead.
+- **"Auto-berika nya (N)"** kör alla väntande i omgångar om tre och visar förloppet.
+- I lead-panelen syns slutsatsen, säkerheten i procent och varje bevis med källa och länk, plus vilka källor som hoppades över och varför.
+- *Kör igen* visar en laddningsanimation per källa.
+
+**Schemalagt:** `/api/crm/queue` berikar också upp till tre väntande leads per anrop, till exempel från CSV-import eller prospektering.
+
+**Kör migrationen** `supabase/migrations/20261125000000_v54_crm_enrichment.sql`.
+- Den lägger till kolumnerna `company_type`, `company_type_manual`, `enrichment_status`, `enrichment`, `enriched_at` och `verified_at`. Kolumnen `org_number` finns sedan v53.
+- Den spärrar personnummer i bevisen.
+- Befintliga leads får en typ utifrån det som redan är bedömt, och en bolagsform som någon satt räknas som manuell.
+- RLS är oförändrad: bara administratörer.
+
+Test:
+- `npx tsx --tsconfig tsconfig.json e2e/enrichment.unit.ts` (46 kontroller)
+- `node e2e/v54-berikning.test.mjs` (38 kontroller, mockade källor inklusive Bolagsverket)
+- Databas: `supabase/tests/rls_v54.test.sql`
+
 ## Nytt i v53: CRM:et byggt för konvertering – bolagsform, referensgrupp, uppföljningar och "Att göra"
 
 **Granskningen hittade:**

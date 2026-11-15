@@ -47,10 +47,15 @@ export function buildQuery(q: SearchQuery): string {
   return parts.join(" ").slice(0, 380)
 }
 
-export async function searchCandidates(q: SearchQuery): Promise<Candidate[]> {
+/**
+ * Ett anrop till sök-API:t (titlar, adresser och utdrag – inga sidor hämtas).
+ * v54: används även av berikningsmotorn för att hitta organisationsnummer i
+ * företagsregistrens egna utdrag.
+ */
+export async function webSearch(query: string, count = 20): Promise<{ title?: string; url?: string; description?: string }[]> {
   if (!searchConfigured()) throw new Error("Sökningen är inte konfigurerad (BRAVE_SEARCH_API_KEY saknas)")
   const base = (process.env.CRM_SEARCH_API_BASE?.trim() || "https://api.search.brave.com").replace(/\/$/, "")
-  const params = new URLSearchParams({ q: buildQuery(q), country: "se", search_lang: "sv", count: "20", safesearch: "moderate" })
+  const params = new URLSearchParams({ q: query, country: "se", search_lang: "sv", count: String(count), safesearch: "moderate" })
   const res = await fetch(`${base}/res/v1/web/search?${params}`, {
     headers: { Accept: "application/json", "X-Subscription-Token": process.env.BRAVE_SEARCH_API_KEY!.trim() },
     cache: "no-store",
@@ -59,9 +64,13 @@ export async function searchCandidates(q: SearchQuery): Promise<Candidate[]> {
   if (res.status === 429) throw new Error("Sök-API:ts gräns är nådd – försök igen om en stund")
   if (!res.ok) throw new Error(`Sök-API:t svarade ${res.status}`)
   const json = (await res.json()) as { web?: { results?: { title?: string; url?: string; description?: string }[] } }
+  return json.web?.results ?? []
+}
+
+export async function searchCandidates(q: SearchQuery): Promise<Candidate[]> {
   const seen = new Set<string>()
   const out: Candidate[] = []
-  for (const r of json.web?.results ?? []) {
+  for (const r of await webSearch(buildQuery(q))) {
     if (!r.url) continue
     let host: string
     try {

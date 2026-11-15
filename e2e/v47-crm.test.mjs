@@ -121,7 +121,10 @@ check(r.candidates?.length === 2 && r.candidates[0].title === "Elin Söderberg �
 r = await api("lead.verify", { ids: [karin.id] })
 check(r.leads?.[0]?.emailVerified === true, "MX-kontroll i efterhand")
 let preview = await api("outreach.preview", { leadIds: [elin.id, karin.id], templateId: null })
-check(preview.items.every((i) => i.blockers.some((b) => b.code === "legal_basis")), "utan rättslig grund går inga mejl ut", preview.items.map((i) => i.blockers.map((b) => b.code)))
+// v54: Elin berikades när hon lades till (ingen bolagsform hittad → låst till den icke-säljande mallen);
+// Karin importerades via CSV och väntar på berikning – utan rättslig grund går inget mejl ut.
+check(preview.items.find((i) => i.leadId === elin.id)?.templateKind === "research", "berikad utan bolagsform: bara referensgruppsmallen", preview.items.map((i) => i.templateKind))
+check(preview.items.find((i) => i.leadId === karin.id)?.blockers.some((b) => b.code === "legal_basis"), "utan rättslig grund går inga mejl ut", preview.items.map((i) => i.blockers.map((b) => b.code)))
 await api("lead.bulk", { ids: [elin.id], patch: { legalBasis: "consent" } })
 await api("lead.bulk", { ids: [karin.id], patch: { legalBasis: "company" } })
 preview = await api("outreach.preview", { leadIds: [elin.id, karin.id], templateId: null })

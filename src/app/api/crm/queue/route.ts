@@ -6,6 +6,7 @@ import { systemStore } from "@/lib/crm/auth"
 import { apifyConfigured } from "@/lib/crm/apify"
 import { stepJob } from "@/lib/crm/prospect"
 import { runQueue } from "@/lib/crm/queue"
+import { enrichPending } from "@/lib/crm/enrichment/engine"
 
 /**
  * GET/POST /api/crm/queue  (v47) – kör utskickskön ett steg (högst ett mejl).
@@ -29,7 +30,9 @@ async function handle(request: Request) {
   // v50: ta också ett steg i pågående prospekteringsjobb, så att de går vidare även när ingen har CRM:et öppet.
   const jobs = apifyConfigured() ? (await store.listJobs(5)).filter((j) => j.status === "running") : []
   for (const job of jobs) await stepJob(store, job.id).catch(() => null)
-  return NextResponse.json({ ...result, prospectSteps: jobs.length })
+  // v54: berika några väntande leads (t.ex. från CSV-import eller prospektering).
+  const enriched = await enrichPending(store, 3, 15_000).catch(() => ({ done: [], remaining: 0 }))
+  return NextResponse.json({ ...result, prospectSteps: jobs.length, enriched: enriched.done.length })
 }
 export const GET = handle
 export const POST = handle

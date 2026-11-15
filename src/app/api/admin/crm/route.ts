@@ -17,6 +17,9 @@ import { activityEffect } from "@/lib/crm/stats"
 import { senderName } from "@/lib/crm/templates"
 import { ACTIVITY_KINDS, CHANNELS, CITIES, COMPANY_FORMS, emailKey, ENGAGED, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type Lead, type LeadInput, type ServerLeadPatch } from "@/lib/crm/types"
 import { missingMigration } from "@/lib/crm/migrations"
+import { bolagsverketConfigured } from "@/lib/crm/enrichment/bolagsverket"
+import { COMPANY_TYPES, ENRICH_FIELDS, type CompanyType } from "@/lib/crm/enrichment/decide"
+import { enrichLead, enrichPending, pendingLeads } from "@/lib/crm/enrichment/engine"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 
 /**
@@ -59,16 +62,38 @@ const leadFields = z
     nextActionAt: nullable(z.iso.datetime({ offset: true })),
     nextActionNote: nullable(text(200)),
     meetingAt: nullable(z.iso.datetime({ offset: true })),
+    // v54: bolagstyp satt för hand (motorn rör den sedan inte).
+    companyType: z.enum(COMPANY_TYPES),
   })
   .partial()
   .strict()
+
+/** Manuell bolagstyp → juridisk form (gym-PT och AB mejlas på ett bolags adress). */
+const FORM_OF: Record<CompanyType, Lead["companyForm"]> = { ab: "ab", gym_anstalld: "ab", enskild_firma: "enskild", privatperson: "enskild", influencer: "unknown", unknown: "unknown" }
+const TYPE_OF: Record<Lead["companyForm"], CompanyType> = { ab: "ab", enskild: "enskild_firma", unknown: "unknown" }
+
+/** Berika en lead direkt efter att den skapats eller ändrats (högst ~9 s). Fel stoppar aldrig sparandet. */
+async function enrichNow(store: Parameters<typeof enrichLead>[0], lead: Lead, opts: { skipWebsite?: boolean } = {}): Promise<Lead> {
+  if (lead.companyTypeManual) return lead
+  return (await enrichLead(store, lead.id, { deadline: Date.now() + 9000, ...opts }).catch(() => null)) ?? lead
+}
 
 /**
  * v53: bolagsformen styr rättslig grund (om den inte anges uttryckligen) och
  * organisationsnumret finns bara kvar för aktiebolag.
  */
-function withCompanyRules(patch: LeadInput, current?: Pick<Lead, "legalBasis" | "companyForm">): LeadInput {
-  const out = { ...patch }
+function withCompanyRules(patch: LeadInput, current?: Pick<Lead, "legalBasis" | "companyForm">): ServerLeadPatch {
+  const out: ServerLeadPatch = { ...patch }
+  // v54: en bolagstyp eller bolagsform satt för hand är manuell – motorn ändrar den inte.
+  if (out.companyType) {
+    out.companyTypeManual = out.companyType !== "unknown"
+    out.enrichmentStatus = "done"
+    if (out.companyForm === undefined) out.companyForm = FORM_OF[out.companyType]
+  } else if (out.companyForm) {
+    out.companyType = TYPE_OF[out.companyForm]
+    out.companyTypeManual = out.companyForm !== "unknown"
+    out.enrichmentStatus = out.companyForm === "unknown" ? "pending" : "done"
+  }
   if (out.companyForm && out.legalBasis === undefined) out.legalBasis = legalBasisFor(out.companyForm, current?.legalBasis ?? "unknown")
   const form = out.companyForm ?? current?.companyForm ?? "unknown"
   if (form !== "ab" && (out.companyForm !== undefined || out.orgNumber)) out.orgNumber = null
@@ -90,6 +115,10 @@ const body = z.discriminatedUnion("action", [
     meetingAt: nullable(z.iso.datetime({ offset: true })),
   }).strict(),
   z.object({ action: z.literal("conversions.sync") }).strict(),
+  // v54: berikningsmotorn
+  z.object({ action: z.literal("enrich.run"), id: uuid }).strict(),
+  z.object({ action: z.literal("enrich.reset"), id: uuid }).strict(),
+  z.object({ action: z.literal("enrich.batch"), limit: z.number().int().min(1).max(5).default(3) }).strict(),
   z.object({ action: z.literal("lead.import"), leads: z.array(leadFields.required({ name: true })).min(1).max(2000) }).strict(),
   z.object({ action: z.literal("lead.verify"), ids: z.array(uuid).min(1).max(50) }).strict(),
   z.object({ action: z.literal("lead.detail"), id: uuid }).strict(),
@@ -174,7 +203,15 @@ export async function POST(request: Request) {
           suppressed,
           activities,
           converted,
-          config: { demo: ctx.demo, search: searchConfigured(), instagram: apifyConfigured(), sender: senderConfigured(), senderName: senderName(process.env), queue: queueConfig() },
+          config: {
+            demo: ctx.demo,
+            search: searchConfigured(),
+            instagram: apifyConfigured(),
+            sender: senderConfigured(),
+            senderName: senderName(process.env),
+            queue: queueConfig(),
+            enrichment: { search: searchConfigured(), bolagsverket: bolagsverketConfigured() },
+          },
         })
       }
       case "lead.create": {
@@ -183,7 +220,9 @@ export async function POST(request: Request) {
         if (lead.email && (await store.suppressedHashes([emailHash(lead.email)])).size) return bad("Adressen har avregistrerat sig och kan inte läggas till igen.", 409)
         if (lead.email && lead.emailVerified == null) lead.emailVerified = await verifyEmail(lead.email)
         const result = await store.createLead(lead)
-        return result.lead ? NextResponse.json({ lead: result.lead }) : NextResponse.json({ error: `En lead med ${result.field} finns redan: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
+        // v54: bolagstyp och roll avgörs direkt (webbplats, register, Bolagsverket).
+        // En lead från en webbsida: sidan har just lästs (och bolagsformen därifrån följer med) – ingen ny hämtning.
+        return result.lead ? NextResponse.json({ lead: await enrichNow(store, result.lead, { skipWebsite: lead.source === "url" }) }) : NextResponse.json({ error: `En lead med ${result.field} finns redan: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
       }
       case "lead.update": {
         const current = await store.getLead(input.id)
@@ -194,8 +233,12 @@ export async function POST(request: Request) {
           if (patch.email && (await store.suppressedHashes([emailHash(patch.email)])).size) return bad("Adressen har avregistrerat sig och kan inte användas.", 409)
           patch.emailVerified = await verifyEmail(patch.email)
         }
+        // v54: nya kontaktuppgifter → berika igen (om typen inte är satt för hand).
+        const changed = ENRICH_FIELDS.some((f) => patch[f] !== undefined && JSON.stringify(patch[f]) !== JSON.stringify(current[f]))
+        if (changed && !current.companyTypeManual && !patch.companyTypeManual && patch.companyType === undefined) patch.enrichmentStatus = "pending"
         const result = await store.updateLead(input.id, patch)
         if (!result) return bad("Leaden finns inte längre", 404)
+        if (result.lead && result.lead.enrichmentStatus === "pending" && changed) result.lead = await enrichNow(store, result.lead)
         // Svar, bokat samtal, kund eller ej aktuell: inga fler automatiska mejl (även uppföljningar).
         if (result.lead && patch.status && patch.status !== current.status && (ENGAGED.includes(patch.status) || patch.status === "not_relevant")) {
           await store.cancelQueued({ leadId: input.id }, "Pausad – leaden har gått vidare i flödet")
@@ -232,7 +275,8 @@ export async function POST(request: Request) {
           if (r.lead) created.push(r.lead)
           else duplicates++
         }
-        return NextResponse.json({ leads: created, duplicates, blocked })
+        // v54: importerade leads berikas i omgångar (knappen "Auto-berika nya" eller schemalagd körning).
+        return NextResponse.json({ leads: created, duplicates, blocked, pendingEnrichment: pendingLeads(created).length })
       }
       case "lead.verify": {
         const updated = []
@@ -262,6 +306,24 @@ export async function POST(request: Request) {
         const saved = Object.keys(patch).length ? await store.updateLead(lead.id, patch) : { lead }
         const cancelled = effect.cancelQueued ? await store.cancelQueued({ leadId: lead.id }, "Pausad – leaden har svarat") : 0
         return NextResponse.json({ activity, lead: saved?.lead ?? lead, cancelled })
+      }
+      case "enrich.run": {
+        if (await rateLimited(`crm-enrich-run:${limitKey}`, 300, 3600)) return tooManyRequests(600)
+        const lead = await store.getLead(input.id)
+        if (!lead) return bad("Leaden finns inte längre", 404)
+        if (lead.companyTypeManual) return bad("Bolagstypen är satt för hand – välj Automatisk först.", 409)
+        return NextResponse.json({ lead: await enrichLead(store, lead.id, { deadline: Date.now() + 12_000 }) })
+      }
+      case "enrich.reset": {
+        // Tillbaka till automatik: motorn får bestämma igen.
+        const r = await store.updateLead(input.id, { companyTypeManual: false, enrichmentStatus: "pending" })
+        if (!r?.lead) return bad("Leaden finns inte längre", 404)
+        return NextResponse.json({ lead: await enrichLead(store, input.id, { deadline: Date.now() + 12_000 }) })
+      }
+      case "enrich.batch": {
+        if (await rateLimited(`crm-enrich-batch:${limitKey}`, 200, 3600)) return tooManyRequests(600)
+        const { done, remaining } = await enrichPending(store, input.limit, 25_000)
+        return NextResponse.json({ leads: done, remaining })
       }
       case "conversions.sync": {
         const converted = await store.syncConversions()

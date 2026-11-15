@@ -1,3 +1,5 @@
+import type { CompanyType, EnrichmentStatus, Evidence } from "@/lib/crm/enrichment/decide"
+
 /**
  * CRM för B2B-prospektering (v47, /admin/leads) – typer och etiketter som delas
  * av servern och gränssnittet. Inga hemligheter och ingen serverkod här.
@@ -113,6 +115,25 @@ export interface Lead {
   lastContactedAt: string | null
   meetingAt: string | null
   convertedAt: string | null
+  // v54: berikningsmotorn
+  /** Bolagstyp och roll (ab, enskild_firma, gym_anstalld, influencer, privatperson, unknown). */
+  companyType: CompanyType
+  /** Satt för hand – motorn rör den inte. */
+  companyTypeManual: boolean
+  enrichmentStatus: EnrichmentStatus
+  enrichment: EnrichmentResult | null
+  enrichedAt: string | null
+  /** Bekräftat hos Bolagsverket (aktivt aktiebolag). */
+  verifiedAt: string | null
+}
+
+/** Det motorn sparar: bevisen och slutsatsen (aldrig ett personnummer). */
+export interface EnrichmentResult {
+  evidence: Evidence[]
+  confidence: number
+  summary: string
+  /** Källor som inte gick att använda (inte konfigurerade, fel …). */
+  skipped: string[]
 }
 
 /** Det som går att ange när en lead skapas eller ändras. */
@@ -121,10 +142,22 @@ export type LeadInput = Partial<
     Lead,
     | "name" | "title" | "segment" | "status" | "email" | "emailVerified" | "phone" | "instagram" | "instagramFollowers" | "websiteUrl" | "gym" | "city" | "specialties" | "source" | "sourceUrl" | "legalBasis"
     | "companyForm" | "orgNumber" | "preferredChannel" | "nextActionAt" | "nextActionNote" | "meetingAt"
+    | "companyType"
   >
 >
 /** Fält som bara servern sätter (utskick, aktiviteter, avregistrering). */
-export type ServerLeadPatch = LeadInput & { lastEmailedAt?: string; unsubscribedAt?: string | null; lastContactedAt?: string; convertedAt?: string | null }
+export type ServerLeadPatch = LeadInput & {
+  lastEmailedAt?: string
+  unsubscribedAt?: string | null
+  lastContactedAt?: string
+  convertedAt?: string | null
+  // v54: sätts av berikningsmotorn (och av en manuell ändring)
+  companyTypeManual?: boolean
+  enrichmentStatus?: EnrichmentStatus
+  enrichment?: EnrichmentResult | null
+  enrichedAt?: string | null
+  verifiedAt?: string | null
+}
 
 export interface Note {
   id: string

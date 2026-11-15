@@ -505,6 +505,37 @@
   animation: ring-burst 520ms var(--ease-out-soft) both;
 }
 
+/* v54: berikning pågår – ett ljust svep som glider över badgen (bara transform). */
+@keyframes enrich-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+.enrich-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.enrich-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--primary) 45%, transparent), transparent);
+  animation: enrich-sweep 1.1s var(--ease-out-soft) infinite;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .enrich-sweep::after {
+    animation: none;
+    opacity: 0.4;
+    transform: none;
+    width: 100%;
+  }
+}
+
 /* v52: en gnista som far ut från en belöningsbricka och tonar bort (--spark-x/-y = riktning). */
 @keyframes reward-spark {
   from {

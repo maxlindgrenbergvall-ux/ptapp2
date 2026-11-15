@@ -63,7 +63,8 @@ const karin = after.leads.find((l) => l.instagram === "karin.coach")
 check(elin?.source === "instagram" && elin.instagramFollowers === 3200 && elin.sourceUrl === "https://www.instagram.com/elin.pt/", "leaden sparas med källa instagram och följarantal", elin)
 check(elin?.email === "elin@elinpt.se" && elin.emailVerified === true && elin.phone === "+46701234567", "e-post och telefon hittades på Elins webbplats (MX-kontrollerad)", elin)
 check(karin?.segment === "influencer" && karin.email === "karin@karincoach.se" && karin.scoreBreakdown.some((p) => p.label === "Räckvidd på Instagram"), "Karin: influencer, e-post ur biografin, poäng för räckvidd", karin)
-check(elin.legalBasis === "unknown" && karin.legalBasis === "unknown", "rättslig grund är Inte bedömd – inga mejl förrän ni tagit ställning")
+// v54: berikningsmotorn hittar ingen bolagsform → låst till den icke-säljande mallen tills ett AB bekräftas.
+check(elin.legalBasis === "research" && karin.legalBasis === "research" && ["unknown", "influencer"].includes(karin.companyType), "utan bekräftat AB: låst till referensgrupp/DM", [elin.legalBasis, karin.legalBasis, karin.companyType])
 check(/Finns redan i CRM:et/.test(await p.locator("[data-testid=ig-results]").innerText()), "tillagda konton markeras som redan i CRM:et")
 
 // Samma konto igen: markeras som befintligt direkt.

@@ -1,9 +1,10 @@
 "use client"
 
-import { Building2, Megaphone, UserRound, type LucideIcon } from "lucide-react"
+import { BadgeCheck, Building2, Megaphone, Sparkles, UserRound, type LucideIcon } from "lucide-react"
 
 import { scoreTier } from "@/lib/crm/score"
-import { COMPANY_FORM_LABEL, COMPANY_FORM_SHORT, EMAIL_STATUS_LABEL, SEGMENT_LABEL, STATUS_LABEL, type CompanyForm, type EmailStatus, type Segment, type Status } from "@/lib/crm/types"
+import { COMPANY_TYPE_LABEL } from "@/lib/crm/enrichment/decide"
+import { COMPANY_FORM_LABEL, COMPANY_FORM_SHORT, EMAIL_STATUS_LABEL, SEGMENT_LABEL, STATUS_LABEL, type CompanyForm, type EmailStatus, type Lead, type Segment, type Status } from "@/lib/crm/types"
 import { cn } from "@/lib/utils"
 
 /** Anrop till /api/admin/crm. Kastar ett fel med serverns meddelande (visas i en toast). */
@@ -123,6 +124,45 @@ export function CompanyFormBadge({ form, className }: { form: CompanyForm; class
       )}
     >
       {COMPANY_FORM_SHORT[form]}
+    </span>
+  )
+}
+
+/**
+ * Bolagstyp och roll (v54) – auto-genererad av berikningsmotorn. AB och
+ * gym-PT på kedjans adress är accentfärgade (B2B tillåtet); enskild firma,
+ * privatperson och influencer är neutrala (låsta till referensgrupp/DM).
+ * Medan motorn arbetar sveper ett ljus över badgen.
+ */
+export function CompanyTypeBadge({ lead, className }: { lead: Pick<Lead, "companyType" | "companyTypeManual" | "enrichmentStatus" | "enrichment" | "verifiedAt" | "gym" | "legalBasis">; className?: string }) {
+  const running = lead.enrichmentStatus === "running"
+  const pending = lead.enrichmentStatus === "pending"
+  const review = lead.enrichmentStatus === "needs_review" || lead.enrichmentStatus === "failed"
+  const b2b = lead.companyType === "ab" || (lead.companyType === "gym_anstalld" && lead.legalBasis === "company")
+  const label = running ? "Berikas" : pending ? "Väntar" : lead.companyType === "gym_anstalld" ? `${lead.gym && lead.gym.length <= 16 ? lead.gym : "Gym"} PT` : COMPANY_TYPE_LABEL[lead.companyType]
+  const title = running
+    ? "Berikning pågår …"
+    : pending
+      ? "Väntar på auto-berikning"
+      : `${COMPANY_TYPE_LABEL[lead.companyType]}${lead.companyTypeManual ? " (satt för hand)" : ""}${lead.enrichment?.summary ? ` – ${lead.enrichment.summary}` : ""}`
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      data-company-type={lead.companyType}
+      data-enrichment={lead.enrichmentStatus}
+      className={cn(
+        "inline-flex h-5 max-w-36 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[10px] font-semibold tracking-wide whitespace-nowrap transition-colors duration-300",
+        running && "enrich-sweep border-primary/40 text-primary",
+        pending && "border-dashed border-muted-foreground/40 text-muted-foreground",
+        !running && !pending && review && "border-warning/50 bg-warning/10 text-warning",
+        !running && !pending && !review && (b2b ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/60 text-foreground"),
+        className
+      )}
+    >
+      {running ? <Sparkles className="size-3 animate-pulse" aria-hidden /> : lead.verifiedAt ? <BadgeCheck className="size-3" aria-hidden /> : null}
+      <span className="truncate">{label}</span>
+      {!running && !pending && review && <span aria-hidden>?</span>}
     </span>
   )
 }

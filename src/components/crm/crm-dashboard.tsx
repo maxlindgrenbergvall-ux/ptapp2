@@ -1,7 +1,7 @@
 "use client"
 
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { BarChart3, CheckCheck, FilePen, Flame, GripVertical, Inbox, LayoutList, Mail, MailCheck, PhoneCall, Plus, Radar, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
+import { BarChart3, CheckCheck, Sparkles, FilePen, Flame, GripVertical, Inbox, LayoutList, Mail, MailCheck, PhoneCall, Plus, Radar, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -10,7 +10,7 @@ import { AddLeadDialog } from "@/components/crm/add-lead-dialog"
 import { LeadDrawer } from "@/components/crm/lead-drawer"
 import { OutreachDialog, TemplatesDialog } from "@/components/crm/outreach-dialog"
 import { ProspectBanner, ProspectDialog, useProspectJob } from "@/components/crm/prospect"
-import { ApiError, CompanyFormBadge, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
+import { ApiError, CompanyTypeBadge, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
 import { StatsView } from "@/components/crm/stats-view"
 import { TodayView } from "@/components/crm/today-view"
 import { AnimatedNumber } from "@/components/motion"
@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { QueueConfig } from "@/lib/crm/outreach"
+import { COMPANY_TYPE_LABEL } from "@/lib/crm/enrichment/decide"
 import { COMPANY_FORM_LABEL, COMPANY_FORMS, LEGAL_BASES, LEGAL_LABEL, SEGMENT_LABEL, SEGMENTS, STATUS_LABEL, STATUSES, type Activity, type CompanyForm, type EmailLog, type EmailTemplate, type Lead, type LegalBasis, type Segment, type Status } from "@/lib/crm/types"
 import { cn } from "@/lib/utils"
 
@@ -127,6 +128,50 @@ export function CrmDashboard() {
     return () => window.clearInterval(id)
   }, [hasQueue, senderOn, runQueue])
 
+  // v54: berikningsmotorn – en lead i taget (knappen per rad) eller alla väntande i omgångar.
+  const [batch, setBatch] = React.useState<{ done: number; total: number } | null>(null)
+  const enrichOne = React.useCallback(
+    async (id: string) => {
+      setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, enrichmentStatus: "running" as const } : l)))
+      try {
+        const { lead } = await crm<{ lead: Lead }>("enrich.run", { id })
+        upsert(lead)
+        toast.success(`${lead.name}: ${COMPANY_TYPE_LABEL[lead.companyType]}`, { description: lead.enrichment?.summary })
+      } catch (e) {
+        setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, enrichmentStatus: "failed" as const } : l)))
+        toast.error(e instanceof ApiError ? e.message : "Berikningen misslyckades")
+      }
+    },
+    [setLeads, upsert]
+  )
+  const pendingCount = leads.filter((l) => !l.companyTypeManual && l.enrichmentStatus === "pending").length
+  const enrichAll = async () => {
+    const total = pendingCount
+    if (!total) return
+    setBatch({ done: 0, total })
+    let done = 0
+    try {
+      for (let round = 0; round < 200; round++) {
+        // De som körs nu sveper i tabellen.
+        setLeads((ls) => {
+          const next = new Set(ls.filter((l) => !l.companyTypeManual && l.enrichmentStatus === "pending").slice(0, 3).map((l) => l.id))
+          return ls.map((l) => (next.has(l.id) ? { ...l, enrichmentStatus: "running" as const } : l))
+        })
+        const r = await crm<{ leads: Lead[]; remaining: number }>("enrich.batch", { limit: 3 })
+        for (const lead of r.leads) upsert(lead)
+        done += r.leads.length
+        setBatch({ done, total: Math.max(total, done + r.remaining) })
+        if (!r.remaining || !r.leads.length) break
+      }
+      toast.success(`${done} leads berikade`, { description: "Bolagsform och roll är satta – och rätt mallar låsta." })
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Berikningen avbröts")
+    } finally {
+      setBatch(null)
+      crm<Boot>("bootstrap").then((b) => setBoot((cur) => (cur ? { ...cur, leads: b.leads } : b))).catch(() => {})
+    }
+  }
+
   /** Ändra flera leads på en gång – visas direkt, rullas tillbaka vid fel. */
   const bulk = async (ids: string[], patch: { status?: Status; legalBasis?: LegalBasis; segment?: Segment; companyForm?: CompanyForm }) => {
     const before = leads
@@ -176,7 +221,13 @@ export function CrmDashboard() {
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Leads</h1>
           <p className="text-sm text-muted-foreground">Personliga tränare i Sverige – frilans, influencers och gymkedjor.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {(pendingCount > 0 || batch) && (
+            <Button variant="outline" onClick={() => void enrichAll()} disabled={Boolean(batch)} className={cn("relative overflow-hidden", batch && "enrich-sweep")} data-testid="enrich-all">
+              <Sparkles className={cn(batch && "animate-pulse text-primary")} />
+              {batch ? `Berikar ${batch.done}/${batch.total}` : `Auto-berika nya (${pendingCount})`}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setProspecting(true)} data-testid="open-prospect">
             <Radar /> Hitta PT:er
           </Button>
@@ -190,6 +241,16 @@ export function CrmDashboard() {
       </div>
 
       {job && (job.status === "running" || job.state.found.length > 0) && <ProspectBanner job={job} onOpen={() => setProspecting(true)} />}
+      {batch && (
+        <div className="rise-in space-y-1.5 rounded-2xl border border-primary/30 bg-primary/[0.05] p-3" role="status" aria-live="polite" data-testid="enrich-progress">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="size-4 animate-pulse text-primary" aria-hidden /> Auto-berikning: {batch.done} av {batch.total} – webbplatser, företagsregister och Bolagsverket
+          </p>
+          <span className="block h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <span className="block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-[var(--ease-out-soft)]" style={{ transform: `scaleX(${batch.total ? batch.done / batch.total : 0})` }} />
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" data-testid="kpis">
         <Kpi icon={Users} label="Leads totalt" value={kpi.total} />
@@ -354,6 +415,7 @@ export function CrmDashboard() {
           allSelected={allShownSelected}
           onToggleAll={() => setSelected(allShownSelected ? new Set() : new Set(shown.map((l) => l.id)))}
           onOpen={setOpenId}
+          onEnrich={(id) => void enrichOne(id)}
           empty={
             leads.length === 0 ? (
               <EmptyState icon={Inbox} title="Inga leads än" text="Börja med en PT:s webbplats – parsern föreslår kontaktuppgifterna och du granskar dem." action={<Button onClick={() => setAdding(true)}><Plus /> Lägg till leads</Button>} />
@@ -495,7 +557,7 @@ function Chip({ active, onClick, children, testId }: { active: boolean; onClick:
 const Count = ({ n }: { n: number }) => <span className="text-xs tabular opacity-70">{n}</span>
 
 // ---------------------------------------------------------------- lista ---
-function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen, empty }: { leads: Lead[]; selected: Set<string>; onToggle: (id: string) => void; allSelected: boolean; onToggleAll: () => void; onOpen: (id: string) => void; empty: React.ReactNode }) {
+function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen, onEnrich, empty }: { leads: Lead[]; selected: Set<string>; onToggle: (id: string) => void; allSelected: boolean; onToggleAll: () => void; onOpen: (id: string) => void; onEnrich?: (id: string) => void; empty: React.ReactNode }) {
   if (leads.length === 0) return <>{empty}</>
   return (
     <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card">
@@ -507,10 +569,13 @@ function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen
                 <Checkbox checked={allSelected} onCheckedChange={onToggleAll} aria-label="Markera alla som visas" />
               </th>
               <th className="py-2.5 pr-3 font-medium">Namn</th>
-              <th className="py-2.5 pr-3 font-medium">Segment</th>
+              <th className="py-2.5 pr-3 font-medium">Bolag &amp; roll</th>
               <th className="py-2.5 pr-3 font-medium">Kontakt</th>
               <th className="py-2.5 pr-3 font-medium">Status</th>
-              <th className="py-2.5 pr-4 text-right font-medium">Score</th>
+              <th className="py-2.5 pr-3 text-right font-medium">Score</th>
+              <th className="w-12 py-2.5 pr-4">
+                <span className="sr-only">Auto-berika</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -533,7 +598,7 @@ function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen
                 </td>
                 <td className="py-3 pr-3">
                   <span className="flex items-center gap-1.5">
-                    <CompanyFormBadge form={l.companyForm} />
+                    <CompanyTypeBadge lead={l} />
                     <SegmentBadge segment={l.segment} />
                   </span>
                 </td>
@@ -552,8 +617,23 @@ function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen
                 <td className="py-3 pr-3">
                   <StatusBadge status={l.status} />
                 </td>
-                <td className="py-3 pr-4">
+                <td className="py-3 pr-3">
                   <ScoreBadge score={l.score} className="justify-end" />
+                </td>
+                <td className="py-3 pr-4" onClick={(e) => e.stopPropagation()}>
+                  {onEnrich && !l.companyTypeManual && (
+                    <button
+                      type="button"
+                      onClick={() => onEnrich(l.id)}
+                      disabled={l.enrichmentStatus === "running"}
+                      aria-label={`Auto-berika ${l.name}`}
+                      title="Auto-berika: bolagsform och roll"
+                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[background-color,color,transform] duration-200 hover:bg-primary/10 hover:text-primary active:scale-90 disabled:text-primary"
+                      data-testid="row-enrich"
+                    >
+                      <Sparkles className={cn("size-4", l.enrichmentStatus === "running" && "animate-pulse")} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -619,7 +699,7 @@ function Card({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }) {
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5">
-          <CompanyFormBadge form={lead.companyForm} />
+          <CompanyTypeBadge lead={lead} />
           <SegmentBadge segment={lead.segment} />
         </span>
         <ScoreBadge score={lead.score} />

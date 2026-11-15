@@ -22,7 +22,7 @@ const lead = (p: Partial<Lead> = {}): Lead => ({
   email: "ella@ellapt.se", emailVerified: true, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: "Malmö",
   specialties: ["Styrka"], source: "manual", sourceUrl: null, score: 60, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null,
   lastEmailedAt: null, statusChangedAt: "", companyForm: "unknown", orgNumber: null, preferredChannel: "email", nextActionAt: null,
-  nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null, ...p,
+  nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null, companyType: "unknown", companyTypeManual: false, enrichmentStatus: "done", enrichment: null, enrichedAt: null, verifiedAt: null, ...p,
 })
 const templates: EmailTemplate[] = DEFAULT_TEMPLATES.map((t, i) => ({ id: `T${i}`, updatedAt: "", ...t }))
 const tpl = (key: string) => templates.find((t) => t.key === key)!
@@ -80,6 +80,7 @@ check(templateBlock(ef, tpl("ab_intro"))?.code === "needs_research", "enskild fi
 check(templateBlock({ ...ef, legalBasis: "consent" }, tpl("ab_intro")) === null, "enskild firma med samtycke: säljande mall går bra")
 check(templateBlock(ef, { ...research, body: `${research.body}\nPris: 199 kr/mån` })?.code === "research_is_sales", "icke-säljande mall med pris spärras")
 check(templateBlock(ab, research)?.code === "company_form_mismatch", "referensgruppsmallen är till för enskilda firmor")
+check(templateBlock(lead({ legalBasis: "research" }), research) === null && bestTemplate(templates, lead({ legalBasis: "research" }))?.key === RESEARCH_TEMPLATE_KEY, "okänd bolagsform (låst) → referensgruppsmallen")
 check(bestTemplate(templates, lead({ legalBasis: "consent" }))?.key === "ab_intro", "samtycke men okänd bolagsform → en säljande mall går att välja")
 check(recommendedChannel({ ...ef, instagram: "ella.pt" }) === "instagram" && recommendedChannel(ab) === "email", "enskild firma med Instagram → DM rekommenderas")
 

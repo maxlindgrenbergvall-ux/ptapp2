@@ -116,6 +116,12 @@ function toLead(r: Row): Lead {
     lastContactedAt: s(r.last_contacted_at),
     meetingAt: s(r.meeting_at),
     convertedAt: s(r.converted_at),
+    companyType: (r.company_type as Lead["companyType"] | null) ?? "unknown",
+    companyTypeManual: r.company_type_manual === true,
+    enrichmentStatus: (r.enrichment_status as Lead["enrichmentStatus"] | null) ?? "pending",
+    enrichment: r.enrichment && typeof r.enrichment === "object" && Object.keys(r.enrichment).length ? (r.enrichment as Lead["enrichment"]) : null,
+    enrichedAt: s(r.enriched_at),
+    verifiedAt: s(r.verified_at),
   }
 }
 const toNote = (r: Row): Note => ({ id: String(r.id), leadId: String(r.lead_id), body: String(r.body), createdAt: String(r.created_at) })
@@ -185,6 +191,11 @@ const COLUMN: Record<string, string> = {
   lastContactedAt: "last_contacted_at",
   meetingAt: "meeting_at",
   convertedAt: "converted_at",
+  companyType: "company_type",
+  companyTypeManual: "company_type_manual",
+  enrichmentStatus: "enrichment_status",
+  enrichedAt: "enriched_at",
+  verifiedAt: "verified_at",
 }
 function toRow(input: Row): Row {
   const row: Row = {}
@@ -486,6 +497,12 @@ function seed(): DemoState {
       lastContactedAt: p.lastEmailedAt ?? null,
       meetingAt: null,
       convertedAt: null,
+      companyType: "unknown" as const,
+      companyTypeManual: false,
+      enrichmentStatus: "pending" as const,
+      enrichment: null,
+      enrichedAt: null,
+      verifiedAt: null,
       ...p,
     }
     lead.companyForm = impliedCompanyForm(lead.segment, lead.companyForm)
@@ -560,7 +577,7 @@ export class DemoStore implements CrmStore {
     const dup = this.clash(input)
     if (dup) return dup
     const now = new Date().toISOString()
-    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now, companyForm: "unknown", orgNumber: null, preferredChannel: "email", nextActionAt: null, nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null }
+    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now, companyForm: "unknown", orgNumber: null, preferredChannel: "email", nextActionAt: null, nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null, companyType: "unknown", companyTypeManual: false, enrichmentStatus: "pending", enrichment: null, enrichedAt: null, verifiedAt: null }
     const merged = { ...base, ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) } as Lead
     merged.companyForm = impliedCompanyForm(merged.segment, merged.companyForm)
     const { score, breakdown } = scoreLead(merged)

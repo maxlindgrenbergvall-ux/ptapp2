@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeInstagram, normalizeUrl } from "@/lib/crm/csv"
-import { ActivityList, CompanyFormSection, DmHelper, NextActionBanner, QuickLog } from "@/components/crm/quick-log"
+import { EnrichmentSection } from "@/components/crm/enrichment-section"
+import { ActivityList, DmHelper, NextActionBanner, QuickLog } from "@/components/crm/quick-log"
 import { CITIES, LEGAL_BASES, LEGAL_LABEL, SEGMENT_LONG, SEGMENTS, SOURCE_LABEL, STATUS_LABEL, STATUSES, type Activity, type EmailLog, type Lead, type LeadInput, type Note } from "@/lib/crm/types"
 import { normalizePhone } from "@/lib/phone"
 import { cn } from "@/lib/utils"
@@ -204,7 +205,7 @@ function Body({ lead, onSaved, onDeleted, onActivity, senderName }: { lead: Lead
       />
 
       <div className="grid grid-cols-2 gap-3 border-b border-border/70 p-5">
-        <CompanyFormSection lead={lead} busy={busy} onUpdate={update} />
+        <EnrichmentSection lead={lead} busy={busy} onUpdate={update} onSaved={onSaved} />
         <Field label="Status">
           <Select value={lead.status} onValueChange={(v) => void update({ status: v as Lead["status"] })} disabled={busy}>
             <SelectTrigger className="w-full" aria-label="Status" data-testid="drawer-status">

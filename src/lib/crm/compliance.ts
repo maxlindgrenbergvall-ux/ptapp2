@@ -98,7 +98,9 @@ export function templateBlock(
   if (restricted && template.kind !== "research") {
     return { code: "needs_research", text: "Enskild firma utan samtycke: bara den icke-säljande referensgruppsmallen får användas (eller Instagram-DM)" }
   }
-  if (template.companyForm && template.companyForm !== lead.companyForm && lead.legalBasis !== "consent") {
+  // Den icke-säljande mallen får gå till alla som inte är bekräftade aktiebolag (även okänd bolagsform, v54).
+  const researchForUnconfirmed = template.kind === "research" && lead.companyForm !== "ab"
+  if (template.companyForm && template.companyForm !== lead.companyForm && lead.legalBasis !== "consent" && !researchForUnconfirmed) {
     return { code: "company_form_mismatch", text: `Mallen är till för ${template.companyForm === "ab" ? "aktiebolag" : "enskilda firmor"}` }
   }
   return null
