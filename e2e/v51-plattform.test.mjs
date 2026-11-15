@@ -145,6 +145,7 @@ for (let i = 0; i < 12 && !(await p.locator(".recharts-bar-rectangle path").coun
   await p.waitForTimeout(250)
 }
 await p.waitForSelector(".recharts-bar-rectangle path", { timeout: 8000 })
+await p.waitForTimeout(1200) // staplarna växer fram (800 ms) – mät när de landat
 const paths = await p.locator(".recharts-bar-rectangle path").evaluateAll((els) => els.map((e) => e.getAttribute("d") ?? ""))
 check(paths.some((d) => /A\s*6,6/.test(d)), "staplarna har rundade toppar (6 px)")
 check((await p.locator(".recharts-cartesian-axis-line").count()) === 0, "inga axellinjer")
