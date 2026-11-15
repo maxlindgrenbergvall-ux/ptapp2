@@ -1,7 +1,7 @@
 "use client"
 
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { CheckCheck, FilePen, GripVertical, Inbox, LayoutList, Mail, MailCheck, Plus, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
+import { CheckCheck, FilePen, Radar, GripVertical, Inbox, LayoutList, Mail, MailCheck, Plus, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/common"
 import { AddLeadDialog } from "@/components/crm/add-lead-dialog"
 import { LeadDrawer } from "@/components/crm/lead-drawer"
 import { OutreachDialog, TemplatesDialog } from "@/components/crm/outreach-dialog"
+import { ProspectBanner, ProspectDialog, useProspectJob } from "@/components/crm/prospect"
 import { ApiError, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
 import { AnimatedNumber } from "@/components/motion"
 import { Button } from "@/components/ui/button"
@@ -59,10 +60,16 @@ export function CrmDashboard() {
   const [adding, setAdding] = React.useState(false)
   const [outreach, setOutreach] = React.useState<string[] | null>(null)
   const [editingTemplates, setEditingTemplates] = React.useState(false)
+  const [prospecting, setProspecting] = React.useState(false)
 
   React.useEffect(() => {
     crm<Boot>("bootstrap").then(setBoot).catch(() => setFailed(true))
   }, [])
+  // v50: automatisk prospektering – nya leads dyker upp i listan medan jobbet går.
+  const reload = React.useCallback(() => {
+    crm<Boot>("bootstrap").then((b) => setBoot((cur) => (cur ? { ...cur, leads: b.leads } : b))).catch(() => {})
+  }, [])
+  const [job, setJob] = useProspectJob(Boolean(boot?.config.instagram), reload)
 
   const leads = React.useMemo(() => boot?.leads ?? [], [boot])
   const logs = React.useMemo(() => boot?.logs ?? [], [boot])
@@ -147,6 +154,9 @@ export function CrmDashboard() {
           <p className="text-sm text-muted-foreground">Personliga tränare i Sverige – frilans, influencers och gymkedjor.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setProspecting(true)} data-testid="open-prospect">
+            <Radar /> Hitta PT:er
+          </Button>
           <Button variant="outline" onClick={() => setEditingTemplates(true)} data-testid="open-templates">
             <FilePen /> Mallar
           </Button>
@@ -155,6 +165,8 @@ export function CrmDashboard() {
           </Button>
         </div>
       </div>
+
+      {job && (job.status === "running" || job.state.found.length > 0) && <ProspectBanner job={job} onOpen={() => setProspecting(true)} />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="kpis">
         <Kpi icon={Users} label="Leads totalt" value={kpi.total} />
@@ -364,6 +376,21 @@ export function CrmDashboard() {
           setBoot((b) => (b ? { ...b, logs: [...created, ...b.logs] } : b))
           setSelected(new Set())
           setView("queue")
+        }}
+      />
+      <ProspectDialog
+        open={prospecting}
+        onOpenChange={setProspecting}
+        enabled={boot.config.instagram}
+        job={job}
+        setJob={setJob}
+        onOpenLead={(id) => {
+          setProspecting(false)
+          if (leads.some((l) => l.id === id)) setOpenId(id)
+          else crm<Boot>("bootstrap").then((b) => {
+            setBoot((cur) => (cur ? { ...cur, leads: b.leads } : b))
+            setOpenId(id)
+          })
         }}
       />
       <TemplatesDialog open={editingTemplates} onOpenChange={setEditingTemplates} templates={boot.templates} onChange={(templates) => setBoot((b) => (b ? { ...b, templates } : b))} />

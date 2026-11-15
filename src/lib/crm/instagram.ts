@@ -1,5 +1,6 @@
 import { cityFromText, extractEmails, extractPhones, ONLINE, TRAINER } from "@/lib/crm/extract"
 import { normalizeUrl } from "@/lib/crm/csv"
+import { EMAIL_VERDICT_TEXT, emailVerdict, isChainAccount, looksSwedish, NOT_TRAINER } from "@/lib/crm/quality"
 import { scoreLead } from "@/lib/crm/score"
 import { GYM_CHAINS, SPECIALTIES, type LeadInput, type Segment } from "@/lib/crm/types"
 import { normalizePhone } from "@/lib/phone"
@@ -77,8 +78,14 @@ export interface InstagramCandidate {
   category: string | null
   isPrivate: boolean
   isBusiness: boolean
-  /** Profilen beskriver tydligt en tränare/coach. */
+  /** Profilen beskriver tydligt en personlig tränare/coach (och inte t.ex. en kennel). */
   isTrainer: boolean
+  /** Kontot verkar finnas i Sverige. */
+  isSwedish: boolean
+  /** E-posten i profilen är en direkt adress till personen. */
+  directEmail: boolean
+  /** Konton Instagram visar som liknande (om Apify skickar med dem). */
+  related: string[]
   /** Saker att känna till (privat konto, ser inte ut som en PT …). */
   warnings: string[]
 }
@@ -106,7 +113,7 @@ export function profileToCandidate(item: Item): InstagramCandidate | null {
   const phone = (rawPhone && normalizePhone(rawPhone.replace(/[^\d+]/g, "").replace(/^(\+46)0/, "$1"))) || extractPhones("", bio)[0] || null
 
   const chain = GYM_CHAINS.find((g) => g.pattern.test(text))
-  const isTrainer = TRAINER.test(text) || /personal\s*trainer|fitness\s*(coach|trainer)|coach/i.test(category ?? "")
+  const isTrainer = (TRAINER.test(text) || /personal\s*trainer|fitness\s*(coach|trainer)|\bcoach\b/i.test(category ?? "")) && !NOT_TRAINER.test(text) && !isChainAccount(fullName ?? "", handle)
   const segment: Segment = chain ? "gym_chain" : (followers ?? 0) >= INFLUENCER_FOLLOWERS || ONLINE.test(text) ? "influencer" : "freelance"
   const title = ONLINE.test(text) ? "Onlinecoach" : isTrainer ? "Personlig tränare" : category
 
@@ -139,11 +146,19 @@ export function profileToCandidate(item: Item): InstagramCandidate | null {
     specialties: lead.specialties ?? [],
     sourceUrl: lead.sourceUrl ?? null,
   })
+  const isSwedish = looksSwedish(text, { email, website: websiteUrl, phone: lead.phone, city: lead.city })
+  const verdict = emailVerdict(email, fullName ?? "", handle)
+  const related = (Array.isArray(item.relatedProfiles) ? item.relatedProfiles : [])
+    .map((r) => parseHandle(str(obj(r).username, r) ?? ""))
+    .filter((h): h is string => Boolean(h))
+    .slice(0, 30)
   const warnings: string[] = []
   if (isPrivate) warnings.push("Privat konto – inga uppgifter att hämta")
-  if (!isTrainer) warnings.push("Profilen nämner inte träning/coaching tydligt")
-  if (!email && websiteUrl) warnings.push("Ingen e-post i profilen – kan letas upp på webbplatsen")
-  return { handle, lead, score, bio, followers, category, isPrivate, isBusiness, isTrainer, warnings }
+  if (!isTrainer) warnings.push(NOT_TRAINER.test(text) ? "Inte en personlig tränare (t.ex. kennel, salong, butik)" : "Profilen nämner inte personlig träning tydligt")
+  if (!isSwedish) warnings.push("Verkar inte finnas i Sverige")
+  if (email && verdict !== "direct") warnings.push(EMAIL_VERDICT_TEXT[verdict as Exclude<typeof verdict, "direct">])
+  if (verdict !== "direct" && websiteUrl) warnings.push("Ingen direkt e-post i profilen – kan letas upp på webbplatsen")
+  return { handle, lead, score, bio, followers, category, isPrivate, isBusiness, isTrainer, isSwedish, directEmail: verdict === "direct", related, warnings }
 }
 
 /** Hashtag-sökning: inläggens konton (unika, i den ordning de dök upp). */

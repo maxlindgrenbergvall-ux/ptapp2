@@ -46,7 +46,7 @@ check(links.warnings.some((w) => /webbplatsen/.test(w)), "saknas e-post men finn
 const priv = profileToCandidate({ username: "hemlig", private: true, biography: "" })!
 check(priv.isPrivate && priv.warnings.some((w) => /Privat/.test(w)) && !priv.isTrainer, "privat konto märks")
 const bakery = profileToCandidate({ username: "bageriet", fullName: "Bageriet", biography: "Surdeg varje dag" })!
-check(!bakery.isTrainer && bakery.warnings.some((w) => /träning/.test(w)), "konto som inte är en tränare märks")
+check(!bakery.isTrainer && bakery.warnings.some((w) => /tränare|träning/.test(w)), "konto som inte är en tränare märks")
 check(profileToCandidate({ error: "not_found", username: "finnsinte" }) === null && profileToCandidate({}) === null, "fel och tomma poster hoppas över")
 check(profileToCandidate({ username: "x", biography: "kontakt: ta@bort.png <script>" })!.lead.email === null, "bildfilnamn blir inte e-postadresser")
 

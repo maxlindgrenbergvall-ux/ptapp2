@@ -51,7 +51,7 @@ check((await rows.count()) === 4, "fyra profiler (kontot som inte finns hoppas �
 const checked = await rows.evaluateAll((els) => els.filter((e) => e.querySelector("[role=checkbox]")?.getAttribute("data-state") === "checked").map((e) => e.querySelector("a")?.textContent))
 check(JSON.stringify(checked) === JSON.stringify(["@elin.pt", "@karin.coach"]), "förvalt: bara tydliga tränare som inte är privata", checked)
 const text = await p.locator("[data-testid=ig-results]").innerText()
-check(/Privat konto/.test(text) && /nämner inte träning/.test(text) && /41\s000/.test(text) && /karin@karincoach\.se/.test(text), "varningar, följarantal och e-post ur biografin visas")
+check(/Privat konto/.test(text) && /nämner inte personlig träning/.test(text) && /41\s000/.test(text) && /karin@karincoach\.se/.test(text), "varningar, följarantal och e-post ur biografin visas")
 check(/kan letas upp på webbplatsen/.test(text), "Elin saknar e-post men har webbplats – det sägs")
 
 // ------------------------------------------------ 3. lägg till ---

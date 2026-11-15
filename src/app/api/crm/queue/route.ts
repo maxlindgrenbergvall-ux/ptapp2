@@ -3,6 +3,8 @@ import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 
 import { systemStore } from "@/lib/crm/auth"
+import { apifyConfigured } from "@/lib/crm/apify"
+import { stepJob } from "@/lib/crm/prospect"
 import { runQueue } from "@/lib/crm/queue"
 
 /**
@@ -23,7 +25,11 @@ async function handle(request: Request) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return NextResponse.json({ error: "Hittades inte" }, { status: 404 })
   const store = systemStore()
   if (!store) return NextResponse.json({ error: "CRM:et är inte konfigurerat" }, { status: 503 })
-  return NextResponse.json(await runQueue(store))
+  const result = await runQueue(store)
+  // v50: ta också ett steg i pågående prospekteringsjobb, så att de går vidare även när ingen har CRM:et öppet.
+  const jobs = apifyConfigured() ? (await store.listJobs(5)).filter((j) => j.status === "running") : []
+  for (const job of jobs) await stepJob(store, job.id).catch(() => null)
+  return NextResponse.json({ ...result, prospectSteps: jobs.length })
 }
 export const GET = handle
 export const POST = handle

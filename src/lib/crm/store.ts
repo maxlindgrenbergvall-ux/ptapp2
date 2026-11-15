@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { scoreLead } from "@/lib/crm/score"
 import { DEFAULT_TEMPLATES } from "@/lib/crm/templates"
+import type { ProspectConfig, ProspectJob, ProspectState, ProspectStatus } from "@/lib/crm/prospect-types"
 import { emailKey, instagramKey, websiteKey, type EmailLog, type EmailStatus, type EmailTemplate, type Lead, type LeadInput, type Note, type Segment } from "@/lib/crm/types"
 
 /**
@@ -48,6 +49,13 @@ export interface CrmStore {
   suppressedHashes(hashes: string[]): Promise<Set<string>>
   suppress(email: string, reason: "unsubscribed" | "bounced" | "complained" | "manual"): Promise<void>
   countSuppressed(): Promise<number>
+  // v50: prospekteringsjobb
+  listJobs(limit?: number): Promise<ProspectJob[]>
+  createJob(config: ProspectConfig, state: ProspectState): Promise<ProspectJob>
+  /** Låser jobbet för ett steg (högst en körning åt gången). null = upptaget eller inte igång. */
+  claimJob(id: string): Promise<ProspectJob | null>
+  /** Sparar och släpper låset. */
+  saveJob(id: string, patch: { status?: ProspectStatus; state?: ProspectState; error?: string | null }): Promise<ProspectJob | null>
 }
 
 // ------------------------------------------------------------ Supabase ---
@@ -99,6 +107,10 @@ const toLog = (r: Row): EmailLog => ({
   resendId: s(r.resend_id),
   error: s(r.error),
 })
+
+const toJob = (r: Row): ProspectJob => ({ id: String(r.id), createdAt: String(r.created_at), updatedAt: String(r.updated_at), status: r.status as ProspectStatus, config: r.config as ProspectConfig, state: r.state as ProspectState, error: s(r.error) })
+/** Ett steg får ta högst så här lång tid innan låset släpps av sig självt (servern kan ha dött). */
+const LOCK_MS = 60_000
 
 const COLUMN: Record<string, string> = { instagramFollowers: "instagram_followers", emailVerified: "email_verified", websiteUrl: "website_url", sourceUrl: "source_url", legalBasis: "legal_basis", lastEmailedAt: "last_emailed_at", unsubscribedAt: "unsubscribed_at" }
 function toRow(input: Row): Row {
@@ -290,6 +302,38 @@ export class SupabaseStore implements CrmStore {
     this.fail(error)
     return count ?? 0
   }
+  async listJobs(limit = 10) {
+    const { data, error } = await this.db.from("crm_prospect_jobs").select("*").order("created_at", { ascending: false }).limit(limit)
+    this.fail(error)
+    return (data ?? []).map(toJob)
+  }
+  async createJob(config: ProspectConfig, state: ProspectState) {
+    const { data, error } = await this.db.from("crm_prospect_jobs").insert({ config, state, created_by: this.userId }).select("*").single()
+    this.fail(error)
+    return toJob(data)
+  }
+  async claimJob(id: string) {
+    const now = new Date()
+    const { data, error } = await this.db
+      .from("crm_prospect_jobs")
+      .update({ locked_until: new Date(now.getTime() + LOCK_MS).toISOString() })
+      .eq("id", id)
+      .eq("status", "running")
+      .or(`locked_until.is.null,locked_until.lt.${now.toISOString()}`)
+      .select("*")
+      .maybeSingle()
+    this.fail(error)
+    return data ? toJob(data) : null
+  }
+  async saveJob(id: string, patch: { status?: ProspectStatus; state?: ProspectState; error?: string | null }) {
+    const row: Row = { updated_at: new Date().toISOString(), locked_until: null }
+    if (patch.status) row.status = patch.status
+    if (patch.state) row.state = patch.state
+    if (patch.error !== undefined) row.error = patch.error
+    const { data, error } = await this.db.from("crm_prospect_jobs").update(row).eq("id", id).select("*").maybeSingle()
+    this.fail(error)
+    return data ? toJob(data) : null
+  }
 }
 
 // ---------------------------------------------------------------- demo ---
@@ -302,6 +346,7 @@ interface DemoState {
   templates: EmailTemplate[]
   logs: EmailLog[]
   suppressed: Map<string, string>
+  jobs: (ProspectJob & { lockedUntil: number })[]
 }
 
 /** Påhittade personer och adresser (domäner under .example går aldrig att nå). */
@@ -352,7 +397,7 @@ function seed(): DemoState {
   const logs: EmailLog[] = [
     { id: randomUUID(), leadId: leads[2].id, templateId: templates[1].id, createdAt: ago(3), toEmail: leads[2].email!, subject: "Viktor, onlinecoaching utan kalkylark och DM-kaos", body: "Hej Viktor! …", status: "delivered", scheduledAt: ago(3), sentAt: ago(3), deliveredAt: ago(3), resendId: "demo-1", error: null },
   ]
-  return { leads, notes, templates, logs, suppressed: new Map() }
+  return { leads, notes, templates, logs, suppressed: new Map(), jobs: [] }
 }
 
 const globalDemo = globalThis as typeof globalThis & { __coaviraCrmDemo?: DemoState }
@@ -495,4 +540,31 @@ export class DemoStore implements CrmStore {
   async countSuppressed() {
     return demo().suppressed.size
   }
+  async listJobs(limit = 10) {
+    return [...demo().jobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit).map(stripJob)
+  }
+  async createJob(config: ProspectConfig, state: ProspectState) {
+    const now = new Date().toISOString()
+    const job = { id: randomUUID(), createdAt: now, updatedAt: now, status: "running" as const, config, state, error: null, lockedUntil: 0 }
+    demo().jobs.push(job)
+    return stripJob(job)
+  }
+  async claimJob(id: string) {
+    const job = demo().jobs.find((j) => j.id === id)
+    if (!job || job.status !== "running" || job.lockedUntil > Date.now()) return null
+    job.lockedUntil = Date.now() + LOCK_MS
+    return stripJob(structuredClone(job))
+  }
+  async saveJob(id: string, patch: { status?: ProspectStatus; state?: ProspectState; error?: string | null }) {
+    const job = demo().jobs.find((j) => j.id === id)
+    if (!job) return null
+    Object.assign(job, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)), { updatedAt: new Date().toISOString(), lockedUntil: 0 })
+    return stripJob(structuredClone(job))
+  }
+}
+
+function stripJob(job: ProspectJob & { lockedUntil?: number }): ProspectJob {
+  const copy: Partial<typeof job> = { ...job }
+  delete copy.lockedUntil
+  return copy as ProspectJob
 }

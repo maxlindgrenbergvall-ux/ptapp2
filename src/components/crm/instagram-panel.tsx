@@ -59,7 +59,7 @@ export function InstagramPanel({ enabled, onAdded, onOpen }: { enabled: boolean;
         const list = r.candidates ?? []
         setCandidates(list)
         // Förvalt: tydliga tränare som inte är privata och inte redan finns.
-        setPicked(new Set(list.filter((c) => c.isTrainer && !c.isPrivate && !c.existing).map((c) => c.handle)))
+        setPicked(new Set(list.filter((c) => c.isTrainer && c.isSwedish && !c.isPrivate && !c.existing).map((c) => c.handle)))
       } catch (e) {
         if (!alive) return
         setRun(null)

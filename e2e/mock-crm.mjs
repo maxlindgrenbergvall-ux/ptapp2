@@ -22,7 +22,12 @@ const PAGES = {
 }
 const ROBOTS = { "hemlig.se": "User-agent: *\nDisallow: /\n", "elinpt.se": "User-agent: *\nDisallow: /admin\n" }
 const IG = {
-  "elin.pt": { username: "elin.pt", fullName: "Elin Söderberg", biography: "Personlig tränare i Göteborg. Styrka & viktnedgång.", externalUrl: "https://elinpt.se/", followersCount: 3200, businessCategoryName: "Personal Trainer", isBusinessAccount: true, private: false },
+  "elin.pt": { username: "elin.pt", fullName: "Elin Söderberg", biography: "Personlig tränare i Göteborg. Styrka & viktnedgång.", externalUrl: "https://elinpt.se/", followersCount: 3200, businessCategoryName: "Personal Trainer", isBusinessAccount: true, private: false, relatedProfiles: [{ username: "jonas.pt" }, { username: "kennelklubben" }] },
+  // v50: blandat urval – bara elin.pt, jonas.pt och karin.coach ska bli leads.
+  "jonas.pt": { username: "jonas.pt", fullName: "Jonas Ek", biography: "PT i Stockholm 🏋️ Styrka och rehab. Boka: jonas.ek@gmail.com", followersCount: 1800, businessCategoryName: "Personal Trainer", private: false },
+  kennelklubben: { username: "kennelklubben", fullName: "Kennel Guldklimpen", biography: "Kennelklubb – golden retriever. Valpar och träning för hundar. Coach för valpägare.", followersCount: 5200, private: false },
+  "malin.pt": { username: "malin.pt", fullName: "Malin Persson", biography: "Personlig tränare i Malmö. Boka: info@infopt.se", followersCount: 2400, private: false },
+  "us.coach": { username: "us.coach", fullName: "Mike Johnson", biography: "Online fitness coach based in Los Angeles. DM for coaching. mike@mikecoach.com", businessCategoryName: "Fitness Trainer", followersCount: 90000, private: false },
   "karin.coach": { username: "karin.coach", fullName: "Karin Ek", biography: "Online coach 💪 karin@karincoach.se", followersCount: 41000, businessCategoryName: "Coach", private: false },
   hemlig: { username: "hemlig", fullName: "", biography: "", private: true },
   bageriet: { username: "bageriet", fullName: "Bageriet", biography: "Surdeg varje dag", followersCount: 900, private: false },
@@ -77,7 +82,11 @@ http
       const ds = /^\/v2\/datasets\/ds-([A-Za-z0-9]+)\/items$/.exec(u.pathname)
       if (ds && runs.has(ds[1])) {
         const { input } = runs.get(ds[1])
-        if (input.resultsType === "posts") return send(200, "application/json", JSON.stringify([{ ownerUsername: "elin.pt" }, { ownerUsername: "karin.coach" }, { ownerUsername: "elin.pt" }, { ownerUsername: "bageriet" }]))
+        if (input.resultsType === "posts") {
+          const tag = decodeURIComponent(/explore\/tags\/([^/]+)\//.exec(input.directUrls[0])?.[1] ?? "")
+          const owners = { ptsverige: ["kennelklubben", "malin.pt", "us.coach", "elin.pt", "hemlig", "bageriet"], onlinecoach: ["karin.coach", "us.coach"] }[tag] ?? ["elin.pt", "karin.coach", "elin.pt", "bageriet"]
+          return send(200, "application/json", JSON.stringify(owners.map((ownerUsername) => ({ ownerUsername }))))
+        }
         const items = input.directUrls.map((url) => {
           const handle = /instagram\.com\/([^/]+)\//.exec(url)?.[1]
           return IG[handle] ?? { error: "not_found", errorDescription: "Profilen finns inte", url }

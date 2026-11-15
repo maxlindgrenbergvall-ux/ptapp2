@@ -578,6 +578,29 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v50: Hitta PT:er automatiskt – bara bra leads
+
+Knappen **Hitta PT:er** i CRM:et startar ett jobb som söker brett på Instagram i många omgångar och **bara sparar konton som klarar alla krav**, tills målet (standard 15) är nått:
+
+1. **Riktig personlig tränare/coach.** Kennlar, salonger, butiker, bagerier, föreningar och gymkedjornas egna konton sorteras bort, även om de skriver "träning" eller "coach" (`NOT_TRAINER`, `isChainAccount` i `src/lib/crm/quality.ts`).
+2. **I Sverige:** svensk ort, `.se`, `+46` eller svensk text.
+3. **Inte privat och inte redan i CRM:et.**
+4. **Direkt e-postadress:** adressen ska innehålla personens namn (eller kontonamnet), eller vara en personlig gratisadress. Rolladresser – `info@`, `kontakt@`, `hej@`, `booking@`, `coach@` m.fl. – godtas aldrig. Saknas adress i profilen letas den upp på personens egen webbplats.
+5. **Verifierad:** e-postdomänen tar emot post (MX), och adressen är inte avregistrerad.
+6. **Lead Score minst 50** (valbart), och ort om du valt orter.
+
+**Var kontona kommer ifrån:** svenska PT-hashtaggar (förifyllda, går att ändra), kända PT-konton du anger, och – det som ger bäst träffar – de konton Instagram visar som *liknande* till en godkänd PT. Allt som sorteras bort räknas per skäl, så att man ser varför ("Inte en personlig tränare 12", "Bara en gemensam adress 4" …).
+
+**Över tid:** jobbet sparas i databasen (`crm_prospect_jobs`) och går i steg om högst 20 sekunder – var femte sekund medan CRM:et är öppet, och vid varje anrop till `/api/crm/queue` om ett schemalagt jobb är uppsatt. Det fortsätter där det slutade om du laddar om sidan. Ett lås hindrar att två steg körs samtidigt. Räkna med 10–30 minuter för 15 bra leads; de flesta konton sorteras bort.
+
+**Kostnadstak:** högst 300 profiler per jobb som standard (valbart 25–1 000) och högst 60 Apify-körningar; ett jobb åt gången.
+
+**Kör migrationen** `supabase/migrations/20261121000000_v50_crm_prospecting.sql`.
+
+Leadsen får som alltid rättslig grund *Inte bedömd* – inga mejl går ut förrän ni tagit ställning.
+
+Test: `npx tsx --tsconfig tsconfig.json e2e/quality.unit.ts` (27 kontroller av reglerna) och `node e2e/v50-prospektering.test.mjs` (16 kontroller: ett blandat urval med kennelklubb, info@-adress, utländsk coach, privat konto och bageri – bara de tre riktiga svenska PT:erna blir leads). Databas: `supabase/tests/rls_v50.test.sql`.
+
 ## Nytt i v49: Instagram-profiler i CRM:et (via Apify)
 
 Fliken **Instagram** under *Lägg till leads* hämtar publika Instagram-profiler via Apifys actor `apify/instagram-scraper`:
@@ -1411,6 +1434,7 @@ node e2e/v46-mikro.test.mjs      # (demo, 390 px, mörkt läge) mikroanimationer
 node e2e/v47-crm.test.mjs        # (demo + e2e/mock-crm.mjs) internt CRM: berikning, spärrar, dubbletter, kö, webhook, avregistrering
 node e2e/v48-crm-deploy.test.mjs # (COAVIRA_DEPLOYMENT=crm) CRM som egen webbplats: bara CRM:et finns, ingen indexering
 node e2e/v49-instagram.test.mjs  # (demo + Apify-attrapp) Instagram-profiler och hashtaggar via Apify
+node e2e/v50-prospektering.test.mjs # (demo + Apify-attrapp) automatisk prospektering med kvalitetskrav
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

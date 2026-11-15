@@ -7,10 +7,12 @@ import { enrichFromUrl } from "@/lib/crm/enrich"
 import { FetchError } from "@/lib/crm/fetch-public"
 import { queueConfig, runQueue, senderConfigured } from "@/lib/crm/queue"
 import { searchCandidates, searchConfigured } from "@/lib/crm/search"
+import { initialState, stepJob } from "@/lib/crm/prospect"
+import { DEFAULT_CONFIG } from "@/lib/crm/prospect-types"
 import { hashtagInput, MAX_HASHTAG_POSTS, MAX_PROFILES_PER_RUN, ownersFromPosts, profileToCandidate, profilesInput } from "@/lib/crm/instagram"
 import { buildOutreach, verifyEmail } from "@/lib/crm/service"
 import { emailHash } from "@/lib/crm/store"
-import { emailKey, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
+import { CITIES, emailKey, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 
 /**
@@ -75,6 +77,23 @@ const body = z.discriminatedUnion("action", [
       z.object({ mode: z.literal("hashtag"), hashtag: z.string().regex(/^[\p{L}\p{N}_]{2,60}$/u), limit: z.number().int().min(1).max(MAX_HASHTAG_POSTS) }).strict(),
     ]),
   }).strict(),
+  z.object({
+    action: z.literal("prospect.start"),
+    config: z
+      .object({
+        target: z.number().int().min(1).max(50),
+        minScore: z.number().int().min(1).max(100),
+        hashtags: z.array(z.string().regex(/^[\p{L}\p{N}_]{2,60}$/u)).min(1).max(30),
+        seeds: z.array(z.string().regex(/^[A-Za-z0-9._]{1,30}$/)).max(50),
+        cities: z.array(z.enum(CITIES)).max(20),
+        maxProfiles: z.number().int().min(25).max(1000),
+      })
+      .partial()
+      .strict(),
+  }).strict(),
+  z.object({ action: z.literal("prospect.step"), id: uuid }).strict(),
+  z.object({ action: z.literal("prospect.stop"), id: uuid }).strict(),
+  z.object({ action: z.literal("prospect.list") }).strict(),
   z.object({ action: z.literal("instagram.result"), runId: z.string().regex(/^[A-Za-z0-9]{6,40}$/), mode: z.enum(["profiles", "hashtag"]) }).strict(),
   z.object({ action: z.literal("search"), query: z.object({ segment: z.enum(SEGMENTS), city: text(80).optional(), specialty: text(60).optional(), gym: text(80).optional() }).strict() }).strict(),
 ])
@@ -233,6 +252,25 @@ export async function POST(request: Request) {
           throw e
         }
       }
+      case "prospect.start": {
+        if (!apifyConfigured()) return bad("Instagram är inte konfigurerat (APIFY_TOKEN saknas på servern).", 503)
+        if ((await store.listJobs(20)).some((j) => j.status === "running")) return bad("Ett jobb pågår redan – stoppa det eller vänta tills det är klart.", 409)
+        const config = { ...DEFAULT_CONFIG, ...input.config }
+        const existing = (await store.listLeads()).map((l) => l.instagram).filter((h): h is string => Boolean(h))
+        return NextResponse.json({ job: await store.createJob(config, initialState(config, existing)) })
+      }
+      case "prospect.step": {
+        if (!apifyConfigured()) return bad("Instagram är inte konfigurerat (APIFY_TOKEN saknas på servern).", 503)
+        const job = await stepJob(store, input.id)
+        // null = ett annat steg pågår just nu (t.ex. det schemalagda anropet) – visa läget som det är.
+        return NextResponse.json({ job: job ?? (await store.listJobs(20)).find((j) => j.id === input.id) ?? null })
+      }
+      case "prospect.stop": {
+        const job = await store.saveJob(input.id, { status: "stopped" })
+        return job ? NextResponse.json({ job }) : bad("Jobbet finns inte", 404)
+      }
+      case "prospect.list":
+        return NextResponse.json({ jobs: await store.listJobs(10) })
       case "instagram.result": {
         if (!apifyConfigured()) return bad("Instagram är inte konfigurerat (APIFY_TOKEN saknas på servern).", 503)
         try {
