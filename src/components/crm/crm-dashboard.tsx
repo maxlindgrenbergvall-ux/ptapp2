@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 interface Config {
   demo: boolean
   search: boolean
+  instagram: boolean
   sender: boolean
   queue: QueueConfig
 }
@@ -343,6 +344,7 @@ export function CrmDashboard() {
         open={adding}
         onOpenChange={setAdding}
         searchEnabled={boot.config.search}
+        instagramEnabled={boot.config.instagram}
         onCreated={(lead) => {
           upsert(lead)
           setOpenId(lead.id)

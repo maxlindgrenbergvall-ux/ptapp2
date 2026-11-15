@@ -44,8 +44,8 @@ export const LEGAL_LABEL: Record<LegalBasis, string> = {
   consent: "Samtycke",
 }
 
-export type LeadSource = "manual" | "csv" | "url" | "search"
-export const SOURCE_LABEL: Record<LeadSource, string> = { manual: "Manuellt", csv: "CSV-import", url: "Webbsida", search: "Sökning" }
+export type LeadSource = "manual" | "csv" | "url" | "search" | "instagram"
+export const SOURCE_LABEL: Record<LeadSource, string> = { manual: "Manuellt", csv: "CSV-import", url: "Webbsida", search: "Sökning", instagram: "Instagram (Apify)" }
 
 export interface ScorePart {
   label: string
@@ -66,6 +66,8 @@ export interface Lead {
   phone: string | null
   /** Kontonamn utan @. */
   instagram: string | null
+  /** Antal följare när profilen hämtades (v49). */
+  instagramFollowers: number | null
   websiteUrl: string | null
   gym: string | null
   city: string | null
@@ -82,7 +84,7 @@ export interface Lead {
 
 /** Det som går att ange när en lead skapas eller ändras. */
 export type LeadInput = Partial<
-  Pick<Lead, "name" | "title" | "segment" | "status" | "email" | "emailVerified" | "phone" | "instagram" | "websiteUrl" | "gym" | "city" | "specialties" | "source" | "sourceUrl" | "legalBasis">
+  Pick<Lead, "name" | "title" | "segment" | "status" | "email" | "emailVerified" | "phone" | "instagram" | "instagramFollowers" | "websiteUrl" | "gym" | "city" | "specialties" | "source" | "sourceUrl" | "legalBasis">
 >
 
 export interface Note {

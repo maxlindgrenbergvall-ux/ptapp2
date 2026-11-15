@@ -578,6 +578,32 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v49: Instagram-profiler i CRM:et (via Apify)
+
+Fliken **Instagram** under *Lägg till leads* hämtar publika Instagram-profiler via Apifys actor `apify/instagram-scraper`:
+
+- **Profiler:** klistra in konton (`@konto` eller profillänk, högst 50 per körning) → namn, biografi, följare, kategori, länk i bio samt e-post och telefon om de står i profilen.
+- **Hashtag:** t.ex. `personligtränare` → kontona bakom de senaste inläggen (högst 100) förs över till Profiler, där du väljer vilka som ska hämtas.
+- **Granska:** varje profil visas som ett förslag med Lead Score och varningar (privat konto, nämner inte träning, finns redan i CRM:et). Tydliga tränare är förvalda.
+- **Lägg till:** saknas e-post men profilen länkar till en webbplats letas adressen upp där (samma hänsynsfulla hämtning som fliken Webbsida: robots.txt, en sida plus kontaktsidan).
+- Leaden får källa *Instagram (Apify)*, profillänken som källa (visas i mejlens sidfot) och följarantalet (`crm_leads.instagram_followers`). Minst 2 000 följare ger +5 i Lead Score ("Räckvidd"); minst 5 000 följare eller "online coach" ger segmentet influencer.
+
+**Sätta upp:** Apify Console → **Settings → API & Integrations** → kopiera din API-token → lägg in den som `APIFY_TOKEN` i CRM-projektets miljövariabler i Vercel → bygg om. Utan `APIFY_TOKEN` finns ingen Instagram-funktion. Kör också migrationen `supabase/migrations/20261120000000_v49_crm_instagram.sql`.
+
+**Kostnad:** Apify tar betalt per resultat. Varje körning har ett tak (`maxItems` = antal konton, högst 50, eller antal inlägg, högst 100), och varje administratör kan starta högst 30 körningar i timmen.
+
+**Teknik:** körningen startas asynkront (`POST /v2/acts/apify~instagram-scraper/runs`) och läses av var fjärde sekund tills den är klar – Instagram-hämtningar tar ofta 30 s–2 min, längre än en serverfunktion får vänta. Token skickas i `Authorization`-rubriken, aldrig i adressen. Valfritt: `APIFY_ACTOR` (annan actor med samma indata), `APIFY_API_BASE` (tester).
+
+**Inte verifierat mot Apify:** fältnamnen i Apifys svar kunde inte kontrolleras från utvecklingsmiljön. Tolkningen (`src/lib/crm/instagram.ts`) läser därför varje fält från flera tänkbara namn (`followersCount`/`followers`/`edge_followed_by.count`, `externalUrl`/`externalUrls`, `businessEmail`/`public_email` …) och letar dessutom e-post och telefon i biografin. Visar första riktiga körningen tomma fält: titta på datasetet i Apify Console och lägg till fältnamnet i `profileToCandidate`.
+
+### Juridik – Instagram
+
+- **Metas användarvillkor** förbjuder automatisk insamling från Instagram utan tillstånd. Apify hämtar bara publika profiler utan inloggning; i USA har domstol (Meta mot Bright Data, 2024) funnit att sådan hämtning inte bröt mot villkoren, men frågan är inte prövad i Sverige. Det är en affärsrisk ni tar – i värsta fall stänger Meta åtkomsten, och kontot hos Apify kan påverkas.
+- **GDPR gäller fullt ut:** profilerna är personuppgifter även om de är publika. Spara bara det ni behöver, ange källan vid första kontakten (sidfoten gör det), radera på begäran och rensa leads som inte lett någonstans. Privata konton och följarlistor hämtas inte.
+- **Marknadsföringslagen** gäller oförändrat: de flesta PT:er på Instagram har enskild firma, och då krävs **samtycke** innan ni mejlar. Leads från Instagram får därför rättslig grund *Inte bedömd*, och inga mejl går ut förrän ni tagit ställning. Ett tryggare första steg mot en enskild firma är ofta ett DM på Instagram, där ni frågar om ni får skicka information.
+
+Test: `npx tsx --tsconfig tsconfig.json e2e/instagram.unit.ts` (20 enhetstester) och `node e2e/v49-instagram.test.mjs` (19 kontroller mot Apify-attrappen i `e2e/mock-crm.mjs`; servern startas som för v47 plus `APIFY_TOKEN=apify-test-token APIFY_API_BASE=http://localhost:54810`). Databas: `supabase/tests/rls_v49.test.sql`.
+
 ## Nytt i v48: CRM:et som egen webbplats (t.ex. `coavira-crm.vercel.app`)
 
 CRM:et kan köras som en **egen driftsättning** från samma repo: en egen adress där bara CRM:et finns. Samma databas, samma konton och samma behörighet (`app_admins`) – men inget av appen.
@@ -636,7 +662,7 @@ Ett internt verktyg för att hitta, kvalificera och kontakta personliga tränare
 | **CSV** | Komma, semikolon eller tabb, svenska eller engelska kolumnnamn i valfri ordning. Ogiltiga rader rapporteras med radnummer. |
 | **Sök** | Via ett officiellt sök-API (Brave Search, `BRAVE_SEARCH_API_KEY`) – inte genom att skrapa sökmotorer. Träffarna är kandidater som du väljer att granska. |
 
-**Hållbar hämtning (`fetch-public.ts`):** bara sidor en administratör själv angett (ingen crawler), `robots.txt` respekteras, högst en förfrågan varannan sekund per webbplats, tydlig avsändare (`CoaviraBot/1.0` med kontaktadress), högst 1,5 MB och 8 sekunder. **Sociala nätverk (Instagram, Facebook, LinkedIn, TikTok …) hämtas aldrig automatiskt** – deras villkor förbjuder det; profiler sparas som länk.
+**Hållbar hämtning (`fetch-public.ts`):** bara sidor en administratör själv angett (ingen crawler), `robots.txt` respekteras, högst en förfrågan varannan sekund per webbplats, tydlig avsändare (`CoaviraBot/1.0` med kontaktadress), högst 1,5 MB och 8 sekunder. **Sociala nätverk (Instagram, Facebook, LinkedIn, TikTok …) hämtas aldrig av vår egen hämtning** – deras villkor förbjuder det; profiler sparas som länk. (Instagram kan sedan v49 hämtas via Apify, se nedan.)
 
 **Säker hämtning (SSRF):** bara http/https på standardportar, värdnamnet slås upp en gång, alla adresser kontrolleras mot privata/reserverade nät och anslutningen görs till exakt den kontrollerade adressen (skydd mot DNS rebinding). Omdirigeringar kontrolleras på samma sätt.
 
@@ -1384,6 +1410,7 @@ node e2e/v43-passbyggare.test.mjs # (demo, 390 px) tomma fält, egen övning i p
 node e2e/v46-mikro.test.mjs      # (demo, 390 px, mörkt läge) mikroanimationer, kvitton, tomma lägen, minska rörelse
 node e2e/v47-crm.test.mjs        # (demo + e2e/mock-crm.mjs) internt CRM: berikning, spärrar, dubbletter, kö, webhook, avregistrering
 node e2e/v48-crm-deploy.test.mjs # (COAVIRA_DEPLOYMENT=crm) CRM som egen webbplats: bara CRM:et finns, ingen indexering
+node e2e/v49-instagram.test.mjs  # (demo + Apify-attrapp) Instagram-profiler och hashtaggar via Apify
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

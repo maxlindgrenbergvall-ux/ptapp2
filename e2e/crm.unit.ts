@@ -72,7 +72,7 @@ const html = emailHtml('Hej <script>alert(1)</script> & "du"\n\nSe https://coavi
 check(!html.includes("<script>") && html.includes("&lt;script&gt;") && html.includes('<a href="https://coavira.fit"'), "HTML: text escapas, länkar blir klickbara", html.slice(0, 200))
 
 // ------------------------------------------------------------ utskick ---
-const lead = (p: Partial<Lead>): Lead => ({ id: "1", createdAt: "", updatedAt: "", name: "Elin", title: null, segment: "freelance", status: "qualified", email: "elin@elinpt.se", emailVerified: true, phone: null, instagram: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 50, scoreBreakdown: [], legalBasis: "company", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: "", ...p })
+const lead = (p: Partial<Lead>): Lead => ({ id: "1", createdAt: "", updatedAt: "", name: "Elin", title: null, segment: "freelance", status: "qualified", email: "elin@elinpt.se", emailVerified: true, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 50, scoreBreakdown: [], legalBasis: "company", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: "", ...p })
 const now = new Date("2026-11-16T09:00:00Z") // måndag 10:00 i Sverige
 const ctx = { suppressed: false, queued: false, now }
 check(blockersFor(lead({}), ctx).length === 0, "komplett lead med rättslig grund får mejlas")

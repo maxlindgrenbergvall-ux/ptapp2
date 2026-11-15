@@ -155,7 +155,7 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
           {lead.instagram && (
             <Button asChild variant="outline" size="sm">
               <a href={`https://www.instagram.com/${lead.instagram}/`} target="_blank" rel="noopener noreferrer">
-                <AtSign /> Instagram <ExternalLink className="size-3 opacity-60" />
+                <AtSign /> Instagram{lead.instagramFollowers !== null && <span className="text-muted-foreground tabular">· {lead.instagramFollowers.toLocaleString("sv-SE")}</span>} <ExternalLink className="size-3 opacity-60" />
               </a>
             </Button>
           )}

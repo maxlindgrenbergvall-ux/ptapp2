@@ -1,8 +1,10 @@
-// Testserver för CRM:et (v47) på :54810 – spelar tre roller, så att testerna aldrig når internet:
+// Testserver för CRM:et (v47, v49) på :54810 – spelar fyra roller, så att testerna aldrig når internet:
 //   1. Publika webbplatser. Appen skickar ALLA hämtningar hit när CRM_FETCH_MOCK_ORIGIN är satt,
 //      med den riktiga adressen i rubriken x-original-url.
 //   2. Resend (POST /emails). Skickade mejl kan läsas på GET /__sent.
 //   3. Brave Search API (GET /res/v1/web/search).
+//   4. Apify (v49): starta en körning av apify~instagram-scraper, läs status och dataset.
+//      Körningen är klar vid andra statusfrågan (så att avläsningen i appen prövas).
 //   node e2e/mock-crm.mjs
 import http from "node:http"
 
@@ -19,6 +21,13 @@ const PAGES = {
   "https://bild.se/": { type: "image/png", body: "PNG" },
 }
 const ROBOTS = { "hemlig.se": "User-agent: *\nDisallow: /\n", "elinpt.se": "User-agent: *\nDisallow: /admin\n" }
+const IG = {
+  "elin.pt": { username: "elin.pt", fullName: "Elin Söderberg", biography: "Personlig tränare i Göteborg. Styrka & viktnedgång.", externalUrl: "https://elinpt.se/", followersCount: 3200, businessCategoryName: "Personal Trainer", isBusinessAccount: true, private: false },
+  "karin.coach": { username: "karin.coach", fullName: "Karin Ek", biography: "Online coach 💪 karin@karincoach.se", followersCount: 41000, businessCategoryName: "Coach", private: false },
+  hemlig: { username: "hemlig", fullName: "", biography: "", private: true },
+  bageriet: { username: "bageriet", fullName: "Bageriet", biography: "Surdeg varje dag", followersCount: 900, private: false },
+}
+const runs = new Map()
 const sent = []
 const fetched = []
 
@@ -51,6 +60,33 @@ http
       sent.push({ id, key, ...mail })
       return send(200, "application/json", JSON.stringify({ id }))
     }
+    if (req.url?.startsWith("/v2/")) {
+      if (req.headers.authorization !== "Bearer apify-test-token") return send(401, "application/json", JSON.stringify({ error: { message: "Unauthorized" } }))
+      const u = new URL(req.url, "http://x")
+      if (req.method === "POST" && u.pathname === "/v2/acts/apify~instagram-scraper/runs") {
+        const id = `run${runs.size + 1}abcdef`
+        runs.set(id, { input: JSON.parse(body), polls: 0, maxItems: Number(u.searchParams.get("maxItems")) })
+        return send(201, "application/json", JSON.stringify({ data: { id, status: "READY", defaultDatasetId: `ds-${id}` } }))
+      }
+      const run = /^\/v2\/actor-runs\/([A-Za-z0-9]+)$/.exec(u.pathname)
+      if (run && runs.has(run[1])) {
+        const r = runs.get(run[1])
+        r.polls++
+        return send(200, "application/json", JSON.stringify({ data: { id: run[1], status: r.polls >= 2 ? "SUCCEEDED" : "RUNNING", defaultDatasetId: `ds-${run[1]}` } }))
+      }
+      const ds = /^\/v2\/datasets\/ds-([A-Za-z0-9]+)\/items$/.exec(u.pathname)
+      if (ds && runs.has(ds[1])) {
+        const { input } = runs.get(ds[1])
+        if (input.resultsType === "posts") return send(200, "application/json", JSON.stringify([{ ownerUsername: "elin.pt" }, { ownerUsername: "karin.coach" }, { ownerUsername: "elin.pt" }, { ownerUsername: "bageriet" }]))
+        const items = input.directUrls.map((url) => {
+          const handle = /instagram\.com\/([^/]+)\//.exec(url)?.[1]
+          return IG[handle] ?? { error: "not_found", errorDescription: "Profilen finns inte", url }
+        })
+        return send(200, "application/json", JSON.stringify(items))
+      }
+      return send(404, "application/json", JSON.stringify({ error: { message: "Not found" } }))
+    }
+    if (req.url === "/__runs") return send(200, "application/json", JSON.stringify([...runs.entries()]))
     if (req.url === "/__sent") return send(200, "application/json", JSON.stringify(sent))
     if (req.url === "/__fetched") return send(200, "application/json", JSON.stringify(fetched))
     if (req.url?.startsWith("/res/v1/web/search")) {

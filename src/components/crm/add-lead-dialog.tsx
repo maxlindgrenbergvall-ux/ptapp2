@@ -1,9 +1,10 @@
 "use client"
 
-import { FileUp, Globe, Info, Plus, Search, Sparkles } from "lucide-react"
+import { AtSign, FileUp, Globe, Info, Plus, Search, Sparkles } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { InstagramPanel } from "@/components/crm/instagram-panel"
 import { patchFromForm } from "@/components/crm/lead-drawer"
 import { ApiError, crm, Field, ScoreBadge } from "@/components/crm/parts"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,7 @@ export function AddLeadDialog({
   open,
   onOpenChange,
   searchEnabled,
+  instagramEnabled,
   onCreated,
   onImported,
   onDuplicate,
@@ -49,6 +51,7 @@ export function AddLeadDialog({
   open: boolean
   onOpenChange: (o: boolean) => void
   searchEnabled: boolean
+  instagramEnabled: boolean
   onCreated: (lead: Lead) => void
   onImported: (leads: Lead[]) => void
   onDuplicate: (lead: Lead) => void
@@ -213,7 +216,7 @@ export function AddLeadDialog({
           <DialogDescription>Bara publika uppgifter som personen själv lagt ut för kontakt i sin yrkesroll.</DialogDescription>
         </DialogHeader>
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="url">
               <Globe /> Webbsida
             </TabsTrigger>
@@ -225,6 +228,9 @@ export function AddLeadDialog({
             </TabsTrigger>
             <TabsTrigger value="search">
               <Search /> Sök
+            </TabsTrigger>
+            <TabsTrigger value="instagram" data-testid="tab-instagram">
+              <AtSign /> Instagram
             </TabsTrigger>
           </TabsList>
 
@@ -244,7 +250,7 @@ export function AddLeadDialog({
             {!enriched && (
               <p className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
                 <Info className="mt-0.5 size-3.5 shrink-0" />
-                Ange en PT:s egen webbplats eller länk-i-bio-sida. Sidan hämtas en gång, robots.txt respekteras, och sociala nätverk (Instagram, Facebook, LinkedIn) hämtas aldrig automatiskt – lägg in dem som länk.
+                Ange en PT:s egen webbplats eller länk-i-bio-sida. Sidan hämtas en gång och robots.txt respekteras. Sociala nätverk hämtas inte här – Instagram-profiler hämtar du under fliken Instagram (via Apify).
               </p>
             )}
             {enriched && (
@@ -313,6 +319,17 @@ export function AddLeadDialog({
                 </Button>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="instagram" className="pt-2">
+            <InstagramPanel
+              enabled={instagramEnabled}
+              onAdded={onImported}
+              onOpen={(lead) => {
+                onDuplicate(lead)
+                onOpenChange(false)
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="search" className="space-y-4 pt-2">

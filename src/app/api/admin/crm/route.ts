@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
+import { ApifyError, apifyConfigured, getItems, getRun, startRun } from "@/lib/crm/apify"
 import { getAdminContext, systemStore } from "@/lib/crm/auth"
 import { enrichFromUrl } from "@/lib/crm/enrich"
 import { FetchError } from "@/lib/crm/fetch-public"
 import { queueConfig, runQueue, senderConfigured } from "@/lib/crm/queue"
 import { searchCandidates, searchConfigured } from "@/lib/crm/search"
+import { hashtagInput, MAX_HASHTAG_POSTS, MAX_PROFILES_PER_RUN, ownersFromPosts, profileToCandidate, profilesInput } from "@/lib/crm/instagram"
 import { buildOutreach, verifyEmail } from "@/lib/crm/service"
 import { emailHash } from "@/lib/crm/store"
-import { LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
+import { emailKey, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 
 /**
@@ -35,11 +37,12 @@ const leadFields = z
     emailVerified: nullable(z.boolean()),
     phone: nullable(z.string().regex(/^\+[1-9]\d{7,14}$/, "Telefon ska anges som +46…")),
     instagram: nullable(z.string().regex(/^[A-Za-z0-9._]{1,30}$/, "Ange Instagram som kontonamn utan @")),
+    instagramFollowers: nullable(z.number().int().min(0).max(2_000_000_000)),
     websiteUrl: nullable(z.url({ protocol: /^https?$/ }).max(500)),
     gym: nullable(text(120)),
     city: nullable(text(80)),
     specialties: z.array(text(40).min(1)).max(12),
-    source: z.enum(["manual", "csv", "url", "search"]),
+    source: z.enum(["manual", "csv", "url", "search", "instagram"]),
     sourceUrl: nullable(z.url({ protocol: /^https?$/ }).max(500)),
     legalBasis: z.enum(LEGAL_BASES),
   })
@@ -64,6 +67,15 @@ const body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("outreach.schedule"), leadIds: z.array(uuid).min(1).max(200), templateId: uuid.nullable() }).strict(),
   z.object({ action: z.literal("queue.cancel"), id: uuid }).strict(),
   z.object({ action: z.literal("queue.run") }).strict(),
+  z.object({ action: z.literal("lead.findEmail"), id: uuid }).strict(),
+  z.object({
+    action: z.literal("instagram.start"),
+    request: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("profiles"), handles: z.array(z.string().regex(/^[A-Za-z0-9._]{1,30}$/)).min(1).max(MAX_PROFILES_PER_RUN) }).strict(),
+      z.object({ mode: z.literal("hashtag"), hashtag: z.string().regex(/^[\p{L}\p{N}_]{2,60}$/u), limit: z.number().int().min(1).max(MAX_HASHTAG_POSTS) }).strict(),
+    ]),
+  }).strict(),
+  z.object({ action: z.literal("instagram.result"), runId: z.string().regex(/^[A-Za-z0-9]{6,40}$/), mode: z.enum(["profiles", "hashtag"]) }).strict(),
   z.object({ action: z.literal("search"), query: z.object({ segment: z.enum(SEGMENTS), city: text(80).optional(), specialty: text(60).optional(), gym: text(80).optional() }).strict() }).strict(),
 ])
 
@@ -82,7 +94,7 @@ export async function POST(request: Request) {
     switch (input.action) {
       case "bootstrap": {
         const [leads, templates, logs, suppressed] = await Promise.all([store.listLeads(), store.listTemplates(), store.listLogs({ limit: 300 }), store.countSuppressed()])
-        return NextResponse.json({ leads, templates, logs, suppressed, config: { demo: ctx.demo, search: searchConfigured(), sender: senderConfigured(), queue: queueConfig() } })
+        return NextResponse.json({ leads, templates, logs, suppressed, config: { demo: ctx.demo, search: searchConfigured(), instagram: apifyConfigured(), sender: senderConfigured(), queue: queueConfig() } })
       }
       case "lead.create": {
         const lead = input.lead as LeadInput
@@ -182,6 +194,69 @@ export async function POST(request: Request) {
         // Kön körs med serverns behörighet (låser rader i databasen); administratören har redan verifierats ovan.
         const result = await runQueue(systemStore() ?? store)
         return NextResponse.json({ result, logs: await store.listLogs({ limit: 300 }), leads: result.sent || result.cancelled ? await store.listLeads() : undefined })
+      }
+      case "lead.findEmail": {
+        // Leta upp e-post (och telefon) på leadens egen webbplats – samma hänsynsfulla hämtning som fliken Webbsida.
+        const lead = await store.getLead(input.id)
+        if (!lead) return bad("Leaden finns inte längre", 404)
+        if (!lead.websiteUrl) return bad("Leaden har ingen webbplats att leta på", 409)
+        if (await rateLimited(`crm-enrich:${limitKey}`, 120, 3600)) return tooManyRequests(600)
+        try {
+          const found = await enrichFromUrl(lead.websiteUrl)
+          const email = found.suggestion.email
+          const patch: LeadInput = {}
+          if (!lead.email && email && !(await store.suppressedHashes([emailHash(email)])).size) {
+            patch.email = email
+            patch.emailVerified = found.suggestion.emailVerified
+          }
+          if (!lead.phone && found.suggestion.phone) patch.phone = found.suggestion.phone
+          if (!lead.city && found.suggestion.city) patch.city = found.suggestion.city
+          if (!Object.keys(patch).length) return NextResponse.json({ lead, found: false })
+          const r = await store.updateLead(lead.id, patch)
+          // En annan lead har redan adressen: lämna den här orörd.
+          return NextResponse.json({ lead: r?.lead ?? lead, found: Boolean(r?.lead && patch.email) })
+        } catch (e) {
+          if (e instanceof FetchError) return bad(e.message, 422)
+          throw e
+        }
+      }
+      case "instagram.start": {
+        if (!apifyConfigured()) return bad("Instagram är inte konfigurerat (APIFY_TOKEN saknas på servern).", 503)
+        if (await rateLimited(`crm-apify:${limitKey}`, 30, 3600)) return tooManyRequests(600)
+        const req = input.request
+        try {
+          const run =
+            req.mode === "profiles" ? await startRun(profilesInput(req.handles), req.handles.length) : await startRun(hashtagInput(req.hashtag, req.limit), req.limit)
+          return NextResponse.json({ runId: run.id, status: run.status })
+        } catch (e) {
+          if (e instanceof ApifyError) return bad(e.message, e.status >= 500 ? 502 : 422)
+          throw e
+        }
+      }
+      case "instagram.result": {
+        if (!apifyConfigured()) return bad("Instagram är inte konfigurerat (APIFY_TOKEN saknas på servern).", 503)
+        try {
+          const run = await getRun(input.runId)
+          if (run.status === "READY" || run.status === "RUNNING") return NextResponse.json({ status: run.status, done: false })
+          if (run.status !== "SUCCEEDED" || !run.datasetId) return NextResponse.json({ status: run.status, done: true, error: "Apify-körningen misslyckades eller avbröts. Försök igen om en stund." })
+          const items = await getItems(run.datasetId, input.mode === "profiles" ? MAX_PROFILES_PER_RUN : MAX_HASHTAG_POSTS)
+          if (input.mode === "hashtag") return NextResponse.json({ status: run.status, done: true, handles: ownersFromPosts(items) })
+          // Markera konton som redan finns i CRM:et (samma Instagram-konto eller e-post).
+          const existing = await store.listLeads()
+          const byIg = new Map(existing.filter((l) => l.instagram).map((l) => [instagramKey(l.instagram), l]))
+          const byEmail = new Map(existing.filter((l) => l.email).map((l) => [emailKey(l.email), l]))
+          const candidates = items
+            .map(profileToCandidate)
+            .filter((c): c is NonNullable<typeof c> => Boolean(c))
+            .map((c) => {
+              const dup = byIg.get(instagramKey(c.handle)) ?? (c.lead.email ? byEmail.get(emailKey(c.lead.email)) : undefined)
+              return { ...c, existing: dup ? { id: dup.id, name: dup.name } : null }
+            })
+          return NextResponse.json({ status: run.status, done: true, candidates })
+        } catch (e) {
+          if (e instanceof ApifyError) return bad(e.message, e.status >= 500 ? 502 : 422)
+          throw e
+        }
       }
       case "search": {
         if (!searchConfigured()) return bad("Sökningen är inte konfigurerad (BRAVE_SEARCH_API_KEY saknas på servern).", 503)

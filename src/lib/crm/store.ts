@@ -67,6 +67,7 @@ function toLead(r: Row): Lead {
     emailVerified: (r.email_verified as boolean | null) ?? null,
     phone: s(r.phone),
     instagram: s(r.instagram),
+    instagramFollowers: r.instagram_followers == null ? null : Number(r.instagram_followers),
     websiteUrl: s(r.website_url),
     gym: s(r.gym),
     city: s(r.city),
@@ -99,7 +100,7 @@ const toLog = (r: Row): EmailLog => ({
   error: s(r.error),
 })
 
-const COLUMN: Record<string, string> = { emailVerified: "email_verified", websiteUrl: "website_url", sourceUrl: "source_url", legalBasis: "legal_basis", lastEmailedAt: "last_emailed_at", unsubscribedAt: "unsubscribed_at" }
+const COLUMN: Record<string, string> = { instagramFollowers: "instagram_followers", emailVerified: "email_verified", websiteUrl: "website_url", sourceUrl: "source_url", legalBasis: "legal_basis", lastEmailedAt: "last_emailed_at", unsubscribedAt: "unsubscribed_at" }
 function toRow(input: Row): Row {
   const row: Row = {}
   for (const [k, v] of Object.entries(input)) if (v !== undefined) row[COLUMN[k] ?? k] = v
@@ -116,6 +117,7 @@ function scored(base: Partial<Lead>, patch: LeadInput) {
     emailVerified: m.emailVerified ?? null,
     phone: m.phone ?? null,
     instagram: m.instagram ?? null,
+    instagramFollowers: m.instagramFollowers ?? null,
     websiteUrl: m.websiteUrl ?? null,
     gym: m.gym ?? null,
     city: m.city ?? null,
@@ -316,6 +318,7 @@ function seed(): DemoState {
       emailVerified: null,
       phone: null,
       instagram: null,
+      instagramFollowers: null,
       websiteUrl: null,
       gym: null,
       city: null,
@@ -399,7 +402,7 @@ export class DemoStore implements CrmStore {
     const dup = this.clash(input)
     if (dup) return dup
     const now = new Date().toISOString()
-    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now }
+    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now }
     const merged = { ...base, ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) } as Lead
     const { score, breakdown } = scoreLead(merged)
     const lead: DemoLead = { ...merged, score, scoreBreakdown: breakdown, token: randomUUID() }

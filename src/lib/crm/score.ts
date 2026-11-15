@@ -6,7 +6,8 @@ import { GYM_CHAINS, type Lead, type ScorePart } from "@/lib/crm/types"
  * så att man ser VARFÖR en lead ligger högt eller lågt – ingen svart låda.
  *
  *   Kontaktbarhet (max 45): e-post 20, MX-verifierad +15, telefon 10
- *   Närvaro       (max 25): Instagram 10, webbplats 10, känd källa 5
+ *   Närvaro       (max 30): Instagram 10, webbplats 10, känd källa 5,
+ *                           räckvidd 5 (minst 2 000 följare på Instagram)
  *   Profil        (max 30): titel/roll som PT 10, ort 5, gym/företag 5,
  *                           specialisering 5, förnamn + efternamn 5
  *
@@ -16,7 +17,7 @@ import { GYM_CHAINS, type Lead, type ScorePart } from "@/lib/crm/types"
 const FREE_MAIL = /@(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|me|msn|telia|spray|bredband|comhem)\.[a-z.]+$/i
 const TRAINER_TITLE = /\b(pt|personlig(?:a)?\s+tr[äa]nare|personal\s+trainer|coach|tr[äa]nare|kostr[åa]dgivare|instrukt[öo]r)\b/i
 
-export type Scorable = Pick<Lead, "name" | "title" | "email" | "emailVerified" | "phone" | "instagram" | "websiteUrl" | "gym" | "city" | "specialties" | "sourceUrl">
+export type Scorable = Pick<Lead, "name" | "title" | "email" | "emailVerified" | "phone" | "instagram" | "websiteUrl" | "gym" | "city" | "specialties" | "sourceUrl"> & Partial<Pick<Lead, "instagramFollowers">>
 
 export function scoreLead(lead: Scorable): { score: number; breakdown: ScorePart[] } {
   const parts: ScorePart[] = []
@@ -30,6 +31,7 @@ export function scoreLead(lead: Scorable): { score: number; breakdown: ScorePart
   if (lead.phone) add("Telefonnummer", 10)
 
   if (lead.instagram) add("Instagram-profil", 10)
+  if ((lead.instagramFollowers ?? 0) >= 2000) add("Räckvidd på Instagram", 5)
   if (lead.websiteUrl) add("Egen webbplats", 10)
   if (lead.sourceUrl) add("Känd källa", 5)
 

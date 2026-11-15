@@ -19,8 +19,8 @@ const JUNK_EMAIL = /(@(example|exempel|domain|email|test|sentry|wixpress|sentry-
 const EMAIL = /[a-z0-9][a-z0-9._%+-]{0,63}@[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)*\.[a-z]{2,24}/gi
 /** "namn [at] domän [dot] se", "namn(at)domän.se", "namn (snabel-a) domän.se". */
 const OBFUSCATED = /([a-z0-9._%+-]{1,64})\s*(?:\[|\(|\{)\s*(?:at|snabel-?a|@)\s*(?:\]|\)|\})\s*([a-z0-9-]+(?:(?:\.|\s*\[\s*(?:dot|punkt)\s*\]\s*|\s*\(\s*(?:dot|punkt)\s*\)\s*)[a-z0-9-]+)+)/gi
-const TRAINER = /\b(personlig(?:a)?\s+tr[äa]nare|personal\s+trainer|\bPT\b|online\s*-?\s*coach|kostr[åa]dgivare|tr[äa]ningscoach|styrkecoach|l[öo]pcoach|h[äa]lsocoach|certifierad\s+pt|licensierad\s+pt)/i
-const ONLINE = /\bonline\s*-?\s*(coach\w*|pt\b|tr[äa]ning\w*)|\bdistanscoach\w*|\bcoaching\s+p[åa]\s+distans\b/i
+export const TRAINER = /\b(personlig(?:a)?\s+tr[äa]nare|personal\s+trainer|\bPT\b|online\s*-?\s*coach|kostr[åa]dgivare|tr[äa]ningscoach|styrkecoach|l[öo]pcoach|h[äa]lsocoach|certifierad\s+pt|licensierad\s+pt)/i
+export const ONLINE = /\bonline\s*-?\s*(coach\w*|pt\b|tr[äa]ning\w*)|\bdistanscoach\w*|\bcoaching\s+p[åa]\s+distans\b/i
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", aring: "å", auml: "ä", ouml: "ö", Aring: "Å", Auml: "Ä", Ouml: "Ö", eacute: "é", ndash: "–", mdash: "—" }
 export function decodeEntities(s: string): string {
@@ -253,4 +253,9 @@ export function contactLinks(html: string, pageUrl: string): string[] {
     }
   }
   return out.slice(0, 2)
+}
+
+/** Den ort i CITIES som nämns flest gånger i en text (t.ex. en Instagram-bio). */
+export function cityFromText(text: string): string | null {
+  return pickCity([], text)
 }
