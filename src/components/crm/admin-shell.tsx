@@ -1,6 +1,6 @@
 "use client"
 
-import { Users } from "lucide-react"
+import { LogOut, ShieldX, Users } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
@@ -12,11 +12,16 @@ import { BRAND } from "@/lib/brand"
  * Klassen sätts även på <html> medan skalet visas, så att dialoger och
  * sidopaneler (som ritas utanför skalet) får samma färger.
  */
-export function AdminShell({ demo, children }: { demo: boolean; children: React.ReactNode }) {
+/** Coaviras mörka palett på hela sidan (även dialoger som ritas utanför skalet). */
+export function useAdminDark() {
   React.useEffect(() => {
     document.documentElement.classList.add("admin-dark")
     return () => document.documentElement.classList.remove("admin-dark")
   }, [])
+}
+
+export function AdminShell({ demo, children }: { demo: boolean; children: React.ReactNode }) {
+  useAdminDark()
   return (
     <div className="admin-dark min-h-svh bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-[var(--safe-top)]">
@@ -40,5 +45,29 @@ export function AdminShell({ demo, children }: { demo: boolean; children: React.
       </header>
       <main className="page-enter mx-auto max-w-[1400px] px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
+  )
+}
+
+/**
+ * Inloggad men inte administratör – bara på CRM-driftsättningen (i appen svarar
+ * /admin 404, så att panelen inte syns alls).
+ */
+export function NoAccess() {
+  useAdminDark()
+  return (
+    <main className="admin-dark flex min-h-svh items-center justify-center bg-background p-6 text-foreground">
+      <div className="rise-in max-w-sm space-y-4 text-center" data-testid="crm-no-access">
+        <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <ShieldX className="size-5" />
+        </span>
+        <h1 className="text-xl font-semibold">Kontot har inte behörighet</h1>
+        <p className="text-sm text-muted-foreground">Det här kontot är inte administratör. Logga in med ett annat konto, eller be någon med åtkomst att lägga till dig.</p>
+        <form action="/auth/signout" method="post">
+          <button type="submit" className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium transition-colors hover:bg-muted">
+            <LogOut className="size-4" /> Logga ut
+          </button>
+        </form>
+      </div>
+    </main>
   )
 }

@@ -1,3 +1,4 @@
+import { isCrmDeployment } from "@/lib/deployment"
 import { LAST_UPDATED } from "@/lib/seo"
 import { SITE_URL } from "@/lib/site"
 
@@ -32,6 +33,8 @@ function sitemapXml(): string {
  * domänstyrning och cookies påverkar den aldrig. Byggs statiskt.
  */
 export function GET(): Response {
+  // v48: CRM-driftsättningen har inga publika sidor.
+  if (isCrmDeployment()) return new Response("Hittades inte", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } })
   return new Response(sitemapXml(), {
     status: 200,
     headers: {

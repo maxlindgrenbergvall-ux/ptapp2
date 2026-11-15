@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-import { DASHBOARD_PATH } from "@/lib/auth-redirect"
+import { DASHBOARD_PATH, safeNext } from "@/lib/auth-redirect"
+import { CRM_HOME, CRM_LOGIN_PATH, crmAllows, crmUrl, isAdminPath, isCrmDeployment } from "@/lib/deployment"
 import { allowedDuringOnboarding, ONBOARDING_PATH_FOR, onboardingRequired } from "@/lib/onboarding"
 import { hostRoute, START_PATH } from "@/lib/site"
 import {
@@ -59,6 +60,14 @@ function isCrossSiteApiWrite(request: NextRequest): boolean {
  */
 export async function proxy(request: NextRequest) {
   if (isCrossSiteApiWrite(request)) return NextResponse.json({ error: "Otillåtet ursprung" }, { status: 403 })
+
+  // v48: CRM-driftsättningen (COAVIRA_DEPLOYMENT=crm) – bara CRM:et, ingenting av appen.
+  if (isCrmDeployment()) return crmProxy(request)
+  // Appens driftsättning med ett separat CRM: /admin finns bara där.
+  const crm = crmUrl()
+  if (crm && (isAdminPath(request.nextUrl.pathname) || request.nextUrl.pathname === CRM_LOGIN_PATH)) {
+    return NextResponse.redirect(`${crm}${request.nextUrl.pathname}${request.nextUrl.search}`)
+  }
 
   // coavira.fit = landningssidan, APP_URL (ptapp2.vercel.app) = appen. Se hostRoute.
   const route = hostRoute({
@@ -125,10 +134,15 @@ export async function proxy(request: NextRequest) {
   // avgörs av databasen (is_admin) i admin-layouten och i varje API-anrop – inte här.
   const isAdminArea = path === "/admin" || path.startsWith("/admin/")
   if (!claims) {
-    if (isProtected || isAdminArea) return redirect(`/logga-in?next=${encodeURIComponent(path)}`)
+    if (isAdminArea) return redirect(`${CRM_LOGIN_PATH}?next=${encodeURIComponent(path)}`)
+    if (isProtected) return redirect(`/logga-in?next=${encodeURIComponent(path)}`)
     return response
   }
 
+  // Redan inloggad på administratörsinloggningen: vidare till CRM:et (layouten avgör behörigheten).
+  if (path === CRM_LOGIN_PATH) return redirect(safeNext(params.get("next")).startsWith("/admin") ? safeNext(params.get("next")) : CRM_HOME)
+  // /admin hanteras av admin-layouten (is_admin i databasen) – inga roll- eller onboardingregler här.
+  if (isAdminArea) return response
   const role = roleFromClaims(claims as { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> })
   const home = homeFor(role)
   // Nytt konto (e-post, Apple eller Google) som inte valt kontotyp än.
@@ -164,6 +178,51 @@ export async function proxy(request: NextRequest) {
     if (required && !onOnboarding) return redirect(PT_ONBOARDING_PATH)
   }
 
+  return response
+}
+
+/**
+ * CRM-driftsättningen (v48). Bara CRM:ets sidor och API finns; "/" leder till
+ * leads och allt annat svarar 404. Ingen roll-, onboarding- eller värdlogik från
+ * appen – behörigheten avgörs av databasen (is_admin) i admin-layouten och i API:t.
+ */
+async function crmProxy(request: NextRequest) {
+  const path = request.nextUrl.pathname
+  const go = (to: string) => {
+    const url = request.nextUrl.clone()
+    const [pathname, search = ""] = to.split("?")
+    url.pathname = pathname
+    url.search = search
+    return NextResponse.redirect(url)
+  }
+  if (path === "/") return go(CRM_HOME)
+  if (!crmAllows(path)) {
+    return new NextResponse("Hittades inte", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "X-Robots-Tag": "noindex, nofollow" } })
+  }
+  if (!isSupabaseEnabled || path.startsWith("/api/")) return NextResponse.next()
+
+  // Förnya sessionen (samma som i appen) och skicka utloggade till inloggningen.
+  let response = NextResponse.next({ request })
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (list) => {
+        list.forEach(({ name, value }) => request.cookies.set(name, value))
+        response = NextResponse.next({ request })
+        list.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+      },
+    },
+  })
+  const { data } = await supabase.auth.getClaims()
+  const withCookies = (res: NextResponse) => {
+    response.cookies.getAll().forEach((c) => res.cookies.set(c))
+    return res
+  }
+  if (!data?.claims && isAdminPath(path)) return withCookies(go(`${CRM_LOGIN_PATH}?next=${encodeURIComponent(path)}`))
+  if (data?.claims && path === CRM_LOGIN_PATH) {
+    const next = safeNext(request.nextUrl.searchParams.get("next"))
+    return withCookies(go(next.startsWith("/admin") ? next : CRM_HOME))
+  }
   return response
 }
 

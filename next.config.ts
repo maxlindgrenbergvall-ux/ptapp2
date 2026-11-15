@@ -96,6 +96,10 @@ const nextConfig: NextConfig = {
   async headers() {
     // v44 (säkerhetsgranskningen): säkerhetsheaders på alla svar.
     const security = [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    // v48: CRM-driftsättningen (COAVIRA_DEPLOYMENT=crm) syns aldrig i sökmotorer.
+    if (process.env.COAVIRA_DEPLOYMENT?.trim().toLowerCase() === "crm") {
+      return [...security, { source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }];
+    }
     // Appens domän ska inte synas i sökmotorer – den publika sidan är coavira.fit.
     if (new URL(appUrl).host === new URL(siteUrl).host) return security;
     return [

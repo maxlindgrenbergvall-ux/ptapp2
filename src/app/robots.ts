@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next"
 
+import { isCrmDeployment } from "@/lib/deployment"
 import { SITE_URL } from "@/lib/site"
 
 /**
@@ -8,6 +9,8 @@ import { SITE_URL } from "@/lib/site"
  * X-Robots-Tag: noindex, se next.config.ts.)
  */
 export default function robots(): MetadataRoute.Robots {
+  // v48: CRM-driftsättningen ska aldrig indexeras.
+  if (isCrmDeployment()) return { rules: [{ userAgent: "*", disallow: "/" }] }
   return {
     rules: [
       {

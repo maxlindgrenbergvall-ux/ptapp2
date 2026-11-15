@@ -578,6 +578,37 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v48: CRM:et som egen webbplats (t.ex. `coavira-crm.vercel.app`)
+
+CRM:et kan köras som en **egen driftsättning** från samma repo: en egen adress där bara CRM:et finns. Samma databas, samma konton och samma behörighet (`app_admins`) – men inget av appen.
+
+| | Appen (`ptapp2.vercel.app`) | CRM (`coavira-crm.vercel.app`) |
+|---|---|---|
+| `/` | landningssida / appens start | leder direkt till `/admin/leads` |
+| appen, PT-portalen, landningssidan, appens API | ja | 404 |
+| `/admin/leads` | skickas vidare till CRM-adressen (om `CRM_URL` är satt) | ja |
+| inloggning | appens | `/logga-in/admin` – går alltid vidare till leads |
+| sökmotorer | som förut | aldrig (`robots.txt` stänger allt, `X-Robots-Tag: noindex`) |
+
+### Sätta upp det i Vercel (en gång)
+
+1. Vercel → **Add New → Project** → välj **samma repo** → döp projektet till t.ex. `coavira-crm` (adressen blir `coavira-crm.vercel.app`).
+2. **Environment Variables** i det nya projektet:
+   - `COAVIRA_DEPLOYMENT` = `crm` ← det enda som gör projektet till ett CRM
+   - samma som appen: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`
+   - CRM:ets egna (se v47): `CRM_FROM_EMAIL`, och vid behov `CRM_REPLY_TO`, `RESEND_WEBHOOK_SECRET`, `CRON_SECRET`, `BRAVE_SEARCH_API_KEY`
+   - Stripe-, RevenueCat-, Strava- och app-nycklarna behövs **inte**.
+3. **Deploy.**
+4. Supabase → **Authentication → URL Configuration → Redirect URLs**: lägg till `https://coavira-crm.vercel.app/**` (behövs för Google/Apple-inloggning; e-post + lösenord fungerar ändå).
+5. I **appens** Vercel-projekt: sätt `CRM_URL` = `https://coavira-crm.vercel.app`, så att `/admin` i appen skickar vidare dit. (Valfritt – utan den finns CRM:et kvar även i appen.)
+6. Resend → Webhooks: peka på `https://coavira-crm.vercel.app/api/resend/webhook`. Ett schemalagt jobb för kön: `https://coavira-crm.vercel.app/api/crm/queue`.
+
+Avregistreringslänkarna i mejlen pekar på CRM:ets egen adress (`CRM_URL` om den är satt i CRM-projektet, annars Vercels produktionsadress för projektet). Båda projekten bygger automatiskt vid varje push till `main`.
+
+**Inloggning:** samma konto som i appen, inloggat på den nya adressen (inloggningen gäller per adress). Är kontot inte administratör visas "Kontot har inte behörighet" med en utloggningsknapp.
+
+Test: `COAVIRA_DEPLOYMENT=crm npm run build && COAVIRA_DEPLOYMENT=crm CRM_DEMO=1 npm start`, sedan `node e2e/v48-crm-deploy.test.mjs` (29 kontroller: bara CRM:et finns, ingen indexering, säkerhetsheaders).
+
 ## Nytt i v47: internt CRM för B2B-prospektering (`/admin/leads`)
 
 Ett internt verktyg för att hitta, kvalificera och kontakta personliga tränare: frilansande PT:er, PT-influencers/onlinecoacher och PT:er på gymkedjor (SATS, Nordic Wellness, STC, Fitness24Seven m.fl.). Alltid i Coaviras mörka palett, oavsett systemtema.
@@ -1352,6 +1383,7 @@ npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts # aktivt schema: Näst
 node e2e/v43-passbyggare.test.mjs # (demo, 390 px) tomma fält, egen övning i passbyggaren, nya övningar, dagar/vecka, Nästa pass
 node e2e/v46-mikro.test.mjs      # (demo, 390 px, mörkt läge) mikroanimationer, kvitton, tomma lägen, minska rörelse
 node e2e/v47-crm.test.mjs        # (demo + e2e/mock-crm.mjs) internt CRM: berikning, spärrar, dubbletter, kö, webhook, avregistrering
+node e2e/v48-crm-deploy.test.mjs # (COAVIRA_DEPLOYMENT=crm) CRM som egen webbplats: bara CRM:et finns, ingen indexering
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

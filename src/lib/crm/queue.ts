@@ -5,6 +5,7 @@ import { blockersFor, DEFAULT_QUEUE, stockholmDay, type QueueConfig } from "@/li
 import { emailHash, type CrmStore } from "@/lib/crm/store"
 import { emailHtml, footerText } from "@/lib/crm/templates"
 import type { EmailLog } from "@/lib/crm/types"
+import { crmUrl, isCrmDeployment } from "@/lib/deployment"
 import { APP_URL } from "@/lib/site"
 
 /**
@@ -46,7 +47,19 @@ export function queueConfig(): QueueConfig {
 }
 
 export const senderConfigured = () => Boolean(process.env.RESEND_API_KEY?.trim() && process.env.CRM_FROM_EMAIL?.trim())
-export const unsubscribeUrl = (token: string) => `${APP_URL}/avregistrera/${token}`
+/**
+ * Adressen i mejlens länkar (avregistrering). I CRM-driftsättningen (v48) är det
+ * CRM:ets egen adress – CRM_URL om den är satt, annars projektets Vercel-adress –
+ * så att CRM:et inte är beroende av appen. Annars appens adress.
+ */
+export function publicBaseUrl(): string {
+  if (isCrmDeployment()) {
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+    return crmUrl() ?? (vercel ? `https://${vercel.replace(/^https?:\/\//, "")}` : APP_URL)
+  }
+  return APP_URL
+}
+export const unsubscribeUrl = (token: string) => `${publicBaseUrl()}/avregistrera/${token}`
 
 export interface RunResult {
   sent: number
@@ -79,7 +92,7 @@ async function sendViaResend(log: EmailLog, token: string, sourceUrl: string | n
         html: emailHtml(log.body, footer),
         headers: {
           // Avregistrering med ett klick direkt i mejlklienten (RFC 8058).
-          "List-Unsubscribe": `<${APP_URL}/api/crm/unsubscribe?token=${token}>`,
+          "List-Unsubscribe": `<${publicBaseUrl()}/api/crm/unsubscribe?token=${token}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
         tags: [{ name: "kind", value: "crm_outreach" }],

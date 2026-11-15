@@ -3,8 +3,9 @@ import { notFound } from "next/navigation"
 import { connection } from "next/server"
 import { Suspense } from "react"
 
-import { AdminShell } from "@/components/crm/admin-shell"
+import { AdminShell, NoAccess } from "@/components/crm/admin-shell"
 import { getAdminContext } from "@/lib/crm/auth"
+import { isCrmDeployment } from "@/lib/deployment"
 
 export const metadata: Metadata = { title: "Admin", robots: { index: false, follow: false } }
 
@@ -26,6 +27,11 @@ async function Gate({ children }: { children: React.ReactNode }) {
   // Avgörs alltid per förfrågan – aldrig förrenderat vid bygget (inte heller i demoläge).
   await connection()
   const ctx = await getAdminContext()
-  if (!ctx) notFound()
+  if (!ctx) {
+    // På CRM-adressen är det uppenbart vad sidan är – säg varför man inte kommer in.
+    // I appen syns panelen inte alls (404).
+    if (isCrmDeployment()) return <NoAccess />
+    notFound()
+  }
   return <AdminShell demo={ctx.demo}>{children}</AdminShell>
 }
