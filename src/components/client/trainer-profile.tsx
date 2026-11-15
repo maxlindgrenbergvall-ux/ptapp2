@@ -10,6 +10,7 @@ import { ServiceMenu } from "@/components/services/service-menu"
 import { BoostedBadge } from "@/components/boost/boost"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
+import { TrainerLinks } from "@/components/trainer-links"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -91,6 +92,7 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           ))}
         </div>
         <OfferingBadges trainer={trainer} />
+        <TrainerLinks trainer={trainer} />
         {isMyTrainer && (
           <Badge variant="secondary" className="gap-1">
             <BadgeCheck className="text-primary" /> Din PT

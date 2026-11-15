@@ -578,6 +578,60 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v51: planera i förväg, PT-länkar, nya diagram och sammanfattning efter passet
+
+**Klickbara dagar på Idag** (`src/components/client/day-planner.tsx`):
+- Varje dag i veckoremsan är en knapp. Pilarna bläddrar fyra veckor bakåt och framåt, och piltangenterna flyttar en dag i taget.
+- Vald dag är limegrön. Idag har en ring. Dagar med pass eller mat har en liten limegrön prick, och en bock när alla pass är klara.
+- Väljer man en annan dag än idag glider dagens innehåll in:
+  - Pass den dagen.
+  - **Planera pass:** en dag ur det aktiva schemat eller en sparad mall läggs på datumet. Turordningen i schemat ändras inte.
+  - **Bygg eget pass** med datumet förvalt.
+  - Kostgenvägen öppnar Kost på just den dagen (`/klient/kost?datum=`). Kost kan planeras upp till en vecka framåt och loggas en månad bakåt, samma gränser som förut.
+- Ett planerat eget pass som inte har påbörjats kan tas bort direkt på dagen.
+
+**PT:ns hemsida och Instagram:**
+- Två nya fält under *Min profil → Hemsida och Instagram*.
+- Det PT:n skriver normaliseras: `dinsida.se` blir `https://dinsida.se`, och `@namn` eller en profillänk blir `namn`.
+- Felaktiga värden visas direkt och sparas aldrig. Det gäller `javascript:`, andra protokoll än http(s), inloggningsuppgifter i adressen och ogiltiga tecken.
+- Länkarna visas som badges på den publika profilen, i förhandsvisningen och under *Mina PT:er* hos klienten.
+- Länkarna öppnas i en ny flik med `noopener noreferrer nofollow`, och bara http(s) kan visas.
+- Kod: `src/lib/trainer-links.ts` och `src/components/trainer-links.tsx`.
+- **Kör migrationen** `supabase/migrations/20261122000000_v51_trainer_links.sql`. Den lägger till kolumnerna `trainers.website_url` och `trainers.instagram`, med check-constraints som speglar appens regler. RLS är oförändrad: PT:n kan bara ändra sin egen rad, och anon har ingen åtkomst.
+
+**Diagrammen** (`src/components/charts/progress-charts.tsx`), samma för klient och PT:
+- Staplar med rundade toppar mot en rak bas och ett svagt spår bakom varje stapel. Innevarande vecka visas i full färg med värdet ovanför.
+- Rena axlar: inga axellinjer, bara ett svagt streckat rutnät.
+- Viktkurvan har en mjuk toning under linjen, och linjer och staplar växer fram när grafen syns.
+- Siffrorna i PT:ns översikt räknas upp, och följsamhetsstaplarna fylls mjukt.
+- *Framsteg* visar som förut bara de två korten och den stora grafen, utan 1RM.
+
+**Sammanfattning efter passet** (`src/lib/workout-summary.ts`, `src/components/client/workout-summary.tsx`):
+- Efter *Spara pass* visas set, volym (kg × reps för avbockade set) och nya rekord.
+  - Ett rekord är tyngsta avbockade set mot tidigare bästa i samma övning.
+  - Det är inga uppskattningar: ingen 1RM.
+- Vyn visar också veckans pass mot schemats mål och vilket pass som står på tur.
+- Kommentaren väljs med fasta regler i prioritetsordning: under halva passet, nytt rekord, veckans mål nått, tillbaka efter minst tio dagar, minst tre veckor i rad, första passet, och sist tiden på dygnet.
+- Ingen AI, inga utropstecken och inga superlativ. Samma pass ger samma text.
+- Vyn stannar tills klienten trycker **Klar**. Tidigare gick den vidare automatiskt.
+
+**Säkerhetskontroll** (`supabase/tests/rls_v51.test.sql`), som körs med de övriga databastesterna. Den fångar framtida misstag:
+- RLS är påslagen på **varje** tabell i `public`.
+- anon saknar behörighet på alla tabeller.
+- Alla `security definer`-funktioner har fast `search_path`.
+- Ingen skrivpolicy släpper in alla.
+
+**Redan på plats från tidigare versioner (kontrollerat, inte ombyggt):**
+- Kost som egen sida med inkorg och låst sidsvep (v40–v42).
+- Inställningarna flyttade från passvyn till profilen (v37). Bara snabbknappen *Vila* finns kvar i passet.
+- Passbyggaren med tomma fält, muskelgrupper, egna övningar, de fem övningarna, dagar per vecka och *Nästa pass* (v38/v43).
+
+Test:
+- `npx tsx --tsconfig tsconfig.json e2e/workout-summary.unit.ts` (22 kontroller)
+- `npx tsx --tsconfig tsconfig.json e2e/trainer-links.unit.ts` (23 kontroller)
+- `node e2e/v51-plattform.test.mjs`
+- Databas: `supabase/tests/rls_v51.test.sql`
+
 ## Nytt i v50: Hitta PT:er automatiskt – bara bra leads
 
 Knappen **Hitta PT:er** i CRM:et startar ett jobb som söker brett på Instagram i många omgångar och **bara sparar konton som klarar alla krav**, tills målet (standard 15) är nått:
@@ -1440,6 +1494,7 @@ node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk kloc
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
 npx tsx --tsconfig tsconfig.json e2e/exercise-groups.unit.ts # muskelgrupperna (Biceps/Triceps, Baksida lår/Säte/Vader …)
 node e2e/v38-ovningar.test.mjs # (demo) byt övning i split, muskelgrupper/filter/sök, drag-and-drop i split och eget pass, Lägg till övning i passet
+node e2e/v51-plattform.test.mjs # (demo, 390 px) klickbara dagar och planering, PT-länkar, diagram, sammanfattning efter passet
 node e2e/v37-mobil.test.mjs   # (demo, 360 px) ingen overflow, viktfältet, Varför?, Ta bort passet längst ned, profilen som inställningsnav
 node e2e/v36-supabase.test.mjs # Pop-upen: syns bara för den som aldrig valt, Fråga mig senare → nästa inloggning, Ja → Resend-segmentet, Nej → ingen kontakt
 node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt

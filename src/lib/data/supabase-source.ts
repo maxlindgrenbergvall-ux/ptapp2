@@ -88,6 +88,8 @@ interface TrainerRow {
   profile?: { full_name: string } | null
   min_notice_minutes?: number | null
   boosted_until?: string | null
+  website_url?: string | null
+  instagram?: string | null
   reviews?: ReviewRow[]
 }
 interface CartRow {
@@ -474,6 +476,8 @@ export const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   offersNutrition: r.offers_nutrition ?? false,
   minNoticeMinutes: r.min_notice_minutes ?? undefined,
   boostedUntil: r.boosted_until ?? undefined,
+  websiteUrl: r.website_url ?? undefined,
+  instagram: r.instagram ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
@@ -1350,6 +1354,8 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.isPublished !== undefined) row.is_published = p.isPublished
       if (p.offersTraining !== undefined) row.offers_training = p.offersTraining
       if (p.offersNutrition !== undefined) row.offers_nutrition = p.offersNutrition
+      if (p.websiteUrl !== undefined) row.website_url = p.websiteUrl || null
+      if (p.instagram !== undefined) row.instagram = p.instagram || null
       // Namnet ligger i profiles (samma för alla roller).
       if (p.name === undefined) return result(sb.from("trainers").update(row).eq("id", action.trainerId))
       const name = p.name

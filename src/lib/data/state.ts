@@ -140,6 +140,8 @@ export type TrainerProfilePatch = Partial<
     | "isPublished"
     | "offersTraining"
     | "offersNutrition"
+    | "websiteUrl"
+    | "instagram"
   >
 >
 

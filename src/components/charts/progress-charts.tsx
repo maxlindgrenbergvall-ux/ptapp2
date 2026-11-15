@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { RevealOnView } from "@/components/motion"
 import {
@@ -31,6 +31,11 @@ const axisProps = {
   fontSize: 12,
 } as const
 
+/** v51: rena axlar – bara ett svagt, streckat horisontellt rutnät. */
+const gridProps = { vertical: false, strokeDasharray: "2 4", strokeOpacity: 0.35 } as const
+/** Mjuk inladdning: linjer och staplar växer fram när grafen syns. */
+const ENTER = { animationDuration: 800, animationEasing: "ease-out" } as const
+
 export function WeightChart({ entries }: { entries: WeightEntry[] }) {
   const config = { kg: { label: "Vikt", color: "var(--chart-brand)" } } satisfies ChartConfig
   if (entries.length < 2) {
@@ -44,8 +49,14 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
       caption="Viktutveckling"
     >
       <ChartContainer config={config} className="aspect-auto h-56 w-full">
-        <LineChart data={entries} margin={{ left: 0, right: 12, top: 8 }}>
-          <CartesianGrid vertical={false} strokeOpacity={0.5} />
+        <AreaChart data={entries} margin={{ left: 0, right: 12, top: 8 }}>
+          <defs>
+            <linearGradient id="weight-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-kg)" stopOpacity={0.22} />
+              <stop offset="100%" stopColor="var(--color-kg)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid {...gridProps} />
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} domain={domain} width={36} />
           <ChartTooltip
@@ -53,8 +64,17 @@ export function WeightChart({ entries }: { entries: WeightEntry[] }) {
             cursor={{ strokeDasharray: "3 3" }}
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} kg`} />}
           />
-          <Line dataKey="kg" type="monotone" stroke="var(--color-kg)" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} animationDuration={900} animationEasing="ease-out" />
-        </LineChart>
+          <Area
+            dataKey="kg"
+            type="monotone"
+            stroke="var(--color-kg)"
+            strokeWidth={2}
+            fill="url(#weight-fill)"
+            dot={false}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--background)" }}
+            {...ENTER}
+          />
+        </AreaChart>
       </ChartContainer>
     </ChartFrame>
   )
@@ -80,7 +100,7 @@ export function TrendChart({
     <ChartFrame caption={label} table={{ head: ["Datum", `${label} (${unit})`], rows: points.map((p) => [formatShort(p.date), String(p.value)]) }}>
       <ChartContainer config={config} className="aspect-auto h-48 w-full">
         <LineChart data={points} margin={{ left: 0, right: 12, top: 8 }}>
-          <CartesianGrid vertical={false} strokeOpacity={0.5} />
+          <CartesianGrid {...gridProps} />
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} width={36} domain={[Math.floor(Math.min(...values) - pad), Math.ceil(Math.max(...values) + pad)]} />
           <ChartTooltip
@@ -88,7 +108,7 @@ export function TrendChart({
             cursor={{ strokeDasharray: "3 3" }}
             content={<ChartTooltipContent labelFormatter={(v) => formatShort(String(v))} formatter={(v) => `${v} ${unit}`} />}
           />
-          <Line dataKey="value" type="monotone" stroke="var(--color-value)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+          <Line dataKey="value" type="monotone" stroke="var(--color-value)" strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: "var(--color-value)" }} activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--background)" }} {...ENTER} />
         </LineChart>
       </ChartContainer>
     </ChartFrame>
@@ -137,7 +157,7 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
     >
       <ChartContainer config={config} className="aspect-auto h-64 w-full">
         <LineChart data={data} margin={{ left: 0, right: 96, top: 8 }}>
-          <CartesianGrid vertical={false} strokeOpacity={0.5} />
+          <CartesianGrid {...gridProps} />
           <XAxis dataKey="date" {...axisProps} tickFormatter={formatShort} minTickGap={24} />
           <YAxis {...axisProps} width={36} domain={yDomain} />
           <ChartTooltip
@@ -162,6 +182,7 @@ export function StrengthChart({ workouts }: { workouts: ScheduledWorkout[] }) {
               dot={false}
               activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--background)" }}
               connectNulls
+              {...ENTER}
             >
               <LabelList
                 dataKey={lift.key}
@@ -195,6 +216,7 @@ export function SessionsChart({ workouts, weeks = 12 }: { workouts: ScheduledWor
       return { week: `v. ${isoWeek(start)}`, start, done }
     })
   }, [workouts, weeks])
+  const last = data.length - 1
 
   return (
     <ChartFrame
@@ -202,12 +224,34 @@ export function SessionsChart({ workouts, weeks = 12 }: { workouts: ScheduledWor
       table={{ head: ["Vecka", "Pass"], rows: data.map((d) => [d.week, String(d.done)]) }}
     >
       <ChartContainer config={config} className="aspect-auto h-48 w-full">
-        <BarChart data={data} margin={{ left: 0, right: 0, top: 16 }} barCategoryGap={2}>
-          <CartesianGrid vertical={false} strokeOpacity={0.5} />
+        <BarChart data={data} margin={{ left: 0, right: 0, top: 20 }} barCategoryGap="22%">
+          <CartesianGrid {...gridProps} />
           <XAxis dataKey="week" {...axisProps} minTickGap={8} />
           <YAxis {...axisProps} allowDecimals={false} width={24} />
-          <ChartTooltip {...TOOLTIP_MOTION} cursor={{ fillOpacity: 0.4 }} content={<ChartTooltipContent hideIndicator />} />
-          <Bar dataKey="done" fill="var(--color-done)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <ChartTooltip {...TOOLTIP_MOTION} cursor={{ fill: "var(--muted)", fillOpacity: 0.5, radius: 6 }} content={<ChartTooltipContent hideIndicator />} />
+          {/* Rundade toppar mot en rak bas; svagt spår bakom varje stapel; innevarande vecka i full färg. */}
+          <Bar
+            dataKey="done"
+            fill="var(--color-done)"
+            radius={[6, 6, 0, 0]}
+            maxBarSize={26}
+            background={{ fill: "var(--muted)", fillOpacity: 0.35, radius: 6 }}
+            {...ENTER}
+          >
+            {data.map((d, i) => (
+              <Cell key={d.start} fillOpacity={i === last ? 1 : 0.55} />
+            ))}
+            <LabelList
+              dataKey="done"
+              content={({ index, x, y, width, value }) =>
+                index === last ? (
+                  <text x={Number(x) + Number(width) / 2} y={Number(y) - 6} textAnchor="middle" fontSize={11} className="fill-foreground font-semibold tabular">
+                    {value}
+                  </text>
+                ) : null
+              }
+            />
+          </Bar>
         </BarChart>
       </ChartContainer>
     </ChartFrame>

@@ -11,7 +11,7 @@ run() { psql -X -q -v ON_ERROR_STOP=1 -d "$DB" "$@"; }
 run -f supabase/tests/supabase_stub.sql 2>/dev/null  # varnar om wal_level (realtid), ofarligt
 # v11 körs först efter de äldre testerna, så att övergången för befintlig data
 # (pass och kostplaner från före betalningen) testas som i produktion.
-for f in supabase/migrations/*.sql; do case "$f" in *_v11_*|*_v12_*|*_v13_*|*_v14_*|*_v15_*|*_v16_*|*_v17_*|*_v18_*|*_v19_*|*_v20_*|*_v21_*|*_v22_*|*_v23_*|*_v24_*|*_v25_*|*_v26_*|*_v27_*|*_v28_*|*_v29_*|*_v30_*|*_v31_*|*_v32_*|*_v34_*|*_v36_*|*_v43_*|*_v44_*|*_v47_*|*_v49_*|*_v50_*) ;; *) run -f "$f" ;; esac; done
+for f in supabase/migrations/*.sql; do case "$f" in *_v11_*|*_v12_*|*_v13_*|*_v14_*|*_v15_*|*_v16_*|*_v17_*|*_v18_*|*_v19_*|*_v20_*|*_v21_*|*_v22_*|*_v23_*|*_v24_*|*_v25_*|*_v26_*|*_v27_*|*_v28_*|*_v29_*|*_v30_*|*_v31_*|*_v32_*|*_v34_*|*_v36_*|*_v43_*|*_v44_*|*_v47_*|*_v49_*|*_v50_*|*_v51_*) ;; *) run -f "$f" ;; esac; done
 run -f supabase/seed.sql
 # Resultatrader till /dev/null; NOTICE (ok-rader) och fel går till stderr.
 for t in supabase/tests/rls.test.sql supabase/tests/rls_v2.test.sql supabase/tests/rls_v3.test.sql supabase/tests/rls_v4.test.sql supabase/tests/rls_v5.test.sql supabase/tests/rls_v6.test.sql supabase/tests/rls_v7.test.sql supabase/tests/rls_v8.test.sql supabase/tests/rls_v9.test.sql supabase/tests/rls_v10.test.sql; do
@@ -75,6 +75,8 @@ run -f supabase/migrations/20261120000000_v49_crm_instagram.sql
 run -f supabase/tests/rls_v49.test.sql 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
 run -f supabase/migrations/20261121000000_v50_crm_prospecting.sql
 run -f supabase/tests/rls_v50.test.sql 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
+run -f supabase/migrations/20261122000000_v51_trainer_links.sql
+run -f supabase/tests/rls_v51.test.sql 2>&1 >/dev/null | sed 's/^psql:[^ ]* NOTICE:  /  /'
 [ -n "${KEEP_DB:-}" ] || dropdb "$DB"
 
 # Migreringstest: data från v1–v3 ska flyttas korrekt av v4.

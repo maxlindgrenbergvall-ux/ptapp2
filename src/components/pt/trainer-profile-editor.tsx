@@ -1,10 +1,12 @@
 "use client"
 
 import {
+  AtSign,
   BadgeCheck,
   CalendarPlus,
   Eye,
   EyeOff,
+  Globe,
   MapPin,
   Check,
   Dumbbell,
@@ -31,6 +33,8 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { formatSek } from "@/lib/money"
+import { normalizeInstagram, normalizeWebsite } from "@/lib/trainer-links"
+import { TrainerLinks } from "@/components/trainer-links"
 import type { TrainerProfilePatch } from "@/lib/data/state"
 import { useAppData } from "@/lib/data/store"
 import { cn } from "@/lib/utils"
@@ -50,7 +54,12 @@ export function TrainerProfileEditor() {
     avatarUrl: trainer?.avatarUrl ?? "",
     offersTraining: trainer?.offersTraining ?? true,
     offersNutrition: trainer?.offersNutrition ?? false,
+    websiteUrl: trainer?.websiteUrl ?? "",
+    instagram: trainer?.instagram ?? "",
   }))
+  const website = normalizeWebsite(form.websiteUrl)
+  const insta = normalizeInstagram(form.instagram)
+  const [showLinkErrors, setShowLinkErrors] = React.useState(false)
   const hasServices = data.services.some((x) => x.trainerId === me.id && x.active)
 
   if (!trainer) return null
@@ -67,17 +76,36 @@ export function TrainerProfileEditor() {
     (k) => JSON.stringify(form[k] || "") !== JSON.stringify(trainer[k] || "")
   )
 
-  const save = (extra: TrainerProfilePatch = {}) => {
+  /** Sparar profilen. Returnerar false (och visar felet) om en länk inte går att spara. */
+  const save = (extra: TrainerProfilePatch = {}): boolean => {
+    if (!website.ok || !insta.ok) {
+      setShowLinkErrors(true)
+      toast.error(!website.ok ? website.error : !insta.ok ? insta.error : "")
+      document.getElementById(!website.ok ? "website" : "instagram")?.focus()
+      return false
+    }
     actions.updateTrainerProfile({
       ...form,
       city: form.city.trim(),
       bio: form.bio.trim(),
       avatarUrl: form.avatarUrl || undefined,
+      // Tomt fält = ta bort länken ("" blir null i databasen).
+      websiteUrl: website.value ?? "",
+      instagram: insta.value ?? "",
       ...extra,
     })
+    // Visa den normaliserade formen (t.ex. https:// tillagt, @ borttaget).
+    setForm((f) => ({ ...f, websiteUrl: website.value ?? "", instagram: insta.value ?? "" }))
+    return true
   }
 
-  const preview = { ...trainer, ...form, avatarUrl: form.avatarUrl || undefined }
+  const preview = {
+    ...trainer,
+    ...form,
+    avatarUrl: form.avatarUrl || undefined,
+    websiteUrl: website.ok ? (website.value ?? undefined) : undefined,
+    instagram: insta.ok ? (insta.value ?? undefined) : undefined,
+  }
 
   return (
     <div className="space-y-6">
@@ -88,8 +116,7 @@ export function TrainerProfileEditor() {
           <Button
             disabled={!dirty}
             onClick={() => {
-              save()
-              toast.success("Profilen är sparad")
+              if (save()) toast.success("Profilen är sparad")
             }}
           >
             <Save /> Spara
@@ -254,6 +281,60 @@ export function TrainerProfileEditor() {
           </Section>
 
           <Section
+            title="Hemsida och Instagram"
+            description="Visas som länkar på din profil, för klienter som letar PT och för dina egna klienter. Lämna tomt om du inte vill visa något."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Hemsida" htmlFor="website">
+                <div className="relative">
+                  <Globe className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input
+                    id="website"
+                    type="url"
+                    inputMode="url"
+                    autoComplete="url"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    maxLength={300}
+                    className="pl-9"
+                    placeholder="dinsida.se"
+                    value={form.websiteUrl}
+                    aria-invalid={showLinkErrors && !website.ok}
+                    aria-describedby="website-hint"
+                    onChange={(e) => setForm({ ...form, websiteUrl: e.target.value })}
+                    onBlur={() => setShowLinkErrors(true)}
+                  />
+                </div>
+                <p id="website-hint" className={cn("text-xs", showLinkErrors && !website.ok ? "text-destructive" : "text-muted-foreground")}>
+                  {showLinkErrors && !website.ok ? website.error : "https:// läggs till automatiskt."}
+                </p>
+              </Field>
+              <Field label="Instagram" htmlFor="instagram">
+                <div className="relative">
+                  <AtSign className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input
+                    id="instagram"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={80}
+                    className="pl-9"
+                    placeholder="användarnamn"
+                    value={form.instagram}
+                    aria-invalid={showLinkErrors && !insta.ok}
+                    aria-describedby="instagram-hint"
+                    onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+                    onBlur={() => setShowLinkErrors(true)}
+                  />
+                </div>
+                <p id="instagram-hint" className={cn("text-xs", showLinkErrors && !insta.ok ? "text-destructive" : "text-muted-foreground")}>
+                  {showLinkErrors && !insta.ok ? insta.error : "Namnet eller länken till kontot."}
+                </p>
+              </Field>
+            </div>
+          </Section>
+
+          <Section
             title="Tjänster och priser"
             description="Det klienter kan köpa av dig. Klienten betalar i appen, och du kan bara schemalägga så många pass som klienten har betalat för."
           >
@@ -301,8 +382,7 @@ export function TrainerProfileEditor() {
                   className="w-full"
                   disabled={missing.length > 0}
                   onClick={() => {
-                    save({ isPublished: true })
-                    toast.success("Profilen är publicerad")
+                    if (save({ isPublished: true })) toast.success("Profilen är publicerad")
                   }}
                 >
                   <Eye /> Spara och publicera
@@ -412,6 +492,7 @@ function TrainerCardPreview({ trainer }: { trainer: Trainer }) {
         </div>
       </div>
       <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{trainer.bio || "Ingen presentation än."}</p>
+      <TrainerLinks trainer={trainer} size="sm" className="mt-3 justify-start" />
       <div className="mt-3 flex flex-wrap gap-1.5">
         {trainer.specialties.map((s) => (
           <SpecialtyBadge key={s} specialty={s} />

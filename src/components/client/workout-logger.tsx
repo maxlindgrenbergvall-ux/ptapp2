@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
 import { DrawnCheck } from "@/components/motion"
+import { WorkoutSummaryView } from "@/components/client/workout-summary"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
 import { SyncIndicator } from "@/components/sync-indicator"
@@ -37,7 +38,6 @@ import { nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
-import { prefersReducedMotion } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
 import type { Exercise, ScheduledWorkout, WorkoutExercise } from "@/types/domain"
 
@@ -906,44 +906,27 @@ function FinishDialog({
   onDone: () => void
 }) {
   const [comment, setComment] = React.useState("")
-  const [saved, setSaved] = React.useState<{ commentSent: boolean } | null>(null)
+  const [saved, setSaved] = React.useState<{ commentSent: boolean; hour: number } | null>(null)
   const done = setsDone(workout)
   const total = setsTotal(workout)
   const quick = ["Kändes lätt 💪", "Lagom tungt", "Tungt idag", "Ont någonstans – vill prata"]
 
-  // v46: ett kort kvitto – bocken ritas, sedan går appen vidare av sig själv.
-  // Med "minska rörelse" går den vidare direkt.
-  const doneRef = React.useRef(onDone)
-  React.useEffect(() => {
-    doneRef.current = onDone
-  })
-  React.useEffect(() => {
-    if (!saved) return
-    const id = window.setTimeout(() => doneRef.current(), prefersReducedMotion() ? 0 : 1300)
-    return () => window.clearTimeout(id)
-  }, [saved])
+  // v51: efter sparandet visas en sammanfattning med en personlig kommentar.
+  // Den stannar tills klienten trycker Klar (eller stänger rutan).
 
   const save = () => {
     const result = onFinish(comment.trim())
     if (!result) return
     navigator.vibrate?.([12, 60, 18])
-    setSaved(result)
+    // Klockslaget styr kommentaren (morgon/kväll) – tas när passet sparas.
+    setSaved({ ...result, hour: new Date().getHours() })
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (saved ? doneRef.current() : onOpenChange(o))}>
-      <DialogContent showCloseButton={!saved}>
+    <Dialog open={open} onOpenChange={(o) => (saved ? onDone() : onOpenChange(o))}>
+      <DialogContent showCloseButton={!saved} className={cn(saved && "sm:max-w-sm")}>
         {saved ? (
-          <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="workout-saved" role="status">
-            <span className="settle-in relative flex size-16 items-center justify-center rounded-full bg-brand text-brand-foreground">
-              <DrawnCheck play={1} className="size-8" />
-              <span aria-hidden className="ring-burst [animation-delay:120ms]" />
-            </span>
-            <DialogTitle className="rise-in text-xl [animation-delay:120ms]">Snyggt jobbat!</DialogTitle>
-            <DialogDescription className="rise-in [animation-delay:200ms]">
-              Passet är sparat – {done} av {total} set.{saved.commentSent && " Din kommentar skickades till din PT."}
-            </DialogDescription>
-          </div>
+          <WorkoutSummaryView workout={workout} hour={saved.hour} commentSent={saved.commentSent} onDone={onDone} />
         ) : (
           <>
             <DialogHeader>

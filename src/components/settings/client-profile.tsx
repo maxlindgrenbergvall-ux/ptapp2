@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { AvatarPicker } from "@/components/avatar-picker"
 import { LeaveTrainerButton, OfferingBadges } from "@/components/client/trainer-profile"
+import { TrainerLinks } from "@/components/trainer-links"
 import { RestSettingsFields } from "@/components/client/rest-settings"
 import { PersonAvatar } from "@/components/common"
 import { GoalPills } from "@/components/goals/goal-pills"
@@ -124,6 +125,7 @@ export function ClientProfileSettings() {
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </Link>
+              <TrainerLinks trainer={t} size="sm" className="mt-2 justify-start" />
               <LeaveTrainerButton trainer={t} className="mt-1 h-8 justify-start px-2 text-xs" />
             </div>
           ))}

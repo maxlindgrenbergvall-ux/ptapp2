@@ -98,7 +98,7 @@ export function GoalProjectionChart({
       >
         <ChartContainer config={config} className={size === "lg" ? "aspect-auto h-72 w-full sm:h-96" : "aspect-auto h-56 w-full sm:h-64"}>
           <LineChart data={rows} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
-            <CartesianGrid vertical={false} strokeOpacity={0.5} />
+            <CartesianGrid vertical={false} strokeDasharray="2 4" strokeOpacity={0.35} />
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} tickFormatter={(w) => (w === 0 ? "Start" : `v${w}`)} minTickGap={20} />
             <YAxis tickLine={false} axisLine={false} tickMargin={6} fontSize={12} width={40} domain={domain} allowDecimals={false} tickCount={5} tickFormatter={(v: number) => (v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : "0")} />
             <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1.5} />

@@ -28,14 +28,23 @@ import type { WorkoutTemplate } from "@/types/domain"
  * pass. Passet syns för klientens PT:er som underlag men räknas aldrig som
  * ett betalt pass. Passet kan sparas som mall och mallar läses in med ett tryck.
  */
-export function OwnWorkoutDialog({ className }: { className?: string }) {
+export function OwnWorkoutDialog({
+  className,
+  defaultDate,
+  label = "Logga eget pass",
+}: {
+  className?: string
+  /** v51: förvalt datum (vald dag i veckoremsan). */
+  defaultDate?: string
+  label?: string
+}) {
   const { data, actions, me } = useAppData()
   const router = useRouter()
   const templates = myTemplates(data, me.id)
   const [templateId, setTemplateId] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
-  const [date, setDate] = React.useState(todayISO())
+  const [date, setDate] = React.useState(defaultDate ?? todayISO())
   const [q, setQ] = React.useState("")
   const [items, setItems] = React.useState<ExerciseDraft[]>([])
 
@@ -44,7 +53,7 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
 
   const reset = () => {
     setName("")
-    setDate(todayISO())
+    setDate(defaultDate ?? todayISO())
     setQ("")
     setItems([])
     setTemplateId(null)
@@ -75,6 +84,11 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
     const id = actions.createOwnWorkout(name, date, exercises)
     setOpen(false)
     reset()
+    if (date > todayISO()) {
+      // Planerat framåt: stanna kvar på dagen i veckoremsan.
+      toast.success("Passet är planerat", { description: "Det ligger klart på dagen – dina PT:er ser det som underlag." })
+      return
+    }
     toast.success("Passet är skapat", { description: "Logga seten – dina PT:er ser passet som underlag." })
     router.push(`/klient/pass/${id}`)
   }
@@ -83,7 +97,7 @@ export function OwnWorkoutDialog({ className }: { className?: string }) {
     <Dialog open={open} onOpenChange={(o) => (setOpen(o), !o && reset())}>
       <DialogTrigger asChild>
         <Button variant="outline" className={cn("w-full", className)}>
-          <Plus /> Logga eget pass
+          <Plus /> {label}
         </Button>
       </DialogTrigger>
       <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-md">

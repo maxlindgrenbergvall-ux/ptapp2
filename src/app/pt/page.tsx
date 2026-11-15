@@ -13,7 +13,7 @@ import { formatSek } from "@/lib/money"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
+import { FillBar } from "@/components/motion"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
@@ -193,7 +193,7 @@ export default function PtOverviewPage() {
                         <span className="text-sm text-muted-foreground">–</span>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <Progress value={adh} className="h-1.5" aria-label={`Följsamhet ${adh} procent`} />
+                          <FillBar value={adh} className="h-1.5 w-full min-w-16" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={adh} aria-label={`Följsamhet ${adh} procent`} />
                           <span className="w-10 text-right text-xs tabular">{adh} %</span>
                         </div>
                       )}

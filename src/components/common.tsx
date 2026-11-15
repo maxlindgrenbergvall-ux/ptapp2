@@ -4,6 +4,7 @@ import type * as React from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { AnimatedNumber } from "@/components/motion"
 import { cn } from "@/lib/utils"
 import { SPECIALTY_LABEL, type ClientStatus, type Specialty } from "@/types/domain"
 
@@ -104,7 +105,8 @@ export function StatTile({
         {label}
         {Icon && <Icon className="size-4" />}
       </div>
-      <div className="mt-2 text-2xl font-bold tracking-tight tabular">{value}</div>
+      {/* v51: siffror räknas mjukt upp när kortet visas. */}
+      <div className="mt-2 text-2xl font-bold tracking-tight tabular">{typeof value === "number" ? <AnimatedNumber value={value} /> : value}</div>
       {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
     </div>
   )

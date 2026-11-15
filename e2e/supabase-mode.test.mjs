@@ -76,6 +76,7 @@ check(queuedAfter[0] === 0, "kön är tom efter synk")
 
 // 6. Avsluta passet med kommentar
 await p.click("text=Avsluta"); await p.click("text=Lagom tungt"); await p.click("text=Spara pass")
+await p.click("[data-testid=summary-done]")
 await p.waitForURL(`${base}/klient`)
 await p.waitForTimeout(500)
 log = await getLog()

@@ -67,6 +67,7 @@ check(await p.locator("text=· Eget pass").isVisible(), "passet är märkt som e
 await p.click('button[aria-label="Bocka av set 1"] >> nth=0')
 await p.click('button:has-text("Avsluta")')
 await p.click('button:has-text("Spara pass")')
+await p.click("[data-testid=summary-done]") // v51: sammanfattningen stannar tills Klar
 await p.waitForURL(base + "/klient")
 const own = (await demo()).workouts.find((w) => w.name === "Eget benpass")
 check(own?.byClient === true && own.status === "completed", "eget pass sparat och avslutat")

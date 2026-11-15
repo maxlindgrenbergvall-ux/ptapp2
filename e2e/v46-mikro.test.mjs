@@ -71,9 +71,10 @@ await p.click("button:has-text('Lagom tungt')")
 check((await p.locator("button[aria-pressed=true]:has-text('Lagom tungt')").count()) === 1, "vald snabbkommentar är markerad")
 await p.click("button:has-text('Spara pass')")
 await p.locator("[data-testid=workout-saved]").waitFor()
-check(/Snyggt jobbat!/.test(await p.locator("[data-testid=workout-saved]").innerText()), "kvitto när passet är sparat")
+check((await p.locator("[data-testid=summary-headline]").innerText()).length > 0, "sammanfattning med kommentar när passet är sparat")
+await p.click("[data-testid=summary-done]")
 await p.waitForURL(base + "/klient", { timeout: 5000 })
-ok("appen går vidare till startsidan av sig själv efter kvittot")
+ok("Klar går vidare till startsidan")
 check(await p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data.workouts.some((w) => w.status === "completed" && w.clientComment === "Lagom tungt")), "passet och kommentaren sparas som förut")
 
 // ------------------------------------------------------------- 4. kost ---

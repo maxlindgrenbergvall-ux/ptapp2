@@ -22,7 +22,7 @@ import { firstName } from "@/lib/names"
 import { hasNutritionAccess } from "@/lib/services/balance"
 import { nutritionRecommendations } from "@/lib/services/recommend"
 import { cn } from "@/lib/utils"
-import { MEAL_UNIT_LABEL, type ID, type NutritionPlan, type Trainer } from "@/types/domain"
+import { MEAL_UNIT_LABEL, type ID, type ISODate, type NutritionPlan, type Trainer } from "@/types/domain"
 
 /**
  * "Dagens kost" – samma vy och samma data för klienten och klientens PT:er:
@@ -388,9 +388,11 @@ function linkedDate(): string | undefined {
  * Kost-sidan, där all loggning sker. Samma underlag som Dagens kost: schemats
  * avbockade måltider + loggad mat, mot kostschemats mål eller det egna dagsmålet.
  */
-export function NutritionShortcut({ clientId }: { clientId: ID }) {
+export function NutritionShortcut({ clientId, date: day }: { clientId: ID; date?: ISODate }) {
   const { data } = useAppData()
-  const date = todayISO()
+  const date = day ?? todayISO()
+  const isToday = date === todayISO()
+  const future = date > todayISO()
   const trainers = myTrainers(data, clientId).filter((t) => hasNutritionAccess(data, t.id, clientId))
   const { current, all } = nutritionPlansFor(data, clientId)
   const plan = trainers.length && current && all.some((p) => p.id === current.id && trainers.some((t) => t.id === p.trainerId)) ? current : undefined
@@ -402,24 +404,25 @@ export function NutritionShortcut({ clientId }: { clientId: ID }) {
   const pct = target ? Math.min(100, Math.round((eaten.kcal / target) * 100)) : 0
   return (
     <Link
-      href="/klient/kost"
+      href={isToday ? "/klient/kost" : `/klient/kost?datum=${date}`}
       className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-card transition-colors hover:bg-muted/40 active:scale-[0.99]"
       data-testid="nutrition-shortcut"
+      data-date={date}
     >
       <span className="min-w-0 flex-1 space-y-2">
         <span className="flex items-baseline justify-between gap-2">
           <span className="text-lg font-bold tracking-tight tabular">
             <AnimatedNumber value={eaten.kcal} />
-            {target ? <span className="text-sm font-medium text-muted-foreground"> / {target.toLocaleString("sv-SE")} kcal</span> : <span className="text-sm font-medium text-muted-foreground"> kcal idag</span>}
+            {target ? <span className="text-sm font-medium text-muted-foreground"> / {target.toLocaleString("sv-SE")} kcal</span> : <span className="text-sm font-medium text-muted-foreground"> kcal {isToday ? "idag" : future ? "planerat" : "loggat"}</span>}
           </span>
           {plan && <span className="shrink-0 text-xs text-muted-foreground">{left ? `${left} måltider kvar` : "Alla måltider klara"}</span>}
         </span>
         {target ? (
-          <FillBar value={pct} role="progressbar" aria-label="Kalorier idag" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} />
+          <FillBar value={pct} role="progressbar" aria-label={isToday ? "Kalorier idag" : future ? "Planerade kalorier" : "Loggade kalorier"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} />
         ) : null}
       </span>
       <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
-        <Plus className="size-4" /> Logga
+        <Plus className="size-4" /> {future ? "Planera" : "Logga"}
       </span>
     </Link>
   )

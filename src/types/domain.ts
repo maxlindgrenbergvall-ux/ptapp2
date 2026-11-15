@@ -82,6 +82,9 @@ export interface Trainer {
   offersNutrition: boolean
   /** PT Boost: utvald (först i Hitta PT och i rekommendationer) till och med denna tid (ISO). */
   boostedUntil?: string
+  /** v51: PT:ns hemsida (https://…) och Instagramnamn (utan @). */
+  websiteUrl?: string
+  instagram?: string
 }
 
 export type ClientStatus = "active" | "paused" | "pending"

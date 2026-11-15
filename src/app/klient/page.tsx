@@ -1,30 +1,26 @@
 "use client"
 
-import { CalendarCheck, CalendarRange, Check, ChevronRight, Dumbbell, Moon, Play, Search, Target, Utensils } from "lucide-react"
+import { CalendarCheck, CalendarRange, ChevronRight, Dumbbell, Moon, Search, Target, Utensils } from "lucide-react"
 import Link from "next/link"
+import * as React from "react"
 
 import { SleepTracker, WaterTracker } from "@/components/client/trackers"
 import { NutritionShortcut } from "@/components/nutrition/daily-nutrition"
 import { ActivityCard } from "@/components/activity/activity-card"
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { NextWorkoutCard } from "@/components/workouts/next-workout"
+import { DayPlan, WeekStrip, WorkoutDayCard } from "@/components/client/day-planner"
 import { EmptyState, PersonAvatar } from "@/components/common"
 import { RequirePlus } from "@/components/plus/require-plus"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { exerciseName, myTrainers, workoutsFor } from "@/lib/data/selectors"
+import { Card, CardContent } from "@/components/ui/card"
+import { myTrainers, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
-import { addDays, formatDay, formatSlot, parseISODate, todayISO } from "@/lib/date"
-import { setsDone, setsTotal } from "@/lib/training"
-import { cn } from "@/lib/utils"
+import { formatDay, formatSlot, todayISO } from "@/lib/date"
 import { greeting } from "@/lib/greeting"
 import { firstName } from "@/lib/names"
 import { useDayPart } from "@/hooks/use-day-part"
 import { sessionBalance } from "@/lib/services/balance"
-
-const WEEKDAYS = ["M", "T", "O", "T", "F", "L", "S"]
 
 export default function TodayPage() {
   const { data, me } = useAppData()
@@ -37,14 +33,9 @@ export default function TodayPage() {
   const now = new Date().toISOString()
   // Nästa kommande pass i kalendern (bekräftat eller väntande).
 
-  // Veckoremsa måndag–söndag med markering för pass.
-  const monday = addDays(today, -((parseISODate(today).getDay() + 6) % 7))
-  const week = Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(monday, i)
-    const w = workouts.filter((x) => x.date === date)
-    return { date, hasWorkout: w.length > 0, done: w.length > 0 && w.every((x) => x.status === "completed") }
-  })
-
+  // v51: vald dag i veckoremsan (idag från början). Andra dagar visar planering för den dagen.
+  const [selected, setSelected] = React.useState(today)
+  const foodDates = new Set(data.foodEntries.filter((e) => e.clientId === client.id).map((e) => e.date))
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -74,36 +65,18 @@ export default function TodayPage() {
         </Link>
       )}
 
-      <ol className="grid grid-cols-7 gap-1" aria-label="Veckan">
-        {week.map((d, i) => {
-          const isToday = d.date === today
-          return (
-            <li
-              key={d.date}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-xl py-2 text-xs",
-                isToday ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-              )}
-              aria-label={`${formatDay(d.date)}${d.hasWorkout ? (d.done ? ", pass genomfört" : ", pass planerat") : ""}`}
-            >
-              <span aria-hidden>{WEEKDAYS[i]}</span>
-              <span aria-hidden className={cn("text-sm font-semibold tabular", !isToday && "text-foreground")}>
-                {parseISODate(d.date).getDate()}
-              </span>
-              <span
-                aria-hidden
-                className={cn(
-                  "flex size-4 items-center justify-center rounded-full",
-                  d.done ? "bg-brand text-brand-foreground" : d.hasWorkout ? "border border-current" : ""
-                )}
-              >
-                {d.done && <Check className="size-2.5" strokeWidth={3} />}
-              </span>
-            </li>
-          )
-        })}
-      </ol>
+      {/* v51: varje dag är klickbar – planera pass och kost i förväg. */}
+      <WeekStrip today={today} selected={selected} onSelect={setSelected} workouts={workouts} foodDates={foodDates} />
 
+      {selected !== today ? (
+        <>
+          <DayPlan date={selected} today={today} clientId={client.id} />
+          <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => setSelected(today)} data-testid="back-to-today">
+            Tillbaka till idag
+          </Button>
+        </>
+      ) : (
+      <div key="today" className="rise-in space-y-5 sm:space-y-6" data-testid="today-view">
       {/* v43: Nästa pass i det aktiva schemat – en tydlig knapp som startar passet direkt. */}
       <NextWorkoutCard />
 
@@ -119,59 +92,9 @@ export default function TodayPage() {
             </CardContent>
           </Card>
         )}
-        {todays.map((w) => {
-          const done = setsDone(w)
-          const total = setsTotal(w)
-          const names = w.exercises
-            .map((e) => exerciseName(data, e.exerciseId, client.id))
-            .filter(Boolean)
-          return (
-            <Card key={w.id} className={cn("gap-4 py-5", w.status !== "completed" && "border-foreground/20")}>
-              <CardHeader className="px-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-lg">{w.name}</CardTitle>
-                    <CardDescription>
-                      {w.exercises.length} övningar · {total} set
-                    </CardDescription>
-                  </div>
-                  {w.status === "completed" && (
-                    <Badge className="bg-primary text-primary-foreground">
-                      <Check /> Klart
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 px-5">
-                <p className="line-clamp-2 text-sm text-muted-foreground">{names.join(" · ")}</p>
-                {w.status === "in_progress" && (
-                  <div className="space-y-1">
-                    <Progress value={(done / total) * 100} className="h-1.5" aria-label="Avklarade set" />
-                    <p className="text-xs text-muted-foreground tabular">
-                      {done} av {total} set
-                    </p>
-                  </div>
-                )}
-                {w.status !== "completed" ? (
-                  <Button
-                    asChild
-                    size="lg"
-                    className="h-12 w-full bg-brand text-base text-brand-foreground hover:bg-brand/90"
-                  >
-                    <Link href={`/klient/pass/${w.id}`}>
-                      <Play className="fill-current" />
-                      {w.status === "in_progress" ? "Fortsätt passet" : "Starta passet"}
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href={`/klient/pass/${w.id}`}>Visa loggen</Link>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+        {todays.map((w) => (
+          <WorkoutDayCard key={w.id} workout={w} clientId={client.id} />
+        ))}
         {/* v37: två genvägar sida vid sida i stället för två hela rader. */}
         <div className="grid grid-cols-2 gap-2">
           <OwnWorkoutDialog />
@@ -203,6 +126,9 @@ export default function TodayPage() {
           <SleepTracker date={today} />
         </RequirePlus>
       </div>
+
+      </div>
+      )}
 
       {/* PT:er – en klient kan ha flera samtidigt */}
       <section className="space-y-3">
