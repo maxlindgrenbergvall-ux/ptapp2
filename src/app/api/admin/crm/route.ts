@@ -403,7 +403,8 @@ export async function POST(request: Request) {
     // En tabell eller kolumn saknas = en migration är inte körd. Säg vilken, i stället för "något gick fel".
     const missing = missingMigration(message)
     if (missing) return NextResponse.json({ error: `Databasen saknar ${missing.what}. Kör migrationen ${missing.file} i Supabase (SQL Editor) och ladda om sidan.`, migration: missing.file }, { status: 503 })
-    return bad("Något gick fel – försök igen.", 500)
+    // Rutten svarar bara administratörer (andra får 404), så den faktiska orsaken får visas – det sparar felsökning.
+    return bad(`Något gick fel: ${message.slice(0, 240)}`, 500)
   }
 }
 

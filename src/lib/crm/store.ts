@@ -307,10 +307,12 @@ export class SupabaseStore implements CrmStore {
     const have = new Set((data ?? []).map((r) => r.template_key).filter(Boolean))
     const missing = DEFAULT_TEMPLATES.filter((t) => !have.has(t.key))
     if (missing.length) {
-      const seeded = await this.db
-        .from("crm_email_templates")
-        .upsert(missing.map((t) => ({ template_key: t.key, ...templateRow(t) })), { onConflict: "template_key", ignoreDuplicates: true })
-      this.fail(seeded.error)
+      // Vanlig insert, en mall i taget: nyckelns unika index är partiellt (where template_key is not null),
+      // så "on conflict (template_key)" fungerar inte. Hann en annan flik lägga in mallen (23505) går det bra.
+      for (const t of missing) {
+        const seeded = await this.db.from("crm_email_templates").insert({ template_key: t.key, ...templateRow(t) })
+        if (seeded.error && seeded.error.code !== "23505") this.fail(seeded.error)
+      }
       ;({ data, error } = await read())
       this.fail(error)
     }
