@@ -578,6 +578,95 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v53: CRM:et byggt för konvertering – bolagsform, referensgrupp, uppföljningar och "Att göra"
+
+**Granskningen hittade:**
+- Inget skilde aktiebolag från enskilda firmor. Rättslig grund sattes för hand, och mallarna hade platshållaren "[ditt namn]" som stoppade varje utskick.
+- Det fanns ingen uppföljning: ett obesvarat mejl blev liggande.
+- Instagram-DM och samtal kunde bara loggas som fritext i anteckningar, och ingenting visade vad som borde göras härnäst.
+- Statusflödet slutade vid "Svarat"; bokade samtal fanns inte.
+- Ingen statistik per mall, och "Konverterade PT:er" sattes bara för hand.
+
+**Bolagsform och svensk compliance** (`src/lib/crm/compliance.ts`):
+- Varje lead har en bolagsform: **Aktiebolag (AB)**, **Enskild firma** eller **Inte bedömd**.
+- Bolagsformen föreslås automatiskt från webbsidor och Instagram-bior:
+  - ett organisationsnummer som börjar på 5 betyder aktiebolag,
+  - "… AB" i namnet betyder aktiebolag,
+  - texten "enskild firma" betyder enskild firma,
+  - en gymkedja är alltid ett bolag.
+- En enskild firmas "organisationsnummer" är ägarens personnummer. Det sparas aldrig, och databasen spärrar det.
+- Bolagsformen väljer rättslig grund automatiskt:
+  - **Enskild firma → *Icke-säljande förfrågan*.** Bara referensgruppsmallen (typ *research*) får gå ut, eller ett Instagram-DM. Ingen automatisk uppföljning.
+  - **Aktiebolag → *Företagsadress*.** B2B-mallarna med en diskret uppföljning.
+  - **Samtycke** ändras aldrig och tillåter alla mallar.
+- En icke-säljande mall kontrolleras innan den skickas: pris, erbjudanden, länkar och uppmaningar att registrera sig spärrar den.
+- Allt detta är en försiktig tolkning av marknadsföringslagen 19–21 §§ och GDPR art. 14 och 21. Det är inte juridisk rådgivning.
+
+**Mallar** (`src/lib/crm/templates.ts`):
+- Startmallarna läggs in automatiskt per nyckel, även i ett CRM som redan har egna mallar. En startmall som tas bort arkiveras och kommer inte tillbaka.
+- Mallarna är:
+  - **Referensgrupp för nytt svenskt PT-verktyg**: den fastställda, icke-säljande mallen. Standardval för enskilda firmor.
+  - **PT med aktiebolag**,
+  - **PT på gymkedja** (SATS, Nordic Wellness m.fl.),
+  - **Onlinecoach / PT-influencer**.
+- B2B-mallarna har en uppföljning efter fyra dagar.
+- `{{avsändare}}` fylls i från `CRM_SENDER_NAME`, annars från namnet i `CRM_FROM_EMAIL` ("Max på Coavira <…>" ger Max). Saknas namnet stoppas utskicket.
+
+**Automatiska uppföljningar:**
+- När första mejlet har gått iväg köas uppföljningen N dagar senare (2–14, standard 4), i nästa utskicksfönster.
+- Den går genom samma kö med samma takt och dygnstak.
+- Den **pausas** om leaden svarar på mejl eller DM, bokar samtal, blir kund, avregistrerar sig, eller om första mejlet studsar. Det kontrolleras både när händelsen loggas och igen precis innan uppföljningen skickas.
+
+**Att göra (Next Best Action)** (`src/lib/crm/next-action.ts`):
+- För varje lead föreslås nästa steg, i den här prioritetsordningen:
+  1. Förfallna påminnelser.
+  2. Svar som väntar på ett bokat samtal.
+  3. Samtal att förbereda eller logga.
+  4. Registreringslänk efter ett genomfört samtal.
+  5. Bolagsform att bedöma.
+  6. DM till enskilda firmor.
+  7. Första mejlet.
+  8. Uppföljning i en annan kanal efter en vecka utan svar.
+- Heta leads markeras: hög poäng, nyss svarat, eller öppnat flera gånger om öppningar spåras.
+- Listan finns som egen flik och som en kompakt ruta överst i listvyn.
+
+**Snabbloggning** i lead-panelen:
+- Ett klick för *DM skickat*, *Svar på DM*, *Svar på mejl*, *Samtal klart*, *Uteblev* och *Blev PT*, plus *Boka samtal* (tid) och *Påminn mig* (tid och text).
+- Statusen går bara framåt, och svar eller bokningar pausar alla köade mejl till leaden.
+- Panelen har en färdig DM-text i referensgruppsform att kopiera. Instagram tillåter inte automatiska DM, så det skickas för hand.
+- Statusflödet har ett nytt steg: **Samtal bokat**.
+
+**Konverteringar:**
+- När CRM:et öppnas matchas leads mot registrerade PT-konton (samma e-post) av `crm_sync_conversions()`. Matchade leads blir kunder automatiskt.
+
+**Statistik** (fliken *Statistik*, `src/lib/crm/stats.ts`):
+- Tratten: kontaktade, svarat, bokade samtal och registrerade PT:er.
+- Per mall: skickade, levererade, studsar, svarsfrekvens, samtal och PT:er.
+- Instagram-DM och automatiska uppföljningar visas för sig.
+- **Öppningsgrad visas bara om öppningar faktiskt spåras.**
+  - Mejlen har inga spårpixlar.
+  - Enligt IMY kräver spårning i e-post samtycke, så öppningsspårning i Resend bör vara avstängd.
+  - Webhooken räknar ändå `email.opened` om ni slår på den.
+
+**Domänrykte:** samma kö som förut:
+- ett mejl i taget, minst 90 s emellan, högst 40 per dygn, vardagar kl. 8–17,
+- `List-Unsubscribe` med ett klick, och adresser som studsar eller anmäls spärras.
+- Nytt: en studs avbryter också uppföljningen.
+
+**Kör migrationen** `supabase/migrations/20261124000000_v53_crm_conversion.sql`.
+- Den lägger till bolagsform, organisationsnummer, kanal, påminnelse, samtal och konvertering på `crm_leads`.
+- Den lägger till statussteget `meeting` och den rättsliga grunden `research`.
+- Den lägger till malltyp, bolagsform och uppföljning på mallarna, och steg och uppföljning på utskicken.
+- Den skapar tabellen `crm_activities` och funktionen `crm_sync_conversions()`.
+- RLS: allt kräver `is_admin()`, och anon har ingen åtkomst.
+
+Valfri miljövariabel: `CRM_SENDER_NAME` (avsändarens förnamn i mejlen).
+
+Test:
+- `npx tsx --tsconfig tsconfig.json e2e/crm-conversion.unit.ts` (74 kontroller)
+- `node e2e/v53-crm-konvertering.test.mjs` (52 kontroller, samma server som v47)
+- Databas: `supabase/tests/rls_v53.test.sql`
+
 ## Nytt i v52: upplägg med flyttbara vilodagar, Strava borta, bottenmeny för PT, belöningar, historik och klickbara KPI-kort
 
 **Upplägg i stället för splits** (`src/components/workouts/split-builder.tsx`, `next-workout.tsx`, `src/lib/active-split.ts`):

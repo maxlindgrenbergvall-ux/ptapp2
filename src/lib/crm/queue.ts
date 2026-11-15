@@ -1,10 +1,10 @@
 import "server-only"
 
 import { BRAND } from "@/lib/brand"
-import { blockersFor, DEFAULT_QUEUE, stockholmDay, type QueueConfig } from "@/lib/crm/outreach"
+import { blockersFor, DEFAULT_QUEUE, followupStop, followupTime, stockholmDay, type QueueConfig } from "@/lib/crm/outreach"
 import { emailHash, type CrmStore } from "@/lib/crm/store"
-import { emailHtml, footerText } from "@/lib/crm/templates"
-import type { EmailLog } from "@/lib/crm/types"
+import { emailHtml, footerText, renderTemplate, senderName, variablesFor } from "@/lib/crm/templates"
+import type { EmailLog, EmailTemplate, Lead, TemplateKind } from "@/lib/crm/types"
 import { crmUrl, isCrmDeployment } from "@/lib/deployment"
 import { APP_URL } from "@/lib/site"
 
@@ -69,10 +69,10 @@ export interface RunResult {
   error?: string
 }
 
-async function sendViaResend(log: EmailLog, token: string, sourceUrl: string | null): Promise<{ id: string } | { error: string; retry: boolean }> {
+async function sendViaResend(log: EmailLog, token: string, sourceUrl: string | null, kind: TemplateKind): Promise<{ id: string } | { error: string; retry: boolean }> {
   const base = (process.env.RESEND_API_BASE?.trim() || "https://api.resend.com").replace(/\/$/, "")
   const link = unsubscribeUrl(token)
-  const footer = footerText({ unsubscribeUrl: link, sourceUrl, sender: `${BRAND.name}`, contactEmail: BRAND.contactEmail })
+  const footer = footerText({ unsubscribeUrl: link, sourceUrl, sender: `${BRAND.name}`, contactEmail: BRAND.contactEmail, kind })
   try {
     const res = await fetch(`${base}/emails`, {
       method: "POST",
@@ -95,7 +95,10 @@ async function sendViaResend(log: EmailLog, token: string, sourceUrl: string | n
           "List-Unsubscribe": `<${publicBaseUrl()}/api/crm/unsubscribe?token=${token}>`,
           "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
         },
-        tags: [{ name: "kind", value: "crm_outreach" }],
+        tags: [
+          { name: "kind", value: "crm_outreach" },
+          { name: "step", value: String(log.step ?? 1) },
+        ],
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
@@ -131,7 +134,18 @@ export async function runQueue(store: CrmStore, now = new Date()): Promise<RunRe
     if (!log) return { sent: 0, cancelled, idle: "empty" }
     const lead = await store.getLead(log.leadId)
     const suppressed = lead?.email ? (await store.suppressedHashes([emailHash(lead.email)])).size > 0 : false
+    // "Nyss mejlad" gäller inte utskick som redan är planerade (t.ex. uppföljningen).
     const blockers = lead ? blockersFor(lead, { suppressed, queued: false, now }).filter((b) => b !== "recently_emailed") : (["no_email"] as const)
+    // v53: uppföljningen pausas så fort leaden har svarat, bokat samtal eller första mejlet studsat.
+    if (lead && log.step === 2) {
+      const [parent] = (await store.listLogs({ leadId: lead.id, limit: 50 })).filter((l) => l.id === log.parentId)
+      const stop = followupStop(lead, parent, await store.listActivities({ leadId: lead.id, limit: 50 }))
+      if (stop) {
+        await store.updateLog(log.id, { status: "cancelled", error: stop })
+        cancelled++
+        continue
+      }
+    }
     // Adressen kan ha ändrats sedan mejlet schemalades – då gäller inte längre det som förhandsgranskades.
     if (!lead || blockers.length || lead.email?.toLowerCase() !== log.toEmail.toLowerCase()) {
       await store.updateLog(log.id, { status: "cancelled", error: lead ? "Leaden uppfyller inte längre villkoren för utskick" : "Leaden finns inte längre" })
@@ -143,12 +157,14 @@ export async function runQueue(store: CrmStore, now = new Date()): Promise<RunRe
       await store.updateLog(log.id, { status: "failed", error: "Avregistreringslänk saknas" })
       continue
     }
-    const result = await sendViaResend(log, token, lead.sourceUrl)
+    const template = log.templateId ? (await store.listTemplates()).find((t) => t.id === log.templateId) : undefined
+    const result = await sendViaResend(log, token, lead.sourceUrl, template?.kind ?? "intro")
     if ("id" in result) {
       const at = new Date().toISOString()
       await store.updateLog(log.id, { status: "sent", sentAt: at, resendId: result.id, error: null })
-      // Statusflödet går framåt: Ny/Kvalificerad → Mail skickat. Den som redan svarat flyttas inte bakåt.
-      await store.updateLead(lead.id, { lastEmailedAt: at, ...(lead.status === "new" || lead.status === "qualified" ? { status: "emailed" as const } : {}) })
+      // Statusflödet går framåt: Ny/Kvalificerad → Kontaktad. Den som redan svarat flyttas inte bakåt.
+      await store.updateLead(lead.id, { lastEmailedAt: at, lastContactedAt: at, ...(lead.status === "new" || lead.status === "qualified" ? { status: "emailed" as const } : {}) })
+      if (log.step !== 2) await scheduleFollowup(store, { ...log, sentAt: at }, lead, template, cfg)
       return { sent: 1, cancelled }
     }
     if (result.retry) {
@@ -174,4 +190,23 @@ export async function unsubscribe(store: CrmStore, token: string): Promise<boole
   await store.cancelQueued({ leadId: lead.id })
   await store.deleteLead(lead.id)
   return true
+}
+
+/**
+ * v53: planera mallens uppföljning när första mejlet har gått iväg – N dagar
+ * senare, i nästa utskicksfönster. Den går genom samma kö (takt och dygnstak)
+ * och kontrolleras igen precis innan den skickas (followupStop).
+ * Aldrig till en enskild firma utan samtycke, och aldrig för en icke-säljande mall.
+ */
+export async function scheduleFollowup(store: CrmStore, sent: EmailLog, lead: Lead, template: EmailTemplate | undefined, cfg: QueueConfig) {
+  if (!template?.followupDays || !template.followupBody || template.kind === "research") return null
+  if (lead.legalBasis !== "consent" && (lead.companyForm === "enskild" || lead.legalBasis === "research")) return null
+  const vars = variablesFor(lead, senderName(process.env))
+  const subject = renderTemplate(template.followupSubject?.trim() || sent.subject, vars)
+  const body = renderTemplate(template.followupBody, vars)
+  // En uppföljning med okända variabler skickas inte – hellre ingen än en trasig.
+  if (subject.unknown.length || body.unknown.length || !vars.avsändare && /\{\{\s*avsändare/i.test(template.followupBody)) return null
+  const at = followupTime(new Date(sent.sentAt!), template.followupDays, cfg)
+  const [log] = await store.createLogs([{ leadId: lead.id, templateId: template.id, toEmail: sent.toEmail, subject: subject.text, body: body.text, scheduledAt: at.toISOString(), step: 2, parentId: sent.id }])
+  return log ?? null
 }

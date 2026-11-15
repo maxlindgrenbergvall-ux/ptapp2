@@ -1,7 +1,7 @@
 "use client"
 
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { CheckCheck, FilePen, Radar, GripVertical, Inbox, LayoutList, Mail, MailCheck, Plus, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
+import { BarChart3, CheckCheck, FilePen, Flame, GripVertical, Inbox, LayoutList, Mail, MailCheck, PhoneCall, Plus, Radar, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -10,14 +10,16 @@ import { AddLeadDialog } from "@/components/crm/add-lead-dialog"
 import { LeadDrawer } from "@/components/crm/lead-drawer"
 import { OutreachDialog, TemplatesDialog } from "@/components/crm/outreach-dialog"
 import { ProspectBanner, ProspectDialog, useProspectJob } from "@/components/crm/prospect"
-import { ApiError, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
+import { ApiError, CompanyFormBadge, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
+import { StatsView } from "@/components/crm/stats-view"
+import { TodayView } from "@/components/crm/today-view"
 import { AnimatedNumber } from "@/components/motion"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { QueueConfig } from "@/lib/crm/outreach"
-import { LEGAL_BASES, LEGAL_LABEL, SEGMENT_LABEL, SEGMENTS, STATUS_LABEL, STATUSES, type EmailLog, type EmailTemplate, type Lead, type LegalBasis, type Segment, type Status } from "@/lib/crm/types"
+import { COMPANY_FORM_LABEL, COMPANY_FORMS, LEGAL_BASES, LEGAL_LABEL, SEGMENT_LABEL, SEGMENTS, STATUS_LABEL, STATUSES, type Activity, type CompanyForm, type EmailLog, type EmailTemplate, type Lead, type LegalBasis, type Segment, type Status } from "@/lib/crm/types"
 import { cn } from "@/lib/utils"
 
 interface Config {
@@ -25,6 +27,8 @@ interface Config {
   search: boolean
   instagram: boolean
   sender: boolean
+  /** v53: avsändarens namn i mejlen ({{avsändare}}), null = saknas. */
+  senderName: string | null
   queue: QueueConfig
 }
 interface Boot {
@@ -32,9 +36,12 @@ interface Boot {
   templates: EmailTemplate[]
   logs: EmailLog[]
   suppressed: number
+  activities: Activity[]
+  /** Nya konverteringar som hittades när CRM:et öppnades. */
+  converted?: number
   config: Config
 }
-type View = "list" | "kanban" | "queue"
+type View = "today" | "list" | "kanban" | "queue" | "stats"
 type ScoreFilter = "all" | "high" | "mid" | "low"
 const ALL = "all"
 
@@ -63,7 +70,12 @@ export function CrmDashboard() {
   const [prospecting, setProspecting] = React.useState(false)
 
   React.useEffect(() => {
-    crm<Boot>("bootstrap").then(setBoot).catch(() => setFailed(true))
+    crm<Boot>("bootstrap")
+      .then((b) => {
+        setBoot(b)
+        if (b.converted) toast.success(`${b.converted} ${b.converted === 1 ? "lead har" : "leads har"} registrerat ett PT-konto`, { description: "Markerade som kunder." })
+      })
+      .catch(() => setFailed(true))
   }, [])
   // v50: automatisk prospektering – nya leads dyker upp i listan medan jobbet går.
   const reload = React.useCallback(() => {
@@ -73,6 +85,7 @@ export function CrmDashboard() {
 
   const leads = React.useMemo(() => boot?.leads ?? [], [boot])
   const logs = React.useMemo(() => boot?.logs ?? [], [boot])
+  const activities = React.useMemo(() => boot?.activities ?? [], [boot])
   const setLeads = React.useCallback((fn: (leads: Lead[]) => Lead[]) => setBoot((b) => (b ? { ...b, leads: fn(b.leads) } : b)), [])
   const upsert = React.useCallback((lead: Lead) => setLeads((ls) => (ls.some((l) => l.id === lead.id) ? ls.map((l) => (l.id === lead.id ? lead : l)) : [lead, ...ls])), [setLeads])
 
@@ -114,7 +127,7 @@ export function CrmDashboard() {
   }, [hasQueue, senderOn, runQueue])
 
   /** Ändra flera leads på en gång – visas direkt, rullas tillbaka vid fel. */
-  const bulk = async (ids: string[], patch: { status?: Status; legalBasis?: LegalBasis; segment?: Segment }) => {
+  const bulk = async (ids: string[], patch: { status?: Status; legalBasis?: LegalBasis; segment?: Segment; companyForm?: CompanyForm }) => {
     const before = leads
     setLeads((ls) => ls.map((l) => (ids.includes(l.id) ? { ...l, ...patch } : l)))
     try {
@@ -132,7 +145,8 @@ export function CrmDashboard() {
   const kpi = {
     total: leads.length,
     verified: leads.filter((l) => l.email && l.emailVerified === true).length,
-    contacted: leads.filter((l) => l.lastEmailedAt || ["emailed", "replied", "customer"].includes(l.status)).length,
+    contacted: leads.filter((l) => l.lastEmailedAt || l.lastContactedAt || ["emailed", "replied", "meeting", "customer"].includes(l.status)).length,
+    meetings: leads.filter((l) => l.status === "meeting" || l.meetingAt || l.status === "customer").length,
     customers: leads.filter((l) => l.status === "customer").length,
   }
   const toggle = (id: string) =>
@@ -168,10 +182,11 @@ export function CrmDashboard() {
 
       {job && (job.status === "running" || job.state.found.length > 0) && <ProspectBanner job={job} onOpen={() => setProspecting(true)} />}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="kpis">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" data-testid="kpis">
         <Kpi icon={Users} label="Leads totalt" value={kpi.total} />
         <Kpi icon={ShieldCheck} label="Verifierade e-postadresser" value={kpi.verified} of={kpi.total} />
         <Kpi icon={MailCheck} label="Kontaktade" value={kpi.contacted} of={kpi.total} />
+        <Kpi icon={PhoneCall} label="Bokade samtal" value={kpi.meetings} of={kpi.contacted} />
         <Kpi icon={CheckCheck} label="Konverterade PT:er" value={kpi.customers} of={kpi.total} accent />
       </div>
 
@@ -221,9 +236,11 @@ export function CrmDashboard() {
           <div className="ml-auto flex rounded-lg border border-border/70 p-0.5" role="tablist" aria-label="Vy">
             {(
               [
+                ["today", Flame, "Att göra"],
                 ["list", LayoutList, "Lista"],
                 ["kanban", SquareKanban, "Pipeline"],
                 ["queue", Send, `Utskick${queued.length ? ` (${queued.length})` : ""}`],
+                ["stats", BarChart3, "Statistik"],
               ] as const
             ).map(([key, Icon, label]) => (
               <button
@@ -282,6 +299,18 @@ export function CrmDashboard() {
               ))}
             </SelectContent>
           </Select>
+          <Select value="" onValueChange={(v) => void bulk(selectedIds, { companyForm: v as CompanyForm })}>
+            <SelectTrigger className="h-8 w-40" aria-label="Sätt bolagsform på valda" data-testid="bulk-company-form">
+              <SelectValue placeholder="Bolagsform" />
+            </SelectTrigger>
+            <SelectContent>
+              {COMPANY_FORMS.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {COMPANY_FORM_LABEL[f]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value="" onValueChange={(v) => void bulk(selectedIds, { legalBasis: v as LegalBasis })}>
             <SelectTrigger className="h-8 w-44" aria-label="Sätt rättslig grund på valda" data-testid="bulk-legal">
               <SelectValue placeholder="Rättslig grund" />
@@ -305,6 +334,9 @@ export function CrmDashboard() {
         </div>
       )}
 
+      {view === "today" && <TodayView leads={leads} logs={logs} activities={activities} onOpen={setOpenId} onEmail={(ids) => setOutreach(ids)} />}
+      {view === "stats" && <StatsView leads={leads} logs={logs} activities={activities} templates={boot.templates} />}
+      {view === "list" && <TodayView compact leads={leads} logs={logs} activities={activities} onOpen={setOpenId} onEmail={(ids) => setOutreach(ids)} onShowAll={() => setView("today")} />}
       {view === "list" && (
         <LeadTable
           leads={shown}
@@ -351,6 +383,18 @@ export function CrmDashboard() {
           setLeads((ls) => ls.filter((l) => l.id !== id))
           setOpenId(null)
         }}
+        senderName={boot.config.senderName}
+        onActivity={(a, cancelled) =>
+          setBoot((b) =>
+            b
+              ? {
+                  ...b,
+                  activities: [a, ...b.activities],
+                  logs: cancelled ? b.logs.map((l) => (l.leadId === a.leadId && l.status === "queued" ? { ...l, status: "cancelled" as const } : l)) : b.logs,
+                }
+              : b
+          )
+        }
       />
       <AddLeadDialog
         open={adding}
@@ -479,7 +523,10 @@ function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen
                   <span className="block max-w-[16rem] truncate text-xs text-muted-foreground">{[l.title, l.gym, l.city].filter(Boolean).join(" · ") || "–"}</span>
                 </td>
                 <td className="py-3 pr-3">
-                  <SegmentBadge segment={l.segment} />
+                  <span className="flex items-center gap-1.5">
+                    <CompanyFormBadge form={l.companyForm} />
+                    <SegmentBadge segment={l.segment} />
+                  </span>
                 </td>
                 <td className="py-3 pr-3">
                   {l.email ? (
@@ -491,7 +538,7 @@ function LeadTable({ leads, selected, onToggle, allSelected, onToggleAll, onOpen
                   ) : (
                     <span className="text-muted-foreground">{l.instagram ? `@${l.instagram}` : (l.phone ?? "–")}</span>
                   )}
-                  {l.legalBasis === "unknown" && l.email && <span className="block text-[11px] text-warning">Rättslig grund inte bedömd</span>}
+                  {l.legalBasis === "unknown" && l.email && <span className="block text-[11px] text-warning">{l.companyForm === "unknown" ? "Bolagsform inte bedömd" : "Rättslig grund inte bedömd"}</span>}
                 </td>
                 <td className="py-3 pr-3">
                   <StatusBadge status={l.status} />
@@ -518,7 +565,7 @@ function Kanban({ leads, onOpen, onMove }: { leads: Lead[]; onOpen: (id: string)
   return (
     <DndContext sensors={sensors} onDragStart={() => navigator.vibrate?.(10)} onDragEnd={onDragEnd}>
       <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
-        <div className="grid min-w-[1180px] grid-cols-6 gap-3" data-testid="kanban">
+        <div className="grid min-w-[1360px] grid-cols-7 gap-3" data-testid="kanban">
           {STATUSES.map((s) => (
             <Column key={s} status={s} leads={leads.filter((l) => l.status === s)} onOpen={onOpen} />
           ))}
@@ -561,8 +608,11 @@ function Card({ lead, onOpen }: { lead: Lead; onOpen: (id: string) => void }) {
           <GripVertical className="size-4" />
         </button>
       </div>
-      <div className="mt-2 flex items-center justify-between">
-        <SegmentBadge segment={lead.segment} />
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <CompanyFormBadge form={lead.companyForm} />
+          <SegmentBadge segment={lead.segment} />
+        </span>
         <ScoreBadge score={lead.score} />
       </div>
     </article>

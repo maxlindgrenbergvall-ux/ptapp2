@@ -4,7 +4,8 @@ import { hasMx } from "@/lib/crm/mx"
 import { blockersFor, BLOCKER_TEXT, planSchedule, stockholmDay, type Blocker } from "@/lib/crm/outreach"
 import { queueConfig } from "@/lib/crm/queue"
 import { emailHash, type CrmStore } from "@/lib/crm/store"
-import { renderTemplate, templateFor, variablesFor } from "@/lib/crm/templates"
+import { templateBlock } from "@/lib/crm/compliance"
+import { renderTemplate, senderName, templateFor, variablesFor } from "@/lib/crm/templates"
 import type { Lead } from "@/lib/crm/types"
 
 export interface PreviewItem {
@@ -13,10 +14,14 @@ export interface PreviewItem {
   email: string | null
   templateId: string | null
   templateName: string | null
+  /** v53: icke-säljande mall (referensgrupp)? */
+  templateKind: "intro" | "research" | null
+  /** Automatisk uppföljning efter så här många dagar utan svar (null = ingen). */
+  followupDays: number | null
   subject: string
   body: string
   /** Skäl till att mejlet inte kan skickas (tom = går bra). */
-  blockers: { code: Blocker | "template"; text: string }[]
+  blockers: { code: Blocker | "template" | "sender"; text: string }[]
   scheduledAt: string | null
 }
 
@@ -36,16 +41,33 @@ export async function buildOutreach(store: CrmStore, leadIds: string[], template
   const chosen = templateId ? templates.find((t) => t.id === templateId) : undefined
 
   const items = leads.map((lead): PreviewItem => {
-    const template = chosen ?? templateFor(templates, lead.segment)
-    const vars = variablesFor(lead)
+    const template = chosen ?? templateFor(templates, lead)
+    const sender = senderName(process.env)
+    const vars = variablesFor(lead, sender)
     const subject = template ? renderTemplate(template.subject, vars) : { text: "", unknown: [] }
     const body = template ? renderTemplate(template.body, vars) : { text: "", unknown: [] }
     const blockers: PreviewItem["blockers"] = blockersFor(lead, { suppressed: Boolean(lead.email && suppressed.has(emailHash(lead.email))), queued: queuedFor.has(lead.id), now }).map((code) => ({ code, text: BLOCKER_TEXT[code] }))
     const unknown = [...subject.unknown, ...body.unknown]
-    if (!template) blockers.push({ code: "template", text: "Ingen mall finns" })
+    const block = template ? templateBlock(lead, template) : null
+    if (!template) blockers.push({ code: "template", text: lead.companyForm === "enskild" ? "Ingen icke-säljande mall finns – skicka ett DM i stället" : "Ingen mall passar leaden" })
+    else if (block) blockers.push({ code: "template", text: block.text })
+    else if (/\{\{\s*avsändare\s*\}\}/i.test(`${template.subject}\n${template.body}`) && !sender) blockers.push({ code: "sender", text: "Avsändarnamn saknas – sätt CRM_SENDER_NAME (eller ett namn i CRM_FROM_EMAIL)" })
     else if (unknown.length) blockers.push({ code: "template", text: `Mallen har okända variabler: ${unknown.map((u) => `{{${u}}}`).join(", ")}` })
     else if (PLACEHOLDER.test(`${subject.text}\n${body.text}`)) blockers.push({ code: "template", text: `Mallen har en platshållare kvar: ${PLACEHOLDER.exec(`${subject.text}\n${body.text}`)![0]}` })
-    return { leadId: lead.id, name: lead.name, email: lead.email, templateId: template?.id ?? null, templateName: template?.name ?? null, subject: subject.text, body: body.text, blockers, scheduledAt: null }
+    return {
+      leadId: lead.id,
+      name: lead.name,
+      email: lead.email,
+      templateId: template?.id ?? null,
+      templateName: template?.name ?? null,
+      templateKind: template?.kind ?? null,
+      // Enskild firma utan samtycke: aldrig någon automatisk uppföljning.
+      followupDays: template && template.kind !== "research" ? template.followupDays : null,
+      subject: subject.text,
+      body: body.text,
+      blockers,
+      scheduledAt: null,
+    }
   })
 
   // Tiderna: efter det som redan ligger i kön, och med hänsyn till det som redan skickats i dag.

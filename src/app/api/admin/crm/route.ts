@@ -12,7 +12,10 @@ import { DEFAULT_CONFIG } from "@/lib/crm/prospect-types"
 import { hashtagInput, MAX_HASHTAG_POSTS, MAX_PROFILES_PER_RUN, ownersFromPosts, profileToCandidate, profilesInput } from "@/lib/crm/instagram"
 import { buildOutreach, verifyEmail } from "@/lib/crm/service"
 import { emailHash } from "@/lib/crm/store"
-import { CITIES, emailKey, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
+import { legalBasisFor } from "@/lib/crm/compliance"
+import { activityEffect } from "@/lib/crm/stats"
+import { senderName } from "@/lib/crm/templates"
+import { ACTIVITY_KINDS, CHANNELS, CITIES, COMPANY_FORMS, emailKey, ENGAGED, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type Lead, type LeadInput, type ServerLeadPatch } from "@/lib/crm/types"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 
 /**
@@ -47,23 +50,71 @@ const leadFields = z
     source: z.enum(["manual", "csv", "url", "search", "instagram"]),
     sourceUrl: nullable(z.url({ protocol: /^https?$/ }).max(500)),
     legalBasis: z.enum(LEGAL_BASES),
+    // v53
+    companyForm: z.enum(COMPANY_FORMS),
+    // Bara aktiebolagets nummer (börjar på 5) – ett personnummer avvisas.
+    orgNumber: nullable(z.string().trim().regex(/^5\d{5}-?\d{4}$/, "Organisationsnummer för aktiebolag: 5xxxxx-xxxx").transform((v) => (v.includes("-") ? v : `${v.slice(0, 6)}-${v.slice(6)}`))),
+    preferredChannel: z.enum(CHANNELS),
+    nextActionAt: nullable(z.iso.datetime({ offset: true })),
+    nextActionNote: nullable(text(200)),
+    meetingAt: nullable(z.iso.datetime({ offset: true })),
   })
   .partial()
   .strict()
+
+/**
+ * v53: bolagsformen styr rättslig grund (om den inte anges uttryckligen) och
+ * organisationsnumret finns bara kvar för aktiebolag.
+ */
+function withCompanyRules(patch: LeadInput, current?: Pick<Lead, "legalBasis" | "companyForm">): LeadInput {
+  const out = { ...patch }
+  if (out.companyForm && out.legalBasis === undefined) out.legalBasis = legalBasisFor(out.companyForm, current?.legalBasis ?? "unknown")
+  const form = out.companyForm ?? current?.companyForm ?? "unknown"
+  if (form !== "ab" && (out.companyForm !== undefined || out.orgNumber)) out.orgNumber = null
+  return out
+}
 
 const body = z.discriminatedUnion("action", [
   z.object({ action: z.literal("bootstrap") }).strict(),
   z.object({ action: z.literal("lead.create"), lead: leadFields.required({ name: true }) }).strict(),
   z.object({ action: z.literal("lead.update"), id: uuid, patch: leadFields }).strict(),
   z.object({ action: z.literal("lead.delete"), id: uuid }).strict(),
-  z.object({ action: z.literal("lead.bulk"), ids: z.array(uuid).min(1).max(500), patch: leadFields.pick({ status: true, legalBasis: true, segment: true }) }).strict(),
+  z.object({ action: z.literal("lead.bulk"), ids: z.array(uuid).min(1).max(500), patch: leadFields.pick({ status: true, legalBasis: true, segment: true, companyForm: true }) }).strict(),
+  z.object({
+    action: z.literal("activity.log"),
+    leadId: uuid,
+    kind: z.enum(ACTIVITY_KINDS),
+    body: nullable(text(2000)),
+    occurredAt: z.iso.datetime({ offset: true }).optional(),
+    meetingAt: nullable(z.iso.datetime({ offset: true })),
+  }).strict(),
+  z.object({ action: z.literal("conversions.sync") }).strict(),
   z.object({ action: z.literal("lead.import"), leads: z.array(leadFields.required({ name: true })).min(1).max(2000) }).strict(),
   z.object({ action: z.literal("lead.verify"), ids: z.array(uuid).min(1).max(50) }).strict(),
   z.object({ action: z.literal("lead.detail"), id: uuid }).strict(),
   z.object({ action: z.literal("enrich.preview"), url: z.string().trim().min(4).max(500) }).strict(),
   z.object({ action: z.literal("note.add"), leadId: uuid, body: text(4000).min(1) }).strict(),
   z.object({ action: z.literal("note.delete"), id: uuid }).strict(),
-  z.object({ action: z.literal("template.save"), template: z.object({ id: uuid.optional(), segment: z.enum(SEGMENTS).nullable(), name: text(120).min(1), subject: text(200).min(1), body: z.string().trim().min(1).max(8000) }).strict() }).strict(),
+  z.object({
+    action: z.literal("template.save"),
+    template: z
+      .object({
+        id: uuid.optional(),
+        segment: z.enum(SEGMENTS).nullable(),
+        kind: z.enum(["intro", "research"]).default("intro"),
+        companyForm: z.enum(COMPANY_FORMS).nullable().default(null),
+        name: text(120).min(1),
+        subject: text(200).min(1),
+        body: z.string().trim().min(1).max(8000),
+        followupDays: z.number().int().min(2).max(14).nullable().default(null),
+        followupSubject: text(200).nullable().default(null),
+        followupBody: z.string().trim().max(4000).nullable().default(null),
+        // Följer med när en hel mall skickas tillbaka – ignoreras (startmallens nyckel kan inte ändras).
+        key: z.string().max(60).nullable().optional(),
+        updatedAt: z.string().max(40).optional(),
+      })
+      .strict(),
+  }).strict(),
   z.object({ action: z.literal("template.delete"), id: uuid }).strict(),
   z.object({ action: z.literal("outreach.preview"), leadIds: z.array(uuid).min(1).max(200), templateId: uuid.nullable() }).strict(),
   z.object({ action: z.literal("outreach.schedule"), leadIds: z.array(uuid).min(1).max(200), templateId: uuid.nullable() }).strict(),
@@ -112,11 +163,21 @@ export async function POST(request: Request) {
   try {
     switch (input.action) {
       case "bootstrap": {
-        const [leads, templates, logs, suppressed] = await Promise.all([store.listLeads(), store.listTemplates(), store.listLogs({ limit: 300 }), store.countSuppressed()])
-        return NextResponse.json({ leads, templates, logs, suppressed, config: { demo: ctx.demo, search: searchConfigured(), instagram: apifyConfigured(), sender: senderConfigured(), queue: queueConfig() } })
+        // v53: leads som registrerat ett PT-konto blir kunder automatiskt (matchas på e-post).
+        const converted = await store.syncConversions().catch(() => 0)
+        const [leads, templates, logs, suppressed, activities] = await Promise.all([store.listLeads(), store.listTemplates(), store.listLogs({ limit: 1000 }), store.countSuppressed(), store.listActivities({ limit: 2000 })])
+        return NextResponse.json({
+          leads,
+          templates,
+          logs,
+          suppressed,
+          activities,
+          converted,
+          config: { demo: ctx.demo, search: searchConfigured(), instagram: apifyConfigured(), sender: senderConfigured(), senderName: senderName(process.env), queue: queueConfig() },
+        })
       }
       case "lead.create": {
-        const lead = input.lead as LeadInput
+        const lead = withCompanyRules(input.lead as LeadInput)
         // En avregistrerad adress får inte komma tillbaka in i CRM:et.
         if (lead.email && (await store.suppressedHashes([emailHash(lead.email)])).size) return bad("Adressen har avregistrerat sig och kan inte läggas till igen.", 409)
         if (lead.email && lead.emailVerified == null) lead.emailVerified = await verifyEmail(lead.email)
@@ -124,9 +185,9 @@ export async function POST(request: Request) {
         return result.lead ? NextResponse.json({ lead: result.lead }) : NextResponse.json({ error: `En lead med ${result.field} finns redan: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
       }
       case "lead.update": {
-        const patch = input.patch as LeadInput
         const current = await store.getLead(input.id)
         if (!current) return bad("Leaden finns inte längre", 404)
+        const patch = withCompanyRules(input.patch as LeadInput, current)
         // Ny adress → ny MX-kontroll (den gamla kontrollen gäller inte den nya domänen).
         if (patch.email !== undefined && patch.email !== current.email) {
           if (patch.email && (await store.suppressedHashes([emailHash(patch.email)])).size) return bad("Adressen har avregistrerat sig och kan inte användas.", 409)
@@ -134,6 +195,10 @@ export async function POST(request: Request) {
         }
         const result = await store.updateLead(input.id, patch)
         if (!result) return bad("Leaden finns inte längre", 404)
+        // Svar, bokat samtal, kund eller ej aktuell: inga fler automatiska mejl (även uppföljningar).
+        if (result.lead && patch.status && patch.status !== current.status && (ENGAGED.includes(patch.status) || patch.status === "not_relevant")) {
+          await store.cancelQueued({ leadId: input.id }, "Pausad – leaden har gått vidare i flödet")
+        }
         return result.lead ? NextResponse.json({ lead: result.lead }) : NextResponse.json({ error: `En annan lead har redan ${result.field}: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
       }
       case "lead.delete":
@@ -142,8 +207,12 @@ export async function POST(request: Request) {
       case "lead.bulk": {
         const updated = []
         for (const id of input.ids) {
-          const r = await store.updateLead(id, input.patch as LeadInput)
+          const current = await store.getLead(id)
+          if (!current) continue
+          const patch = withCompanyRules(input.patch as LeadInput, current)
+          const r = await store.updateLead(id, patch)
           if (r?.lead) updated.push(r.lead)
+          if (r?.lead && patch.status && (ENGAGED.includes(patch.status) || patch.status === "not_relevant")) await store.cancelQueued({ leadId: id }, "Pausad – leaden har gått vidare i flödet")
         }
         return NextResponse.json({ leads: updated })
       }
@@ -153,7 +222,7 @@ export async function POST(request: Request) {
         const created = []
         let duplicates = 0
         let blocked = 0
-        for (const lead of input.leads as LeadInput[]) {
+        for (const lead of (input.leads as LeadInput[]).map((l) => withCompanyRules(l))) {
           if (lead.email && suppressed.has(emailHash(lead.email))) {
             blocked++
             continue
@@ -175,8 +244,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ leads: updated })
       }
       case "lead.detail": {
-        const [notes, logs] = await Promise.all([store.listNotes(input.id), store.listLogs({ leadId: input.id, limit: 50 })])
-        return NextResponse.json({ notes, logs })
+        const [notes, logs, activities] = await Promise.all([store.listNotes(input.id), store.listLogs({ leadId: input.id, limit: 50 }), store.listActivities({ leadId: input.id, limit: 100 })])
+        return NextResponse.json({ notes, logs, activities })
+      }
+      case "activity.log": {
+        // Snabbloggning (v53): DM, svar, samtal, konvertering. Statusen går bara framåt.
+        const lead = await store.getLead(input.leadId)
+        if (!lead) return bad("Leaden finns inte längre", 404)
+        const at = input.occurredAt ?? new Date().toISOString()
+        if (input.kind === "call_booked" && !input.meetingAt) return bad("Ange när samtalet är", 400)
+        const activity = await store.addActivity({ leadId: lead.id, kind: input.kind, body: input.body ?? null, occurredAt: at })
+        const effect = activityEffect(input.kind, lead, at, input.meetingAt)
+        const patch: ServerLeadPatch = { ...effect.patch }
+        // En bokad tid ersätter en gammal påminnelse.
+        if (input.kind === "call_booked") Object.assign(patch, { nextActionAt: null, nextActionNote: null })
+        const saved = Object.keys(patch).length ? await store.updateLead(lead.id, patch) : { lead }
+        const cancelled = effect.cancelQueued ? await store.cancelQueued({ leadId: lead.id }, "Pausad – leaden har svarat") : 0
+        return NextResponse.json({ activity, lead: saved?.lead ?? lead, cancelled })
+      }
+      case "conversions.sync": {
+        const converted = await store.syncConversions()
+        return NextResponse.json({ converted, leads: converted ? await store.listLeads() : undefined })
       }
       case "enrich.preview": {
         if (await rateLimited(`crm-enrich:${limitKey}`, 120, 3600)) return tooManyRequests(600)
@@ -193,8 +281,14 @@ export async function POST(request: Request) {
       case "note.delete":
         await store.deleteNote(input.id)
         return NextResponse.json({ ok: true })
-      case "template.save":
-        return NextResponse.json({ template: await store.saveTemplate(input.template) })
+      case "template.save": {
+        const t = input.template
+        if (t.followupDays && !t.followupBody?.trim()) return bad("Skriv texten för uppföljningen, eller stäng av den.")
+        const { key: _key, updatedAt: _updated, ...fields } = t
+        void _key
+        void _updated
+        return NextResponse.json({ template: await store.saveTemplate({ ...fields, followupBody: fields.followupBody?.trim() || null, followupDays: fields.followupBody?.trim() ? fields.followupDays : null }) })
+      }
       case "template.delete":
         await store.deleteTemplate(input.id)
         return NextResponse.json({ ok: true })
@@ -212,7 +306,7 @@ export async function POST(request: Request) {
       case "queue.run": {
         // Kön körs med serverns behörighet (låser rader i databasen); administratören har redan verifierats ovan.
         const result = await runQueue(systemStore() ?? store)
-        return NextResponse.json({ result, logs: await store.listLogs({ limit: 300 }), leads: result.sent || result.cancelled ? await store.listLeads() : undefined })
+        return NextResponse.json({ result, logs: await store.listLogs({ limit: 1000 }), leads: result.sent || result.cancelled ? await store.listLeads() : undefined })
       }
       case "lead.findEmail": {
         // Leta upp e-post (och telefon) på leadens egen webbplats – samma hänsynsfulla hämtning som fliken Webbsida.

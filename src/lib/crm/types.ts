@@ -17,16 +17,38 @@ export const SEGMENT_LONG: Record<Segment, string> = {
 }
 
 /** Statusflödet, i ordning. "not_relevant" är avslutet vid sidan av. */
-export const STATUSES = ["new", "qualified", "emailed", "replied", "customer", "not_relevant"] as const
+export const STATUSES = ["new", "qualified", "emailed", "replied", "meeting", "customer", "not_relevant"] as const
 export type Status = (typeof STATUSES)[number]
 export const STATUS_LABEL: Record<Status, string> = {
   new: "Ny lead",
   qualified: "Kvalificerad",
-  emailed: "Mail skickat",
+  // v53: kontakt i vilken kanal som helst (mejl eller Instagram-DM).
+  emailed: "Kontaktad",
   replied: "Svarat / intresserad",
+  meeting: "Samtal bokat",
   customer: "Onboarding / kund",
   not_relevant: "Ej aktuell",
 }
+/** Leaden har svarat eller kommit längre (då pausas alla automatiska utskick). */
+export const ENGAGED: Status[] = ["replied", "meeting", "customer"]
+
+/**
+ * Bolagsform (v53) – avgör vilka utskick som är tillåtna:
+ *   ab       aktiebolag (juridisk person): B2B-mejl på företagsadress är tillåtet,
+ *            med tydlig avregistrering (marknadsföringslagen 19–21 §§).
+ *   enskild  enskild näringsidkare / enskild firma: räknas som fysisk person.
+ *            Säljande mejl kräver samtycke. Utan samtycke: bara den
+ *            icke-säljande referensgruppsmallen – eller Instagram-DM.
+ *   unknown  inte bedömd.
+ */
+export const COMPANY_FORMS = ["unknown", "ab", "enskild"] as const
+export type CompanyForm = (typeof COMPANY_FORMS)[number]
+export const COMPANY_FORM_LABEL: Record<CompanyForm, string> = { unknown: "Inte bedömd", ab: "Aktiebolag (AB)", enskild: "Enskild firma" }
+export const COMPANY_FORM_SHORT: Record<CompanyForm, string> = { unknown: "?", ab: "AB", enskild: "EF" }
+
+export const CHANNELS = ["email", "instagram", "phone"] as const
+export type Channel = (typeof CHANNELS)[number]
+export const CHANNEL_LABEL: Record<Channel, string> = { email: "E-post", instagram: "Instagram-DM", phone: "Telefon" }
 
 /**
  * Varför vi får mejla (marknadsföringslagen 19 § och GDPR):
@@ -36,11 +58,12 @@ export const STATUS_LABEL: Record<Status, string> = {
  *   unknown  – inte bedömt än. Utskick är spärrade tills någon tagit ställning.
  * Enskild firma räknas som fysisk person: då krävs samtycke.
  */
-export const LEGAL_BASES = ["unknown", "company", "consent"] as const
+export const LEGAL_BASES = ["unknown", "company", "research", "consent"] as const
 export type LegalBasis = (typeof LEGAL_BASES)[number]
 export const LEGAL_LABEL: Record<LegalBasis, string> = {
   unknown: "Inte bedömd",
-  company: "Företagsadress",
+  company: "Företagsadress (AB)",
+  research: "Icke-säljande förfrågan (EF)",
   consent: "Samtycke",
 }
 
@@ -80,12 +103,28 @@ export interface Lead {
   unsubscribedAt: string | null
   lastEmailedAt: string | null
   statusChangedAt: string
+  // v53
+  companyForm: CompanyForm
+  /** Bara aktiebolagets organisationsnummer (5xxxxx-xxxx) – aldrig ett personnummer. */
+  orgNumber: string | null
+  preferredChannel: Channel
+  nextActionAt: string | null
+  nextActionNote: string | null
+  lastContactedAt: string | null
+  meetingAt: string | null
+  convertedAt: string | null
 }
 
 /** Det som går att ange när en lead skapas eller ändras. */
 export type LeadInput = Partial<
-  Pick<Lead, "name" | "title" | "segment" | "status" | "email" | "emailVerified" | "phone" | "instagram" | "instagramFollowers" | "websiteUrl" | "gym" | "city" | "specialties" | "source" | "sourceUrl" | "legalBasis">
+  Pick<
+    Lead,
+    | "name" | "title" | "segment" | "status" | "email" | "emailVerified" | "phone" | "instagram" | "instagramFollowers" | "websiteUrl" | "gym" | "city" | "specialties" | "source" | "sourceUrl" | "legalBasis"
+    | "companyForm" | "orgNumber" | "preferredChannel" | "nextActionAt" | "nextActionNote" | "meetingAt"
+  >
 >
+/** Fält som bara servern sätter (utskick, aktiviteter, avregistrering). */
+export type ServerLeadPatch = LeadInput & { lastEmailedAt?: string; unsubscribedAt?: string | null; lastContactedAt?: string; convertedAt?: string | null }
 
 export interface Note {
   id: string
@@ -94,13 +133,53 @@ export interface Note {
   createdAt: string
 }
 
+/**
+ * Malltyp (v53):
+ *   intro     vanligt B2B-mejl (aktiebolag, gymkedjor, samtycke).
+ *   research  icke-säljande förfrågan (referensgrupp) – det enda som får gå
+ *             till en enskild firma utan samtycke. Får inte innehålla pris,
+ *             erbjudanden, länkar eller uppmaningar att registrera sig.
+ */
+export type TemplateKind = "intro" | "research"
+export const TEMPLATE_KIND_LABEL: Record<TemplateKind, string> = { intro: "Säljande (B2B)", research: "Icke-säljande (referensgrupp)" }
+
 export interface EmailTemplate {
   id: string
+  /** Startmallens nyckel (null = egen mall). */
+  key: string | null
   segment: Segment | null
+  kind: TemplateKind
+  /** Bolagsformen mallen är till för (null = alla). */
+  companyForm: CompanyForm | null
   name: string
   subject: string
   body: string
+  /** Automatisk uppföljning efter så här många dagar utan svar (null = ingen). */
+  followupDays: number | null
+  followupSubject: string | null
+  followupBody: string | null
   updatedAt: string
+}
+export type TemplateInput = Omit<EmailTemplate, "id" | "key" | "updatedAt"> & { id?: string }
+
+/** Aktiviteter som loggas för hand (v53). */
+export const ACTIVITY_KINDS = ["dm_sent", "dm_reply", "email_reply", "call_booked", "call_held", "no_show", "converted"] as const
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number]
+export const ACTIVITY_LABEL: Record<ActivityKind, string> = {
+  dm_sent: "DM skickat",
+  dm_reply: "Svar på DM",
+  email_reply: "Svar på mejl",
+  call_booked: "Samtal bokat",
+  call_held: "Samtal genomfört",
+  no_show: "Uteblev från samtal",
+  converted: "Blev PT i Coavira",
+}
+export interface Activity {
+  id: string
+  leadId: string
+  kind: ActivityKind
+  body: string | null
+  occurredAt: string
 }
 
 export const EMAIL_STATUSES = ["queued", "sending", "sent", "delivered", "bounced", "complained", "failed", "cancelled"] as const
@@ -130,6 +209,12 @@ export interface EmailLog {
   deliveredAt: string | null
   resendId: string | null
   error: string | null
+  /** 1 = första mejlet, 2 = automatisk uppföljning (v53). */
+  step: 1 | 2
+  parentId: string | null
+  /** Bara om öppningsspårning är påslagen i Resend (avstängt som standard). */
+  openedAt: string | null
+  openCount: number
 }
 
 /** Det parsern hittar på en publik sida – ett förslag som en människa granskar innan det sparas. */
@@ -146,6 +231,9 @@ export interface Extracted {
   segment: Segment
   /** Sidan beskriver tydligt en personlig tränare. */
   isTrainer: boolean
+  /** v53: bolagsform om sidan avslöjar den (org.nr, "AB", "enskild firma"). */
+  companyForm: CompanyForm
+  orgNumber: string | null
 }
 
 /** Större svenska orter som går att filtrera på (och som parsern känner igen). */

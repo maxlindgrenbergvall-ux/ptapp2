@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeInstagram, normalizeUrl } from "@/lib/crm/csv"
-import { CITIES, LEGAL_BASES, LEGAL_LABEL, SEGMENT_LONG, SEGMENTS, SOURCE_LABEL, STATUS_LABEL, STATUSES, type EmailLog, type Lead, type LeadInput, type Note } from "@/lib/crm/types"
+import { ActivityList, CompanyFormSection, DmHelper, NextActionBanner, QuickLog } from "@/components/crm/quick-log"
+import { CITIES, LEGAL_BASES, LEGAL_LABEL, SEGMENT_LONG, SEGMENTS, SOURCE_LABEL, STATUS_LABEL, STATUSES, type Activity, type EmailLog, type Lead, type LeadInput, type Note } from "@/lib/crm/types"
 import { normalizePhone } from "@/lib/phone"
 import { cn } from "@/lib/utils"
 
@@ -50,17 +51,33 @@ export function patchFromForm(f: Form): { patch: LeadInput } | { error: string }
  * och utskickshistorik. Ändringar sparas med "Spara"; status, segment och
  * rättslig grund sparas direkt (de är ett val, inte fritext).
  */
-export function LeadDrawer({ lead, onClose, onSaved, onDeleted }: { lead: Lead | null; onClose: () => void; onSaved: (lead: Lead) => void; onDeleted: (id: string) => void }) {
+export function LeadDrawer({
+  lead,
+  onClose,
+  onSaved,
+  onDeleted,
+  onActivity,
+  senderName = null,
+}: {
+  lead: Lead | null
+  onClose: () => void
+  onSaved: (lead: Lead) => void
+  onDeleted: (id: string) => void
+  /** v53: en loggad aktivitet (DM, svar, samtal …) och hur många köade mejl som pausades. */
+  onActivity?: (a: Activity, cancelled: number) => void
+  senderName?: string | null
+}) {
   return (
     <Sheet open={Boolean(lead)} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg" data-testid="lead-drawer">
-        {lead && <Body key={lead.id} lead={lead} onSaved={onSaved} onDeleted={onDeleted} />}
+        {lead && <Body key={lead.id} lead={lead} onSaved={onSaved} onDeleted={onDeleted} onActivity={onActivity} senderName={senderName} />}
       </SheetContent>
     </Sheet>
   )
 }
 
-function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) => void; onDeleted: (id: string) => void }) {
+function Body({ lead, onSaved, onDeleted, onActivity, senderName }: { lead: Lead; onSaved: (lead: Lead) => void; onDeleted: (id: string) => void; onActivity?: (a: Activity, cancelled: number) => void; senderName: string | null }) {
+  const [activities, setActivities] = React.useState<Activity[]>([])
   const [form, setForm] = React.useState<Form>(() => formOf(lead))
   const [busy, setBusy] = React.useState(false)
   const [notes, setNotes] = React.useState<Note[] | null>(null)
@@ -71,11 +88,12 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
 
   React.useEffect(() => {
     let alive = true
-    crm<{ notes: Note[]; logs: EmailLog[] }>("lead.detail", { id: lead.id })
+    crm<{ notes: Note[]; logs: EmailLog[]; activities?: Activity[] }>("lead.detail", { id: lead.id })
       .then((d) => {
         if (!alive) return
         setNotes(d.notes)
         setLogs(d.logs)
+        setActivities(d.activities ?? [])
       })
       .catch(() => alive && setNotes([]))
     return () => {
@@ -169,7 +187,24 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
         </div>
       </div>
 
+      <div className="space-y-0 border-b border-border/70 px-5 pt-4">
+        <NextActionBanner lead={lead} logs={logs} activities={activities} />
+      </div>
+
+      <QuickLog
+        lead={lead}
+        busy={busy}
+        onUpdate={update}
+        onLogged={(a, saved, cancelled) => {
+          setActivities((list) => [a, ...list])
+          onSaved(saved)
+          onActivity?.(a, cancelled)
+          if (cancelled) setLogs((ls) => ls.map((l) => (l.status === "queued" ? { ...l, status: "cancelled" } : l)))
+        }}
+      />
+
       <div className="grid grid-cols-2 gap-3 border-b border-border/70 p-5">
+        <CompanyFormSection lead={lead} busy={busy} onUpdate={update} />
         <Field label="Status">
           <Select value={lead.status} onValueChange={(v) => void update({ status: v as Lead["status"] })} disabled={busy}>
             <SelectTrigger className="w-full" aria-label="Status" data-testid="drawer-status">
@@ -201,7 +236,7 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
         <Field
           label="Rättslig grund för utskick"
           className="col-span-2"
-          hint="Företagsadress = adressen hör till ett bolag (t.ex. en jobbadress hos en gymkedja eller info@). Enskild firma räknas som privatperson: då krävs samtycke. Utan bedömning går inga mejl ut."
+          hint="Sätts automatiskt av bolagsformen. Företagsadress = aktiebolag eller jobbadress hos en gymkedja. Enskild firma räknas som privatperson: bara icke-säljande förfrågan, eller samtycke. Utan bedömning går inga mejl ut."
         >
           <Select value={lead.legalBasis} onValueChange={(v) => void update({ legalBasis: v as Lead["legalBasis"] })} disabled={busy}>
             <SelectTrigger className="w-full" aria-label="Rättslig grund för utskick" data-testid="drawer-legal">
@@ -296,6 +331,17 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
         </div>
       </form>
 
+      <DmHelper lead={lead} sender={senderName} />
+
+      {activities.length > 0 && (
+        <section className="space-y-3 border-b border-border/70 p-5" aria-labelledby="act-title">
+          <h3 id="act-title" className="text-sm font-semibold">
+            Aktiviteter
+          </h3>
+          <ActivityList activities={activities} />
+        </section>
+      )}
+
       <section className="space-y-3 border-b border-border/70 p-5" aria-labelledby="notes-title">
         <h3 id="notes-title" className="flex items-center gap-2 text-sm font-semibold">
           <StickyNote className="size-4" /> Interna anteckningar
@@ -328,7 +374,10 @@ function Body({ lead, onSaved, onDeleted }: { lead: Lead; onSaved: (lead: Lead) 
         <ul className="space-y-1.5 text-sm">
           {logs.map((l) => (
             <li key={l.id} className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate">{l.subject}</span>
+              <span className="min-w-0 truncate">
+                {l.step === 2 && <span className="mr-1.5 rounded bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground">Uppföljning</span>}
+                {l.subject}
+              </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="text-[11px] text-muted-foreground tabular">{fmtDateTime(l.deliveredAt ?? l.sentAt ?? l.scheduledAt)}</span>
                 <EmailStatusText status={l.status} />

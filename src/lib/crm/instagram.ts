@@ -1,3 +1,4 @@
+import { detectCompanyForm, legalBasisFor } from "@/lib/crm/compliance"
 import { cityFromText, extractEmails, extractPhones, ONLINE, TRAINER } from "@/lib/crm/extract"
 import { normalizeUrl } from "@/lib/crm/csv"
 import { EMAIL_VERDICT_TEXT, emailVerdict, isChainAccount, looksSwedish, NOT_TRAINER } from "@/lib/crm/quality"
@@ -131,6 +132,11 @@ export function profileToCandidate(item: Item): InstagramCandidate | null {
     specialties: SPECIALTIES.filter((s) => s.pattern.test(text)).map((s) => s.label).slice(0, 6),
     source: "instagram",
     sourceUrl: `https://www.instagram.com/${handle}/`,
+    // v53: bolagsform ur bion ("… AB", org.nr) – en gymkedja är alltid ett bolag.
+    ...(() => {
+      const form = chain ? "ab" : detectCompanyForm(`${fullName ?? ""}\n${text}`).form
+      return form === "unknown" ? {} : { companyForm: form, legalBasis: legalBasisFor(form, "unknown") }
+    })(),
   }
   const { score } = scoreLead({
     name: lead.name!,

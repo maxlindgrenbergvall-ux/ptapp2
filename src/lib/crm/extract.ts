@@ -1,3 +1,4 @@
+import { detectCompanyForm } from "@/lib/crm/compliance"
 import { normalizePhone } from "@/lib/phone"
 import { CITIES, GYM_CHAINS, SPECIALTIES, type Extracted, type Segment } from "@/lib/crm/types"
 
@@ -232,6 +233,11 @@ export function extractContacts(html: string, pageUrl: string): Extracted {
     specialties: SPECIALTIES.filter((s) => s.pattern.test(all)).map((s) => s.label).slice(0, 6),
     segment,
     isTrainer,
+    // v53: bolagsform (org.nr som börjar på 5 = aktiebolag). En gymkedja är alltid ett bolag.
+    ...(() => {
+      const d = detectCompanyForm(all)
+      return { companyForm: chain ? ("ab" as const) : d.form, orgNumber: d.orgNumber }
+    })(),
   }
 }
 

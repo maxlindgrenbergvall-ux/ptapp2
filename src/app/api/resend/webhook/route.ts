@@ -10,6 +10,7 @@ import { systemStore } from "@/lib/crm/auth"
  *   email.delivered   → utskicket markeras Levererat med tidsstämpel
  *   email.bounced     → Studsade; adressen spärras och leaden märks "domänen tar inte emot post"
  *   email.complained  → Anmält som skräp; adressen spärras och leaden blir Ej aktuell
+ *   email.opened      → (v53) räknas bara om öppningsspårning slagits på i Resend
  *
  * Signaturen verifieras (Resend använder Svix: svix-id, svix-timestamp,
  * svix-signature och hemligheten RESEND_WEBHOOK_SECRET, "whsec_…"). Utan giltig
@@ -53,8 +54,13 @@ export async function POST(request: Request) {
   if (event.type === "email.delivered") {
     // En studs eller anmälan som redan registrerats skrivs inte över av ett sent leveranskvitto.
     if (log.status === "sent" || log.status === "sending") await store.updateLog(log.id, { status: "delivered", deliveredAt: at })
+  } else if (event.type === "email.opened") {
+    // Bara om öppningsspårning är påslagen i Resend (avstängt som standard – se README om samtycke).
+    await store.updateLog(log.id, { openedAt: log.openedAt ?? at, openCount: (log.openCount ?? 0) + 1 })
   } else if (event.type === "email.bounced") {
     await store.updateLog(log.id, { status: "bounced", error: "Mejlet studsade" })
+    // Uppföljningen till samma adress ska inte heller gå.
+    await store.cancelQueued({ leadId: log.leadId }, "Första mejlet studsade")
     await store.suppress(log.toEmail, "bounced")
     await store.updateLead(log.leadId, { emailVerified: false })
   } else if (event.type === "email.complained") {

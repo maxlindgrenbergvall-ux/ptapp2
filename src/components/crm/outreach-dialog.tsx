@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarClock, ChevronDown, CircleAlert, FilePen, Send } from "lucide-react"
+import { CalendarClock, ChevronDown, CircleAlert, FilePen, Repeat, Send, ShieldCheck } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { QueueConfig } from "@/lib/crm/outreach"
+import { salesIssues } from "@/lib/crm/compliance"
 import { VARIABLES } from "@/lib/crm/templates"
-import { SEGMENT_LABEL, SEGMENTS, type EmailLog, type EmailTemplate, type Segment } from "@/lib/crm/types"
+import { COMPANY_FORM_LABEL, SEGMENT_LABEL, SEGMENTS, TEMPLATE_KIND_LABEL, type CompanyForm, type EmailLog, type EmailTemplate, type Segment, type TemplateKind } from "@/lib/crm/types"
 import { cn } from "@/lib/utils"
 
 interface PreviewItem {
@@ -20,6 +21,8 @@ interface PreviewItem {
   name: string
   email: string | null
   templateName: string | null
+  templateKind: TemplateKind | null
+  followupDays: number | null
   subject: string
   body: string
   blockers: { code: string; text: string }[]
@@ -101,7 +104,7 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={AUTO}>Automatiskt – mallen för varje leads segment</SelectItem>
+              <SelectItem value={AUTO}>Automatiskt – rätt mall för varje leads bolagsform och segment</SelectItem>
               {templates.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
@@ -133,6 +136,18 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
                       <span className="block truncate text-sm font-medium">{i.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {i.email} · {i.templateName}
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+                        {i.templateKind === "research" && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary" data-testid="research-tag">
+                            <ShieldCheck className="size-3" aria-hidden /> Icke-säljande
+                          </span>
+                        )}
+                        {i.followupDays ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5" data-testid="followup-tag">
+                            <Repeat className="size-3" aria-hidden /> Uppföljning efter {i.followupDays} dagar om inget svar
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground tabular">
@@ -184,8 +199,9 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
 export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { open: boolean; onOpenChange: (o: boolean) => void; templates: EmailTemplate[]; onChange: (templates: EmailTemplate[]) => void }) {
   const [id, setId] = React.useState<string | null>(null)
   const current = templates.find((t) => t.id === id) ?? templates[0]
-  const [draft, setDraft] = React.useState<{ id?: string; segment: Segment | null; name: string; subject: string; body: string } | null>(null)
-  const value = draft ?? current ?? { segment: null, name: "", subject: "", body: "" }
+  const [draft, setDraft] = React.useState<Draft | null>(null)
+  const value: Draft = draft ?? (current ? toDraft(current) : EMPTY)
+  const issues = value.kind === "research" ? [...new Set(salesIssues(`${value.subject}\n${value.body}\n${value.followupBody ?? ""}`))] : []
   const bodyRef = React.useRef<HTMLTextAreaElement>(null)
   const [busy, setBusy] = React.useState(false)
   const edit = (patch: Partial<typeof value>) => setDraft({ ...value, ...patch })
@@ -203,7 +219,20 @@ export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { o
   const save = async () => {
     setBusy(true)
     try {
-      const { template } = await crm<{ template: EmailTemplate }>("template.save", { template: { id: value.id, segment: value.segment, name: value.name, subject: value.subject, body: value.body } })
+      const { template } = await crm<{ template: EmailTemplate }>("template.save", {
+        template: {
+          id: value.id,
+          segment: value.segment,
+          kind: value.kind,
+          companyForm: value.companyForm,
+          name: value.name,
+          subject: value.subject,
+          body: value.body,
+          followupDays: value.followupBody?.trim() ? value.followupDays : null,
+          followupSubject: value.followupBody?.trim() ? value.followupSubject || null : null,
+          followupBody: value.followupBody?.trim() || null,
+        },
+      })
       onChange(templates.some((t) => t.id === template.id) ? templates.map((t) => (t.id === template.id ? template : t)) : [...templates, template])
       setId(template.id)
       setDraft(null)
@@ -246,7 +275,7 @@ export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { o
               {t.name}
             </button>
           ))}
-          <button type="button" onClick={() => setDraft({ segment: null, name: "", subject: "", body: "" })} className="rounded-full border border-dashed px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <button type="button" onClick={() => setDraft(EMPTY)} className="rounded-full border border-dashed px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
             + Ny mall
           </button>
         </div>
@@ -269,6 +298,32 @@ export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { o
               </SelectContent>
             </Select>
           </Field>
+          <Field label="Typ" hint={value.kind === "research" ? "Får gå till enskilda firmor utan samtycke – inget pris, erbjudande, länk eller uppmaning att registrera sig." : undefined}>
+            <Select value={value.kind} onValueChange={(v) => edit({ kind: v as TemplateKind, ...(v === "research" ? { followupDays: null, followupBody: null, followupSubject: null } : {}) })}>
+              <SelectTrigger className="w-full" aria-label="Malltyp" data-testid="template-kind">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["intro", "research"] as const).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {TEMPLATE_KIND_LABEL[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Bolagsform">
+            <Select value={value.companyForm ?? "all"} onValueChange={(v) => edit({ companyForm: v === "all" ? null : (v as CompanyForm) })}>
+              <SelectTrigger className="w-full" aria-label="Mallens bolagsform">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla bolagsformer</SelectItem>
+                <SelectItem value="ab">{COMPANY_FORM_LABEL.ab}</SelectItem>
+                <SelectItem value="enskild">{COMPANY_FORM_LABEL.enskild}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
           <Field label="Ämnesrad" htmlFor="tp-subject" className="col-span-2">
             <Input id="tp-subject" value={value.subject} onChange={(e) => edit({ subject: e.target.value })} maxLength={200} data-testid="template-subject" />
           </Field>
@@ -283,12 +338,47 @@ export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { o
               ))}
             </div>
           </Field>
+          {issues.length > 0 && (
+            <p className="col-span-2 flex gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive" data-testid="sales-warning">
+              <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              Mallen ska vara icke-säljande men innehåller {issues.join(", ")}. Den skickas inte till enskilda firmor förrän det är borttaget.
+            </p>
+          )}
+          {value.kind === "intro" ? (
+            <div className="col-span-2 space-y-3 rounded-xl border border-border/70 p-3" data-testid="followup-editor">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--primary)]"
+                  checked={value.followupDays !== null}
+                  onChange={(e) => edit(e.target.checked ? { followupDays: 4, followupSubject: value.followupSubject ?? value.subject, followupBody: value.followupBody ?? "" } : { followupDays: null, followupBody: null, followupSubject: null })}
+                  data-testid="followup-toggle"
+                />
+                <Repeat className="size-4 text-muted-foreground" aria-hidden /> Automatisk uppföljning om inget svar
+              </label>
+              {value.followupDays !== null && (
+                <div className="grid grid-cols-[6rem_1fr] gap-3">
+                  <Field label="Efter dagar" htmlFor="tp-fu-days">
+                    <Input id="tp-fu-days" type="number" min={2} max={14} value={value.followupDays} onChange={(e) => edit({ followupDays: Math.min(14, Math.max(2, Number(e.target.value) || 4)) })} data-testid="followup-days" />
+                  </Field>
+                  <Field label="Ämnesrad" htmlFor="tp-fu-subject">
+                    <Input id="tp-fu-subject" value={value.followupSubject ?? ""} onChange={(e) => edit({ followupSubject: e.target.value })} maxLength={200} />
+                  </Field>
+                  <Field label="Text" htmlFor="tp-fu-body" className="col-span-2" hint="Pausas automatiskt så fort leaden svarar, bokar samtal eller avregistrerar sig. Skickas aldrig till enskilda firmor utan samtycke.">
+                    <Textarea id="tp-fu-body" value={value.followupBody ?? ""} onChange={(e) => edit({ followupBody: e.target.value })} rows={5} maxLength={4000} className="font-mono text-[13px] leading-relaxed" data-testid="followup-body" />
+                  </Field>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="col-span-2 text-xs text-muted-foreground">Icke-säljande mallar får ingen automatisk uppföljning – följ hellre upp med ett Instagram-DM.</p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Stäng
           </Button>
-          <Button onClick={save} disabled={busy || !draft || !value.name.trim() || !value.subject.trim() || !value.body.trim()} data-testid="template-save">
+          <Button onClick={save} disabled={busy || !draft || !value.name.trim() || !value.subject.trim() || !value.body.trim() || (value.followupDays !== null && !value.followupBody?.trim())} data-testid="template-save">
             Spara mall
           </Button>
         </DialogFooter>
@@ -296,3 +386,7 @@ export function TemplatesDialog({ open, onOpenChange, templates, onChange }: { o
     </Dialog>
   )
 }
+
+type Draft = Omit<EmailTemplate, "id" | "key" | "updatedAt"> & { id?: string }
+const EMPTY: Draft = { segment: null, kind: "intro", companyForm: null, name: "", subject: "", body: "", followupDays: null, followupSubject: null, followupBody: null }
+const toDraft = (t: EmailTemplate): Draft => ({ id: t.id, segment: t.segment, kind: t.kind, companyForm: t.companyForm, name: t.name, subject: t.subject, body: t.body, followupDays: t.followupDays, followupSubject: t.followupSubject, followupBody: t.followupBody })

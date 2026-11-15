@@ -1,3 +1,4 @@
+import { legalBasisFor } from "@/lib/crm/compliance"
 import "server-only"
 
 import { contactLinks, extractContacts } from "@/lib/crm/extract"
@@ -81,7 +82,12 @@ export async function enrichFromUrl(rawUrl: string): Promise<Enriched> {
     specialties: found.specialties,
     source: "url",
     sourceUrl: page.url,
+    // v53: bolagsform och rättslig grund föreslås direkt (granskas innan leaden sparas).
+    ...(found.companyForm !== "unknown" ? { companyForm: found.companyForm, legalBasis: legalBasisFor(found.companyForm, "unknown") } : {}),
+    ...(found.orgNumber ? { orgNumber: found.orgNumber } : {}),
   }
+  if (found.companyForm === "enskild") notes.push("Enskild firma: bara den icke-säljande referensgruppsmallen eller Instagram-DM.")
+  if (found.companyForm === "ab") notes.push(`Aktiebolag${found.orgNumber ? ` (org.nr ${found.orgNumber})` : ""}: B2B-mallen går att använda.`)
   const { score, breakdown } = scoreLead({
     name: suggestion.name!,
     title: suggestion.title ?? null,

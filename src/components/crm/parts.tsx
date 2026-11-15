@@ -3,7 +3,7 @@
 import { Building2, Megaphone, UserRound, type LucideIcon } from "lucide-react"
 
 import { scoreTier } from "@/lib/crm/score"
-import { EMAIL_STATUS_LABEL, SEGMENT_LABEL, STATUS_LABEL, type EmailStatus, type Segment, type Status } from "@/lib/crm/types"
+import { COMPANY_FORM_LABEL, COMPANY_FORM_SHORT, EMAIL_STATUS_LABEL, SEGMENT_LABEL, STATUS_LABEL, type CompanyForm, type EmailStatus, type Segment, type Status } from "@/lib/crm/types"
 import { cn } from "@/lib/utils"
 
 /** Anrop till /api/admin/crm. Kastar ett fel med serverns meddelande (visas i en toast). */
@@ -38,6 +38,7 @@ const STATUS_STYLE: Record<Status, string> = {
   qualified: "border-primary/40 text-primary",
   emailed: "border-primary/30 bg-primary/10 text-primary",
   replied: "border-primary/50 bg-primary/20 text-primary",
+  meeting: "border-primary/60 bg-primary/30 text-primary",
   customer: "border-primary bg-primary text-primary-foreground",
   not_relevant: "border-border text-muted-foreground",
 }
@@ -105,5 +106,23 @@ export function Field({ label, htmlFor, hint, children, className }: { label: st
       {children}
       {hint && <p className="text-[11px] leading-snug text-muted-foreground">{hint}</p>}
     </div>
+  )
+}
+
+/** Bolagsform (v53): AB i accentfärg, enskild firma neutral med kantlinje, okänd streckad. */
+export function CompanyFormBadge({ form, className }: { form: CompanyForm; className?: string }) {
+  return (
+    <span
+      title={COMPANY_FORM_LABEL[form]}
+      aria-label={COMPANY_FORM_LABEL[form]}
+      data-company-form={form}
+      className={cn(
+        "inline-flex h-5 min-w-7 items-center justify-center rounded-md border px-1.5 text-[10px] font-semibold tracking-wide whitespace-nowrap",
+        form === "ab" ? "border-primary/40 bg-primary/10 text-primary" : form === "enskild" ? "border-border bg-muted/60 text-foreground" : "border-dashed border-muted-foreground/40 text-muted-foreground",
+        className
+      )}
+    >
+      {COMPANY_FORM_SHORT[form]}
+    </span>
   )
 }

@@ -1,4 +1,5 @@
-import { firstNameOf, type EmailTemplate, type Lead, type Segment } from "@/lib/crm/types"
+import { bestTemplate } from "@/lib/crm/compliance"
+import { firstNameOf, type CompanyForm, type EmailTemplate, type Lead, type Segment, type TemplateKind } from "@/lib/crm/types"
 
 /**
  * E-postmallar för B2B-utskick (v47). Variabler skrivs {{så_här}} och fylls i
@@ -11,10 +12,12 @@ export const VARIABLES = [
   { key: "gym_eller_företag", hint: "SATS", fallback: "ditt gym" },
   { key: "stad", hint: "Stockholm", fallback: "din stad" },
   { key: "specialisering", hint: "styrka", fallback: "träning" },
+  // v53: avsändarens förnamn (CRM_SENDER_NAME, annars namnet i CRM_FROM_EMAIL). Saknas det stoppas utskicket.
+  { key: "avsändare", hint: "Max", fallback: "" },
 ] as const
 export type VariableKey = (typeof VARIABLES)[number]["key"]
 
-export function variablesFor(lead: Pick<Lead, "name" | "gym" | "city" | "specialties">): Record<VariableKey, string> {
+export function variablesFor(lead: Pick<Lead, "name" | "gym" | "city" | "specialties">, sender: string | null = null): Record<VariableKey, string> {
   const fallback = Object.fromEntries(VARIABLES.map((v) => [v.key, v.fallback])) as Record<VariableKey, string>
   return {
     förnamn: firstNameOf(lead.name) || fallback.förnamn,
@@ -22,7 +25,21 @@ export function variablesFor(lead: Pick<Lead, "name" | "gym" | "city" | "special
     gym_eller_företag: lead.gym?.trim() || fallback.gym_eller_företag,
     stad: lead.city?.trim() || fallback.stad,
     specialisering: lead.specialties[0]?.toLowerCase() || fallback.specialisering,
+    avsändare: sender?.trim() ?? "",
   }
+}
+
+/**
+ * Avsändarens namn i mejlen: CRM_SENDER_NAME, annars visningsnamnet i
+ * CRM_FROM_EMAIL ("Max på Coavira <max@…>" → "Max"). null = saknas.
+ */
+export function senderName(env: Record<string, string | undefined>): string | null {
+  const explicit = env.CRM_SENDER_NAME?.trim()
+  if (explicit) return explicit.slice(0, 60)
+  const display = env.CRM_FROM_EMAIL?.match(/^\s*"?([^"<]+?)"?\s*</)?.[1]?.trim()
+  if (!display) return null
+  const name = display.split(/\s+(?:på|från|at|@)\s+/i)[0].trim()
+  return name && !/coavira/i.test(name) ? name.slice(0, 60) : null
 }
 
 /** Okända variabler lämnas kvar och rapporteras, så att stavfel i en mall syns i förhandsgranskningen. */
@@ -43,6 +60,8 @@ export interface FooterInfo {
   sourceUrl: string | null
   sender: string
   contactEmail: string
+  /** v53: icke-säljande förfrågan (referensgrupp) – annan förklaring, inga fler mejl utan svar. */
+  kind?: TemplateKind
 }
 
 /**
@@ -54,7 +73,9 @@ export function footerText(f: FooterInfo): string {
   return [
     "—",
     `${f.sender} · ${f.contactEmail}`,
-    `Du får det här mejlet eftersom du arbetar som personlig tränare och vi tror att Coavira kan vara relevant för dig i din yrkesroll.${f.sourceUrl ? ` Vi hittade dina kontaktuppgifter här: ${f.sourceUrl}` : ""}`,
+    f.kind === "research"
+      ? `Vi hör av oss eftersom vi vill höra hur personliga tränare arbetar i praktiken. Det här är inget erbjudande, och vi skickar inga fler mejl om du inte svarar.${f.sourceUrl ? ` Vi hittade dina kontaktuppgifter här: ${f.sourceUrl}` : ""}`
+      : `Du får det här mejlet eftersom du arbetar som personlig tränare och vi tror att Coavira kan vara relevant för dig i din yrkesroll.${f.sourceUrl ? ` Vi hittade dina kontaktuppgifter här: ${f.sourceUrl}` : ""}`,
     `Vill du inte höra från oss igen? Avregistrera dig här, så raderar vi dina uppgifter: ${f.unsubscribeUrl}`,
   ].join("\n")
 }
@@ -75,73 +96,154 @@ export function emailHtml(body: string, footer: string): string {
 export interface DefaultTemplate {
   key: string
   segment: Segment | null
+  kind: TemplateKind
+  companyForm: CompanyForm | null
   name: string
   subject: string
   body: string
+  followupDays: number | null
+  followupSubject: string | null
+  followupBody: string | null
 }
 
-/** Startmallar – läggs in första gången mallarna öppnas och går sedan att redigera fritt. */
+/** Referensgruppsmallens nyckel – standardval för enskilda firmor (v53). */
+export const RESEARCH_TEMPLATE_KEY = "research_referensgrupp"
+
+/**
+ * Startmallar (v53). Läggs in när CRM:et öppnas om de saknas (per nyckel) och
+ * går sedan att redigera. En startmall som tas bort arkiveras, så att den inte
+ * kommer tillbaka. Korta, personliga, utan floskler – och utan "[ditt namn]":
+ * avsändaren fylls i automatiskt med {{avsändare}}.
+ */
 export const DEFAULT_TEMPLATES: DefaultTemplate[] = [
   {
-    key: "gym_chain",
+    // Obligatorisk huvudmall för enskilda firmor och frilansande PT:er – texten är fastställd.
+    key: RESEARCH_TEMPLATE_KEY,
+    segment: null,
+    kind: "research",
+    companyForm: "enskild",
+    name: "Referensgrupp (enskild firma, icke-säljande)",
+    subject: "Referensgrupp för nytt svenskt PT-verktyg",
+    body: `Hej {{förnamn}},
+
+Vi bygger ett nytt svenskt coachingverktyg med fokus på ren design och noll krångel för klienten. Innan vi släpper in fler sätter vi ihop en liten referensgrupp med 5–6 duktiga tränare som får tycka till om vad som faktiskt funkar i praktiken – och vad som mest tar onödig tid idag.
+
+Har du 10 minuter över för ett kort samtal i veckan så vi får höra dina tankar?
+
+Säg bara till om torsdag eller fredag passar bäst så skickar jag en kalenderinbjudan.
+
+Allt gott,
+{{avsändare}}
+Coavira`,
+    // Ingen automatisk uppföljning till enskilda firmor – följ hellre upp med ett DM.
+    followupDays: null,
+    followupSubject: null,
+    followupBody: null,
+  },
+  {
+    key: "ab_intro",
+    segment: null,
+    kind: "intro",
+    companyForm: "ab",
+    name: "PT med aktiebolag",
+    subject: "Hur följer du upp dina klienter mellan passen?",
+    body: `Hej {{förnamn}},
+
+Jag heter {{avsändare}} och är med och bygger Coavira, en svensk app där PT:er samlar program, kostschema, bokning och betalning för sina klienter.
+
+Många PT:er vi pratar med lägger ett par timmar i veckan på att skicka upplägg som PDF, svara i DM och hålla koll på vem som har betalat. Den tiden vill vi ge tillbaka – särskilt till dig som driver eget inom {{specialisering}}.
+
+Passar 15 minuter nästa vecka? Jag visar hur det fungerar, och du får säga rakt ut om det inte passar ditt sätt att jobba.
+
+Vänliga hälsningar,
+{{avsändare}}
+Coavira`,
+    followupDays: 4,
+    followupSubject: "Hur följer du upp dina klienter mellan passen?",
+    followupBody: `Hej {{förnamn}},
+
+Jag skickade ett mejl för några dagar sedan och lyfter det en gång till, ifall det försvann i inkorgen.
+
+Passar 15 minuter nästa vecka? Ett "nej tack" går också bra – då hör jag inte av mig igen.
+
+Vänliga hälsningar,
+{{avsändare}}`,
+  },
+  {
+    key: "gym_chain_intro",
     segment: "gym_chain",
-    name: "PT på gymkedja – klienter vid sidan av",
-    subject: "{{förnamn}}, ett enklare sätt att hålla ihop dina klienter",
-    body: `Hej {{förnamn}}!
+    kind: "intro",
+    companyForm: "ab",
+    name: "PT på gymkedja (SATS, Nordic Wellness m.fl.)",
+    subject: "Dina PT-klienter mellan passen på {{gym_eller_företag}}",
+    body: `Hej {{förnamn}},
 
-Jag heter [ditt namn] och jobbar med Coavira – en svensk app för personliga tränare.
+Jag heter {{avsändare}} och är med och bygger Coavira, en svensk app för personliga tränare.
 
-Många PT:er på {{gym_eller_företag}} har klienter som vill ha mer än passen på gymmet: ett upplägg att följa mellan träffarna, koll på kosten och ett ställe att ställa frågor. I Coavira lägger du upp klientens träningssplit och kostschema, ser varje loggat pass och har chatten och videosamtalen på samma ställe.
+Många PT:er på {{gym_eller_företag}} berättar att det mesta av jobbet mellan passen sker i sms, DM och anteckningsappen: programmet, kosten och frågorna. I Coavira har klienten allt i en app, och du ser varje loggat pass. Det fungerar vid sidan av gymmets egna system.
 
-Appen är gratis för dina klienter, och du sätter själv priserna på dina tjänster.
+Vill du se hur det ser ut? Jag tar gärna 15 minuter med dig en dag som passar dig.
 
-Vill du se hur det ser ut? Svara på det här mejlet, så skickar jag en kort genomgång.
-
-Vänliga hälsningar
-[ditt namn]
+Vänliga hälsningar,
+{{avsändare}}
 Coavira`,
+    followupDays: 4,
+    followupSubject: "Dina PT-klienter mellan passen på {{gym_eller_företag}}",
+    followupBody: `Hej {{förnamn}},
+
+Jag lyfter mitt förra mejl en gång till, ifall det kom en dag med fullt schema.
+
+Är 15 minuter nästa vecka okej? Annars räcker det med ett kort "nej tack", så hör jag inte av mig igen.
+
+Vänliga hälsningar,
+{{avsändare}}`,
   },
   {
-    key: "influencer",
+    key: "influencer_intro",
     segment: "influencer",
-    name: "PT-influencer / onlinecoach",
-    subject: "{{förnamn}}, onlinecoaching utan kalkylark och DM-kaos",
-    body: `Hej {{förnamn}}!
+    kind: "intro",
+    companyForm: "ab",
+    name: "Onlinecoach / PT-influencer (aktiebolag)",
+    subject: "Onlinecoaching utan PDF:er och DM-kaos",
+    body: `Hej {{förnamn}},
 
-Jag heter [ditt namn] och jobbar med Coavira – en svensk app för onlinecoacher och personliga tränare.
+Jag heter {{avsändare}} och är med och bygger Coavira, en svensk app för onlinecoacher och personliga tränare.
 
-När man coachar på distans hamnar upplägget lätt i PDF:er, kalkylark och DM:s. I Coavira får varje klient sitt träningsschema och kostschema i en app, loggar passen själv, och du ser utvecklingen och svarar i chatten – med bilder, teknikvideor och videosamtal på samma ställe. Betalningen går via appen, och du sätter dina egna priser.
+När man coachar på distans hamnar upplägget lätt i PDF:er, kalkylark och DM. I Coavira får varje klient sitt träningsschema och kostschema i en app, loggar passen själv, och du ser utvecklingen och svarar i chatten – med teknikvideor och videosamtal på samma ställe.
 
-Appen är gratis för dina klienter.
+Har du 15 minuter nästa vecka? Jag visar hur andra coacher inom {{specialisering}} har lagt upp det.
 
-Är det intressant? Svara på det här mejlet, så visar jag hur andra coacher inom {{specialisering}} har lagt upp det.
-
-Vänliga hälsningar
-[ditt namn]
+Vänliga hälsningar,
+{{avsändare}}
 Coavira`,
-  },
-  {
-    key: "freelance",
-    segment: "freelance",
-    name: "Frilansande PT / egen företagare",
-    subject: "{{förnamn}}, mindre administration kring dina klienter",
-    body: `Hej {{förnamn}}!
+    followupDays: 4,
+    followupSubject: "Onlinecoaching utan PDF:er och DM-kaos",
+    followupBody: `Hej {{förnamn}},
 
-Jag heter [ditt namn] och jobbar med Coavira – en svensk app för personliga tränare.
+Jag lyfter mitt förra mejl en gång till – det är lätt att det drunknar bland alla förfrågningar.
 
-Som egen företagare i {{stad}} går mycket tid åt till sådant som inte är träning: bokningar, betalningar, scheman och uppföljning. Coavira samlar det: klienten bokar pass i din kalender, betalar i appen, följer sitt träningsschema och kostschema och loggar passen – och du ser allt på ett ställe.
+Passar 15 minuter nästa vecka? Ett "nej tack" är också ett bra svar.
 
-Appen är gratis för dina klienter, och du sätter själv priserna på dina tjänster.
-
-Vill du se hur det ser ut? Svara på det här mejlet, så skickar jag en kort genomgång.
-
-Vänliga hälsningar
-[ditt namn]
-Coavira`,
+Vänliga hälsningar,
+{{avsändare}}`,
   },
 ]
 
-/** Mallen som passar leadens segment bäst (segmentets egen, annars en allmän). */
-export function templateFor(templates: EmailTemplate[], segment: Segment): EmailTemplate | undefined {
-  return templates.find((t) => t.segment === segment) ?? templates.find((t) => t.segment === null) ?? templates[0]
+/**
+ * Instagram-DM (v53): referensgruppstexten i DM-form – kortare, utan sidfot.
+ * Kopieras i lead-panelen och klistras in i Instagram; själva DM:et skickas
+ * för hand (Instagram tillåter inte automatiska DM).
+ */
+export function dmText(lead: Pick<Lead, "name">, sender: string | null): string {
+  const first = firstNameOf(lead.name) || "där"
+  return [
+    `Hej ${first}! Vi bygger ett nytt svenskt coachingverktyg för PT:er, med fokus på ren design och noll krångel för klienten.`,
+    `Innan vi släpper in fler sätter vi ihop en liten referensgrupp med 5–6 tränare som får tycka till om vad som faktiskt funkar i vardagen. Har du 10 minuter för ett kort samtal i veckan?`,
+    sender ? `/${sender}, Coavira` : "/Coavira",
+  ].join("\n\n")
+}
+
+/** Mallen som passar leaden bäst (bolagsform, rättslig grund och segment – se compliance.ts). */
+export function templateFor(templates: EmailTemplate[], lead: Pick<Lead, "companyForm" | "legalBasis" | "segment">): EmailTemplate | undefined {
+  return bestTemplate(templates, lead)
 }

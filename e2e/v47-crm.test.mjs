@@ -2,7 +2,7 @@
 // Inget når internet: webbplatser, Resend och sök-API:t spelas av testservern.
 //   node e2e/mock-crm.mjs &
 //   CRM_DEMO=1 CRM_FETCH_MOCK_ORIGIN=http://localhost:54810 CRM_MX_MOCK=elinpt.se,viktorcoaching.se,sats.se,gymkedjan.example \
-//   RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54810 CRM_FROM_EMAIL="Test <test@mail.coavira.fit>" \
+//   RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54810 CRM_FROM_EMAIL="Test på Coavira <test@mail.coavira.fit>" \
 //   BRAVE_SEARCH_API_KEY=test-key CRM_SEARCH_API_BASE=http://localhost:54810 CRM_MIN_GAP_SECONDS=20 \
 //   CRM_WINDOW_START_HOUR=0 CRM_WINDOW_END_HOUR=24 CRM_SEND_WEEKENDS=1 \
 //   RESEND_WEBHOOK_SECRET=whsec_dGVzdC1oZW1saWdoZXQtZm9yLWNybQ== CRON_SECRET=test-cron-secret-123456 npm start
@@ -47,7 +47,7 @@ await p.fill("[data-testid=crm-search]", "malmö")
 check((await p.locator("[data-testid=lead-row]").count()) === 2, "sök: ort")
 await p.fill("[data-testid=crm-search]", "")
 await p.click("[data-testid=view-kanban]")
-check((await p.locator("[data-testid=col-new] [data-testid=kanban-card]").count()) === 3 && (await p.locator("[data-testid=kanban] section").count()) === 6, "pipeline: sex kolumner i statusflödets ordning")
+check((await p.locator("[data-testid=col-new] [data-testid=kanban-card]").count()) === 3 && (await p.locator("[data-testid=kanban] section").count()) === 7, "pipeline: sju kolumner i statusflödets ordning")
 await p.click("[data-testid=view-list]")
 
 // ------------------------------------------- 2. berikning från en webbsida ---
@@ -125,10 +125,13 @@ check(preview.items.every((i) => i.blockers.some((b) => b.code === "legal_basis"
 await api("lead.bulk", { ids: [elin.id], patch: { legalBasis: "consent" } })
 await api("lead.bulk", { ids: [karin.id], patch: { legalBasis: "company" } })
 preview = await api("outreach.preview", { leadIds: [elin.id, karin.id], templateId: null })
-check(preview.items.every((i) => i.blockers.length === 1 && /platshållare.*\[ditt namn\]/.test(i.blockers[0].text)), "startmallarna kan inte skickas förrän [ditt namn] är ifyllt", preview.items.map((i) => i.blockers))
-// Fyll i mallarna (i gränssnittet för den ena, via API för den andra).
+// v53: startmallarna har inga platshållare – avsändaren fylls i från CRM_FROM_EMAIL ("Test på Coavira <…>" → Test).
+check(preview.items.every((i) => i.blockers.length === 0 && /\nTest\nCoavira/.test(i.body)), "startmallarna går att skicka direkt – avsändaren fylls i", preview.items.map((i) => i.blockers))
+check(preview.items.find((i) => i.leadId === karin.id)?.templateName?.includes("gymkedja") && preview.items.find((i) => i.leadId === karin.id)?.followupDays === 4, "gymkedja: gymkedjemallen med uppföljning efter fyra dagar")
+// Mallarna går att redigera (i API:t för den första, och syns i gränssnittet).
 const templates = (await api("bootstrap")).templates
-for (const t of templates) await api("template.save", { template: { id: t.id, segment: t.segment, name: t.name, subject: t.subject, body: t.body.replaceAll("[ditt namn]", "Max") } })
+const first = templates[0]
+await api("template.save", { template: { ...first, body: `${first.body}\nPS. Hälsningar från Max` } })
 await p.reload()
 await p.waitForSelector("[data-testid=lead-table]")
 await p.click("[data-testid=open-templates]")
@@ -139,7 +142,7 @@ for (const email of ["elin@elinpt.se", "karin.sats@sats.se"]) await p.locator("[
 await p.click("[data-testid=bulk-outreach]")
 await p.waitForSelector("[data-testid=outreach-ok] li")
 const mail = await p.locator("[data-testid=outreach-mail]").innerText()
-check(/Hej (Elin|Karin)!/.test(mail) && !/\{\{/.test(mail), "förhandsgranskning: variablerna är ifyllda", mail.slice(0, 80))
+check(/Hej (Elin|Karin)[,!]/.test(mail) && !/\{\{/.test(mail), "förhandsgranskning: variablerna är ifyllda", mail.slice(0, 80))
 check((await p.locator("[data-testid=outreach-ok] > li").count()) === 2, "förhandsgranskning: två mejl, var och en med sin segmentmall")
 await p.click("[data-testid=outreach-schedule]")
 await p.waitForSelector("[data-testid=queue-list] li[data-status=queued]")

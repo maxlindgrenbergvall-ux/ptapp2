@@ -7,7 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { scoreLead } from "@/lib/crm/score"
 import { DEFAULT_TEMPLATES } from "@/lib/crm/templates"
 import type { ProspectConfig, ProspectJob, ProspectState, ProspectStatus } from "@/lib/crm/prospect-types"
-import { emailKey, instagramKey, websiteKey, type EmailLog, type EmailStatus, type EmailTemplate, type Lead, type LeadInput, type Note, type Segment } from "@/lib/crm/types"
+import { impliedCompanyForm } from "@/lib/crm/compliance"
+import { emailKey, instagramKey, websiteKey, type Activity, type ActivityKind, type EmailLog, type EmailStatus, type EmailTemplate, type Lead, type LeadInput, type Note, type ServerLeadPatch, type TemplateInput } from "@/lib/crm/types"
 
 /**
  * CRM:ets datalager (v47). Två utföranden med samma gränssnitt:
@@ -22,6 +23,18 @@ import { emailKey, instagramKey, websiteKey, type EmailLog, type EmailStatus, ty
 /** SHA-256 av den normaliserade adressen – det enda som sparas om en avregistrerad. */
 export const emailHash = (email: string) => createHash("sha256").update(email.trim().toLowerCase()).digest("hex")
 
+export interface NewLog {
+  leadId: string
+  templateId: string | null
+  toEmail: string
+  subject: string
+  body: string
+  scheduledAt: string
+  step?: 1 | 2
+  parentId?: string | null
+}
+export type LogPatch = Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt" | "openedAt" | "openCount">>
+
 export type SaveResult = { lead: Lead; duplicate?: undefined } | { lead?: undefined; duplicate: Lead; field: "e-postadressen" | "Instagram-kontot" | "webbadressen" }
 
 export interface CrmStore {
@@ -31,24 +44,31 @@ export interface CrmStore {
   /** Avregistreringsnyckeln – används bara på servern när mejlet byggs. */
   unsubscribeToken(leadId: string): Promise<string | null>
   createLead(input: LeadInput): Promise<SaveResult>
-  updateLead(id: string, patch: LeadInput & { lastEmailedAt?: string; unsubscribedAt?: string | null }): Promise<SaveResult | null>
+  updateLead(id: string, patch: ServerLeadPatch): Promise<SaveResult | null>
   deleteLead(id: string): Promise<void>
   listNotes(leadId: string): Promise<Note[]>
   addNote(leadId: string, body: string): Promise<Note>
   deleteNote(id: string): Promise<void>
+  /** Aktiva mallar. Startmallar som saknas läggs in (per nyckel); arkiverade visas inte. */
   listTemplates(): Promise<EmailTemplate[]>
-  saveTemplate(t: { id?: string; segment: Segment | null; name: string; subject: string; body: string }): Promise<EmailTemplate>
+  saveTemplate(t: TemplateInput): Promise<EmailTemplate>
+  /** En startmall arkiveras (så att den inte läggs in igen), en egen mall raderas. */
   deleteTemplate(id: string): Promise<void>
   listLogs(opts?: { leadId?: string; limit?: number }): Promise<EmailLog[]>
-  createLogs(rows: { leadId: string; templateId: string | null; toEmail: string; subject: string; body: string; scheduledAt: string }[]): Promise<EmailLog[]>
-  updateLog(id: string, patch: Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt">>): Promise<void>
+  createLogs(rows: NewLog[]): Promise<EmailLog[]>
+  updateLog(id: string, patch: LogPatch): Promise<void>
   findLogByResendId(resendId: string): Promise<EmailLog | null>
   /** Hämtar och låser utskick som är dags (status → sending). */
   claimDue(limit: number): Promise<EmailLog[]>
-  cancelQueued(filter: { leadId?: string; id?: string }): Promise<number>
+  cancelQueued(filter: { leadId?: string; id?: string }, reason?: string): Promise<number>
   suppressedHashes(hashes: string[]): Promise<Set<string>>
   suppress(email: string, reason: "unsubscribed" | "bounced" | "complained" | "manual"): Promise<void>
   countSuppressed(): Promise<number>
+  // v53: aktiviteter och konverteringar
+  listActivities(opts?: { leadId?: string; limit?: number }): Promise<Activity[]>
+  addActivity(a: { leadId: string; kind: ActivityKind; body: string | null; occurredAt: string }): Promise<Activity>
+  /** Leads vars e-post hör till ett registrerat PT-konto blir kunder. Antal nya. */
+  syncConversions(): Promise<number>
   // v50: prospekteringsjobb
   listJobs(limit?: number): Promise<ProspectJob[]>
   createJob(config: ProspectConfig, state: ProspectState): Promise<ProspectJob>
@@ -88,10 +108,43 @@ function toLead(r: Row): Lead {
     unsubscribedAt: s(r.unsubscribed_at),
     lastEmailedAt: s(r.last_emailed_at),
     statusChangedAt: String(r.status_changed_at),
+    companyForm: (r.company_form as Lead["companyForm"] | null) ?? "unknown",
+    orgNumber: s(r.org_number),
+    preferredChannel: (r.preferred_channel as Lead["preferredChannel"] | null) ?? "email",
+    nextActionAt: s(r.next_action_at),
+    nextActionNote: s(r.next_action_note),
+    lastContactedAt: s(r.last_contacted_at),
+    meetingAt: s(r.meeting_at),
+    convertedAt: s(r.converted_at),
   }
 }
 const toNote = (r: Row): Note => ({ id: String(r.id), leadId: String(r.lead_id), body: String(r.body), createdAt: String(r.created_at) })
-const toTemplate = (r: Row): EmailTemplate => ({ id: String(r.id), segment: (r.segment as Segment | null) ?? null, name: String(r.name), subject: String(r.subject), body: String(r.body), updatedAt: String(r.updated_at) })
+const toTemplate = (r: Row): EmailTemplate => ({
+  id: String(r.id),
+  key: s(r.template_key),
+  segment: (r.segment as EmailTemplate["segment"]) ?? null,
+  kind: (r.kind as EmailTemplate["kind"] | null) ?? "intro",
+  companyForm: (r.company_form as EmailTemplate["companyForm"]) ?? null,
+  name: String(r.name),
+  subject: String(r.subject),
+  body: String(r.body),
+  followupDays: r.followup_days == null ? null : Number(r.followup_days),
+  followupSubject: s(r.followup_subject),
+  followupBody: s(r.followup_body),
+  updatedAt: String(r.updated_at),
+})
+const templateRow = (t: TemplateInput) => ({
+  segment: t.segment,
+  kind: t.kind,
+  company_form: t.companyForm,
+  name: t.name,
+  subject: t.subject,
+  body: t.body,
+  followup_days: t.followupBody ? t.followupDays : null,
+  followup_subject: t.followupBody ? t.followupSubject || null : null,
+  followup_body: t.followupDays ? t.followupBody || null : null,
+})
+const toActivity = (r: Row): Activity => ({ id: String(r.id), leadId: String(r.lead_id), kind: r.kind as ActivityKind, body: s(r.body), occurredAt: String(r.occurred_at) })
 const toLog = (r: Row): EmailLog => ({
   id: String(r.id),
   leadId: String(r.lead_id),
@@ -106,13 +159,33 @@ const toLog = (r: Row): EmailLog => ({
   deliveredAt: s(r.delivered_at),
   resendId: s(r.resend_id),
   error: s(r.error),
+  step: Number(r.step ?? 1) === 2 ? 2 : 1,
+  parentId: s(r.parent_id),
+  openedAt: s(r.opened_at),
+  openCount: Number(r.open_count ?? 0),
 })
 
 const toJob = (r: Row): ProspectJob => ({ id: String(r.id), createdAt: String(r.created_at), updatedAt: String(r.updated_at), status: r.status as ProspectStatus, config: r.config as ProspectConfig, state: r.state as ProspectState, error: s(r.error) })
 /** Ett steg får ta högst så här lång tid innan låset släpps av sig självt (servern kan ha dött). */
 const LOCK_MS = 60_000
 
-const COLUMN: Record<string, string> = { instagramFollowers: "instagram_followers", emailVerified: "email_verified", websiteUrl: "website_url", sourceUrl: "source_url", legalBasis: "legal_basis", lastEmailedAt: "last_emailed_at", unsubscribedAt: "unsubscribed_at" }
+const COLUMN: Record<string, string> = {
+  instagramFollowers: "instagram_followers",
+  emailVerified: "email_verified",
+  websiteUrl: "website_url",
+  sourceUrl: "source_url",
+  legalBasis: "legal_basis",
+  lastEmailedAt: "last_emailed_at",
+  unsubscribedAt: "unsubscribed_at",
+  companyForm: "company_form",
+  orgNumber: "org_number",
+  preferredChannel: "preferred_channel",
+  nextActionAt: "next_action_at",
+  nextActionNote: "next_action_note",
+  lastContactedAt: "last_contacted_at",
+  meetingAt: "meeting_at",
+  convertedAt: "converted_at",
+}
 function toRow(input: Row): Row {
   const row: Row = {}
   for (const [k, v] of Object.entries(input)) if (v !== undefined) row[COLUMN[k] ?? k] = v
@@ -186,7 +259,9 @@ export class SupabaseStore implements CrmStore {
     return data ? String(data.unsubscribe_token) : null
   }
   async createLead(input: LeadInput): Promise<SaveResult> {
-    const row = { ...toRow(input as Row), ...scored({}, input), created_by: this.userId }
+    // PT:er på gymkedjor mejlas på arbetsgivarens (bolagets) adress.
+    const form = impliedCompanyForm(input.segment ?? "freelance", input.companyForm ?? "unknown")
+    const row = { ...toRow({ ...input, ...(form !== "unknown" ? { companyForm: form } : {}) } as Row), ...scored({}, input), created_by: this.userId }
     const { data, error } = await this.db.from("crm_leads").insert(row).select("*").single()
     if (error) {
       const dup = await this.duplicateOf(error, input)
@@ -195,7 +270,7 @@ export class SupabaseStore implements CrmStore {
     }
     return { lead: toLead(data) }
   }
-  async updateLead(id: string, patch: LeadInput & { lastEmailedAt?: string; unsubscribedAt?: string | null }): Promise<SaveResult | null> {
+  async updateLead(id: string, patch: ServerLeadPatch): Promise<SaveResult | null> {
     const current = await this.getLead(id)
     if (!current) return null
     const { data, error } = await this.db.from("crm_leads").update({ ...toRow(patch as Row), ...scored(current, patch) }).eq("id", id).select("*").maybeSingle()
@@ -228,24 +303,31 @@ export class SupabaseStore implements CrmStore {
     const read = () => this.db.from("crm_email_templates").select("*").order("name")
     let { data, error } = await read()
     this.fail(error)
-    if (!data?.length) {
-      // Första gången: lägg in startmallarna (går sedan att redigera fritt).
-      const seeded = await this.db.from("crm_email_templates").insert(DEFAULT_TEMPLATES.map(({ segment, name, subject, body }) => ({ segment, name, subject, body })))
+    // Startmallar som saknas (per nyckel) läggs in – även i ett CRM som redan har egna mallar.
+    const have = new Set((data ?? []).map((r) => r.template_key).filter(Boolean))
+    const missing = DEFAULT_TEMPLATES.filter((t) => !have.has(t.key))
+    if (missing.length) {
+      const seeded = await this.db
+        .from("crm_email_templates")
+        .upsert(missing.map((t) => ({ template_key: t.key, ...templateRow(t) })), { onConflict: "template_key", ignoreDuplicates: true })
       this.fail(seeded.error)
       ;({ data, error } = await read())
       this.fail(error)
     }
-    return (data ?? []).map(toTemplate)
+    return (data ?? []).filter((r) => !r.archived).map(toTemplate)
   }
-  async saveTemplate(t: { id?: string; segment: Segment | null; name: string; subject: string; body: string }) {
-    const row = { segment: t.segment, name: t.name, subject: t.subject, body: t.body, updated_at: new Date().toISOString() }
+  async saveTemplate(t: TemplateInput) {
+    const row = { ...templateRow(t), updated_at: new Date().toISOString() }
     const q = t.id ? this.db.from("crm_email_templates").update(row).eq("id", t.id) : this.db.from("crm_email_templates").insert(row)
     const { data, error } = await q.select("*").single()
     this.fail(error)
     return toTemplate(data)
   }
   async deleteTemplate(id: string) {
-    const { error } = await this.db.from("crm_email_templates").delete().eq("id", id)
+    const { data } = await this.db.from("crm_email_templates").select("template_key").eq("id", id).maybeSingle()
+    const { error } = data?.template_key
+      ? await this.db.from("crm_email_templates").update({ archived: true }).eq("id", id)
+      : await this.db.from("crm_email_templates").delete().eq("id", id)
     this.fail(error)
   }
   async listLogs(opts: { leadId?: string; limit?: number } = {}) {
@@ -255,16 +337,16 @@ export class SupabaseStore implements CrmStore {
     this.fail(error)
     return (data ?? []).map(toLog)
   }
-  async createLogs(rows: { leadId: string; templateId: string | null; toEmail: string; subject: string; body: string; scheduledAt: string }[]) {
+  async createLogs(rows: NewLog[]) {
     const { data, error } = await this.db
       .from("crm_email_logs")
-      .insert(rows.map((r) => ({ lead_id: r.leadId, template_id: r.templateId, to_email: r.toEmail, subject: r.subject, body: r.body, scheduled_at: r.scheduledAt, created_by: this.userId })))
+      .insert(rows.map((r) => ({ lead_id: r.leadId, template_id: r.templateId, to_email: r.toEmail, subject: r.subject, body: r.body, scheduled_at: r.scheduledAt, step: r.step ?? 1, parent_id: r.parentId ?? null, created_by: this.userId })))
       .select("*")
     this.fail(error)
     return (data ?? []).map(toLog)
   }
-  async updateLog(id: string, patch: Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt">>) {
-    const map: Record<string, string> = { sentAt: "sent_at", deliveredAt: "delivered_at", resendId: "resend_id", scheduledAt: "scheduled_at" }
+  async updateLog(id: string, patch: LogPatch) {
+    const map: Record<string, string> = { sentAt: "sent_at", deliveredAt: "delivered_at", resendId: "resend_id", scheduledAt: "scheduled_at", openedAt: "opened_at", openCount: "open_count" }
     const row = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined).map(([k, v]) => [map[k] ?? k, v]))
     const { error } = await this.db.from("crm_email_logs").update(row).eq("id", id)
     this.fail(error)
@@ -279,8 +361,8 @@ export class SupabaseStore implements CrmStore {
     this.fail(error)
     return ((data as Row[] | null) ?? []).map(toLog)
   }
-  async cancelQueued(filter: { leadId?: string; id?: string }) {
-    let q = this.db.from("crm_email_logs").update({ status: "cancelled" }).eq("status", "queued")
+  async cancelQueued(filter: { leadId?: string; id?: string }, reason?: string) {
+    let q = this.db.from("crm_email_logs").update({ status: "cancelled", ...(reason ? { error: reason } : {}) }).eq("status", "queued")
     if (filter.leadId) q = q.eq("lead_id", filter.leadId)
     if (filter.id) q = q.eq("id", filter.id)
     const { data, error } = await q.select("id")
@@ -301,6 +383,23 @@ export class SupabaseStore implements CrmStore {
     const { count, error } = await this.db.from("crm_suppressions").select("email_hash", { count: "exact", head: true })
     this.fail(error)
     return count ?? 0
+  }
+  async listActivities(opts: { leadId?: string; limit?: number } = {}) {
+    let q = this.db.from("crm_activities").select("*").order("occurred_at", { ascending: false }).limit(opts.limit ?? 2000)
+    if (opts.leadId) q = q.eq("lead_id", opts.leadId)
+    const { data, error } = await q
+    this.fail(error)
+    return (data ?? []).map(toActivity)
+  }
+  async addActivity(a: { leadId: string; kind: ActivityKind; body: string | null; occurredAt: string }) {
+    const { data, error } = await this.db.from("crm_activities").insert({ lead_id: a.leadId, kind: a.kind, body: a.body, occurred_at: a.occurredAt, created_by: this.userId }).select("*").single()
+    this.fail(error)
+    return toActivity(data)
+  }
+  async syncConversions() {
+    const { data, error } = await this.db.rpc("crm_sync_conversions")
+    this.fail(error)
+    return Number(data ?? 0)
   }
   async listJobs(limit = 10) {
     const { data, error } = await this.db.from("crm_prospect_jobs").select("*").order("created_at", { ascending: false }).limit(limit)
@@ -345,6 +444,7 @@ interface DemoState {
   notes: Note[]
   templates: EmailTemplate[]
   logs: EmailLog[]
+  activities: Activity[]
   suppressed: Map<string, string>
   jobs: (ProspectJob & { lockedUntil: number })[]
 }
@@ -376,15 +476,24 @@ function seed(): DemoState {
       statusChangedAt: ago(days),
       score: 0,
       scoreBreakdown: [],
+      companyForm: "unknown" as const,
+      orgNumber: null,
+      preferredChannel: "email" as const,
+      nextActionAt: null,
+      nextActionNote: null,
+      lastContactedAt: p.lastEmailedAt ?? null,
+      meetingAt: null,
+      convertedAt: null,
       ...p,
     }
+    lead.companyForm = impliedCompanyForm(lead.segment, lead.companyForm)
     const { score, breakdown } = scoreLead(lead)
     return { ...lead, score, scoreBreakdown: breakdown, token: `10000000-0000-4000-8000-${String(i).padStart(12, "0")}` }
   }
   const leads = [
-    mk(1, { name: "Elin Söderberg", segment: "freelance", status: "qualified", email: "elin@elinpt.example", emailVerified: true, phone: "+46701234567", instagram: "elin.pt.demo", websiteUrl: "https://elinpt.example", city: "Göteborg", specialties: ["Styrka", "Viktnedgång"], source: "url", sourceUrl: "https://elinpt.example", legalBasis: "consent" }, 2),
+    mk(1, { name: "Elin Söderberg", segment: "freelance", status: "qualified", email: "elin@elinpt.example", emailVerified: true, phone: "+46701234567", instagram: "elin.pt.demo", websiteUrl: "https://elinpt.example", city: "Göteborg", specialties: ["Styrka", "Viktnedgång"], source: "url", sourceUrl: "https://elinpt.example", legalBasis: "consent", companyForm: "enskild" }, 2),
     mk(2, { name: "Amir Rahimi", segment: "gym_chain", status: "new", email: "amir.rahimi@gymkedjan.example", emailVerified: true, gym: "SATS", city: "Stockholm", specialties: ["Rehab", "Styrka"], legalBasis: "company" }, 1),
-    mk(3, { name: "Viktor Lund", title: "Onlinecoach", segment: "influencer", status: "emailed", email: "hej@viktorcoaching.example", emailVerified: true, instagram: "viktorcoach.demo", websiteUrl: "https://viktorcoaching.example", city: "Malmö", specialties: ["Hyrox", "Löpning", "Onlinecoaching"], source: "url", sourceUrl: "https://linktr.ee/viktorcoach.demo", legalBasis: "consent", lastEmailedAt: ago(3) }, 9),
+    mk(3, { name: "Viktor Lund", title: "Onlinecoach", segment: "influencer", status: "emailed", email: "hej@viktorcoaching.example", emailVerified: true, instagram: "viktorcoach.demo", websiteUrl: "https://viktorcoaching.example", city: "Malmö", specialties: ["Hyrox", "Löpning", "Onlinecoaching"], source: "url", sourceUrl: "https://linktr.ee/viktorcoach.demo", legalBasis: "consent", lastEmailedAt: ago(3), companyForm: "ab", orgNumber: "559012-3456" }, 9),
     mk(4, { name: "Maja Berg", segment: "gym_chain", status: "replied", email: "maja.berg@nordicgym.example", emailVerified: true, phone: "+46739876543", gym: "Nordic Wellness", city: "Göteborg", specialties: ["Gravid & mamma"], legalBasis: "company", lastEmailedAt: ago(20) }, 30),
     mk(5, { name: "Oskar Nyström", segment: "freelance", status: "customer", email: "oskar@nystrompt.example", emailVerified: true, websiteUrl: "https://nystrompt.example", city: "Uppsala", specialties: ["Styrka"], legalBasis: "consent", lastEmailedAt: ago(40) }, 55),
     mk(6, { name: "Linnea Holm", title: "Onlinecoach", segment: "influencer", status: "new", instagram: "linneaholm.demo", city: "Stockholm", specialties: ["Bodybuilding"] }, 0),
@@ -392,12 +501,14 @@ function seed(): DemoState {
     mk(8, { name: "Jonas Ek", segment: "gym_chain", status: "qualified", email: "jonas.ek@gymkedjan.example", emailVerified: true, gym: "SATS", city: "Malmö", specialties: ["Löpning"], legalBasis: "company" }, 4),
     mk(9, { name: "Amira Haddad", segment: "freelance", status: "new", email: "amira@haddadtraning.example", emailVerified: null, phone: "+46761112233", websiteUrl: "https://haddadtraning.example", city: "Västerås", specialties: ["Kost", "Viktnedgång"], source: "csv" }, 1),
   ]
-  const templates = DEFAULT_TEMPLATES.map((t, i) => ({ id: `20000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`, segment: t.segment, name: t.name, subject: t.subject, body: t.body, updatedAt: ago(1) }))
+  const templates: EmailTemplate[] = DEFAULT_TEMPLATES.map((t, i) => ({ id: `20000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`, key: t.key, segment: t.segment, kind: t.kind, companyForm: t.companyForm, name: t.name, subject: t.subject, body: t.body, followupDays: t.followupDays, followupSubject: t.followupSubject, followupBody: t.followupBody, updatedAt: ago(1) }))
   const notes: Note[] = [{ id: randomUUID(), leadId: leads[3].id, body: "Svarade att hon vill se en demo efter jul. Följ upp vecka 2.", createdAt: ago(5) }]
   const logs: EmailLog[] = [
-    { id: randomUUID(), leadId: leads[2].id, templateId: templates[1].id, createdAt: ago(3), toEmail: leads[2].email!, subject: "Viktor, onlinecoaching utan kalkylark och DM-kaos", body: "Hej Viktor! …", status: "delivered", scheduledAt: ago(3), sentAt: ago(3), deliveredAt: ago(3), resendId: "demo-1", error: null },
+    { id: randomUUID(), leadId: leads[2].id, templateId: templates[3].id, createdAt: ago(3), toEmail: leads[2].email!, subject: "Onlinecoaching utan PDF:er och DM-kaos", body: "Hej Viktor, …", status: "delivered", scheduledAt: ago(3), sentAt: ago(3), deliveredAt: ago(3), resendId: "demo-1", error: null, step: 1, parentId: null, openedAt: null, openCount: 0 },
+    { id: randomUUID(), leadId: leads[3].id, templateId: templates[2].id, createdAt: ago(20), toEmail: leads[3].email!, subject: "Dina PT-klienter mellan passen på Nordic Wellness", body: "Hej Maja, …", status: "delivered", scheduledAt: ago(20), sentAt: ago(20), deliveredAt: ago(20), resendId: "demo-2", error: null, step: 1, parentId: null, openedAt: null, openCount: 0 },
   ]
-  return { leads, notes, templates, logs, suppressed: new Map(), jobs: [] }
+  const activities: Activity[] = [{ id: randomUUID(), leadId: leads[3].id, kind: "email_reply", body: "Vill se en demo efter jul", occurredAt: ago(5) }]
+  return { leads, notes, templates, logs, activities, suppressed: new Map(), jobs: [] }
 }
 
 const globalDemo = globalThis as typeof globalThis & { __coaviraCrmDemo?: DemoState }
@@ -447,14 +558,15 @@ export class DemoStore implements CrmStore {
     const dup = this.clash(input)
     if (dup) return dup
     const now = new Date().toISOString()
-    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now }
+    const base: Lead = { id: randomUUID(), createdAt: now, updatedAt: now, name: "", title: null, segment: "freelance", status: "new", email: null, emailVerified: null, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: null, specialties: [], source: "manual", sourceUrl: null, score: 0, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null, lastEmailedAt: null, statusChangedAt: now, companyForm: "unknown", orgNumber: null, preferredChannel: "email", nextActionAt: null, nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null }
     const merged = { ...base, ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) } as Lead
+    merged.companyForm = impliedCompanyForm(merged.segment, merged.companyForm)
     const { score, breakdown } = scoreLead(merged)
     const lead: DemoLead = { ...merged, score, scoreBreakdown: breakdown, token: randomUUID() }
     demo().leads.push(lead)
     return { lead: strip(lead) }
   }
-  async updateLead(id: string, patch: LeadInput & { lastEmailedAt?: string; unsubscribedAt?: string | null }): Promise<SaveResult | null> {
+  async updateLead(id: string, patch: ServerLeadPatch): Promise<SaveResult | null> {
     const i = demo().leads.findIndex((l) => l.id === id)
     if (i < 0) return null
     const current = demo().leads[i]
@@ -472,6 +584,7 @@ export class DemoStore implements CrmStore {
     d.leads = d.leads.filter((l) => l.id !== id)
     d.notes = d.notes.filter((n) => n.leadId !== id)
     d.logs = d.logs.filter((l) => l.leadId !== id)
+    d.activities = d.activities.filter((a) => a.leadId !== id)
   }
   async listNotes(leadId: string) {
     return demo().notes.filter((n) => n.leadId === leadId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -487,9 +600,24 @@ export class DemoStore implements CrmStore {
   async listTemplates() {
     return [...demo().templates]
   }
-  async saveTemplate(t: { id?: string; segment: Segment | null; name: string; subject: string; body: string }) {
-    const saved: EmailTemplate = { id: t.id ?? randomUUID(), segment: t.segment, name: t.name, subject: t.subject, body: t.body, updatedAt: new Date().toISOString() }
+  async saveTemplate(t: TemplateInput) {
     const d = demo()
+    const old = t.id ? d.templates.find((x) => x.id === t.id) : undefined
+    const row = templateRow(t)
+    const saved: EmailTemplate = {
+      id: t.id ?? randomUUID(),
+      key: old?.key ?? null,
+      segment: row.segment,
+      kind: row.kind,
+      companyForm: row.company_form,
+      name: row.name,
+      subject: row.subject,
+      body: row.body,
+      followupDays: row.followup_days,
+      followupSubject: row.followup_subject,
+      followupBody: row.followup_body,
+      updatedAt: new Date().toISOString(),
+    }
     d.templates = t.id ? d.templates.map((x) => (x.id === t.id ? saved : x)) : [...d.templates, saved]
     return saved
   }
@@ -502,12 +630,12 @@ export class DemoStore implements CrmStore {
       .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt))
       .slice(0, opts.limit ?? 500)
   }
-  async createLogs(rows: { leadId: string; templateId: string | null; toEmail: string; subject: string; body: string; scheduledAt: string }[]) {
-    const created = rows.map((r): EmailLog => ({ id: randomUUID(), createdAt: new Date().toISOString(), status: "queued", sentAt: null, deliveredAt: null, resendId: null, error: null, ...r }))
+  async createLogs(rows: NewLog[]) {
+    const created = rows.map((r): EmailLog => ({ id: randomUUID(), createdAt: new Date().toISOString(), status: "queued", sentAt: null, deliveredAt: null, resendId: null, error: null, openedAt: null, openCount: 0, ...r, step: r.step ?? 1, parentId: r.parentId ?? null }))
     demo().logs.push(...created)
     return created
   }
-  async updateLog(id: string, patch: Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt">>) {
+  async updateLog(id: string, patch: LogPatch) {
     demo().logs = demo().logs.map((l) => (l.id === id ? { ...l, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) } : l))
   }
   async findLogByResendId(resendId: string) {
@@ -522,11 +650,12 @@ export class DemoStore implements CrmStore {
     for (const l of due) l.status = "sending"
     return due.map((l) => ({ ...l }))
   }
-  async cancelQueued(filter: { leadId?: string; id?: string }) {
+  async cancelQueued(filter: { leadId?: string; id?: string }, reason?: string) {
     let n = 0
     for (const l of demo().logs) {
       if (l.status !== "queued" || (filter.leadId && l.leadId !== filter.leadId) || (filter.id && l.id !== filter.id)) continue
       l.status = "cancelled"
+      if (reason) l.error = reason
       n++
     }
     return n
@@ -539,6 +668,21 @@ export class DemoStore implements CrmStore {
   }
   async countSuppressed() {
     return demo().suppressed.size
+  }
+  async listActivities(opts: { leadId?: string; limit?: number } = {}) {
+    return demo()
+      .activities.filter((a) => !opts.leadId || a.leadId === opts.leadId)
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, opts.limit ?? 2000)
+  }
+  async addActivity(a: { leadId: string; kind: ActivityKind; body: string | null; occurredAt: string }) {
+    const activity: Activity = { id: randomUUID(), ...a }
+    demo().activities.push(activity)
+    return activity
+  }
+  /** Demon har inga riktiga PT-konton att matcha mot. */
+  async syncConversions() {
+    return 0
   }
   async listJobs(limit = 10) {
     return [...demo().jobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit).map(stripJob)
