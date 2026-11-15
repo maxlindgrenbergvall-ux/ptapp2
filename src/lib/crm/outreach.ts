@@ -16,8 +16,10 @@ export interface QueueConfig {
   /** Utskick sker bara vardagar mellan dessa timmar, svensk tid. */
   windowStartHour: number
   windowEndHour: number
+  /** Skicka även lördag och söndag (standard: nej). */
+  weekends: boolean
 }
-export const DEFAULT_QUEUE: QueueConfig = { minGapSeconds: 90, jitterSeconds: 60, dailyCap: 40, windowStartHour: 8, windowEndHour: 17 }
+export const DEFAULT_QUEUE: QueueConfig = { minGapSeconds: 90, jitterSeconds: 60, dailyCap: 40, windowStartHour: 8, windowEndHour: 17, weekends: false }
 
 export type Blocker = "no_email" | "unsubscribed" | "suppressed" | "bad_domain" | "legal_basis" | "closed" | "recently_emailed" | "already_queued"
 export const BLOCKER_TEXT: Record<Blocker, string> = {
@@ -64,7 +66,7 @@ export function nextWindowStart(from: Date, cfg: QueueConfig): Date {
   // Högst 10 dygn framåt (helger + röda dagar ryms med marginal); stegar i hela timmar.
   for (let i = 0; i < 24 * 10; i++) {
     const s = stockholm(t)
-    const weekend = s.weekday === "Sat" || s.weekday === "Sun"
+    const weekend = !cfg.weekends && (s.weekday === "Sat" || s.weekday === "Sun")
     if (!weekend && s.hour >= cfg.windowStartHour && s.hour < cfg.windowEndHour) return t
     // Hoppa till nästa hela timme och prova igen.
     t = new Date(t.getTime() + (60 - s.minute) * 60_000 - s.second * 1000)

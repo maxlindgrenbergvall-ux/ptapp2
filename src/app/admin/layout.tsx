@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { connection } from "next/server"
 import { Suspense } from "react"
 
 import { AdminShell } from "@/components/crm/admin-shell"
@@ -22,6 +23,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 }
 
 async function Gate({ children }: { children: React.ReactNode }) {
+  // Avgörs alltid per förfrågan – aldrig förrenderat vid bygget (inte heller i demoläge).
+  await connection()
   const ctx = await getAdminContext()
   if (!ctx) notFound()
   return <AdminShell demo={ctx.demo}>{children}</AdminShell>

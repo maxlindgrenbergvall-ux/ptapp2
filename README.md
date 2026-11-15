@@ -578,6 +578,88 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v47: internt CRM för B2B-prospektering (`/admin/leads`)
+
+Ett internt verktyg för att hitta, kvalificera och kontakta personliga tränare: frilansande PT:er, PT-influencers/onlinecoacher och PT:er på gymkedjor (SATS, Nordic Wellness, STC, Fitness24Seven m.fl.). Alltid i Coaviras mörka palett, oavsett systemtema.
+
+### Kom igång
+
+1. Kör migrationen `supabase/migrations/20261119000000_v47_crm_leads.sql`.
+2. Gör ditt konto till administratör i SQL-editorn: `select admin_grant('du@coavira.fit');` (tas bort med `admin_revoke`).
+3. Logga in och gå till `/admin/leads`.
+4. För utskick: sätt `RESEND_API_KEY` och `CRM_FROM_EMAIL` på servern (se tabellen nedan) och fyll i `[ditt namn]` i mallarna.
+
+### Behörighet och säkerhet
+
+- **Bara administratörer.** `app_admins` + `is_admin()` (security definer). Alla fem CRM-tabeller har RLS med `is_admin()`; klienter, PT:er och anon ser ingenting (testas i `supabase/tests/rls_v47.test.sql`, 36 tester).
+- **Tre lager:** `proxy.ts` kräver inloggning för `/admin`, admin-layouten visar 404 för alla som inte är administratörer, och varje API-anrop (`POST /api/admin/crm`) kontrollerar `is_admin()` igen och körs med administratörens egen session så att RLS gäller. Icke-administratörer får 404 från API:t.
+- **Demoläge:** utan Supabase är `/admin` avstängt om inte `CRM_DEMO=1` är satt (då påhittad data i minnet).
+- **Dubbletter** stoppas av databasen: unika index på normaliserad e-post, Instagram-konto och webbadress (utan protokoll, `www`, frågesträng och avslutande snedstreck).
+
+### Hitta och berika leads (`src/lib/crm/`)
+
+| Sätt | Hur det fungerar |
+|---|---|
+| **Webbsida** | Ange en PT:s egen webbplats eller länk-i-bio-sida (Linktree, Beacons …). Sidan hämtas en gång – plus högst en kontakt-/om-sida på samma domän – och parsern (`extract.ts`) föreslår namn, roll, e-post, telefon (`+46…`), Instagram, gym, ort och specialiseringar. Du granskar innan något sparas. |
+| **Manuellt** | Formulär. E-postdomänen MX-kontrolleras när leaden sparas. |
+| **CSV** | Komma, semikolon eller tabb, svenska eller engelska kolumnnamn i valfri ordning. Ogiltiga rader rapporteras med radnummer. |
+| **Sök** | Via ett officiellt sök-API (Brave Search, `BRAVE_SEARCH_API_KEY`) – inte genom att skrapa sökmotorer. Träffarna är kandidater som du väljer att granska. |
+
+**Hållbar hämtning (`fetch-public.ts`):** bara sidor en administratör själv angett (ingen crawler), `robots.txt` respekteras, högst en förfrågan varannan sekund per webbplats, tydlig avsändare (`CoaviraBot/1.0` med kontaktadress), högst 1,5 MB och 8 sekunder. **Sociala nätverk (Instagram, Facebook, LinkedIn, TikTok …) hämtas aldrig automatiskt** – deras villkor förbjuder det; profiler sparas som länk.
+
+**Säker hämtning (SSRF):** bara http/https på standardportar, värdnamnet slås upp en gång, alla adresser kontrolleras mot privata/reserverade nät och anslutningen görs till exakt den kontrollerade adressen (skydd mot DNS rebinding). Omdirigeringar kontrolleras på samma sätt.
+
+**MX-kontroll (`mx.ts`):** kontrollerar att e-postdomänen tar emot post. Den säger inget om att just den brevlådan finns – det går inte att veta utan att skicka.
+
+**Lead Score 1–100 (`score.ts`):** summan av tydliga delar som visas i sidopanelen. Kontaktbarhet (e-post 20, MX-verifierad +15, telefon 10), närvaro (Instagram 10, webbplats 10, känd källa 5), profil (PT-roll 10, ort 5, gym 5, specialisering 5, för- och efternamn 5). Avdrag för domän utan postserver (−20) och gratisadress utan annan närvaro (−5).
+
+### Dashboarden
+
+KPI-kort (totalt, verifierade e-postadresser, kontaktade, konverterade), snabbfilter på segment, status, Lead Score och ort, fritextsök, **lista** eller **pipeline** (kanban: dra kort mellan kolumnerna), sidopanel per lead (all data, redigering, rättslig grund, anteckningar, utskickshistorik) och fliken **Utskick** med kön. Statusflöde: Ny lead → Kvalificerad → Mail skickat → Svarat / intresserad → Onboarding / kund → Ej aktuell.
+
+### Utskick via Resend
+
+- **Mallar** per segment, redigerbara, med variablerna `{{förnamn}}`, `{{namn}}`, `{{gym_eller_företag}}`, `{{stad}}` och `{{specialisering}}`. Saknas ett värde används ett neutralt reservord ("Hej där"). Okända variabler och kvarglömda platshållare som `[ditt namn]` stoppar utskicket.
+- **Förhandsgranska & schemalägg:** visar exakt vilka mejl som går ut, till vem och när – och vilka som hoppas över och varför. Servern räknar om allt när utskicket köas.
+- **Kön skyddar domänryktet:** ett mejl i taget, minst 90 s (+ slump) emellan, högst 40 per dygn, vardagar kl. 8–17 svensk tid. Varje körning skickar högst ett mejl, så inget går ut i klump om kön stått still. Kön drivs medan `/admin/leads` är öppen; för att den ska gå annars: schemalägg ett anrop till `GET /api/crm/queue` med `Authorization: Bearer <CRON_SECRET>` (t.ex. Vercel Cron var femte minut – kräver en plan som tillåter det).
+- **Status:** när Resend tar emot mejlet flyttas leaden till *Mail skickat* med tidsstämpel. Leveranskvittot (`email.delivered`) sätter utskicket till *Levererat*; en studs eller skräppostanmälan spärrar adressen. Lägg in `https://<appens domän>/api/resend/webhook` i Resend → Webhooks (händelserna delivered, bounced, complained) och sätt `RESEND_WEBHOOK_SECRET`.
+- **Avregistrering:** varje mejl har en sidfot som servern alltid lägger till (avsändare, varför mottagaren får mejlet, var uppgifterna kommer ifrån, avregistreringslänk) och rubriken `List-Unsubscribe` för avregistrering med ett klick i mejlklienten. Den som avregistrerar sig **raderas** ur CRM:et, och en SHA-256 av adressen sparas på en spärrlista så att den inte kan importeras och mejlas igen.
+
+### Juridik – läs innan första utskicket
+
+Det här är inte juridisk rådgivning; stäm av med en jurist.
+
+- **Marknadsföringslagen 19 §:** e-postreklam till **fysiska personer kräver samtycke i förväg**. En **enskild firma räknas som fysisk person** – de flesta frilansande PT:er och influencers. Till juridiska personer (aktiebolag m.fl., t.ex. en jobbadress hos en gymkedja eller `info@`) krävs inte samtycke, men avsändare och avregistrering måste framgå.
+- Därför har varje lead en **rättslig grund** (*Inte bedömd* / *Företagsadress* / *Samtycke*), och **inga mejl går ut till en lead som inte är bedömd**. Verktyget kan inte avgöra om en adress hör till ett bolag – det är ett beslut ni tar per lead.
+- **GDPR:** kontaktuppgifterna är personuppgifter. Ni behöver en rättslig grund (normalt intresseavvägning, som ska dokumenteras), informera den registrerade om var uppgifterna kommer ifrån (art. 14 – sidfoten gör det vid första kontakten, senast inom en månad), och radera på begäran. Rensa leads som inte lett någonstans.
+- **Anställda på gymkedjor** kan ha anställningsvillkor som begränsar egna klienter – pitcha med det i åtanke.
+
+### Miljövariabler (bara på servern)
+
+| Variabel | |
+|---|---|
+| `RESEND_API_KEY` | krävs för utskick (finns redan för nyhetsbrevet) |
+| `CRM_FROM_EMAIL` | krävs för utskick, t.ex. `Elin på Coavira <elin@mail.coavira.fit>`. Använd gärna en egen underdomän, så att appens egna mejl inte påverkas om ryktet tar skada. Domänen ska vara verifierad i Resend (SPF/DKIM). |
+| `CRM_REPLY_TO` | valfritt – dit svaren går |
+| `RESEND_WEBHOOK_SECRET` | `whsec_…` från Resend – för leveranskvitton |
+| `CRON_SECRET` | minst 16 tecken – slår på `GET /api/crm/queue` |
+| `BRAVE_SEARCH_API_KEY` | valfritt – slår på fliken Sök |
+| `CRM_MIN_GAP_SECONDS`, `CRM_DAILY_CAP`, `CRM_WINDOW_START_HOUR`, `CRM_WINDOW_END_HOUR`, `CRM_SEND_WEEKENDS` | valfritt – standard 90 s, 40/dygn, vardagar 8–17 |
+| `SUPABASE_SERVICE_ROLE_KEY` | finns redan – används av kön, webhooken och avregistreringen |
+
+Bara för tester: `CRM_DEMO`, `CRM_FETCH_MOCK_ORIGIN`, `CRM_MX_MOCK`, `CRM_SEARCH_API_BASE`, `RESEND_API_BASE`. Sätt dem aldrig i produktion.
+
+### Test
+
+```
+npx tsx --tsconfig tsconfig.json e2e/crm.unit.ts   # 55 enhetstester: parser, poäng, mallar, utskicksplan, CSV
+bash scripts/test-db.sh                            # inkl. rls_v47.test.sql (36 tester)
+node e2e/mock-crm.mjs &                            # webbplatser, Resend och sök-API på :54810
+node e2e/v47-crm.test.mjs                          # 61 kontroller, se filhuvudet för serverns miljövariabler
+```
+
+**Inte testat mot riktiga tjänster:** `SupabaseStore` (frågorna mot PostgREST) är typkontrollerad och RLS är testad i Postgres, men flödet är bara kört från början till slut i demoläge. Resend, Brave Search och riktig DNS (MX) är testade mot en lokal testserver, inte mot tjänsterna själva.
+
 ## Nytt i v46: mikroanimationer och tomma lägen i appen
 
 Ingen ombyggnad och ingen ny affärslogik – samma data, actions, RLS och beräkningar som förut. Det som ändras är hur appen *svarar* när man gör något.
@@ -1269,6 +1351,7 @@ npx tsx --tsconfig tsconfig.json e2e/quick-log.unit.ts  # snabbloggningen: målt
 npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts # aktivt schema: Nästa pass, rotation, veckans pass
 node e2e/v43-passbyggare.test.mjs # (demo, 390 px) tomma fält, egen övning i passbyggaren, nya övningar, dagar/vecka, Nästa pass
 node e2e/v46-mikro.test.mjs      # (demo, 390 px, mörkt läge) mikroanimationer, kvitton, tomma lägen, minska rörelse
+node e2e/v47-crm.test.mjs        # (demo + e2e/mock-crm.mjs) internt CRM: berikning, spärrar, dubbletter, kö, webhook, avregistrering
 node e2e/v42-chatt-kost.test.mjs # (demo, 390 px, touch) inkorg → konversation → svar, Kost-sidan, låst sidledssvep
 node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk klocka, byte utan omladdning, Framsteg med bara mål
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)

@@ -27,13 +27,22 @@ import { APP_URL } from "@/lib/site"
  *                           appens egna mejl inte påverkas om ryktet skulle ta skada)
  *   CRM_REPLY_TO            valfritt – dit svaren går
  *   CRM_MIN_GAP_SECONDS / CRM_DAILY_CAP   valfritt – standard 90 s och 40 per dygn
+ *   CRM_WINDOW_START_HOUR / CRM_WINDOW_END_HOUR / CRM_SEND_WEEKENDS=1   valfritt – standard vardagar 8–17
  */
 export function queueConfig(): QueueConfig {
   const num = (name: string, fallback: number, min: number, max: number) => {
     const n = Number(process.env[name])
     return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : fallback
   }
-  return { ...DEFAULT_QUEUE, minGapSeconds: num("CRM_MIN_GAP_SECONDS", DEFAULT_QUEUE.minGapSeconds, 20, 3600), dailyCap: num("CRM_DAILY_CAP", DEFAULT_QUEUE.dailyCap, 1, 500) }
+  const start = num("CRM_WINDOW_START_HOUR", DEFAULT_QUEUE.windowStartHour, 0, 23)
+  return {
+    ...DEFAULT_QUEUE,
+    minGapSeconds: num("CRM_MIN_GAP_SECONDS", DEFAULT_QUEUE.minGapSeconds, 20, 3600),
+    dailyCap: num("CRM_DAILY_CAP", DEFAULT_QUEUE.dailyCap, 1, 500),
+    windowStartHour: start,
+    windowEndHour: Math.max(start + 1, num("CRM_WINDOW_END_HOUR", DEFAULT_QUEUE.windowEndHour, 1, 24)),
+    weekends: process.env.CRM_SEND_WEEKENDS === "1",
+  }
 }
 
 export const senderConfigured = () => Boolean(process.env.RESEND_API_KEY?.trim() && process.env.CRM_FROM_EMAIL?.trim())
