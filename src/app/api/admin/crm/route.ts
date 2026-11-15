@@ -1,0 +1,196 @@
+import { NextResponse } from "next/server"
+import { z } from "zod"
+
+import { getAdminContext, systemStore } from "@/lib/crm/auth"
+import { enrichFromUrl } from "@/lib/crm/enrich"
+import { FetchError } from "@/lib/crm/fetch-public"
+import { queueConfig, runQueue, senderConfigured } from "@/lib/crm/queue"
+import { searchCandidates, searchConfigured } from "@/lib/crm/search"
+import { buildOutreach, verifyEmail } from "@/lib/crm/service"
+import { emailHash } from "@/lib/crm/store"
+import { LEGAL_BASES, SEGMENTS, STATUSES, type LeadInput } from "@/lib/crm/types"
+import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
+
+/**
+ * POST /api/admin/crm  { action, … }  (v47)
+ *
+ * Alla CRM-åtgärder för /admin/leads går genom den här rutten. Varje anrop:
+ *   1. kräver en inloggad administratör (getAdminContext → is_admin() i databasen),
+ *   2. valideras med zod (okända fält avvisas),
+ *   3. körs med administratörens egen session, så att RLS gäller.
+ * Den som inte är administratör får 404 – rutten avslöjar inte att den finns.
+ * proxy.ts avvisar dessutom skrivande anrop från andra webbplatser (CSRF).
+ */
+const uuid = z.uuid()
+const text = (max: number) => z.string().trim().max(max)
+const nullable = <T extends z.ZodType>(t: T) => t.nullable().optional()
+
+const leadFields = z
+  .object({
+    name: text(160).min(1),
+    title: nullable(text(160)),
+    segment: z.enum(SEGMENTS),
+    status: z.enum(STATUSES),
+    email: nullable(z.email().max(254).transform((e) => e.toLowerCase())),
+    emailVerified: nullable(z.boolean()),
+    phone: nullable(z.string().regex(/^\+[1-9]\d{7,14}$/, "Telefon ska anges som +46…")),
+    instagram: nullable(z.string().regex(/^[A-Za-z0-9._]{1,30}$/, "Ange Instagram som kontonamn utan @")),
+    websiteUrl: nullable(z.url({ protocol: /^https?$/ }).max(500)),
+    gym: nullable(text(120)),
+    city: nullable(text(80)),
+    specialties: z.array(text(40).min(1)).max(12),
+    source: z.enum(["manual", "csv", "url", "search"]),
+    sourceUrl: nullable(z.url({ protocol: /^https?$/ }).max(500)),
+    legalBasis: z.enum(LEGAL_BASES),
+  })
+  .partial()
+  .strict()
+
+const body = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("bootstrap") }).strict(),
+  z.object({ action: z.literal("lead.create"), lead: leadFields.required({ name: true }) }).strict(),
+  z.object({ action: z.literal("lead.update"), id: uuid, patch: leadFields }).strict(),
+  z.object({ action: z.literal("lead.delete"), id: uuid }).strict(),
+  z.object({ action: z.literal("lead.bulk"), ids: z.array(uuid).min(1).max(500), patch: leadFields.pick({ status: true, legalBasis: true, segment: true }) }).strict(),
+  z.object({ action: z.literal("lead.import"), leads: z.array(leadFields.required({ name: true })).min(1).max(2000) }).strict(),
+  z.object({ action: z.literal("lead.verify"), ids: z.array(uuid).min(1).max(50) }).strict(),
+  z.object({ action: z.literal("lead.detail"), id: uuid }).strict(),
+  z.object({ action: z.literal("enrich.preview"), url: z.string().trim().min(4).max(500) }).strict(),
+  z.object({ action: z.literal("note.add"), leadId: uuid, body: text(4000).min(1) }).strict(),
+  z.object({ action: z.literal("note.delete"), id: uuid }).strict(),
+  z.object({ action: z.literal("template.save"), template: z.object({ id: uuid.optional(), segment: z.enum(SEGMENTS).nullable(), name: text(120).min(1), subject: text(200).min(1), body: z.string().trim().min(1).max(8000) }).strict() }).strict(),
+  z.object({ action: z.literal("template.delete"), id: uuid }).strict(),
+  z.object({ action: z.literal("outreach.preview"), leadIds: z.array(uuid).min(1).max(200), templateId: uuid.nullable() }).strict(),
+  z.object({ action: z.literal("outreach.schedule"), leadIds: z.array(uuid).min(1).max(200), templateId: uuid.nullable() }).strict(),
+  z.object({ action: z.literal("queue.cancel"), id: uuid }).strict(),
+  z.object({ action: z.literal("queue.run") }).strict(),
+  z.object({ action: z.literal("search"), query: z.object({ segment: z.enum(SEGMENTS), city: text(80).optional(), specialty: text(60).optional(), gym: text(80).optional() }).strict() }).strict(),
+])
+
+const bad = (error: string, status = 400) => NextResponse.json({ error }, { status })
+
+export async function POST(request: Request) {
+  const ctx = await getAdminContext()
+  if (!ctx) return bad("Hittades inte", 404)
+  const parsed = body.safeParse(await request.json().catch(() => null))
+  if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? "Ogiltig förfrågan")
+  const input = parsed.data
+  const { store } = ctx
+  const limitKey = ctx.userId ?? "demo"
+
+  try {
+    switch (input.action) {
+      case "bootstrap": {
+        const [leads, templates, logs, suppressed] = await Promise.all([store.listLeads(), store.listTemplates(), store.listLogs({ limit: 300 }), store.countSuppressed()])
+        return NextResponse.json({ leads, templates, logs, suppressed, config: { demo: ctx.demo, search: searchConfigured(), sender: senderConfigured(), queue: queueConfig() } })
+      }
+      case "lead.create": {
+        const lead = input.lead as LeadInput
+        // En avregistrerad adress får inte komma tillbaka in i CRM:et.
+        if (lead.email && (await store.suppressedHashes([emailHash(lead.email)])).size) return bad("Adressen har avregistrerat sig och kan inte läggas till igen.", 409)
+        if (lead.email && lead.emailVerified == null) lead.emailVerified = await verifyEmail(lead.email)
+        const result = await store.createLead(lead)
+        return result.lead ? NextResponse.json({ lead: result.lead }) : NextResponse.json({ error: `En lead med ${result.field} finns redan: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
+      }
+      case "lead.update": {
+        const patch = input.patch as LeadInput
+        const current = await store.getLead(input.id)
+        if (!current) return bad("Leaden finns inte längre", 404)
+        // Ny adress → ny MX-kontroll (den gamla kontrollen gäller inte den nya domänen).
+        if (patch.email !== undefined && patch.email !== current.email) {
+          if (patch.email && (await store.suppressedHashes([emailHash(patch.email)])).size) return bad("Adressen har avregistrerat sig och kan inte användas.", 409)
+          patch.emailVerified = await verifyEmail(patch.email)
+        }
+        const result = await store.updateLead(input.id, patch)
+        if (!result) return bad("Leaden finns inte längre", 404)
+        return result.lead ? NextResponse.json({ lead: result.lead }) : NextResponse.json({ error: `En annan lead har redan ${result.field}: ${result.duplicate.name}`, duplicate: result.duplicate }, { status: 409 })
+      }
+      case "lead.delete":
+        await store.deleteLead(input.id)
+        return NextResponse.json({ ok: true })
+      case "lead.bulk": {
+        const updated = []
+        for (const id of input.ids) {
+          const r = await store.updateLead(id, input.patch as LeadInput)
+          if (r?.lead) updated.push(r.lead)
+        }
+        return NextResponse.json({ leads: updated })
+      }
+      case "lead.import": {
+        const emails = input.leads.map((l) => l.email).filter((e): e is string => Boolean(e))
+        const suppressed = await store.suppressedHashes(emails.map(emailHash))
+        const created = []
+        let duplicates = 0
+        let blocked = 0
+        for (const lead of input.leads as LeadInput[]) {
+          if (lead.email && suppressed.has(emailHash(lead.email))) {
+            blocked++
+            continue
+          }
+          const r = await store.createLead({ ...lead, source: "csv" })
+          if (r.lead) created.push(r.lead)
+          else duplicates++
+        }
+        return NextResponse.json({ leads: created, duplicates, blocked })
+      }
+      case "lead.verify": {
+        const updated = []
+        for (const id of input.ids) {
+          const lead = await store.getLead(id)
+          if (!lead?.email) continue
+          const r = await store.updateLead(id, { emailVerified: await verifyEmail(lead.email) })
+          if (r?.lead) updated.push(r.lead)
+        }
+        return NextResponse.json({ leads: updated })
+      }
+      case "lead.detail": {
+        const [notes, logs] = await Promise.all([store.listNotes(input.id), store.listLogs({ leadId: input.id, limit: 50 })])
+        return NextResponse.json({ notes, logs })
+      }
+      case "enrich.preview": {
+        if (await rateLimited(`crm-enrich:${limitKey}`, 120, 3600)) return tooManyRequests(600)
+        const url = /^https?:\/\//i.test(input.url) ? input.url : `https://${input.url}`
+        try {
+          return NextResponse.json(await enrichFromUrl(url))
+        } catch (e) {
+          if (e instanceof FetchError) return bad(e.message, 422)
+          throw e
+        }
+      }
+      case "note.add":
+        return NextResponse.json({ note: await store.addNote(input.leadId, input.body) })
+      case "note.delete":
+        await store.deleteNote(input.id)
+        return NextResponse.json({ ok: true })
+      case "template.save":
+        return NextResponse.json({ template: await store.saveTemplate(input.template) })
+      case "template.delete":
+        await store.deleteTemplate(input.id)
+        return NextResponse.json({ ok: true })
+      case "outreach.preview":
+        return NextResponse.json({ items: await buildOutreach(store, input.leadIds, input.templateId), queue: queueConfig(), sender: senderConfigured() })
+      case "outreach.schedule": {
+        // Räknas om på servern – det som köas är aldrig något webbläsaren skickat in.
+        const items = (await buildOutreach(store, input.leadIds, input.templateId)).filter((i) => !i.blockers.length && i.email && i.scheduledAt)
+        if (!items.length) return bad("Ingen av de valda kan få ett mejl just nu.", 409)
+        const logs = await store.createLogs(items.map((i) => ({ leadId: i.leadId, templateId: i.templateId, toEmail: i.email!, subject: i.subject, body: i.body, scheduledAt: i.scheduledAt! })))
+        return NextResponse.json({ logs, skipped: input.leadIds.length - items.length })
+      }
+      case "queue.cancel":
+        return NextResponse.json({ cancelled: await store.cancelQueued({ id: input.id }) })
+      case "queue.run": {
+        // Kön körs med serverns behörighet (låser rader i databasen); administratören har redan verifierats ovan.
+        const result = await runQueue(systemStore() ?? store)
+        return NextResponse.json({ result, logs: await store.listLogs({ limit: 300 }), leads: result.sent || result.cancelled ? await store.listLeads() : undefined })
+      }
+      case "search": {
+        if (!searchConfigured()) return bad("Sökningen är inte konfigurerad (BRAVE_SEARCH_API_KEY saknas på servern).", 503)
+        if (await rateLimited(`crm-search:${limitKey}`, 60, 3600)) return tooManyRequests(600)
+        return NextResponse.json({ candidates: await searchCandidates(input.query) })
+      }
+    }
+  } catch (e) {
+    console.error("crm", { action: input.action, message: e instanceof Error ? e.message : String(e) })
+    return bad("Något gick fel – försök igen.", 500)
+  }
+}

@@ -1,0 +1,155 @@
+import "server-only"
+
+import { BRAND } from "@/lib/brand"
+import { blockersFor, DEFAULT_QUEUE, stockholmDay, type QueueConfig } from "@/lib/crm/outreach"
+import { emailHash, type CrmStore } from "@/lib/crm/store"
+import { emailHtml, footerText } from "@/lib/crm/templates"
+import type { EmailLog } from "@/lib/crm/types"
+import { APP_URL } from "@/lib/site"
+
+/**
+ * Utskickskön (v47). Mejlen går ut ETT I TAGET med paus emellan – aldrig i klump:
+ *
+ *   - Varje körning skickar högst ett mejl, och bara om det gått minst
+ *     minGapSeconds sedan förra. Har kön stått still (ingen har haft panelen
+ *     öppen) skickas alltså inte allt på en gång när den vaknar.
+ *   - Högst dailyCap mejl per svenskt dygn, bara vardagar på kontorstid.
+ *   - Varje mejl kontrolleras IGEN precis innan det skickas: har personen
+ *     avregistrerat sig, hamnat på spärrlistan eller tappat sin rättsliga grund
+ *     sedan det schemalades avbryts det.
+ *   - Kön låser raden i databasen (crm_claim_due_emails, skip locked) och Resend
+ *     får en Idempotency-Key – samma mejl kan inte gå ut två gånger.
+ *
+ * Miljövariabler (servern):
+ *   RESEND_API_KEY          krävs för att något ska skickas
+ *   CRM_FROM_EMAIL          krävs, t.ex. "Elin på Coavira <elin@mail.coavira.fit>"
+ *                           (använd gärna en egen underdomän för utskick, så att
+ *                           appens egna mejl inte påverkas om ryktet skulle ta skada)
+ *   CRM_REPLY_TO            valfritt – dit svaren går
+ *   CRM_MIN_GAP_SECONDS / CRM_DAILY_CAP   valfritt – standard 90 s och 40 per dygn
+ */
+export function queueConfig(): QueueConfig {
+  const num = (name: string, fallback: number, min: number, max: number) => {
+    const n = Number(process.env[name])
+    return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : fallback
+  }
+  return { ...DEFAULT_QUEUE, minGapSeconds: num("CRM_MIN_GAP_SECONDS", DEFAULT_QUEUE.minGapSeconds, 20, 3600), dailyCap: num("CRM_DAILY_CAP", DEFAULT_QUEUE.dailyCap, 1, 500) }
+}
+
+export const senderConfigured = () => Boolean(process.env.RESEND_API_KEY?.trim() && process.env.CRM_FROM_EMAIL?.trim())
+export const unsubscribeUrl = (token: string) => `${APP_URL}/avregistrera/${token}`
+
+export interface RunResult {
+  sent: number
+  cancelled: number
+  /** Varför inget skickades (om inget skickades). */
+  idle?: "not_configured" | "empty" | "gap" | "daily_cap"
+  error?: string
+}
+
+async function sendViaResend(log: EmailLog, token: string, sourceUrl: string | null): Promise<{ id: string } | { error: string; retry: boolean }> {
+  const base = (process.env.RESEND_API_BASE?.trim() || "https://api.resend.com").replace(/\/$/, "")
+  const link = unsubscribeUrl(token)
+  const footer = footerText({ unsubscribeUrl: link, sourceUrl, sender: `${BRAND.name}`, contactEmail: BRAND.contactEmail })
+  try {
+    const res = await fetch(`${base}/emails`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        "User-Agent": "coavira-server",
+        // Samma nyckel för samma köpost: Resend skickar aldrig samma mejl två gånger.
+        "Idempotency-Key": `crm-${log.id}`,
+      },
+      body: JSON.stringify({
+        from: process.env.CRM_FROM_EMAIL!.trim(),
+        to: [log.toEmail],
+        reply_to: process.env.CRM_REPLY_TO?.trim() || undefined,
+        subject: log.subject,
+        text: `${log.body}\n\n${footer}`,
+        html: emailHtml(log.body, footer),
+        headers: {
+          // Avregistrering med ett klick direkt i mejlklienten (RFC 8058).
+          "List-Unsubscribe": `<${APP_URL}/api/crm/unsubscribe?token=${token}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+        tags: [{ name: "kind", value: "crm_outreach" }],
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    })
+    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string }
+    if (res.ok && json.id) return { id: json.id }
+    return { error: String(json.message ?? `Resend svarade ${res.status}`).slice(0, 300), retry: res.status === 429 || res.status >= 500 }
+  } catch {
+    return { error: "Resend svarade inte", retry: true }
+  }
+}
+
+/** Kör kön ett steg: skickar högst ett mejl. Säker att anropa ofta och från flera håll samtidigt. */
+export async function runQueue(store: CrmStore, now = new Date()): Promise<RunResult> {
+  if (!senderConfigured()) return { sent: 0, cancelled: 0, idle: "not_configured" }
+  const cfg = queueConfig()
+  const recent = await store.listLogs({ limit: 500 })
+  // Fastnade poster (servern dog mitt i ett utskick): tillbaka i kön efter en kvart.
+  // Idempotency-Key gör att ett mejl som faktiskt hann gå iväg inte skickas igen.
+  for (const stuck of recent.filter((l) => l.status === "sending" && now.getTime() - new Date(l.scheduledAt).getTime() > 900_000)) {
+    await store.updateLog(stuck.id, { status: "queued" })
+  }
+  const sent = recent.filter((l) => l.sentAt)
+  const lastSent = sent.reduce((t, l) => Math.max(t, new Date(l.sentAt!).getTime()), 0)
+  if (lastSent && now.getTime() - lastSent < cfg.minGapSeconds * 1000) return { sent: 0, cancelled: 0, idle: "gap" }
+  const today = stockholmDay(now)
+  if (sent.filter((l) => stockholmDay(new Date(l.sentAt!)) === today).length >= cfg.dailyCap) return { sent: 0, cancelled: 0, idle: "daily_cap" }
+
+  let cancelled = 0
+  // Avbrutna poster (t.ex. avregistrerade) kostar ingen plats i takten – ta nästa, högst fem försök.
+  for (let i = 0; i < 5; i++) {
+    const [log] = await store.claimDue(1)
+    if (!log) return { sent: 0, cancelled, idle: "empty" }
+    const lead = await store.getLead(log.leadId)
+    const suppressed = lead?.email ? (await store.suppressedHashes([emailHash(lead.email)])).size > 0 : false
+    const blockers = lead ? blockersFor(lead, { suppressed, queued: false, now }).filter((b) => b !== "recently_emailed") : (["no_email"] as const)
+    // Adressen kan ha ändrats sedan mejlet schemalades – då gäller inte längre det som förhandsgranskades.
+    if (!lead || blockers.length || lead.email?.toLowerCase() !== log.toEmail.toLowerCase()) {
+      await store.updateLog(log.id, { status: "cancelled", error: lead ? "Leaden uppfyller inte längre villkoren för utskick" : "Leaden finns inte längre" })
+      cancelled++
+      continue
+    }
+    const token = await store.unsubscribeToken(lead.id)
+    if (!token) {
+      await store.updateLog(log.id, { status: "failed", error: "Avregistreringslänk saknas" })
+      continue
+    }
+    const result = await sendViaResend(log, token, lead.sourceUrl)
+    if ("id" in result) {
+      const at = new Date().toISOString()
+      await store.updateLog(log.id, { status: "sent", sentAt: at, resendId: result.id, error: null })
+      // Statusflödet går framåt: Ny/Kvalificerad → Mail skickat. Den som redan svarat flyttas inte bakåt.
+      await store.updateLead(lead.id, { lastEmailedAt: at, ...(lead.status === "new" || lead.status === "qualified" ? { status: "emailed" as const } : {}) })
+      return { sent: 1, cancelled }
+    }
+    if (result.retry) {
+      // Tillfälligt fel: tillbaka i kön, nytt försök om tio minuter.
+      await store.updateLog(log.id, { status: "queued", scheduledAt: new Date(now.getTime() + 600_000).toISOString(), error: result.error })
+      return { sent: 0, cancelled, error: result.error }
+    }
+    await store.updateLog(log.id, { status: "failed", error: result.error })
+    return { sent: 0, cancelled, error: result.error }
+  }
+  return { sent: 0, cancelled }
+}
+
+/**
+ * Avregistrering: leaden raderas (det lovar mejlets sidfot) och adressens hash
+ * hamnar på spärrlistan, så att den aldrig kan importeras och mejlas igen.
+ */
+export async function unsubscribe(store: CrmStore, token: string): Promise<boolean> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) return false
+  const lead = await store.getLeadByToken(token)
+  if (!lead) return false
+  if (lead.email) await store.suppress(lead.email, "unsubscribed")
+  await store.cancelQueued({ leadId: lead.id })
+  await store.deleteLead(lead.id)
+  return true
+}

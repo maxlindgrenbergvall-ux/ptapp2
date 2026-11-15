@@ -27,6 +27,8 @@ export default function robots(): MetadataRoute.Robots {
           "/nytt-losenord",
           "/konto-raderat",
           "/app-retur/",
+          "/admin",
+          "/avregistrera/",
         ],
       },
     ],

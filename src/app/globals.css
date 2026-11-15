@@ -200,7 +200,12 @@
  * Samma variabelnamn som appen, så att appens komponenter (Button, Badge,
  * BrandMark …) ser rätt ut även här.
  */
-.landing {
+/* v47: samma mörka palett för det interna CRM:et (/admin). .admin-dark sitter på
+   adminskalet; klassen på <html> (sätts av skalet) gör att även dialoger och
+   sidopaneler, som ritas utanför skalet, blir mörka oavsett systemtema. */
+.landing,
+.admin-dark,
+:root.admin-dark {
   color-scheme: dark;
   --background: #131916;
   --foreground: #f9fbf8;
@@ -230,6 +235,9 @@
   --macro-fat: #d55181;
   /* En enda kurva för all rörelse på sidan: snabb start, lång mjuk inbromsning. */
   --landing-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.55);
+  --float-shadow: 0 16px 48px -12px rgb(0 0 0 / 0.6);
+  --chart-brand: #84cc16;
   background-color: var(--background);
   color: var(--foreground);
 }

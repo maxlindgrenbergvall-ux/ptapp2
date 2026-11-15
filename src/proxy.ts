@@ -28,7 +28,8 @@ const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
 const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 
 /** Webhooks anropas av Stripe, RevenueCat och Fitbit – de verifieras med signatur i stället. */
-const WEBHOOKS = ["/api/stripe/webhook", "/api/revenuecat/webhook", "/api/wearables/fitbit/webhook"]
+// v47: Resends leveranskvitton (signerade) och avregistrering med ett klick från mejlklienten (slumpad nyckel).
+const WEBHOOKS = ["/api/stripe/webhook", "/api/revenuecat/webhook", "/api/wearables/fitbit/webhook", "/api/resend/webhook", "/api/crm/unsubscribe"]
 
 /**
  * CSRF-skydd för API:t utöver SameSite=Lax-cookien: skrivande anrop
@@ -120,8 +121,11 @@ export async function proxy(request: NextRequest) {
 
   const isProtected = PROTECTED.some((p) => path === p || path.startsWith(`${p}/`))
 
+  // v47: /admin (internt CRM) kräver inloggning. Att kontot dessutom är administratör
+  // avgörs av databasen (is_admin) i admin-layouten och i varje API-anrop – inte här.
+  const isAdminArea = path === "/admin" || path.startsWith("/admin/")
   if (!claims) {
-    if (isProtected) return redirect(`/logga-in?next=${encodeURIComponent(path)}`)
+    if (isProtected || isAdminArea) return redirect(`/logga-in?next=${encodeURIComponent(path)}`)
     return response
   }
 
