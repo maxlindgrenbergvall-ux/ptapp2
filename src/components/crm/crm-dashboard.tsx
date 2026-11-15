@@ -55,7 +55,8 @@ const ALL = "all"
  */
 export function CrmDashboard() {
   const [boot, setBoot] = React.useState<Boot | null>(null)
-  const [failed, setFailed] = React.useState(false)
+  /** null = laddat (eller laddar), annars felmeddelandet från servern. */
+  const [failed, setFailed] = React.useState<string | null>(null)
   const [view, setView] = React.useState<View>("list")
   const [q, setQ] = React.useState("")
   const [segment, setSegment] = React.useState<Segment | typeof ALL>(ALL)
@@ -75,7 +76,7 @@ export function CrmDashboard() {
         setBoot(b)
         if (b.converted) toast.success(`${b.converted} ${b.converted === 1 ? "lead har" : "leads har"} registrerat ett PT-konto`, { description: "Markerade som kunder." })
       })
-      .catch(() => setFailed(true))
+      .catch((e) => setFailed(e instanceof ApiError ? e.message : "Servern svarade inte."))
   }, [])
   // v50: automatisk prospektering – nya leads dyker upp i listan medan jobbet går.
   const reload = React.useCallback(() => {
@@ -139,7 +140,15 @@ export function CrmDashboard() {
     }
   }
 
-  if (failed) return <EmptyState icon={X} title="CRM:et kunde inte laddas" text="Ladda om sidan. Fortsätter det: kontrollera att migrationen v47 är körd och att ditt konto är administratör." />
+  if (failed !== null)
+    return (
+      <EmptyState
+        icon={X}
+        title="CRM:et kunde inte laddas"
+        text={/migrationen/i.test(failed) ? failed : `${failed} Ladda om sidan. Fortsätter det: kontrollera att alla CRM-migrationer (v47, v49, v50, v53) är körda och att ditt konto är administratör.`}
+        data-testid="crm-failed"
+      />
+    )
   if (!boot) return <Skeleton />
 
   const kpi = {

@@ -16,6 +16,7 @@ import { legalBasisFor } from "@/lib/crm/compliance"
 import { activityEffect } from "@/lib/crm/stats"
 import { senderName } from "@/lib/crm/templates"
 import { ACTIVITY_KINDS, CHANNELS, CITIES, COMPANY_FORMS, emailKey, ENGAGED, instagramKey, LEGAL_BASES, SEGMENTS, STATUSES, type Lead, type LeadInput, type ServerLeadPatch } from "@/lib/crm/types"
+import { missingMigration } from "@/lib/crm/migrations"
 import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 
 /**
@@ -397,7 +398,12 @@ export async function POST(request: Request) {
       }
     }
   } catch (e) {
-    console.error("crm", { action: input.action, message: e instanceof Error ? e.message : String(e) })
+    const message = e instanceof Error ? e.message : String(e)
+    console.error("crm", { action: input.action, message })
+    // En tabell eller kolumn saknas = en migration är inte körd. Säg vilken, i stället för "något gick fel".
+    const missing = missingMigration(message)
+    if (missing) return NextResponse.json({ error: `Databasen saknar ${missing.what}. Kör migrationen ${missing.file} i Supabase (SQL Editor) och ladda om sidan.`, migration: missing.file }, { status: 503 })
     return bad("Något gick fel – försök igen.", 500)
   }
 }
+
