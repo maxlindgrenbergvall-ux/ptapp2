@@ -119,7 +119,7 @@ check((await demo()).templates.filter((t) => t.trainerId === "t1").length - ptBe
 // --------------------------------------------------- 5. kalorimätaren ---
 await p.goto(base + "/klient")
 await p.waitForSelector("[data-testid=activity-card]")
-check((await p.locator("[data-testid=activity-kcal]").innerText()).includes("382"), "förbränt i dag: 382 kcal (Strava-löpningen)")
+check((await p.locator("[data-testid=activity-kcal]").innerText()).includes("382"), "förbränt i dag: 382 kcal (morgonlöpningen)")
 check((await p.locator("[data-testid=activity-list]").innerText()).includes("Morgonlöpning"), "dagens pass listas")
 await p.locator("[data-testid=activity-card]").scrollIntoViewIfNeeded()
 await p.screenshot({ path: `${out}/v32-kalorimatare.png` })

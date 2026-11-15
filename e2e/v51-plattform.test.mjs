@@ -58,7 +58,7 @@ else check(await p.locator(`[data-testid=nutrition-shortcut][data-date="${target
 
 await p.click("[data-testid=plan-workout]")
 await p.waitForSelector("[role=dialog] >> text=Planera pass")
-const option = p.locator("[role=dialog] ul[aria-label='Dagar i schemat'] button, [role=dialog] ul[aria-label='Sparade mallar'] button").first()
+const option = p.locator("[role=dialog] ul[aria-label='Pass i upplägget'] button, [role=dialog] ul[aria-label='Sparade mallar'] button").first()
 const optionName = (await option.locator("span span").first().innerText()).trim()
 await option.click()
 await p.waitForSelector(`[data-testid=day-plan][data-date="${target}"] [data-testid=day-workout]`)

@@ -151,7 +151,7 @@ export function WorkoutBuilder() {
                   <FilePlus2 /> Tomt pass
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setSplitOpen(true)} data-testid="new-from-split">
-                  <Columns3 /> Från split (PPL, Upper/Lower …)
+                  <Columns3 /> Från upplägg (PPL, Upper/Lower …)
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Ny från mall</DropdownMenuLabel>
@@ -166,7 +166,7 @@ export function WorkoutBuilder() {
           ) : (
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setSplitOpen(true)} data-testid="new-from-split">
-                <Columns3 /> Från split
+                <Columns3 /> Från upplägg
               </Button>
               <Button variant="outline" onClick={() => createNew()}>
                 <Plus /> Nytt pass
@@ -180,7 +180,7 @@ export function WorkoutBuilder() {
       <Dialog open={splitOpen} onOpenChange={setSplitOpen}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Mallar från en split</DialogTitle>
+            <DialogTitle>Mallar från ett upplägg</DialogTitle>
             <DialogDescription>Välj och anpassa – varje dag blir en mall som du kan tilldela klienter.</DialogDescription>
           </DialogHeader>
           <SplitBuilder mode="trainer" onDone={() => setSplitOpen(false)} />

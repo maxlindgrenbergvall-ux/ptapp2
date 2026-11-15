@@ -1,14 +1,14 @@
 /**
- * Kalorimätaren (v32): förbränd energi och aktiv tid per dag från Strava,
+ * Kalorimätaren (v32): förbränd energi och aktiv tid per dag från
  * Apple Health (HealthKit) och Health Connect.
  *
  * Dubbelräkning undviks så här:
  *   - Telefonens dagssumma (aktiv energi) innehåller redan klockans pass och
- *     ofta även Strava-pass som synkats dit. Därför adderas den inte till
+ *     ofta även pass från andra appar som synkats dit. Därför adderas den inte till
  *     passen – i stället används det STÖRSTA av
  *       (a) telefonens dagssumma (Apple Health / Health Connect; max om båda finns) och
- *       (b) summan av dagens pass (Strava + telefonens pass + manuella, utan dubbletter).
- *   - Samma pass från två källor (t.ex. Strava och Apple Health) räknas en gång:
+ *       (b) summan av dagens pass (telefonens pass + manuella, utan dubbletter).
+ *   - Samma pass från två källor (t.ex. klockan och ett manuellt pass) räknas en gång:
  *     pass som börjar inom 5 minuter från varandra med samma längd (±20 %)
  *     slås ihop, och källan med kalorier vinner.
  * Ren TypeScript – enhetstestad i e2e/activity.unit.ts.
@@ -29,7 +29,7 @@ export interface DayActivitySummary {
   estimated: boolean
 }
 
-const SOURCE_RANK: Record<ActivitySource, number> = { strava: 3, apple_health: 2, google_fit: 2, manual: 1 }
+const SOURCE_RANK: Record<ActivitySource, number> = { apple_health: 2, google_fit: 2, manual: 1 }
 
 /** Samma pass från två källor? Start inom 5 min och längd inom 20 %. */
 function samePass(a: ActivityLog, b: ActivityLog): boolean {
@@ -38,7 +38,7 @@ function samePass(a: ActivityLog, b: ActivityLog): boolean {
   return dt <= 5 * 60_000 && Math.abs(a.durationSec - b.durationSec) / longest <= 0.2
 }
 
-/** Pass utan dubbletter. Vid dubblett vinner uppmätta kalorier, sedan källans rang (Strava har namn och karta). */
+/** Pass utan dubbletter. Vid dubblett vinner uppmätta kalorier, sedan källans rang (telefonens mätning före manuellt). */
 export function dedupeActivities(list: ActivityLog[]): ActivityLog[] {
   const out: ActivityLog[] = []
   const sorted = [...list].sort((a, b) => a.startedAt.localeCompare(b.startedAt))
@@ -156,7 +156,6 @@ export function formatDistance(m: number | undefined): string | null {
 }
 
 export const SOURCE_LABEL: Record<ActivitySource, string> = {
-  strava: "Strava",
   apple_health: "Apple Hälsa",
   google_fit: "Health Connect",
   manual: "Manuellt",

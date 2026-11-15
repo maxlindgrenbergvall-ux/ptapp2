@@ -74,8 +74,8 @@ check(!/(provision|plattformsavgift|månadsavgift|abonnemang)\D{0,20}\d/i.test(t
 check(!/betalningskrångel|krångel med betalning/i.test(text), "ingen betalningskrångel-retorik")
 // v45: appens kärna överst (splits, hälsosynk, kontakt med PT:n) och bara integrationer som finns.
 const core = await p.locator("ul[aria-label='Det här är Coavira']").innerText()
-check(/Träningssplits/.test(core) && /Hälsosynk/.test(core) && /Chatt och videosamtal/.test(core) && /Verifierade PT:er/.test(core), "faktaraden: splits, hälsosynk, chatt och verifierade PT:er")
-check(!/Garmin/i.test(text) && /Health Connect/.test(text) && /Apple Hälsa/.test(text), "hälsosynk: Apple Hälsa, Health Connect och Strava – inget Garmin")
+check(/Träningsupplägg/.test(core) && /Hälsosynk/.test(core) && /Chatt och videosamtal/.test(core) && /Verifierade PT:er/.test(core), "faktaraden: upplägg, hälsosynk, chatt och verifierade PT:er")
+check(!/Garmin|Strava/i.test(text) && /Health Connect/.test(text) && /Apple Hälsa/.test(text), "hälsosynk: Apple Hälsa och Health Connect – inget Garmin")
 // v45: inga canvas-element (konfetti borta) och inget rullande band att pausa.
 check((await p.locator("canvas").count()) === 0, "inga canvas-element på sidan")
 check((await p.locator("button[aria-label='Pausa rullande fakta']").count()) === 0, "inget rullande faktaband")

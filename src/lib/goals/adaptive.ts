@@ -1,6 +1,6 @@
 /**
  * Dynamisk viktkurva (v34): planen räknas om löpande med klientens FAKTISKA
- * förbränning och träningsfrekvens – från Apple Hälsa / Health Connect, Strava
+ * förbränning och träningsfrekvens – från Apple Hälsa / Health Connect
  * och passen som loggas i appen – i stället för den aktivitetsnivå som valdes i
  * intro-flödet.
  *
@@ -10,8 +10,8 @@
  *        (aktiv energi från HealthKit/Health Connect innehåller all rörelse –
  *         promenader, vardag och pass; 1,1 = matens termiska effekt)
  *      annars:                        BMR × 1,2 + passens kalorier
- *        (1,2 = stillasittande vardag; passen från Strava och appen läggs till)
- *    Passens kalorier: Strava/klockans siffra, annars uppskattning (MET).
+ *        (1,2 = stillasittande vardag; passen från klockan och appen läggs till)
+ *    Passens kalorier: klockans siffra, annars uppskattning (MET).
  *    Pass loggade i appen räknas bara om ingen synkad styrketräning finns samma
  *    dag (annars blir samma pass dubbelräknat).
  * 3. Förtroende: fullt efter 14 dagars data; dessförinnan vägs det uppmätta
@@ -231,7 +231,7 @@ export function adaptiveProjection({ goal: g, weightLog, activities, activityDay
 
 /** Förklarande text till kurvan (svenska). */
 export function adaptiveSummary(r: AdaptiveResult): string {
-  if (r.basis === "plan") return "Ingen träning eller förbränning synkad än – kurvan följer planen. Koppla Apple Hälsa, Health Connect eller Strava, eller logga pass i appen."
+  if (r.basis === "plan") return "Ingen träning eller förbränning synkad än – kurvan följer planen. Koppla Apple Hälsa eller Health Connect, eller logga pass i appen."
   const diff = r.measuredTdee - r.plannedTdee
   const burn = `Din uppmätta förbränning är ca ${r.measuredTdee.toLocaleString("sv-SE")} kcal/dag (${diff >= 0 ? "+" : "−"}${Math.abs(diff).toLocaleString("sv-SE")} mot planens ${r.plannedTdee.toLocaleString("sv-SE")})`
   const freq = `${r.sessionsPerWeek.toLocaleString("sv-SE")} pass/vecka`

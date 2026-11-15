@@ -145,7 +145,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         <TabsContent value="progress" className="grid gap-6 pt-2 lg:grid-cols-2">
           {/* v30: mål, kalorimål och prognos från klientens intro-flöde. */}
           <GoalSummaryCard clientId={client.id} className="lg:col-span-2" />
-          {/* v32: klientens aktivitet och förbränning (Strava, Apple Hälsa, Health Connect). */}
+          {/* v32: klientens aktivitet och förbränning (Apple Hälsa, Health Connect). */}
           <div className="lg:col-span-2">
             <ActivityCard clientId={client.id} readOnly />
           </div>

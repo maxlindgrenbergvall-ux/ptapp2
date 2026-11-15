@@ -37,7 +37,7 @@ if (!fs.existsSync(staticDir)) {
   console.error("Hittar inte .next/static – bygg först (npm run build).")
   process.exit(2)
 }
-const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_KEY", "REVENUECAT_WEBHOOK_SECRET", "FITBIT_CLIENT_SECRET", "STRAVA_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET", "RESEND_API_KEY"]
+const values = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SUPABASE_SERVICE_ROLE_KEY", "REVENUECAT_SECRET_KEY", "REVENUECAT_WEBHOOK_SECRET", "FITBIT_CLIENT_SECRET", "GARMIN_CONSUMER_SECRET", "RESEND_API_KEY"]
   .map((name) => ({ name, value: process.env[name]?.trim() }))
   .filter((v) => v.value && v.value.length >= 8)
 const patterns = [

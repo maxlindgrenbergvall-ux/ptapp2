@@ -101,8 +101,8 @@ export function ClientProfileSettings() {
         >
           <RestSettingsFields />
         </SettingsDialogRow>
-        <SettingsLinkRow href="/klient/anslutningar" icon={HeartPulse} label="Hälsosynk och anslutningar" hint="Apple Hälsa, Health Connect, Strava, klockor" />
-        <SettingsLinkRow href="/klient/schema" icon={CalendarRange} label="Träningsschema och splits" hint="PPL, Upper/Lower, Full Body …" />
+        <SettingsLinkRow href="/klient/anslutningar" icon={HeartPulse} label="Hälsosynk och anslutningar" hint="Apple Hälsa, Health Connect, klockor" />
+        <SettingsLinkRow href="/klient/schema" icon={CalendarRange} label="Träningsupplägg" hint="Färdiga upplägg: PPL, Upper/Lower, helkropp …" />
         <MarketingConsentRow />
         <SettingsLinkRow href="/klient/installningar" icon={Settings} label="Alla inställningar" />
       </SettingsGroup>

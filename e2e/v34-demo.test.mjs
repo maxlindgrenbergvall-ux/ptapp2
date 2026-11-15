@@ -95,14 +95,14 @@ await p.goto(base + "/klient/profil/mal")
 await p.waitForSelector("[data-testid=progress-curve] [data-testid=goal-chart][data-adaptive='1']")
 ok("uppdaterad prognos ritas i grafen")
 const sources = await p.locator("[data-testid=progress-curve] [data-testid=curve-sources]").innerText()
-check(/Uppdaterad med/.test(sources) && /Strava/.test(sources), `kurvan bygger på synkad/loggad träning, källan visas (${sources})`)
+check(/Uppdaterad med/.test(sources) && /Apple Hälsa/.test(sources), `kurvan bygger på synkad/loggad träning, källan visas (${sources})`)
 check(/[\d\s ]+ kcal\/dag/.test(sources), "uppmätt förbränning (kcal/dag)")
 check(Number(sources.match(/([\d,]+) pass\/v/)?.[1].replace(",", ".")) > 0, "träningsfrekvensen räknas (pass/vecka)")
 check((await p.locator("[data-testid=adaptive-curve], [data-testid=goal-info]").count()) === 0, "inga extra paneler runt grafen")
 await p.screenshot({ path: `${out}/v34-viktkurva.png`, fullPage: true })
 await p.goto(base + "/klient/framsteg")
 await p.waitForSelector("[data-testid=progress-curve] [data-testid=goal-chart][data-adaptive='1']")
-check(/Strava/.test(await p.locator("[data-testid=curve-sources]").innerText()), "samma kurva under Framsteg (källan Strava)")
+check(/Apple Hälsa/.test(await p.locator("[data-testid=curve-sources]").innerText()), "samma kurva under Framsteg (källan Apple Hälsa)")
 
 // ---------------------------------- 3. pass: drag-and-drop och raka set ---
 await p.goto(base + "/klient")
@@ -167,7 +167,8 @@ const names = async () => push.locator("[data-testid=split-exercise] span.trunca
 const before = await names()
 // Hela Push-dagen i bild (dragningen sker med skärmkoordinater).
 await push.evaluate((el) => el.scrollIntoView({ block: "start" }))
-await drag(push.locator("[data-testid=drag-handle]").nth(before.length - 1), push.locator("[data-sortable-id]").first())
+// v52: dagen har ett eget handtag – välj övningarnas handtag.
+await drag(push.locator("[data-testid=split-exercise] [data-testid=drag-handle]").nth(before.length - 1), push.locator("[data-sortable-id]").first())
 const after = await names()
 check(after[0] === before.at(-1), `split: sista övningen i Push dras överst (${after[0]})`)
 await push.locator(`input[aria-label="Set för ${after[0]}"]`).fill("5")

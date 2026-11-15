@@ -29,6 +29,24 @@ export function adherence(workouts: ScheduledWorkout[], days: number, today = to
 }
 
 /**
+ * Följsamhet vecka för vecka (v52): andel genomförda av schemalagda pass per
+ * vecka (måndag–söndag) de senaste `weeks` veckorna, äldst först. Dagens och
+ * kommande pass räknas inte (som i adherence). `pct` är null en vecka utan
+ * schemalagda pass – en lucka i grafen, inte 0 %.
+ */
+export function adherenceByWeek(workouts: Pick<ScheduledWorkout, "date" | "status">[], weeks: number, today = todayISO()) {
+  const dow = (new Date(`${today}T12:00:00`).getDay() + 6) % 7
+  const thisMonday = addDays(today, -dow)
+  return Array.from({ length: weeks }, (_, i) => {
+    const start = addDays(thisMonday, -7 * (weeks - 1 - i))
+    const end = addDays(start, 6)
+    const due = workouts.filter((w) => w.date >= start && w.date <= end && w.date < today)
+    const done = due.filter((w) => w.status === "completed").length
+    return { start, due: due.length, done, pct: due.length ? Math.round((done / due.length) * 100) : null }
+  })
+}
+
+/**
  * Övningens namn för en viss klient: PT:ns eget namn om det finns, annars
  * bibliotekets namn.
  */

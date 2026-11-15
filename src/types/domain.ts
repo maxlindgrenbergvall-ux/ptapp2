@@ -245,7 +245,8 @@ export interface ActiveSplit {
   short: string
   /** Splitens nyckel i biblioteket (ppl, upper_lower …) eller "custom". */
   key: string
-  days: { name: string; focus: string; exercises: Omit<WorkoutExercise, "id">[] }[]
+  /** v52: en dag med rest = true är en vilodag (inga övningar) som kan flyttas fritt i ordningen. */
+  days: { name: string; focus: string; exercises: Omit<WorkoutExercise, "id">[]; rest?: boolean }[]
   /** Mål: antal träningsdagar per vecka (1–7). */
   daysPerWeek: number
   /** Index i days för dagen som står på tur. */
@@ -556,15 +557,15 @@ export interface SleepLog {
   source: HealthSource
 }
 
-export type WearableProvider = "fitbit" | "apple_health" | "google_fit" | "strava"
+export type WearableProvider = "fitbit" | "apple_health" | "google_fit"
 
-/** Källor för sömn (Strava har bara aktiviteter). */
-export type SleepProvider = Exclude<WearableProvider, "strava">
+/** Källor för sömn. */
+export type SleepProvider = WearableProvider
 
 /** Var en aktivitet kommer ifrån (v32). */
-export type ActivitySource = "strava" | "apple_health" | "google_fit" | "manual"
+export type ActivitySource = "apple_health" | "google_fit" | "manual"
 
-/** Ett konditions-/aktivitetspass från Strava, Apple Health eller Health Connect (v32). */
+/** Ett konditions-/aktivitetspass från Apple Health eller Health Connect (v32). */
 export interface ActivityLog {
   id: ID
   clientId: ID
@@ -698,7 +699,7 @@ export interface AppData {
   waterLogs: WaterLog[]
   sleepLogs: SleepLog[]
   wearables: WearableConnection[]
-  /** Aktiviteter (v32): Strava, Apple Health, Health Connect. Klientens egna, eller PT:ns klienters. */
+  /** Aktiviteter (v32): Apple Health, Health Connect. Klientens egna, eller PT:ns klienters. */
   activities: ActivityLog[]
   /** Dagssummor av aktiv energi från telefonen (v32). */
   activityDays: ActivityDay[]

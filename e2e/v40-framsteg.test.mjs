@@ -52,7 +52,7 @@ const chart = await p.locator("[data-testid=progress-curve] [data-testid=goal-ch
 check(curve.y > cards.y + cards.height && curve.y - (cards.y + cards.height) < 30, "grafen ligger direkt under korten")
 check(chart.height >= 260 && chart.width >= 330, `stor graf (${Math.round(chart.width)}×${Math.round(chart.height)} px)`)
 check((await p.locator("[data-testid=progress-curve] .recharts-line").count()) >= 3, "plan, uppdaterad kurva och vägningar i samma graf")
-check(/Följer planen|Uppdaterad med/.test(await p.locator("[data-testid=curve-sources]").innerText()), "källraden under grafen (Apple Hälsa/Health Connect/Strava)")
+check(/Följer planen|Uppdaterad med/.test(await p.locator("[data-testid=curve-sources]").innerText()), "källraden under grafen (Apple Hälsa/Health Connect)")
 // Inga lådor inuti grafsektionen utöver själva grafen.
 check((await p.locator("[data-testid=progress-curve] .rounded-xl, [data-testid=progress-curve] .rounded-2xl").count()) === 0, "inga extra boxar runt eller under grafen")
 check(await noOverflow(), "ingen horisontell overflow (390 px)")

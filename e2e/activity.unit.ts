@@ -10,25 +10,25 @@ const check = (cond: boolean, msg: string) => {
 }
 const D = "2026-11-03"
 const act = (p: Partial<ActivityLog>): ActivityLog => ({
-  id: crypto.randomUUID(), clientId: "c1", source: "strava", externalId: crypto.randomUUID(), sport: "Run", name: "", startedAt: `${D}T07:00:00Z`, date: D, durationSec: 1800, ...p,
+  id: crypto.randomUUID(), clientId: "c1", source: "manual", externalId: crypto.randomUUID(), sport: "Run", name: "", startedAt: `${D}T07:00:00Z`, date: D, durationSec: 1800, ...p,
 })
 const day = (p: Partial<ActivityDay>): ActivityDay => ({ clientId: "c1", date: D, source: "apple_health", activeKcal: 0, ...p })
 
-// Bara Strava: summan av passen.
+// Bara pass (inga dagssummor): summan av passen.
 const s1 = daySummary([act({ kcal: 380 }), act({ startedAt: `${D}T17:00:00Z`, kcal: 200, sport: "Ride" })], [], "c1", D)
-check(s1.activeKcal === 580 && s1.activeMinutes === 60, `Strava: 380 + 200 = ${s1.activeKcal} kcal, ${s1.activeMinutes} min`)
+check(s1.activeKcal === 580 && s1.activeMinutes === 60, `pass: 380 + 200 = ${s1.activeKcal} kcal, ${s1.activeMinutes} min`)
 // Telefonens dagssumma innehåller redan passet: ingen dubbelräkning (max).
 const s2 = daySummary([act({ kcal: 380 })], [day({ activeKcal: 620, activeMinutes: 55, steps: 9400 })], "c1", D)
-check(s2.activeKcal === 620 && s2.activeMinutes === 55 && s2.steps === 9400, `Apple Hälsa 620 + Strava 380 (ingår redan) = ${s2.activeKcal} kcal`)
-check(s2.sources.join() === "apple_health,strava", "källorna visas")
-// Samma pass från Strava och Apple Hälsa räknas en gång.
+check(s2.activeKcal === 620 && s2.activeMinutes === 55 && s2.steps === 9400, `Apple Hälsa 620 + pass 380 (ingår redan) = ${s2.activeKcal} kcal`)
+check(s2.sources.join() === "apple_health,manual", "källorna visas")
+// Samma pass från telefonen och manuellt räknas en gång.
 const dup = dedupeActivities([
-  act({ source: "strava", kcal: 380, name: "Morgonlöpning" }),
+  act({ source: "manual", kcal: 380, name: "Morgonlöpning" }),
   act({ source: "apple_health", startedAt: `${D}T07:02:00Z`, durationSec: 1750, kcal: 360, sport: "running" }),
 ])
-check(dup.length === 1 && dup[0].source === "strava", "samma löprunda från två källor = ett pass (Strava vinner)")
+check(dup.length === 1 && dup[0].source === "apple_health", "samma löprunda från två källor = ett pass (telefonens mätning vinner)")
 // Uppmätta kalorier vinner över uppskattade.
-const dup2 = dedupeActivities([act({ source: "strava", kcal: 300, kcalEstimated: true }), act({ source: "apple_health", startedAt: `${D}T07:01:00Z`, kcal: 410 })])
+const dup2 = dedupeActivities([act({ source: "manual", kcal: 300, kcalEstimated: true }), act({ source: "apple_health", startedAt: `${D}T07:01:00Z`, kcal: 410 })])
 check(dup2.length === 1 && dup2[0].kcal === 410, "uppmätta kalorier går före uppskattade")
 // Olika pass slås inte ihop.
 check(dedupeActivities([act({}), act({ startedAt: `${D}T12:00:00Z` })]).length === 2, "två olika pass samma dag")

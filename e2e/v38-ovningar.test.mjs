@@ -105,11 +105,11 @@ await p.waitForSelector("[data-slot=dialog-overlay]", { state: "detached" })
 const cur = await names()
 const n = cur.length
 await push.locator("[data-sortable-id]").nth(n - 1).scrollIntoViewIfNeeded()
-await drag(push.locator("[data-testid=drag-handle]").nth(n - 1), push.locator("[data-sortable-id]").nth(n - 2))
+await drag(push.locator("[data-testid=split-exercise] [data-testid=drag-handle]").nth(n - 1), push.locator("[data-sortable-id]").nth(n - 2))
 const afterDrag = await names()
 check(afterDrag[n - 2] === "Skull Crusher" && afterDrag[n - 1] === cur[n - 2], `drag-and-drop: övningen dras ett steg upp (${afterDrag.slice(-2).join(", ")})`)
 // … och resten av vägen med handtagets pil upp (tangentbord/skärmläsare).
-await push.locator("[data-testid=drag-handle]").nth(n - 2).focus()
+await push.locator("[data-testid=split-exercise] [data-testid=drag-handle]").nth(n - 2).focus()
 for (let k = 0; k < n - 2; k++) {
   await p.keyboard.press("ArrowUp")
   await p.waitForTimeout(120)

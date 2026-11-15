@@ -20,7 +20,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString("sv-SE")
 /**
  * Framsteg och Mål (v34): planen, de faktiska vägningarna och en UPPDATERAD
  * prognos som räknas om löpande med klientens uppmätta förbränning och
- * träningsfrekvens (Apple Hälsa / Health Connect, Strava och passen i appen).
+ * träningsfrekvens (Apple Hälsa / Health Connect och passen i appen).
  * Se src/lib/goals/adaptive.ts. Returnerar null utan mål (då visas den vanliga viktgrafen).
  */
 export function GoalProgressChart({
@@ -132,7 +132,7 @@ export function GoalProgressChart({
           ))}
           {!readOnly && !measured && (
             <Link href="/klient/anslutningar" className="text-xs font-medium text-primary underline-offset-4 hover:underline">
-              Koppla Apple Hälsa, Health Connect eller Strava
+              Koppla Apple Hälsa eller Health Connect
             </Link>
           )}
         </div>

@@ -33,7 +33,7 @@ const device = (kcal: number, n = 28): ActivityDay[] => days(n).map((date) => ({
 const run = (date: string, kcal: number, id = date): ActivityLog => ({
   id,
   clientId: "c1",
-  source: "strava",
+  source: "apple_health",
   externalId: id,
   sport: "Run",
   name: "Löpning",
@@ -78,29 +78,29 @@ const week = adaptiveProjection({ ...base, activityDays: device(900, 7) })
 check(week.dataDays === 7 && week.confidence === 0.5, `7 dagar data → förtroende 0,5 (${week.confidence})`)
 check(week.measuredTdee > week.plannedTdee && week.measuredTdee < high.measuredTdee, "halvt förtroende: mellan plan och uppmätt")
 
-// ------------------------------------------- Strava + pass i appen ---
-const stravaRuns = days(28).filter((_, i) => i % 7 === 0 || i % 7 === 3).map((d) => run(d, 600))
-const strava = adaptiveProjection({ ...base, activities: stravaRuns })
-check(strava.basis === "workouts" && strava.dataDays === 25, `bara Strava: grundbehov stillasittande + passen, räknat från första passet (${strava.dataDays} dagar)`)
-const longTime = adaptiveProjection({ ...base, goal: { ...goal, startedAt: addDays(today, -60) }, activities: [...stravaRuns, run(addDays(today, -40), 600)] })
+// ------------------------------------------- synkade pass + pass i appen ---
+const syncedRuns = days(28).filter((_, i) => i % 7 === 0 || i % 7 === 3).map((d) => run(d, 600))
+const synced = adaptiveProjection({ ...base, activities: syncedRuns })
+check(synced.basis === "workouts" && synced.dataDays === 25, `bara synkade pass: grundbehov stillasittande + passen, räknat från första passet (${synced.dataDays} dagar)`)
+const longTime = adaptiveProjection({ ...base, goal: { ...goal, startedAt: addDays(today, -60) }, activities: [...syncedRuns, run(addDays(today, -40), 600)] })
 check(longTime.dataDays === 28, "synkat sedan tidigare: hela fönstret räknas (dagar utan pass = vilodagar)")
-check(Math.abs(strava.sessionsPerWeek - 2) < 0.3, `träningsfrekvens från Strava: ${strava.sessionsPerWeek} pass/vecka`)
-const expected = (bmr90 * 1.2 * strava.dataDays + 600 * stravaRuns.length) / strava.dataDays
-check(Math.abs(strava.measuredTdee - expected) <= 15, `TDEE = BMR × 1,2 + passens kalorier i snitt (${strava.measuredTdee} ≈ ${Math.round(expected)})`)
+check(Math.abs(synced.sessionsPerWeek - 2) < 0.3, `träningsfrekvens från synkade pass: ${synced.sessionsPerWeek} pass/vecka`)
+const expected = (bmr90 * 1.2 * synced.dataDays + 600 * syncedRuns.length) / synced.dataDays
+check(Math.abs(synced.measuredTdee - expected) <= 15, `TDEE = BMR × 1,2 + passens kalorier i snitt (${synced.measuredTdee} ≈ ${Math.round(expected)})`)
 
 const k = appWorkoutKcal(lift(today, 16), 90)
 check(k.minutes === 40 && k.kcal > 250 && k.kcal < 450, `pass i appen: 16 set ≈ ${k.minutes} min, ${k.kcal} kcal`)
-const withApp = adaptiveProjection({ ...base, activities: stravaRuns, workouts: days(28).filter((_, i) => i % 7 === 1).map((d) => lift(d, 16)) })
-check(withApp.sessionsPerWeek > strava.sessionsPerWeek && withApp.sources.includes("app"), `appens pass räknas också (${withApp.sessionsPerWeek} pass/vecka)`)
-check(withApp.measuredTdee > strava.measuredTdee, "appens pass ökar förbränningen")
+const withApp = adaptiveProjection({ ...base, activities: syncedRuns, workouts: days(28).filter((_, i) => i % 7 === 1).map((d) => lift(d, 16)) })
+check(withApp.sessionsPerWeek > synced.sessionsPerWeek && withApp.sources.includes("app"), `appens pass räknas också (${withApp.sessionsPerWeek} pass/vecka)`)
+check(withApp.measuredTdee > synced.measuredTdee, "appens pass ökar förbränningen")
 
-// Dubbelräkning: samma styrkepass i Strava och appen räknas en gång.
+// Dubbelräkning: samma styrkepass i klockan och appen räknas en gång.
 const syncedLift: ActivityLog = { ...run(today, 300, "lift"), sport: "WeightTraining" }
 const dup = adaptiveProjection({ ...base, activities: [syncedLift], workouts: [lift(today, 16)] })
-check(dup.sessionsPerWeek === 1 && dup.sources.every((s) => s !== "app"), "styrkepass som redan synkats från Strava räknas inte igen från appen")
+check(dup.sessionsPerWeek === 1 && dup.sources.every((s) => s !== "app"), "styrkepass som redan synkats från synkade pass räknas inte igen från appen")
 // Telefonens dagssumma innehåller redan passen: det största gäller, inte summan.
 const both = adaptiveProjection({ ...base, activityDays: device(700, 1), activities: [run(today, 500)] })
-check(Math.abs(both.avgActiveKcal - 700) <= 1, `dagssumma 700 + Strava 500 samma dag → 700 kcal, inte 1 200 (${both.avgActiveKcal})`)
+check(Math.abs(both.avgActiveKcal - 700) <= 1, `dagssumma 700 + pass 500 samma dag → 700 kcal, inte 1 200 (${both.avgActiveKcal})`)
 
 // -------------------------------------------- förankring i vägningen ---
 const weighed = adaptiveProjection({ ...base, weightLog: [{ date: addDays(today, -2), kg: 87.4 }] })

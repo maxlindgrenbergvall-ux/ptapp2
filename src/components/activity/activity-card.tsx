@@ -1,16 +1,14 @@
 "use client"
 
-import { Activity, Bike, Dumbbell, Flame, Footprints, Heart, Loader2, RefreshCw, Smartphone, Timer, Unplug, Waves } from "lucide-react"
+import { Activity, Bike, Dumbbell, Flame, Footprints, Heart, Loader2, Smartphone, Timer, Waves } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { confirmDialog } from "@/components/ui/confirm"
 import { daySummary, formatDistance, formatDuration, SOURCE_LABEL, sportLabel } from "@/lib/activity/summary"
 import { useAppData } from "@/lib/data/store"
 import { addDays, todayISO } from "@/lib/date"
 import { connectHealth, disconnectHealth, HEALTH_LABEL, healthAvailable, healthConnected, healthSource, healthSyncDue, readDeviceActivity } from "@/lib/native/health"
-import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import type { ActivityLog, ID } from "@/types/domain"
 
@@ -24,7 +22,7 @@ function SportIcon({ sport, className }: { sport: string; className?: string }) 
 
 /**
  * Kalorimätaren (v32): förbränd aktiv energi och aktiv tid i dag, veckans
- * staplar och dagens pass – från Strava, Apple Hälsa och Health Connect, utan
+ * staplar och dagens pass – från Apple Hälsa och Health Connect, utan
  * dubbelräkning (se src/lib/activity/summary.ts). Klienten kopplar källorna
  * här; PT:n ser samma siffror (skrivskyddat, `readOnly`).
  */
@@ -43,7 +41,7 @@ export function ActivityCard({ clientId, readOnly, compact }: { clientId: ID; re
             <Flame className="size-4 text-orange-500" /> Aktivitet i dag
           </h2>
           <p className="text-xs text-muted-foreground">
-            {summary.sources.length ? `Från ${summary.sources.map((s) => SOURCE_LABEL[s]).join(", ")}` : "Koppla Strava eller telefonens hälsodata"}
+            {summary.sources.length ? `Från ${summary.sources.map((s) => SOURCE_LABEL[s]).join(", ")}` : "Koppla Apple Hälsa eller Health Connect i appen"}
           </p>
         </div>
         {!readOnly && <SyncButtons clientId={clientId} />}
@@ -122,30 +120,12 @@ function ActivityRow({ a }: { a: ActivityLog }) {
   )
 }
 
-/** Koppla och synka källorna: Strava (alla) och telefonens hälsodata (bara i appen). */
+/** Koppla och synka telefonens hälsodata: Apple Hälsa (iPhone) eller Health Connect (Android). Bara i appen. */
 function SyncButtons({ clientId }: { clientId: ID }) {
-  const { data, mode, actions } = useAppData()
-  const strava = data.wearables.find((w) => w.provider === "strava" && w.status !== "revoked")
-  const [busy, setBusy] = React.useState<"strava" | "health" | null>(null)
+  const { actions } = useAppData()
+  const [busy, setBusy] = React.useState<"health" | null>(null)
   const [deviceHealth, setDeviceHealth] = React.useState<{ available: boolean; connected: boolean }>({ available: false, connected: false })
   const source = healthSource()
-
-  // Resultat från Strava-flödet (?strava=…).
-  React.useEffect(() => {
-    const url = new URL(window.location.href)
-    const status = url.searchParams.get("strava")
-    if (!status) return
-    const messages: Record<string, () => void> = {
-      ansluten: () => toast.success("Strava är kopplat", { description: "Dina senaste aktiviteter är hämtade." }),
-      nekad: () => toast("Kopplingen till Strava avbröts"),
-      behorighet: () => toast.error("Coavira behöver få läsa dina aktiviteter", { description: "Koppla igen och låt rutan för aktiviteter vara ikryssad." }),
-      "ej-aktiverad": () => toast("Strava är inte aktiverat än (STRAVA_CLIENT_ID saknas på servern)"),
-      fel: () => toast.error("Kopplingen till Strava misslyckades. Försök igen."),
-    }
-    messages[status]?.()
-    url.searchParams.delete("strava")
-    window.history.replaceState(null, "", url)
-  }, [])
 
   const syncHealth = React.useCallback(
     async (quiet = false) => {
@@ -180,58 +160,6 @@ function SyncButtons({ clientId }: { clientId: ID }) {
     }
   }, [])
 
-  const connectStrava = () => {
-    if (mode === "demo") {
-      const now = new Date().toISOString()
-      actions.setWearables([...data.wearables.filter((w) => w.provider !== "strava"), { provider: "strava", status: "active", connectedAt: now, lastSyncedAt: now }])
-      toast.success("Strava kopplat (demo)")
-      return
-    }
-    // Hel sidladdning (även i appen): API-routen skickar vidare till Stravas inloggning och tillbaka hit.
-    const back = window.location.pathname
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign(`/api/strava/connect?tillbaka=${encodeURIComponent(back)}`)
-  }
-
-  const syncStrava = async () => {
-    setBusy("strava")
-    try {
-      if (mode === "supabase") {
-        const res = await fetch("/api/strava/sync", { method: "POST" })
-        const body = (await res.json().catch(() => ({}))) as { error?: string; activities?: number }
-        if (!res.ok) throw new Error(body.error ?? "Synken misslyckades")
-        const { reloadActivities, reloadSleepAndWearables } = await import("@/lib/data/supabase-source")
-        const [list, fresh] = await Promise.all([reloadActivities(getSupabase()), reloadSleepAndWearables(getSupabase())])
-        actions.setActivities("strava", list.filter((a) => a.source === "strava"))
-        actions.setWearables(fresh.wearables)
-        toast.success(`Strava är synkat (${body.activities ?? 0} aktiviteter)`)
-      } else {
-        toast.success("Strava är synkat (demo)")
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Synken misslyckades")
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const disconnectStrava = async () => {
-    if (!(await confirmDialog({ title: "Koppla från Strava?", description: "Åtkomsten återkallas hos Strava och passen därifrån tas bort i Coavira.", confirmLabel: "Koppla från" }))) return
-    setBusy("strava")
-    try {
-      if (mode === "supabase") {
-        const res = await fetch("/api/strava/disconnect", { method: "POST" })
-        if (!res.ok) throw new Error("Kunde inte koppla från")
-      }
-      actions.setWearables(data.wearables.filter((w) => w.provider !== "strava"))
-      actions.setActivities("strava", [])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Kunde inte koppla från")
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const connectDevice = async () => {
     setBusy("health")
     try {
@@ -251,20 +179,6 @@ function SyncButtons({ clientId }: { clientId: ID }) {
 
   return (
     <div className="flex flex-col items-end gap-1.5">
-      {strava ? (
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" className="h-8 gap-1 border-[#fc4c02]/40 text-[#fc4c02]" onClick={() => void syncStrava()} disabled={busy !== null} data-testid="strava-sync">
-            {busy === "strava" ? <Loader2 className="animate-spin" /> : <RefreshCw />} Strava
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Koppla från Strava" onClick={() => void disconnectStrava()} disabled={busy !== null}>
-            <Unplug />
-          </Button>
-        </div>
-      ) : (
-        <Button size="sm" className="h-8 bg-[#fc4c02] text-white hover:bg-[#e34402]" onClick={connectStrava} data-testid="strava-connect">
-          Koppla Strava
-        </Button>
-      )}
       {deviceHealth.available && source && (
         <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => void (deviceHealth.connected ? syncHealth() : connectDevice())} disabled={busy !== null} data-testid="health-sync">
           {busy === "health" ? <Loader2 className="animate-spin" /> : <Smartphone />}

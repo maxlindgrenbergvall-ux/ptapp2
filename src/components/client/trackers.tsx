@@ -1,5 +1,6 @@
 "use client"
 
+import { reward } from "@/components/rewards"
 import { Droplet, Minus, Moon, Pencil, Plus, RefreshCw, Unplug, Utensils, Watch, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
@@ -262,6 +263,10 @@ export function WaterTracker({ date }: { date: ISODate }) {
   const add = (delta: number) => {
     if (delta > 0) navigator.vibrate?.(8)
     actions.addWater(date, delta)
+    // v52: en liten belöning när dagens vattenmål nås (en gång per dag).
+    if (ml < goal && ml + delta >= goal) {
+      reward("water", "Vattenmålet i hamn", `${(goal / 1000).toLocaleString("sv-SE")} liter idag. Bra för både pass och huvud.`, { oncePerDay: `water:${date}` })
+    }
   }
 
   return (
@@ -590,7 +595,7 @@ export function WearablesCard() {
     setBusy("sync")
     try {
       if (mode === "demo") {
-        data.wearables.forEach((w) => w.provider !== "strava" && demoSync(w.provider, 7))
+        data.wearables.forEach((w) => demoSync(w.provider, 7))
       } else {
         const res = await fetch("/api/wearables/sync", { method: "POST" })
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Synk misslyckades")
@@ -620,8 +625,7 @@ export function WearablesCard() {
     }
   }
 
-  // Strava (aktiviteter) visas i aktivitetskortet, inte bland sömnkällorna.
-  const connected = data.wearables.filter((w) => w.status !== "revoked" && w.provider !== "strava")
+  const connected = data.wearables.filter((w) => w.status !== "revoked")
 
   return (
     <section className="space-y-3 rounded-2xl border bg-card p-5" aria-labelledby="wearables-title">

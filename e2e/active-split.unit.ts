@@ -1,3 +1,4 @@
+import { addRestDay, isRestDay, moveSplitDay, nextDayIndex as nextIdx, removeRestDay, reorderSplitDays, restDay, withRestDays } from "../src/lib/active-split"
 // Enhetstest för det aktiva träningsschemat (v43): "Nästa pass", rotation och veckans pass.
 //   npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts
 import { advanceSplit, nextDayIndex, nextSplitAction, suggestedDaysPerWeek, weekProgress, weekStart } from "@/lib/active-split"
@@ -54,6 +55,34 @@ check(weekStart("2026-11-06") === "2026-11-02" && weekStart("2026-11-08") === "2
 const p = weekProgress({ ...split, daysPerWeek: 4 }, [w("a", "completed", "2026-11-02"), w("b", "completed", "2026-11-05"), w("c", "planned", "2026-11-06"), w("d", "completed", "2026-11-01")], "2026-11-06")
 check(p.done === 2 && p.goal === 4 && !p.reached, `2 av 4 pass denna vecka (förra veckans räknas inte)`)
 check(suggestedDaysPerWeek(3) === 3 && suggestedDaysPerWeek(6) === 5 && suggestedDaysPerWeek(1) === 3, "förslag: 3–5 dagar per vecka")
+
+
+// ------------------------------------------------- vilodagar (v52) ---
+{
+  const ex = [{ exerciseId: "e-bench", sets: 3, reps: "8", restSec: 90 }]
+  const d = (name: string): ActiveSplit["days"][number] => ({ name, focus: "", exercises: ex })
+  const week = withRestDays([d("Push"), d("Pull"), d("Legs")], [0, 2, 4], restDay)
+  const names = (s: { days: { name: string }[] }) => s.days.map((x) => x.name).join(",")
+  const v = (c: unknown, m: string) => check(Boolean(c), m)
+  v(names({ days: week }) === "Push,Vila,Pull,Vila,Legs,Vila,Vila", "PPL mån/ons/fre läggs ut med vilodagar emellan")
+  v(withRestDays([d("A"), d("B")], [0], restDay).length === 2, "utan passande veckodagar: inga vilodagar")
+  let s = { days: week, nextDay: 2 } // Pull står på tur
+  s = moveSplitDay(s, 1, 5)
+  v(names(s) === "Push,Pull,Vila,Legs,Vila,Vila,Vila" && s.days[s.nextDay].name === "Pull", "flytta en vilodag: samma pass står på tur")
+  s = moveSplitDay(s, 1, 0)
+  v(names(s).startsWith("Pull,Push") && s.days[s.nextDay].name === "Pull", "flytta ett pass: det står fortfarande på tur")
+  s = reorderSplitDays(s, [1, 0, 2, 3, 4, 5, 6])
+  v(names(s).startsWith("Push,Pull") && s.days[s.nextDay].name === "Pull", "dra och släpp: ny ordning, samma pass på tur")
+  v(addRestDay(s) === s, "högst sju dagar")
+  s = removeRestDay(s, 2)
+  v(s.days.length === 6 && s.days[s.nextDay].name === "Pull", "ta bort en vilodag")
+  v(removeRestDay(s, 0) === s, "ett träningspass tas inte bort som vilodag")
+  s = addRestDay(s, 0)
+  v(isRestDay(s.days[0]) && s.days[s.nextDay].name === "Pull", "vilodag först: passet på tur följer med")
+  v(nextIdx({ days: s.days, nextDay: 0 }) === 1, "Nästa pass hoppar över vilodagar")
+  const allRest = { days: [restDay(), restDay()], nextDay: 0 }
+  v(nextIdx(allRest) === null, "bara vilodagar: inget pass på tur")
+}
 
 console.log(failed ? `\n${failed} fel` : "\nSCHEMAT GODKÄNT")
 process.exit(failed ? 1 : 0)

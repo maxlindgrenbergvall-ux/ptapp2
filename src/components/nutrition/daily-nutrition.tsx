@@ -1,5 +1,6 @@
 "use client"
 
+import { reward } from "@/components/rewards"
 import { Check, ChevronLeft, ChevronRight, Flame, Lock, Plus, Search, Sparkles, Star } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
@@ -88,7 +89,7 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
     </div>
   )
   const planOwner = plan ? data.trainers.find((t) => t.id === plan.trainerId)?.name : undefined
-  // v32: förbränd aktiv energi samma dag (Strava, Apple Hälsa, Health Connect).
+  // v32: förbränd aktiv energi samma dag (Apple Hälsa, Health Connect).
   const burned = daySummary(data.activities, data.activityDays, clientId, date)
 
   return (
@@ -196,6 +197,15 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
                     onClick={() => {
                       if (!isChecked) setPop((p) => ({ id: m.id, n: p.n + 1 }))
                       actions.toggleMeal(clientId, date, m.id)
+                      // v52: en liten belöning – för måltiden, och en gång per dag när alla är klara.
+                      if (!isChecked && date <= todayISO()) {
+                        const doneNow = checked.size + 1
+                        if (doneNow >= plan.meals.length) {
+                          reward("meals_done", "Alla måltider klara", "Dagens kostschema är avprickat. Snyggt genomfört.", { oncePerDay: `meals:${date}` })
+                        } else {
+                          reward("meal", `${m.name} avbockad`, `${doneNow} av ${plan.meals.length} måltider klara idag.`)
+                        }
+                      }
                     }}
                     aria-pressed={isChecked}
                     className="flex w-full items-center gap-3 rounded-lg py-3 text-left transition-transform active:scale-[0.99]"

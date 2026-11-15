@@ -1272,7 +1272,6 @@ function PaymentDemo() {
 const SOURCES: { label: string; icon: LucideIcon; x: number; y: number }[] = [
   { label: "Apple Hälsa", icon: Heart, x: 25, y: 18 },
   { label: "Health Connect", icon: Watch, x: 75, y: 18 },
-  { label: "Strava", icon: Activity, x: 50, y: 84 },
 ]
 /** SVG-ytan är 400 × 400 (samma proportioner som rutan), så procent → koordinat är × 4 och mitten 200. */
 const HUB = 200
@@ -1380,7 +1379,7 @@ export function FeatureBento() {
             icon={Dumbbell}
             kicker="PT + klient"
             title="Din PT. Din plan."
-            text="PT:n bygger ditt split och du ser nästa pass direkt i appen. Passet klarmarkeras när vikterna är ifyllda."
+            text="PT:n bygger ditt upplägg och du ser nästa pass direkt i appen. Passet klarmarkeras när vikterna är ifyllda."
           >
             <SyncDemo />
           </BentoCard>
@@ -1421,7 +1420,7 @@ export function FeatureBento() {
             kicker="Hälsosynk"
             title="Koppla dina appar"
             delay={0.16}
-            text="Sömn, pass och förbränning från Apple Hälsa, Health Connect och Strava – samlat i appen."
+            text="Sömn, pass och förbränning från Apple Hälsa och Health Connect – samlat i appen."
           >
             <ConnectionsDemo />
           </BentoCard>

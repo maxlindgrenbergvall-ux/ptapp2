@@ -16,7 +16,7 @@ export function ConnectionsPage() {
   const { me } = useAppData()
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      {/* v32: Strava och telefonens hälsodata (kalorier och aktiv tid). */}
+      {/* v32: telefonens hälsodata (kalorier och aktiv tid). */}
       {me.role === "client" && <ActivityCard clientId={me.id} compact />}
       {me.role === "client" && <WearablesCard />}
       <Card className="gap-3">

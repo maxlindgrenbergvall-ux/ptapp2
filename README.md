@@ -578,6 +578,50 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v52: upplägg med flyttbara vilodagar, Strava borta, bottenmeny för PT, belöningar, historik och klickbara KPI-kort
+
+**Upplägg i stället för splits** (`src/components/workouts/split-builder.tsx`, `next-workout.tsx`, `src/lib/active-split.ts`):
+- Klienten ser ordet *Upplägg* överallt: sidan, knapparna och profilen. Biblioteket presenteras som tips att utgå från ("Testa"), inte som låsta scheman.
+- **Vilodagar** är egna dagar i upplägget (`rest: true`). Ett färdigt upplägg läggs ut på en vecka med vilodagar emellan, till exempel Push · Vila · Pull · Vila · Legs · Vila · Vila.
+- Dagarna flyttas med drag-and-drop i handtaget, eller pil upp/ned på handtaget. Det gäller både när man bygger upplägget och i det aktiva upplägget. Vilodagar kan läggas till och tas bort; ett upplägg är högst sju dagar.
+- *Nästa pass* hoppar över vilodagar, och passet som står på tur är detsamma efter en flytt.
+- Ingen databasändring behövs: vilodagen ryms i `client_splits.days` (jsonb).
+
+**Strava är borttaget:**
+- Koden (`/api/strava/*`, `src/lib/activity/strava.ts`), knapparna, texterna på landningssidan och i integritetstexten, samt testerna är borta. Apple Hälsa (HealthKit) och Health Connect är orörda.
+- **Kör migrationen** `supabase/migrations/20261123000000_v52_remove_strava.sql`:
+  - Strava-anslutningar och deras tokens raderas.
+  - Pass som redan synkats från Strava **behålls** som klientens historik, med källan *Manuellt*.
+  - Databasen spärrar Strava som källa och anslutning framåt.
+- Efter migrationen kan `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` och `STRAVA_API_BASE` tas bort ur Vercel, och appen kan tas bort i Stravas API-inställningar.
+
+**Bottenmeny i PT-appen** (`src/components/pt/pt-shell.tsx`):
+- Fast meny längst ner under 1024 px med fem flikar: Översikt, Kalender, Passbyggare, Kostscheman och Meddelanden. Prickar visar olästa meddelanden och väntande bokningsförfrågningar.
+- Menyn tar hänsyn till telefonens hemindikator (safe area), och sidornas innehåll får luft så att inget hamnar bakom den.
+- *Min profil*, inställningar och utloggning nås som förut via menyn uppe till vänster. På dator gäller sidomenyn.
+- Klientappen hade redan en bottenmeny och är oförändrad.
+
+**Små belöningar** (`src/components/rewards.tsx`):
+- En limegrön bricka med ikon, ring och tre gnistor, plus en kort saklig text.
+- Visas när vattenmålet nås (en gång per dag), när en måltid bockas av, och när alla dagens måltider är klara (en gång per dag).
+- Sammanfattningen efter passet visar utmärkelser för det som faktiskt hände: *Nytt rekord*, *Veckans mål* och *N veckor i rad*.
+- Bara transform och opacity; med "minska rörelse" visas brickan stilla.
+
+**Grön bock och historik** (`src/components/workouts/workout-history-dialog.tsx`):
+- Avklarade pass har grön bock på översikten och i kalendern. Kalendern visar nu även avklarade egna pass.
+- Ett tryck på ett avklarat pass öppnar en modal med varje övning och varje genomfört set (vikt × reps), antal set, volym och kommentarer, plus en länk till hela passet.
+
+**Klickbara KPI-kort på PT-översikten** (`src/components/pt/kpi-dialogs.tsx`):
+- *Aktiva klienter* filtrerar klientlistan på aktiva och rullar dit.
+- *Loggade pass* öppnar veckans pass: inbokade pass och bokningar de kommande sju dagarna, per dag och klient, samt de pass som loggats de senaste sju.
+- *Snittföljsamhet* öppnar en graf över följsamhet per vecka i tolv veckor (med tabellvy) och läget per klient.
+
+Test:
+- `npx tsx --tsconfig tsconfig.json e2e/active-split.unit.ts` (vilodagar)
+- `npx tsx --tsconfig tsconfig.json e2e/adherence.unit.ts`
+- `node e2e/v52-navigering.test.mjs`
+- Databas: `supabase/tests/rls_v52.test.sql`
+
 ## Nytt i v51: planera i förväg, PT-länkar, nya diagram och sammanfattning efter passet
 
 **Klickbara dagar på Idag** (`src/components/client/day-planner.tsx`):
@@ -1071,7 +1115,7 @@ All funktionalitet finns kvar. Det som ändrats är var saker ligger och hur tä
 - **Splits** (`src/lib/splits.ts`, `/klient/schema`, PT: "Nytt pass → Från split"): PPL (3 och 6 dagar), Upper/Lower, 4-split, Bro split och Full Body. Alla kan anpassas. Klienten lägger ut passen i kalendern på valda veckodagar; PT:n får en mall per dag.
 - **Vilotid** (`src/lib/rest-timer.ts`): 45 s–3 min eller eget värde, som standard (Inställningar) eller under passet. Notis på låsskärmen i appen (`@capacitor/local-notifications`).
 - **Lägg till set / övning** under passet, även i PT:ns pass. PT:ns egna övningar kan inte tas bort eller ändras (databasregeln `exercises_only_extended`).
-- **Strava** (`src/lib/activity/strava.ts`, `/api/strava/*`):
+- **Strava** – **borttaget i v52** (koden, API-vägarna och anslutningarna finns inte längre; texten nedan är historik):
   - OAuth på servern, med state-cookie.
   - Tokens sparas bara med service role (`wearable_tokens`).
   - Synkar de senaste 30 dagarna.
@@ -1494,14 +1538,13 @@ node e2e/v35-demo.test.mjs     # (demo) God morgon/Hej/God kväll med falsk kloc
 node e2e/mock-resend.mjs &     # (krävs av v35-supabase) Resends API på :54800 (RESEND_API_KEY=re_test RESEND_API_BASE=http://localhost:54800)
 npx tsx --tsconfig tsconfig.json e2e/exercise-groups.unit.ts # muskelgrupperna (Biceps/Triceps, Baksida lår/Säte/Vader …)
 node e2e/v38-ovningar.test.mjs # (demo) byt övning i split, muskelgrupper/filter/sök, drag-and-drop i split och eget pass, Lägg till övning i passet
+node e2e/v52-navigering.test.mjs # (demo, 390 px) upplägg och vilodagar, Strava borta, PT:ns bottenmeny, belöningar, historik, KPI-kort
 node e2e/v51-plattform.test.mjs # (demo, 390 px) klickbara dagar och planering, PT-länkar, diagram, sammanfattning efter passet
 node e2e/v37-mobil.test.mjs   # (demo, 360 px) ingen overflow, viktfältet, Varför?, Ta bort passet längst ned, profilen som inställningsnav
 node e2e/v36-supabase.test.mjs # Pop-upen: syns bara för den som aldrig valt, Fråga mig senare → nästa inloggning, Ja → Resend-segmentet, Nej → ingen kontakt
 node e2e/v35-supabase.test.mjs # Nyhetsbrev → Resend: klient → "Klient - Nyhetsbrev", PT → "PT - Nyhetsbrev", kryss bort → avregistrerad, inget samtycke → ingen kontakt
 node e2e/v34-demo.test.mjs     # (demo) Avtalet i intro-flödet, nyhetsbrev, dynamisk kurva, drag-and-drop i pass och split, raka set, /avtal
 node e2e/v32-traning-demo.test.mjs # (demo) Progression i passet, vilotid, lägg till set/övning, splits (klient + PT), kalorimätaren, rensad profil
-node e2e/mock-strava.mjs &         # (krävs av v32-supabase) Stravas API på :54700 (STRAVA_API_BASE=http://localhost:54700, STRAVA_CLIENT_ID=123, STRAVA_CLIENT_SECRET=sek)
-node e2e/v32-supabase.test.mjs     # Strava: OAuth/CSRF, tokens på servern, kalorier, synk utan dubbletter, koppla från
 node e2e/v31-intro-demo.test.mjs # (demo, MODERATION_TEST_BLOCK_COLOR=ff00ff) Välkomststeget utan namn, steg 1 med bildfiltret, klientens mål, Framsteg mot plan
 node e2e/v31-supabase.test.mjs  # Befintliga konton tvingas genom intro-flödet; klient: steg 1 → mål → klar; PT: steg 1 → villkor → aktiverat
 node e2e/v30-mal-intro.test.mjs  # (demo) Intro-flödet, reglaget räknar om i realtid, två grafer, Profil → Mål, PT:ns vy, friskrivning

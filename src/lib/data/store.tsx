@@ -742,6 +742,13 @@ function createActions(ctx: {
       const n = Math.min(MAX_DAYS_PER_WEEK, Math.max(MIN_DAYS_PER_WEEK, Math.round(daysPerWeek)))
       if (n !== s.daysPerWeek) commit({ type: "saveActiveSplit", split: { ...s, daysPerWeek: n, updatedAt: now() } })
     },
+    /** v52: ny ordning på dagarna / vilodagar tillagda eller borttagna (se moveSplitDay m.fl.). */
+    updateSplitDays: (change: (s: ActiveSplit) => ActiveSplit) => {
+      const s = getData().activeSplits.find((x) => x.clientId === me.id)
+      if (!s) return
+      const next = change(s)
+      if (next !== s) commit({ type: "saveActiveSplit", split: { ...next, clientId: me.id, updatedAt: now() } })
+    },
     stopActiveSplit: () => commit({ type: "deleteActiveSplit", clientId: me.id }),
     /**
      * "Nästa pass": öppna passet som redan startats från schemat (om det inte är
@@ -954,7 +961,7 @@ function createActions(ctx: {
     syncDeviceActivity: (days: ActivityDay[], activities: ActivityLog[]) => {
       if (days.length || activities.length) commit({ type: "syncDeviceActivity", days, activities })
     },
-    /** Aktiviteter från servern (efter en Strava-synk) – ersätter de gamla från samma källa. */
+    /** Aktiviteter från servern (efter en synk) – ersätter de gamla från samma källa. */
     setActivities: (source: ActivityLog["source"], activities: ActivityLog[]) => ctx.dispatch({ type: "setActivities", source, activities }),
     resetDemo: () => {
       if (ctx.mode !== "demo") return

@@ -771,7 +771,7 @@ export function createSeedData(today = todayISO()): AppData {
     goalProfiles: [miraGoals(today)],
     // v43: Sara kör Push/Pull/Legs tre dagar i veckan – "Nästa pass" på startsidan.
     activeSplits: [demoActiveSplit(today)],
-    // v32: Saras löp- och cykelpass (som från Strava) – kalorimätaren i demon.
+    // v32: Saras löp- och cykelpass (som från Apple Hälsa) – kalorimätaren i demon.
     activities: demoActivities(today),
     activityDays: [],
     clients: makeClients(today),
@@ -895,13 +895,13 @@ function miraGoals(today: string): GoalProfile {
   }
 }
 
-/** Demo: aktiviteter (som om de synkats från Strava). */
+/** Demo: aktiviteter (som om de synkats från Apple Hälsa). */
 function demoActivities(today: string): ActivityLog[] {
   const at = (date: string, time: string) => `${date}T${time}:00+01:00`
   return [
-    { id: "act-1", clientId: "c1", source: "strava", externalId: "1001", sport: "Run", name: "Morgonlöpning", startedAt: at(today, "07:10"), date: today, durationSec: 1920, distanceM: 5400, kcal: 382 },
-    { id: "act-2", clientId: "c1", source: "strava", externalId: "1000", sport: "Ride", name: "Cykel till jobbet", startedAt: at(addDays(today, -1), "07:45"), date: addDays(today, -1), durationSec: 1500, distanceM: 9100, kcal: 210 },
-    { id: "act-3", clientId: "c1", source: "strava", externalId: "999", sport: "Run", name: "Intervaller 6×800", startedAt: at(addDays(today, -3), "18:00"), date: addDays(today, -3), durationSec: 2700, distanceM: 7800, kcal: 540 },
+    { id: "act-1", clientId: "c1", source: "apple_health", externalId: "1001", sport: "Run", name: "Morgonlöpning", startedAt: at(today, "07:10"), date: today, durationSec: 1920, distanceM: 5400, kcal: 382 },
+    { id: "act-2", clientId: "c1", source: "apple_health", externalId: "1000", sport: "Ride", name: "Cykel till jobbet", startedAt: at(addDays(today, -1), "07:45"), date: addDays(today, -1), durationSec: 1500, distanceM: 9100, kcal: 210 },
+    { id: "act-3", clientId: "c1", source: "apple_health", externalId: "999", sport: "Run", name: "Intervaller 6×800", startedAt: at(addDays(today, -3), "18:00"), date: addDays(today, -3), durationSec: 2700, distanceM: 7800, kcal: 540 },
   ]
 }
 

@@ -168,7 +168,8 @@ interface ActivityDayRow {
 export const toActivity = (r: ActivityRow): ActivityLog => ({
   id: r.id,
   clientId: r.client_id,
-  source: r.source,
+  // v52: Strava är borttaget. Rader från före migrationen visas som manuella pass.
+  source: (r.source as string) === "strava" ? "manual" : r.source,
   externalId: r.external_id,
   sport: r.sport,
   name: r.name,
@@ -1048,7 +1049,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     sb.from("workout_templates").select("*").eq("client_id", uid).order("name"),
     // Mål och kalorimål från intro-flödet (v30). Saknas tabellen blir listan tom.
     sb.from("client_goals").select("*").eq("client_id", uid),
-    // Aktiviteter (v32): Strava, Apple Health, Health Connect.
+    // Aktiviteter (v32): Apple Health, Health Connect.
     sb.from("activity_logs").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(300),
     sb.from("activity_days").select("*").eq("client_id", uid).gte("date", addDays(todayISO(), -60)),
     // Aktivt träningsschema (v43). Saknas tabellen (v43 inte körd än) blir listan tom.
@@ -1099,7 +1100,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         date: m.date,
         mealId: m.meal_id,
       })),
-      wearables: must<WearableRow[]>(wearables, "wearables").map(toWearable),
+      wearables: must<WearableRow[]>(wearables, "wearables").filter((w) => (w.provider as string) !== "strava").map(toWearable),
       customFoods: must<ProductRow[]>(products, "egna produkter").map(toProduct),
     },
   }
@@ -1741,7 +1742,7 @@ async function persistDeviceActivity(sb: SupabaseClient, me: Me, days: ActivityD
   )
 }
 
-/** Efter en Strava-synk på servern: läs om aktiviteterna (RLS: bara egna rader). */
+/** Läs om aktiviteterna från servern (RLS: bara egna rader). */
 export async function reloadActivities(sb: SupabaseClient): Promise<ActivityLog[]> {
   const { data, error } = await sb.from("activity_logs").select("*").gte("date", addDays(todayISO(), -60)).order("started_at", { ascending: false }).limit(300)
   return error ? [] : ((data ?? []) as ActivityRow[]).map(toActivity)
@@ -1755,7 +1756,7 @@ export async function reloadSleepAndWearables(sb: SupabaseClient) {
   ])
   return {
     sleepLogs: must<SleepRow[]>(sleep, "sömn").map(toSleep),
-    wearables: must<WearableRow[]>(conns, "wearables").map(toWearable),
+    wearables: must<WearableRow[]>(conns, "wearables").filter((w) => (w.provider as string) !== "strava").map(toWearable),
   }
 }
 

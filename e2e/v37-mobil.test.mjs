@@ -3,7 +3,7 @@
 //   - passet: vikten syns hela i fältet, "Varför?" visar förklaringen, "Förra" fyller i,
 //     Vila finns kvar i passet, "Ta bort passet" ligger längst ned (eget pass),
 //   - profilen samlar träningsinställningarna (vilotid i en dialog, hälsosynk, schema, nyhetsbrev),
-//   - inga funktioner borta: Logga eget pass, Schema och splits, Inställningar → Träning.
+//   - inga funktioner borta: Logga eget pass, Upplägg, Inställningar → Träning.
 //   BASE_URL=http://localhost:3000 node e2e/v37-mobil.test.mjs [skärmdumpsmapp]
 import { chromium } from "playwright"
 import fs from "node:fs"
@@ -40,7 +40,7 @@ for (const path of ["/klient", "/klient/framsteg", "/klient/kost", "/klient/prof
 await p.goto(base + "/klient")
 await p.waitForSelector("text=Dagens träning")
 check(await p.locator('button:has-text("Logga eget pass")').isVisible(), "Logga eget pass finns kvar")
-check(await p.locator("[data-testid=open-schedule]").isVisible(), "Schema och splits finns kvar (bredvid)")
+check(await p.locator("[data-testid=open-schedule]").isVisible(), "Upplägg finns kvar (bredvid)")
 const [a, b] = await Promise.all([p.locator('button:has-text("Logga eget pass")').boundingBox(), p.locator("[data-testid=open-schedule]").boundingBox()])
 check(Math.abs(a.y - b.y) < 4, "genvägarna ligger på samma rad")
 
@@ -83,7 +83,7 @@ check(!(await demo()).workouts.some((x) => x.name === "Testpass v37"), "eget pas
 // --------------------------------------------- profilen som inställningsnav ---
 await p.goto(base + "/klient/profil")
 await p.waitForSelector("[data-testid=profile-training]")
-for (const label of ["Vilotid mellan set", "Hälsosynk och anslutningar", "Träningsschema och splits", "Nyhetsbrev och erbjudanden", "Alla inställningar"]) {
+for (const label of ["Vilotid mellan set", "Hälsosynk och anslutningar", "Träningsupplägg", "Nyhetsbrev och erbjudanden", "Alla inställningar"]) {
   check(await p.locator(`[data-testid=profile-training] >> text=${label}`).isVisible(), `profilen → Träning: ${label}`)
 }
 check(await p.locator("[data-testid=profile-goals] [data-testid=goal-pills], [data-testid=profile-goals] >> text=Du har inte valt").first().isVisible(), "Mina mål i ett kort")

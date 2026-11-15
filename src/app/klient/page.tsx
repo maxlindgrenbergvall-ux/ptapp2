@@ -100,14 +100,14 @@ export default function TodayPage() {
           <OwnWorkoutDialog />
           {/* v32: träningssplits och schema. */}
           <Button asChild variant="outline" className="w-full" data-testid="open-schedule">
-            <Link href="/klient/schema" aria-label="Träningsschema och splits">
-              <CalendarRange /> Schema och splits
+            <Link href="/klient/schema" aria-label="Träningsupplägg">
+              <CalendarRange /> Upplägg
             </Link>
           </Button>
         </div>
       </section>
 
-      {/* v32: kalorimätaren – Strava, Apple Hälsa och Health Connect. */}
+      {/* v32: kalorimätaren – Apple Hälsa och Health Connect. */}
       <ActivityCard clientId={client.id} />
 
       {/* v42: kostdagboken är en egen sida (Kost i bottenmenyn) – här bara dagens kalorier och en genväg. */}

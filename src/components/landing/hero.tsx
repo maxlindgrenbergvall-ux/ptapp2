@@ -88,8 +88,8 @@ const TABS: { label: string; icon: LucideIcon; active?: boolean; dot?: boolean }
 
 /** Appens kärna i fyra punkter – sanna fakta, inget rullande band. */
 const TRUST: { label: string; sub: string; icon: LucideIcon }[] = [
-  { label: "Träningssplits", sub: "Nästa pass ligger alltid redo", icon: Dumbbell },
-  { label: "Hälsosynk", sub: "Apple Hälsa, Health Connect, Strava", icon: Watch },
+  { label: "Träningsupplägg", sub: "Nästa pass ligger alltid redo", icon: Dumbbell },
+  { label: "Hälsosynk", sub: "Apple Hälsa och Health Connect", icon: Watch },
   { label: "Chatt och videosamtal", sub: "Direkt med din PT, i samma tråd", icon: Video },
   { label: "Verifierade PT:er", sub: "Certifikat granskas manuellt", icon: BadgeCheck },
 ]

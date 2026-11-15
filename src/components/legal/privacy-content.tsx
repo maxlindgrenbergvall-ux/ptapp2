@@ -19,10 +19,10 @@ export function PrivacyContent() {
         bara skickat en förfrågan till ser ditt namn men ingen hälsodata.
       </p>
       <p id="halsodata">
-        <strong className="text-foreground">Strava, Apple Hälsa och Health Connect:</strong> bara om du själv kopplar dem.
+        <strong className="text-foreground">Apple Hälsa och Health Connect:</strong> bara om du själv kopplar dem.
         Vi läser (och skriver aldrig) aktiv energi, aktiv tid, steg och träningspass (typ, tid, distans, kalorier) för att
         visa din förbränning bredvid kosten och träningen. Datan används bara i Coavira, syns för dig och de PT:er du
-        aktivt tränar med, delas aldrig med annonsörer och raderas när du kopplar från (Strava) eller raderar kontot.
+        aktivt tränar med, delas aldrig med annonsörer och raderas när du slutar synka eller raderar kontot.
       </p>
       <p>
         <strong className="text-foreground">Var:</strong> i en databas inom EU. På din enhet sparas en kopia så att appen

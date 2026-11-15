@@ -4,6 +4,7 @@ import { rateLimited, tooManyRequests } from "@/lib/rate-limit"
 import { syncSleep } from "@/lib/wearables/service"
 import { requireClient } from "@/lib/wearables/route-helpers"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { PROVIDER_LABEL } from "@/lib/wearables/types"
 import type { WearableProvider } from "@/types/domain"
 
 /** "Synka nu": hämtar senaste veckans sömn från alla anslutna enheter. */
@@ -17,8 +18,8 @@ export async function POST() {
   const { data: conns } = await sb.from("wearable_connections").select("provider").neq("status", "revoked")
   const results: { provider: WearableProvider; nights: number; error?: string }[] = []
   for (const { provider } of (conns ?? []) as { provider: WearableProvider }[]) {
-    // Strava har bara aktiviteter (synkas via /api/strava/sync).
-    if (provider === "strava") continue
+    // Okända/avvecklade källor i gamla rader (t.ex. Strava före v52-migrationen) hoppas över.
+    if (!(provider in PROVIDER_LABEL)) continue
     try {
       results.push({ provider, nights: (await syncSleep(auth.userId, provider, 7)).length })
     } catch (e) {

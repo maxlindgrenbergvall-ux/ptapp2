@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Check, LayoutTemplate, PencilLine, Play, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, LayoutTemplate, Moon, PencilLine, Play, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { CustomExerciseDialog } from "@/components/exercises/custom-exercise-dialog"
-import { suggestedDaysPerWeek } from "@/lib/active-split"
+import { MAX_SPLIT_DAYS, suggestedDaysPerWeek, withRestDays } from "@/lib/active-split"
 import { useAppData } from "@/lib/data/store"
 import { cloneSplit, customSplit, type Split, type SplitDay, type SplitExercise, SPLITS } from "@/lib/splits"
 import { buildTemplate } from "@/lib/templates"
@@ -25,7 +25,8 @@ import type { Exercise } from "@/types/domain"
  * aldrig tillbaka till 1) – det kontrolleras först när schemat sparas.
  */
 type EditExercise = Omit<SplitExercise, "sets"> & { id: string; sets: number | undefined }
-type EditSplit = Omit<Split, "days"> & { days: (Omit<SplitDay, "exercises"> & { exercises: EditExercise[] })[] }
+type EditDay = Omit<SplitDay, "exercises"> & { id: string; exercises: EditExercise[] }
+type EditSplit = Omit<Split, "days"> & { days: EditDay[] }
 const stripId = (e: EditExercise): SplitExercise => {
   const copy: Partial<EditExercise> = { ...e }
   delete copy.id
@@ -34,7 +35,10 @@ const stripId = (e: EditExercise): SplitExercise => {
 /** Övningar där set eller reps är tomma (måste fyllas i innan schemat sparas). */
 export const incompleteExercises = (s: Pick<EditSplit, "days">) =>
   s.days.flatMap((d) => d.exercises.filter((e) => !e.sets || e.sets < 1 || !e.reps.trim()))
-const toPlain = (s: EditSplit): Split => ({ ...s, days: s.days.map((d) => ({ ...d, exercises: d.exercises.map(stripId) })) })
+const toPlain = (s: EditSplit): Split => ({
+  ...s,
+  days: s.days.map((d) => ({ name: d.name, focus: d.focus, exercises: d.exercises.map(stripId), ...(d.rest ? { rest: true } : {}) })),
+})
 
 /** Valen för antal träningsdagar per vecka (v43). */
 const DAYS_PER_WEEK = [2, 3, 4, 5, 6]
@@ -58,7 +62,10 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
 
   const choose = (s: Split) => {
     const copy = cloneSplit(s)
-    setSplit({ ...copy, days: copy.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e, id: actions.newId() })) })) })
+    const training: EditDay[] = copy.days.map((d) => ({ ...d, id: actions.newId(), exercises: d.exercises.map((e) => ({ ...e, id: actions.newId() })) }))
+    // v52: klientens upplägg läggs ut på en vecka med vilodagar emellan – de kan flyttas fritt.
+    const restDay = (): EditDay => ({ id: actions.newId(), name: "Vila", focus: "Återhämtning", exercises: [], rest: true })
+    setSplit({ ...copy, days: mode === "client" ? withRestDays(training, copy.weekdays, restDay) : training })
     setDaysPerWeek(suggestedDaysPerWeek(copy.days.length))
     setShowErrors(false)
   }
@@ -66,19 +73,27 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
   if (!split) {
     return (
       <div className="space-y-3" data-testid="split-library">
+        {mode === "client" && (
+          <p className="flex items-start gap-2 rounded-2xl bg-primary/8 px-3.5 py-3 text-sm text-muted-foreground">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+            <span>
+              Se uppläggen som <b className="font-medium text-foreground">tips att utgå från</b>. Välj ett, testa det en vecka och byt övningar, ordning eller vilodagar tills det passar dig. Du kan byta upplägg när du vill – dina genomförda pass ligger kvar.
+            </span>
+          </p>
+        )}
         <ul className="grid gap-2 sm:grid-cols-2">
           {SPLITS.map((s) => (
             <li key={s.key}>
               <button
                 type="button"
                 onClick={() => choose(s)}
-                className="flex h-full w-full flex-col gap-1.5 rounded-2xl border bg-card p-4 text-left shadow-card transition-colors hover:bg-muted/60 active:scale-[0.99]"
+                className="group flex h-full w-full flex-col gap-1.5 rounded-2xl border bg-card p-4 text-left shadow-card transition-[border-color,background-color,transform] duration-200 hover:border-primary/50 hover:bg-primary/5 active:scale-[0.99]"
                 data-testid={`split-${s.key}`}
               >
                 <span className="flex items-center justify-between gap-2">
                   <span className="font-semibold">{s.name}</span>
                   <Badge variant="secondary" className="shrink-0">
-                    {s.days.length} dagar
+                    {s.days.length} pass/vecka
                   </Badge>
                 </span>
                 <span className="text-xs text-muted-foreground">{s.description}</span>
@@ -89,17 +104,22 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
                     </span>
                   ))}
                 </span>
-                <span className="text-[11px] text-muted-foreground">{s.level}</span>
+                <span className="flex items-center justify-between pt-0.5 text-[11px] text-muted-foreground">
+                  {s.level}
+                  <span className="flex items-center gap-1 font-medium text-primary">
+                    Testa <ArrowRight className="size-3 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+                  </span>
+                </span>
               </button>
             </li>
           ))}
         </ul>
         <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-dashed p-4">
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="font-semibold">Egen split</p>
-            <p className="text-xs text-muted-foreground">Bygg från grunden – välj antal dagar och fyll i övningar.</p>
+            <p className="font-semibold">Eget upplägg</p>
+            <p className="text-xs text-muted-foreground">Bygg från grunden – välj antal pass och fyll i övningar.</p>
           </div>
-          <NumberInput min={1} max={7} value={customDays} onValueChange={setCustomDays} aria-label="Antal dagar" className="h-10 w-16 tabular" />
+          <NumberInput min={1} max={7} value={customDays} onValueChange={setCustomDays} aria-label="Antal pass" className="h-10 w-16 tabular" />
           <Button variant="outline" onClick={() => choose(customSplit(customDays ?? 3))} data-testid="split-custom">
             <Plus /> Skapa
           </Button>
@@ -109,14 +129,19 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
   }
 
   const plain = toPlain(split)
-  const emptyDays = split.days.filter((d) => d.exercises.length === 0).length
+  const restDays = split.days.filter((d) => d.rest).length
+  const trainingDays = split.days.length - restDays
+  const emptyDays = split.days.filter((d) => !d.rest && d.exercises.length === 0).length
   const incomplete = incompleteExercises(split)
+  const addRest = () =>
+    setSplit({ ...split, days: [...split.days, { id: actions.newId(), name: "Vila", focus: "Återhämtning", exercises: [], rest: true }] })
+  const removeDay = (id: string) => setSplit({ ...split, days: split.days.filter((d) => d.id !== id) })
   const updateDay = (i: number, patch: Partial<EditSplit["days"][number]>) =>
     setSplit({ ...split, days: split.days.map((d, j) => (j === i ? { ...d, ...patch } : d)) })
   const addTo = (i: number, e: Exercise) => updateDay(i, { exercises: [...split.days[i].exercises, { ...splitExerciseFor(e), id: actions.newId() }] })
 
   const submit = () => {
-    if (emptyDays === split.days.length) return toast.error("Lägg till övningar först")
+    if (emptyDays === trainingDays) return toast.error("Lägg till övningar först")
     // v43: tomma fält fylls aldrig i automatiskt – användaren skriver sina egna siffror.
     if (incomplete.length) {
       setShowErrors(true)
@@ -124,21 +149,24 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
     }
     const withIds = (list: SplitExercise[]) => list.map((e) => ({ ...e, id: actions.newId() }))
     if (asTemplates || mode === "trainer") {
-      for (const d of plain.days.filter((x) => x.exercises.length)) {
+      for (const d of plain.days.filter((x) => !x.rest && x.exercises.length)) {
         actions.saveTemplate(buildTemplate({ ownerId: me.id, name: `${split.short}: ${d.name}`, description: d.focus, exercises: withIds(d.exercises), newId: actions.newId }))
       }
     }
     if (mode === "client") {
       actions.saveActiveSplit({
-        name: split.name.trim() || "Mitt schema",
+        name: split.name.trim() || "Mitt upplägg",
         short: split.short,
         key: split.key,
-        days: plain.days.filter((d) => d.exercises.length).map((d) => ({ name: d.name, focus: d.focus, exercises: d.exercises })),
+        // Vilodagarna följer med (i sin ordning); tomma träningsdagar tas bort.
+        days: plain.days
+          .filter((d) => d.rest || d.exercises.length)
+          .map((d) => ({ name: d.name, focus: d.focus, exercises: d.exercises, ...(d.rest ? { rest: true } : {}) })),
         daysPerWeek,
       })
-      toast.success(`${split.name} är ditt schema`, { description: `${daysPerWeek} pass i veckan. Tryck på Nästa pass på startsidan när du ska träna.` })
+      toast.success(`${split.name} är ditt upplägg`, { description: `${daysPerWeek} pass i veckan. Tryck på Nästa pass på startsidan när du ska träna.` })
     } else {
-      toast.success(`${split.days.length - emptyDays} mallar skapade`, { description: "Tilldela dem till klienter i passbyggaren." })
+      toast.success(`${trainingDays - emptyDays} mallar skapade`, { description: "Tilldela dem till klienter i passbyggaren." })
     }
     onDone?.()
   }
@@ -146,17 +174,39 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
   return (
     <div className="space-y-5" data-testid="split-editor">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" aria-label="Tillbaka till splits" onClick={() => setSplit(null)}>
+        <Button variant="ghost" size="icon" aria-label="Tillbaka till uppläggen" onClick={() => setSplit(null)}>
           <ArrowLeft />
         </Button>
-        <Input value={split.name} onChange={(e) => setSplit({ ...split, name: e.target.value.slice(0, 60) })} className="h-11 text-base font-semibold" aria-label="Schemats namn" />
+        <Input value={split.name} onChange={(e) => setSplit({ ...split, name: e.target.value.slice(0, 60) })} className="h-11 text-base font-semibold" aria-label="Uppläggets namn" />
       </div>
 
-      <ol className="space-y-3">
-        {split.days.map((d, i) => (
-          <li key={i} className="space-y-2 rounded-2xl border bg-card p-3 shadow-card" data-testid="split-day">
+      {/* v52: dra i handtaget för att flytta en dag – även vilodagarna. */}
+      <SortableList
+        items={split.days}
+        className="space-y-3"
+        aria-label="Dagarna i upplägget"
+        itemLabel={(d) => (d.rest ? "Vilodag" : d.name)}
+        onReorder={(ids) => setSplit({ ...split, days: ids.map((id) => split.days.find((d) => d.id === id)!) })}
+        renderItem={(d, { handle: dayHandle, index: i }) =>
+          d.rest ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-dashed bg-card/50 px-3 py-2.5" data-testid="split-rest-day">
+              {dayHandle}
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Moon className="size-3.5" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Vilodag</span>
+                <span className="block text-xs text-muted-foreground">Återhämtning – dra för att flytta</span>
+              </span>
+              <Button variant="ghost" size="icon-sm" aria-label="Ta bort vilodagen" onClick={() => removeDay(d.id)}>
+                <Trash2 />
+              </Button>
+            </div>
+          ) : (
+          <div className="space-y-2 rounded-2xl border bg-card p-3 shadow-card" data-testid="split-day">
             <div className="flex items-center gap-2">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{i + 1}</span>
+              {dayHandle}
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{split.days.slice(0, i + 1).filter((x) => !x.rest).length}</span>
               <Input value={d.name} onChange={(e) => updateDay(i, { name: e.target.value.slice(0, 40) })} className="h-9 font-medium" aria-label={`Namn på dag ${i + 1}`} />
             </div>
             {/* v34: dra i handtaget för att ändra ordningen; set, reps och startvikt redigeras direkt. */}
@@ -201,9 +251,15 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
               />
               <CreateCustomExerciseButton dayName={d.name} onCreated={(e) => addTo(i, e)} />
             </div>
-          </li>
-        ))}
-      </ol>
+          </div>
+          )
+        }
+      />
+      {mode === "client" && (
+        <Button variant="outline" className="w-full border-dashed" onClick={addRest} disabled={split.days.length >= MAX_SPLIT_DAYS} data-testid="add-rest-day">
+          <Moon /> Lägg till vilodag
+        </Button>
+      )}
 
       {mode === "client" && (
         <div className="space-y-4 rounded-2xl border bg-card p-4 shadow-card" data-testid="split-plan">
@@ -233,7 +289,7 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
             </div>
           </div>
           <p className="text-sm text-muted-foreground" data-testid="split-summary">
-            {split.days.length - emptyDays} pass i rotation · {daysPerWeek} dagar i veckan. Du väljer själv vilka dagar – tryck på <b className="text-foreground">Nästa pass</b> när du ska träna, så startar passet som står på tur.
+            {trainingDays - emptyDays} pass i rotation{restDays ? ` · ${restDays} vilodagar` : ""} · {daysPerWeek} dagar i veckan. Du väljer själv vilka dagar – tryck på <b className="text-foreground">Nästa pass</b> när du ska träna, så startar passet som står på tur.
           </p>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={asTemplates} onCheckedChange={(v) => setAsTemplates(v === true)} />
@@ -245,11 +301,11 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
       <Button size="lg" className="h-12 w-full" onClick={submit} data-testid="split-create">
         {mode === "client" ? (
           <>
-            <Play /> Använd schemat
+            <Play /> Använd upplägget
           </>
         ) : (
           <>
-            <Check /> Skapa {split.days.length - emptyDays} mallar
+            <Check /> Skapa {trainingDays - emptyDays} mallar
           </>
         )}
       </Button>

@@ -505,6 +505,23 @@
   animation: ring-burst 520ms var(--ease-out-soft) both;
 }
 
+/* v52: en gnista som far ut från en belöningsbricka och tonar bort (--spark-x/-y = riktning). */
+@keyframes reward-spark {
+  from {
+    opacity: 0.9;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(var(--spark-x, 0), var(--spark-y, 0), 0) scale(0.4);
+  }
+}
+.reward-spark {
+  pointer-events: none;
+  opacity: 0;
+  animation: reward-spark 520ms var(--ease-out-soft) both;
+}
+
 /* Tonar in och glider upp en aning (tomma lägen, kvitton, rader som kommer till). */
 @keyframes rise-in {
   from {

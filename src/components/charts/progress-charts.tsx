@@ -258,6 +258,81 @@ export function SessionsChart({ workouts, weeks = 12 }: { workouts: ScheduledWor
   )
 }
 
+/**
+ * Följsamhet över tid (v52): andel genomförda av schemalagda pass per vecka.
+ * En serie, 0–100 %, mjuk yta under linjen. Veckor utan schemalagda pass är
+ * luckor (linjen binds inte ihop över dem).
+ */
+export function AdherenceChart({ weeks }: { weeks: { start: string; due: number; done: number; pct: number | null }[] }) {
+  const config = { pct: { label: "Följsamhet", color: "var(--chart-brand)" } } satisfies ChartConfig
+  const data = weeks.map((w) => ({ ...w, week: `v. ${isoWeek(w.start)}` }))
+  if (data.filter((d) => d.pct !== null).length < 2) {
+    return <p className="py-10 text-center text-sm text-muted-foreground">Minst två veckor med schemalagda pass behövs för en graf.</p>
+  }
+  const last = data.findLastIndex((d) => d.pct !== null)
+  return (
+    <ChartFrame
+      caption="Följsamhet per vecka (procent genomförda av schemalagda pass)"
+      table={{ head: ["Vecka", "Genomförda", "Schemalagda", "Följsamhet"], rows: data.map((d) => [d.week, String(d.done), String(d.due), d.pct === null ? "–" : `${d.pct} %`]) }}
+    >
+      <ChartContainer config={config} className="aspect-auto h-56 w-full">
+        <AreaChart data={data} margin={{ left: 0, right: 16, top: 20 }}>
+          <defs>
+            <linearGradient id="adherence-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-pct)" stopOpacity={0.24} />
+              <stop offset="100%" stopColor="var(--color-pct)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="week" {...axisProps} minTickGap={16} />
+          <YAxis {...axisProps} width={48} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}\u00a0%`} />
+          <ChartTooltip
+            {...TOOLTIP_MOTION}
+            cursor={{ strokeDasharray: "3 3" }}
+            content={
+              <ChartTooltipContent
+                hideIndicator
+                formatter={(v, _n, item) => {
+                  const d = item?.payload as { done: number; due: number } | undefined
+                  return (
+                    <span className="flex w-full justify-between gap-4">
+                      <span className="text-muted-foreground">Följsamhet</span>
+                      <span className="font-medium tabular">
+                        {v} %{d ? ` · ${d.done} av ${d.due} pass` : ""}
+                      </span>
+                    </span>
+                  )
+                }}
+              />
+            }
+          />
+          <Area
+            dataKey="pct"
+            type="monotone"
+            stroke="var(--color-pct)"
+            strokeWidth={2}
+            fill="url(#adherence-fill)"
+            dot={{ r: 3, strokeWidth: 0, fill: "var(--color-pct)" }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--background)" }}
+            {...ENTER}
+          >
+            <LabelList
+              dataKey="pct"
+              content={({ index, x, y, value }) =>
+                index === last ? (
+                  <text x={Number(x)} y={Number(y) - 10} textAnchor="middle" fontSize={11} className="fill-foreground font-semibold tabular">
+                    {value} %
+                  </text>
+                ) : null
+              }
+            />
+          </Area>
+        </AreaChart>
+      </ChartContainer>
+    </ChartFrame>
+  )
+}
+
 function isoWeek(date: string) {
   const d = parseISODate(date)
   const target = new Date(d.valueOf())

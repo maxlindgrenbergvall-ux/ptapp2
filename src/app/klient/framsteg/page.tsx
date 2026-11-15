@@ -6,7 +6,7 @@ import { useAppData } from "@/lib/data/store"
 /**
  * Framsteg (v40): bara de två korten (Viktnedgång / Tappat fett och Ökad
  * muskelmassa) och en stor viktkurva under – synkad med kaloriförbränning och
- * träning (Apple Hälsa, Health Connect, Strava, passen i appen).
+ * träning (Apple Hälsa, Health Connect, passen i appen).
  *
  * Det som flyttats härifrån:
  *   - Logga vikt      → knappen i grafens rubrik.

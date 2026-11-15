@@ -3,6 +3,7 @@
 import { ArrowRight, Layers, Trophy } from "lucide-react"
 
 import { AnimatedNumber, DrawnCheck, FillBar } from "@/components/motion"
+import { RewardBadge, type RewardKind } from "@/components/rewards"
 import { Button } from "@/components/ui/button"
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { nextSplitAction } from "@/lib/active-split"
@@ -39,6 +40,13 @@ export function WorkoutSummaryView({
   const goal = split?.daysPerWeek
   const pct = goal ? Math.min(100, Math.round((s.weekCount / goal) * 100)) : 0
 
+  // v52: små utmärkelser för det som faktiskt hände i passet (inga deltagarpriser).
+  const earned: { kind: RewardKind; label: string }[] = [
+    ...(s.records.length ? [{ kind: "record" as const, label: s.records.length === 1 ? "Nytt rekord" : `${s.records.length} nya rekord` }] : []),
+    ...(goal && s.weekCount === goal ? [{ kind: "week_goal" as const, label: "Veckans mål" }] : []),
+    ...(s.streakWeeks >= 2 ? [{ kind: "streak" as const, label: `${s.streakWeeks} veckor i rad` }] : []),
+  ]
+
   const tiles = [
     { label: "Set", value: s.setsDone, suffix: `/${s.setsTotal}` },
     { label: "Volym", value: s.volumeKg, suffix: " kg" },
@@ -59,6 +67,17 @@ export function WorkoutSummaryView({
           {fb.body}
         </DialogDescription>
       </div>
+
+      {earned.length > 0 && (
+        <ul className="flex flex-wrap justify-center gap-2" aria-label="Det här passet gav" data-testid="summary-badges">
+          {earned.map((b, i) => (
+            <li key={b.kind} className="rise-in flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/8 py-1 pr-3 pl-1 text-xs font-medium" style={{ animationDelay: `${240 + i * 90}ms` }}>
+              <RewardBadge kind={b.kind} size="sm" delay={300 + i * 90} />
+              {b.label}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <dl className="grid w-full grid-cols-3 gap-2" aria-label="Passet i siffror">
         {tiles.map((t, i) => (

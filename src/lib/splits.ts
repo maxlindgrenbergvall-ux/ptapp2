@@ -21,6 +21,8 @@ export interface SplitDay {
   name: string
   focus: string
   exercises: SplitExercise[]
+  /** v52: vilodag (inga övningar) – kan flyttas fritt i ordningen. */
+  rest?: boolean
 }
 export interface Split {
   key: SplitKey | "custom"
@@ -148,8 +150,8 @@ export function customSplit(days: number): Split {
   const weekdays = [[2], [0, 3], [0, 2, 4], [0, 1, 3, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5, 6]][n - 1]
   return {
     key: "custom",
-    name: "Egen split",
-    short: "Egen",
+    name: "Eget upplägg",
+    short: "Eget",
     description: "Ditt eget upplägg.",
     level: "Alla nivåer",
     weekdays,

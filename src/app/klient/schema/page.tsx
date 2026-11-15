@@ -20,8 +20,8 @@ export default function SchedulePage() {
   return (
     <div className="space-y-5">
       <SettingsHeader
-        title="Träningsschema"
-        description="Välj en split – PPL, Upper/Lower, 4-split, Bro split, Full Body eller en egen – och hur många dagar i veckan du vill träna. Nästa pass på startsidan startar passet som står på tur."
+        title="Upplägg"
+        description="Färdiga upplägg att välja, testa och göra till dina egna – PPL, Upper/Lower, 4-split, helkropp med flera. Välj hur många dagar i veckan du vill träna, så startar Nästa pass på startsidan passet som står på tur."
       />
       {active && !changing ? (
         <ActiveSplitOverview onChange={() => setChanging(true)} />

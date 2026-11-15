@@ -71,3 +71,62 @@ export function weekProgress(s: Pick<ActiveSplit, "daysPerWeek" | "clientId">, w
   const done = workouts.filter((w) => w.clientId === s.clientId && w.status === "completed" && w.date >= from && w.date <= to).length
   return { done, goal: s.daysPerWeek, reached: done >= s.daysPerWeek }
 }
+
+// ------------------------------------------------- vilodagar (v52) ---
+/** Ett upplägg är högst en vecka långt: träningsdagar + vilodagar. */
+export const MAX_SPLIT_DAYS = 7
+
+type Day = ActiveSplit["days"][number]
+export const isRestDay = (d: Pick<Day, "rest">) => d.rest === true
+export const restDay = (): Day => ({ name: "Vila", focus: "Återhämtning", exercises: [], rest: true })
+
+/**
+ * Lägg ut träningsdagarna på en vecka med vilodagar emellan, efter uppläggets
+ * rekommenderade veckodagar (0 = måndag). PPL på mån/ons/fre blir
+ * Push · Vila · Pull · Vila · Legs · Vila · Vila. Utan rekommendation (eller om
+ * dagarna inte ryms) läggs inga vilodagar in.
+ */
+export function withRestDays<T>(days: T[], weekdays: number[], rest: () => T): T[] {
+  const wd = [...new Set(weekdays)].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b)
+  if (!days.length || wd.length !== days.length) return days
+  let next = 0
+  return Array.from({ length: 7 }, (_, i) => (wd.includes(i) ? days[next++] : rest()))
+}
+
+type Rotating = Pick<ActiveSplit, "days" | "nextDay">
+
+/** Flytta en dag (tränings- eller vilodag). Dagen som står på tur är densamma efteråt. */
+export function moveSplitDay<T extends Rotating>(s: T, from: number, to: number): T {
+  const n = s.days.length
+  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return s
+  const onTurn = s.days[s.nextDay]
+  const days = [...s.days]
+  const [moved] = days.splice(from, 1)
+  days.splice(to, 0, moved)
+  return { ...s, days, nextDay: Math.max(0, days.indexOf(onTurn)) }
+}
+
+/** Ny ordning från en lista med gamla index (drag-and-drop). */
+export function reorderSplitDays<T extends Rotating>(s: T, order: number[]): T {
+  if (order.length !== s.days.length || new Set(order).size !== order.length || order.some((i) => i < 0 || i >= s.days.length)) return s
+  const onTurn = s.days[s.nextDay]
+  const days = order.map((i) => s.days[i])
+  return { ...s, days, nextDay: Math.max(0, days.indexOf(onTurn)) }
+}
+
+/** Lägg till en vilodag (sist, eller på plats `at`). Högst sju dagar totalt. */
+export function addRestDay<T extends Rotating>(s: T, at: number = s.days.length): T {
+  if (s.days.length >= MAX_SPLIT_DAYS) return s
+  const i = Math.min(Math.max(0, at), s.days.length)
+  const days = [...s.days.slice(0, i), restDay(), ...s.days.slice(i)]
+  return { ...s, days, nextDay: i <= s.nextDay && s.days.length ? s.nextDay + 1 : s.nextDay }
+}
+
+/** Ta bort en vilodag. Träningsdagar tas inte bort här (då byter man upplägg). */
+export function removeRestDay<T extends Rotating>(s: T, index: number): T {
+  const d = s.days[index]
+  if (!d || !isRestDay(d) || s.days.length <= 1) return s
+  const days = s.days.filter((_, i) => i !== index)
+  const nextDay = index < s.nextDay ? s.nextDay - 1 : s.nextDay
+  return { ...s, days, nextDay: nextDay % days.length }
+}

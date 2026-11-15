@@ -1,12 +1,13 @@
 "use client"
 
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Dumbbell, Layers, Play, Trash2, Utensils } from "lucide-react"
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Dumbbell, History, Layers, Play, Trash2, Utensils } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { OwnWorkoutDialog } from "@/components/client/own-workout-dialog"
 import { EmptyState } from "@/components/common"
+import { WorkoutHistoryDialog } from "@/components/workouts/workout-history-dialog"
 import { NutritionShortcut } from "@/components/nutrition/daily-nutrition"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -184,6 +185,7 @@ export function WorkoutDayCard({ workout: w, clientId, future }: { workout: Sche
   const total = setsTotal(w)
   const names = w.exercises.map((e) => exerciseName(data, e.exerciseId, clientId)).filter(Boolean)
   const removable = future && w.byClient && w.status === "planned" && w.logs.length === 0
+  const [history, setHistory] = React.useState(false)
   return (
     <Card className={cn("gap-4 py-5", w.status !== "completed" && "border-foreground/20")} data-testid="day-workout">
       <CardHeader className="px-5">
@@ -195,8 +197,8 @@ export function WorkoutDayCard({ workout: w, clientId, future }: { workout: Sche
             </CardDescription>
           </div>
           {w.status === "completed" ? (
-            <Badge className="bg-primary text-primary-foreground">
-              <Check /> Klart
+            <Badge className="bg-primary text-primary-foreground" data-testid="done-badge">
+              <Check strokeWidth={3} /> Klart
             </Badge>
           ) : future ? (
             <Badge variant="outline" className="border-primary/40 text-foreground">
@@ -242,11 +244,13 @@ export function WorkoutDayCard({ workout: w, clientId, future }: { workout: Sche
             </Link>
           </Button>
         ) : (
-          <Button asChild variant="outline" className="w-full">
-            <Link href={`/klient/pass/${w.id}`}>Visa loggen</Link>
+          // v52: avklarat pass → historiken (vikter, reps och set) i en modal.
+          <Button variant="outline" className="w-full" onClick={() => setHistory(true)} data-testid="open-history">
+            <History /> Visa historik
           </Button>
         )}
       </CardContent>
+      {w.status === "completed" && <WorkoutHistoryDialog workoutId={history ? w.id : null} onOpenChange={setHistory} href={(id) => `/klient/pass/${id}`} />}
     </Card>
   )
 }
@@ -280,7 +284,7 @@ export function PlanWorkoutDialog({ date, className }: { date: ISODate; classNam
       <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Planera pass</DialogTitle>
-          <DialogDescription>{formatDay(date)}. Välj en dag ur ditt schema eller en sparad mall.</DialogDescription>
+          <DialogDescription>{formatDay(date)}. Välj ett pass ur ditt upplägg eller en sparad mall.</DialogDescription>
         </DialogHeader>
         <div className="max-h-[60svh] space-y-4 overflow-y-auto">
           {split && days.length > 0 && (
@@ -288,7 +292,7 @@ export function PlanWorkoutDialog({ date, className }: { date: ISODate; classNam
               <h3 className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 <Layers className="size-3.5" /> {split.name}
               </h3>
-              <ul className="space-y-1.5" aria-label="Dagar i schemat">
+              <ul className="space-y-1.5" aria-label="Pass i upplägget">
                 {days.map((d) => (
                   <li key={d.index}>
                     <PlanOption
@@ -319,11 +323,11 @@ export function PlanWorkoutDialog({ date, className }: { date: ISODate; classNam
             <EmptyState
               compact
               icon={Layers}
-              title="Inget schema eller mallar än"
-              text="Välj en split under Schema och splits, eller bygg ett eget pass direkt."
+              title="Inget upplägg eller mallar än"
+              text="Välj ett upplägg under Upplägg, eller bygg ett eget pass direkt."
               action={
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/klient/schema">Schema och splits</Link>
+                  <Link href="/klient/schema">Upplägg</Link>
                 </Button>
               }
             />
@@ -371,7 +375,7 @@ export function DayPlan({ date, today, clientId }: { date: ISODate; today: ISODa
                 compact
                 icon={future ? CalendarPlus : Dumbbell}
                 title={future ? "Inget planerat än" : "Inget pass den här dagen"}
-                text={future ? "Lägg in en dag ur ditt schema, en mall eller ett eget pass – så ligger det klart när dagen kommer." : "Glömde du logga? Lägg in passet i efterhand."}
+                text={future ? "Lägg in ett pass ur ditt upplägg, en mall eller ett eget pass – så ligger det klart när dagen kommer." : "Glömde du logga? Lägg in passet i efterhand."}
                 data-testid="day-empty"
               />
             </CardContent>

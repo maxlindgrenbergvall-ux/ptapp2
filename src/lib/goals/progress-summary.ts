@@ -2,7 +2,7 @@
  * Framsteg (v40): de två korten högst upp – Viktnedgång (eller Tappat fett) och
  * Ökad muskelmassa. Samma källa som grafen under: den dynamiska kurvan
  * (src/lib/goals/adaptive.ts), som räknas om med vägningar, kaloriförbränning
- * (Apple Hälsa / Health Connect / Strava) och träningsfrekvens.
+ * (Apple Hälsa / Health Connect) och träningsfrekvens.
  *
  *   Viktnedgång     – faktiska vägningar: förändring sedan start och kvar till målvikten.
  *                     Visas när målet är viktnedgång eller inga mål är valda.

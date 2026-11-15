@@ -22,6 +22,7 @@ import { toast } from "sonner"
 
 import { CalendarSyncButton } from "@/components/calendar/calendar-sync-dialog"
 import { TONE_DOT } from "@/components/calendar/items"
+import { WorkoutHistoryDialog } from "@/components/workouts/workout-history-dialog"
 import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
 import { PersonAvatar } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
@@ -76,9 +77,11 @@ export function ClientCalendar() {
   const pending = upcomingEvents.filter((e) => e.status === "pending" && e.awaiting !== "client")
   const needsAnswer = upcomingEvents.filter((e) => e.status === "pending" && e.awaiting === "client")
   const linked = new Set(events.filter((e) => e.workoutId && e.status !== "cancelled").map((e) => e.workoutId))
+  // v52: även avklarade pass visas i kalendern – med grön bock, och ett tryck öppnar historiken.
   const plannedAll = data.workouts.filter(
-    (w) => w.clientId === me.id && !linked.has(w.id) && (w.status === "planned" || w.status === "in_progress")
+    (w) => w.clientId === me.id && !linked.has(w.id) && (w.status === "planned" || w.status === "in_progress" || w.status === "completed")
   )
+  const [historyId, setHistoryId] = React.useState<string | null>(null)
 
   // Allt som hör till kalendern (för veckoslidern och dagsvyn).
   const entries: Entry[] = [
@@ -86,7 +89,7 @@ export function ClientCalendar() {
     ...plannedAll.map((workout) => ({ kind: "workout" as const, at: parseISODate(workout.date), workout })),
   ].sort((a, b) => a.at.getTime() - b.at.getTime())
   const upcoming = entries.filter((e) =>
-    e.kind === "event" ? upcomingEvents.includes(e.event) : parseISODate(e.workout.date) >= today
+    e.kind === "event" ? upcomingEvents.includes(e.event) : e.workout.status !== "completed" && parseISODate(e.workout.date) >= today
   )
   const dayEntries = entries.filter((e) => sameDay(e.at, selected))
   const nextAfter = upcoming.find((e) => startOfDay(e.at) > selected)
@@ -201,7 +204,7 @@ export function ClientCalendar() {
                   e.kind === "event" ? (
                     <EventCard key={e.event.id} event={e.event} onPropose={setProposeFor} />
                   ) : (
-                    <PlannedCard key={e.workout.id} workout={e.workout} />
+                    <PlannedCard key={e.workout.id} workout={e.workout} onHistory={setHistoryId} />
                   )
                 )}
               </ul>
@@ -227,7 +230,7 @@ export function ClientCalendar() {
                   e.kind === "event" ? (
                     <EventCard key={e.event.id} event={e.event} onPropose={setProposeFor} />
                   ) : (
-                    <PlannedCard key={e.workout.id} workout={e.workout} />
+                    <PlannedCard key={e.workout.id} workout={e.workout} onHistory={setHistoryId} />
                   )
                 )}
               </ul>
@@ -253,6 +256,7 @@ export function ClientCalendar() {
       )}
 
       <ProposeTimeDialog event={proposeFor} onOpenChange={(o) => !o && setProposeFor(null)} />
+      <WorkoutHistoryDialog workoutId={historyId} onOpenChange={(o) => !o && setHistoryId(null)} href={(id) => `/klient/pass/${id}`} />
     </div>
   )
 }
@@ -322,8 +326,20 @@ function WeekSlider({ selected, onSelect, entries }: { selected: Date; onSelect:
         {days.map((d) => {
           const list = entries.filter((e) => sameDay(e.at, d))
           const tones = [
-            ...new Set(list.map((e) => (e.kind === "workout" ? "planned" : e.event.status === "pending" ? "pending" : "confirmed"))),
-          ] as ("planned" | "pending" | "confirmed")[]
+            ...new Set(
+              list.map((e) =>
+                e.kind === "workout"
+                  ? e.workout.status === "completed"
+                    ? "done"
+                    : "planned"
+                  : e.event.status === "completed"
+                    ? "done"
+                    : e.event.status === "pending"
+                      ? "pending"
+                      : "confirmed"
+              )
+            ),
+          ] as ("planned" | "pending" | "confirmed" | "done")[]
           const isSel = sameDay(d, selected)
           const isToday = sameDay(d, today)
           return (
@@ -345,10 +361,17 @@ function WeekSlider({ selected, onSelect, entries }: { selected: Date; onSelect:
                 <span aria-hidden className="text-base leading-tight font-semibold tabular">
                   {d.getDate()}
                 </span>
-                <span aria-hidden className="flex h-1.5 gap-0.5">
-                  {tones.map((t) => (
-                    <span key={t} className={cn("size-1.5 rounded-full", isSel && t === "confirmed" ? "bg-primary-foreground" : TONE_DOT[t])} />
-                  ))}
+                <span aria-hidden className="flex h-2.5 items-center gap-0.5">
+                  {tones.map((t) =>
+                    t === "done" ? (
+                      // Grön bock: minst ett avklarat pass den dagen.
+                      <span key={t} className={cn("flex size-2.5 items-center justify-center rounded-full", isSel ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground")} data-testid="cal-done">
+                        <Check className="size-2" strokeWidth={4} />
+                      </span>
+                    ) : (
+                      <span key={t} className={cn("size-1.5 rounded-full", isSel && t === "confirmed" ? "bg-primary-foreground" : TONE_DOT[t])} />
+                    )
+                  )}
                 </span>
               </button>
             </li>
@@ -523,7 +546,30 @@ function EventCard({ event, onPropose }: { event: CalendarEvent; onPropose: (e: 
   )
 }
 
-function PlannedCard({ workout }: { workout: ScheduledWorkout }) {
+function PlannedCard({ workout, onHistory }: { workout: ScheduledWorkout; onHistory: (id: string) => void }) {
+  if (workout.status === "completed") {
+    const sets = workout.logs.filter((l) => l.done).length
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => onHistory(workout.id)}
+          className="flex w-full items-center gap-3 rounded-2xl border border-l-4 border-l-primary bg-card p-4 text-left transition-[background-color,transform] duration-200 hover:bg-primary/5 active:scale-[0.99]"
+          data-testid="cal-completed"
+          aria-label={`${workout.name}, genomfört. Visa historik`}
+        >
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Check className="size-4" strokeWidth={3} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{workout.name}</span>
+            <span className="block text-xs text-muted-foreground">Genomfört · {sets} set · tryck för historik</span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </button>
+      </li>
+    )
+  }
   return (
     <li className="flex items-center gap-3 rounded-2xl border border-l-4 border-l-chart-1 bg-card p-4">
       <Dumbbell className="size-5 shrink-0 text-chart-1" />
@@ -548,13 +594,21 @@ function PlannedCard({ workout }: { workout: ScheduledWorkout }) {
  */
 function ProgramPreview({ workoutId, upcoming }: { workoutId: string; upcoming: boolean }) {
   const { data, me } = useAppData()
+  const [history, setHistory] = React.useState(false)
   const workout = data.workouts.find((w) => w.id === workoutId)
   if (!workout) return null
   const done = workout.status === "completed"
   return (
     <div className="space-y-2 rounded-xl border bg-muted/40 p-3" data-testid="program-preview">
       <p className="flex items-center gap-2 font-medium">
-        <Dumbbell className="size-4 text-primary" /> {workout.name}
+        {done ? (
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground" data-testid="program-done">
+            <Check className="size-3" strokeWidth={3.5} aria-hidden />
+          </span>
+        ) : (
+          <Dumbbell className="size-4 text-primary" />
+        )}{" "}
+        {workout.name}
         <span className="ml-auto text-xs font-normal text-muted-foreground">{workout.exercises.length} övningar</span>
       </p>
       <ol className="space-y-0.5 text-xs text-muted-foreground">
@@ -572,9 +626,18 @@ function ProgramPreview({ workoutId, upcoming }: { workoutId: string; upcoming: 
         ))}
         {workout.exercises.length > 6 && <li>+ {workout.exercises.length - 6} till</li>}
       </ol>
-      <Button asChild size="sm" variant={upcoming ? "outline" : "secondary"} className="w-full">
-        <Link href={`/klient/pass/${workout.id}`}>{done ? "Visa passet" : upcoming ? "Förhandsgranska passet" : "Öppna passet"}</Link>
-      </Button>
+      {done ? (
+        <>
+          <Button size="sm" variant="secondary" className="w-full" onClick={() => setHistory(true)} data-testid="program-history">
+            Visa historik
+          </Button>
+          <WorkoutHistoryDialog workoutId={history ? workout.id : null} onOpenChange={setHistory} href={(id) => `/klient/pass/${id}`} />
+        </>
+      ) : (
+        <Button asChild size="sm" variant={upcoming ? "outline" : "secondary"} className="w-full">
+          <Link href={`/klient/pass/${workout.id}`}>{upcoming ? "Förhandsgranska passet" : "Öppna passet"}</Link>
+        </Button>
+      )}
     </div>
   )
 }

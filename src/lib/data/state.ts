@@ -152,7 +152,7 @@ export type LocalAction =
   | { type: "remoteEvent"; event: CalendarEvent }
   | { type: "addNotification"; notification: AppNotification }
   | { type: "setWearables"; connections: WearableConnection[] }
-  /** Aktiviteter från en källa (t.ex. efter en Strava-synk på servern) ersätter de gamla från samma källa. */
+  /** Aktiviteter från en källa (t.ex. efter en synk på servern) ersätter de gamla från samma källa. */
   | { type: "setActivities"; source: ActivityLog["source"]; activities: ActivityLog[] }
   | { type: "mergeSleepLogs"; logs: SleepLog[] }
   /** Köp från servern (eller demoläget). Ett betalt köp gör klienten aktiv hos PT:n, som databasen. */

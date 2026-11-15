@@ -27,7 +27,7 @@ const DAY = 86_400_000
  *   1. Två kort: Viktnedgång (eller Tappat fett) och Ökad muskelmassa.
  *   2. En stor, ren graf: planen, dina vägningar och den uppdaterade kurvan som
  *      räknas om med kaloriförbränning och träning från Apple Hälsa, Health
- *      Connect, Strava och passen i appen. Inga extra paneler – källorna och
+ *      Connect och passen i appen. Inga extra paneler – källorna och
  *      friskrivningen står som en diskret rad under grafen.
  */
 export function ProgressOverview({ clientId }: { clientId: ID }) {
@@ -69,7 +69,7 @@ export function ProgressOverview({ clientId }: { clientId: ID }) {
                 <>
                   Följer planen –{" "}
                   <Link href="/klient/anslutningar" className="font-medium text-primary underline-offset-4 hover:underline">
-                    koppla Apple Hälsa, Health Connect eller Strava
+                    koppla Apple Hälsa eller Health Connect
                   </Link>
                 </>
               ) : (

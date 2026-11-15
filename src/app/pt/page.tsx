@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { FillBar } from "@/components/motion"
+import { AdherenceDialog, TileButton, UpcomingDialog, useUpcoming } from "@/components/pt/kpi-dialogs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
@@ -63,6 +64,9 @@ export default function PtOverviewPage() {
     activeClients.map((c) => adherence(workoutsFor(data, c.id), 28, today)).filter((v): v is number => v !== null)
   )
 
+  const [kpi, setKpi] = React.useState<"sessions" | "adherence" | null>(null)
+  const upcoming = useUpcoming(clients)
+
   // "Behöver uppmärksamhet": det PT:n ska agera på idag.
   const attention = [
     ...clients
@@ -94,22 +98,40 @@ export default function PtOverviewPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Aktiva klienter" value={activeClients.length} sub={`${clients.length} totalt`} icon={Users} />
-        <StatTile label="Loggade pass, 7 dagar" value={loggedThisWeek} icon={Activity} />
-        <StatTile
-          label="Snittföljsamhet, 4 v"
-          value={avgAdherence === null ? "–" : `${avgAdherence} %`}
-          sub="Genomförda av schemalagda pass"
-          icon={CalendarClock}
-        />
+        {/* v52: korten är klickbara – klientlistan, veckans pass och följsamhet över tid. */}
+        <TileButton
+          testId="kpi-clients"
+          label={`Aktiva klienter: ${activeClients.length}. Visa klientlistan`}
+          onClick={() => {
+            setFilter("active")
+            setQuery("")
+            document.getElementById("klienter")?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }}
+        >
+          <StatTile label="Aktiva klienter" value={activeClients.length} sub={`${clients.length} totalt · visa listan`} icon={Users} />
+        </TileButton>
+        <TileButton testId="kpi-sessions" label={`Loggade pass senaste 7 dagarna: ${loggedThisWeek}. Visa veckans pass`} onClick={() => setKpi("sessions")}>
+          <StatTile label="Loggade pass, 7 dagar" value={loggedThisWeek} sub={`${upcoming.rows.length} inbokade kommande 7 dagar`} icon={Activity} />
+        </TileButton>
+        <TileButton testId="kpi-adherence-tile" label={`Snittföljsamhet ${avgAdherence === null ? "saknas" : `${avgAdherence} procent`}. Visa över tid`} onClick={() => setKpi("adherence")}>
+          <StatTile
+            label="Snittföljsamhet, 4 v"
+            value={avgAdherence === null ? "–" : `${avgAdherence} %`}
+            sub="Genomförda av schemalagda · visa graf"
+            icon={CalendarClock}
+          />
+        </TileButton>
         {/* v42: leder till inkorgen (olästa överst). */}
         <Link href="/pt/meddelanden" className="rounded-2xl outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring/50 active:scale-[0.99]" data-testid="pt-unread-tile">
           <StatTile label="Olästa meddelanden" value={unread} sub={unread > 0 ? "Tryck för att läsa och svara" : undefined} icon={MessageSquare} />
         </Link>
       </div>
 
+      <UpcomingDialog open={kpi === "sessions"} onOpenChange={(o) => !o && setKpi(null)} clients={clients} />
+      <AdherenceDialog open={kpi === "adherence"} onOpenChange={(o) => !o && setKpi(null)} clients={activeClients} />
+
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-        <Card className="min-w-0">
+        <Card className="min-w-0 scroll-mt-20" id="klienter">
           <CardHeader className="gap-4">
             <div>
               <CardTitle>Klienter</CardTitle>

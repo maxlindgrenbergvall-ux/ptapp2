@@ -24,7 +24,7 @@ export interface TokenSet {
 }
 
 export interface WearableAdapter {
-  /** Sömnkällor. Strava (aktiviteter) har en egen integration, se src/lib/activity/strava.ts. */
+  /** Sömnkällor. */
   provider: SleepProvider
   /** false = inga API-nycklar; mock-adaptern används i stället. */
   configured: boolean
@@ -38,5 +38,4 @@ export const PROVIDER_LABEL: Record<WearableProvider, string> = {
   fitbit: "Fitbit",
   apple_health: "Apple Health",
   google_fit: "Google Fit / Health Connect",
-  strava: "Strava",
 }

@@ -1,13 +1,14 @@
 "use client"
 
-import { CalendarRange, ChevronRight, Play } from "lucide-react"
+import { CalendarRange, ChevronRight, Moon, Play, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { nextSplitAction, weekProgress } from "@/lib/active-split"
+import { addRestDay, isRestDay, MAX_SPLIT_DAYS, nextSplitAction, removeRestDay, reorderSplitDays, weekProgress } from "@/lib/active-split"
+import { SortableList } from "@/components/workouts/sortable-list"
 import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { todayISO } from "@/lib/date"
@@ -36,8 +37,8 @@ export function NextWorkoutCard() {
           <CalendarRange className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold">Välj ett träningsschema</span>
-          <span className="block text-sm text-muted-foreground">Välj split och antal dagar i veckan – sedan räcker det att trycka på Nästa pass.</span>
+          <span className="block font-semibold">Hitta ett upplägg</span>
+          <span className="block text-sm text-muted-foreground">Välj ett färdigt upplägg att testa, eller bygg ditt eget – sedan räcker det att trycka på Nästa pass.</span>
         </span>
         <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
       </Link>
@@ -53,7 +54,7 @@ export function NextWorkoutCard() {
 
   const start = () => {
     const id = actions.startNextSplitWorkout()
-    if (!id) return toast.error("Schemat saknar övningar")
+    if (!id) return toast.error("Upplägget saknar övningar")
     router.push(`/klient/pass/${id}`)
   }
 
@@ -70,7 +71,7 @@ export function NextWorkoutCard() {
           <p className="line-clamp-1 text-sm text-muted-foreground">{names.join(" · ")}</p>
         </div>
         <Link href="/klient/schema" className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline">
-          Schema
+          Upplägg
         </Link>
       </div>
       <Button
@@ -102,32 +103,73 @@ export function NextWorkoutCard() {
   )
 }
 
-/** Det aktiva schemat på Träningsschema: dagarna i ordning, vilken som står på tur, dagar per vecka. */
+/** Stabilt id per dag (för drag-and-drop) – dagarna har inget eget id i databasen. */
+const dayIds = new WeakMap<object, string>()
+let daySeq = 0
+const dayId = (d: object) => dayIds.get(d) ?? (dayIds.set(d, `dag-${++daySeq}`), dayIds.get(d)!)
+
+/**
+ * Det aktiva upplägget: dagarna i ordning, vilken som står på tur och dagar per
+ * vecka. v52: dagarna – även vilodagarna – flyttas med drag-and-drop (eller pil
+ * upp/ned på handtaget), och vilodagar läggs till och tas bort direkt här.
+ */
 export function ActiveSplitOverview({ onChange }: { onChange: () => void }) {
   const { data, actions, me } = useAppData()
   const split = data.activeSplits.find((s) => s.clientId === me.id)
   if (!split) return null
   const next = nextSplitAction(split, data.workouts)
   const upNext = next.kind === "create" ? next.dayIndex : -1
+  const items = split.days.map((d, i) => ({ id: dayId(d), day: d, index: i }))
   return (
     <div className="space-y-4" data-testid="active-split">
       <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-card">
         <div>
-          <p className="text-xs text-muted-foreground">Ditt schema</p>
+          <p className="text-xs text-muted-foreground">Ditt upplägg</p>
           <p className="text-lg font-semibold">{split.name}</p>
         </div>
-        <ol className="space-y-1.5" aria-label="Passen i ordning">
-          {split.days.map((d, i) => (
-            <li key={i} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2", i === upNext && "border-primary bg-primary/5")}>
-              <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold", i === upNext ? "bg-primary text-primary-foreground" : "bg-muted")}>{i + 1}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{d.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{d.exercises.length} övningar{d.focus ? ` · ${d.focus}` : ""}</span>
-              </span>
-              {i === upNext && <span className="shrink-0 text-xs font-medium text-primary">På tur</span>}
-            </li>
-          ))}
-        </ol>
+        <SortableList
+          items={items}
+          className="space-y-1.5"
+          aria-label="Passen i ordning"
+          itemLabel={(it) => (isRestDay(it.day) ? "Vilodag" : it.day.name)}
+          onReorder={(ids) => actions.updateSplitDays((s) => reorderSplitDays(s, ids.map((id) => items.find((it) => it.id === id)!.index)))}
+          renderItem={({ day: d, index: i }, { handle }) => {
+            const rest = isRestDay(d)
+            const nr = split.days.slice(0, i + 1).filter((x) => !isRestDay(x)).length
+            return (
+              <div
+                className={cn("flex items-center gap-2 rounded-xl border bg-card px-2 py-2", i === upNext && "border-primary bg-primary/5", rest && "border-dashed bg-transparent")}
+                data-testid={rest ? "active-rest-day" : "active-day"}
+              >
+                {handle}
+                <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold", i === upNext ? "bg-primary text-primary-foreground" : "bg-muted", rest && "text-muted-foreground")}>
+                  {rest ? <Moon className="size-3.5" aria-hidden /> : nr}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{rest ? "Vilodag" : d.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{rest ? "Återhämtning" : `${d.exercises.length} övningar${d.focus ? ` · ${d.focus}` : ""}`}</span>
+                </span>
+                {i === upNext && <span className="shrink-0 text-xs font-medium text-primary">På tur</span>}
+                {rest && (
+                  <Button variant="ghost" size="icon-sm" aria-label="Ta bort vilodagen" onClick={() => actions.updateSplitDays((s) => removeRestDay(s, i))}>
+                    <Trash2 />
+                  </Button>
+                )}
+              </div>
+            )
+          }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full border-dashed"
+          disabled={split.days.length >= MAX_SPLIT_DAYS}
+          onClick={() => actions.updateSplitDays((s) => addRestDay(s))}
+          data-testid="active-add-rest"
+        >
+          <Moon /> Lägg till vilodag
+        </Button>
+        <p className="text-xs text-muted-foreground">Dra i handtaget för att flytta ett pass eller en vilodag. Nästa pass hoppar över vilodagarna.</p>
         <div className="space-y-2">
           <p id="active-days" className="text-sm font-medium">
             Dagar i veckan
@@ -154,18 +196,18 @@ export function ActiveSplitOverview({ onChange }: { onChange: () => void }) {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="outline" onClick={onChange} data-testid="change-split">
-          Byt schema
+          Byt upplägg
         </Button>
         <Button
           variant="ghost"
           className="text-muted-foreground"
           onClick={() => {
             actions.stopActiveSplit()
-            toast.success("Schemat är avslutat", { description: "Dina genomförda pass ligger kvar." })
+            toast.success("Upplägget är avslutat", { description: "Dina genomförda pass ligger kvar." })
           }}
           data-testid="stop-split"
         >
-          Avsluta schemat
+          Avsluta upplägget
         </Button>
       </div>
     </div>
