@@ -18,7 +18,7 @@ const fail = (m) => {
   process.exitCode = 1
 }
 const check = (c, m) => (c ? ok(m) : fail(m))
-const UPGRADE = "Lås upp full historik, sömntracking och export med Coavira Plus."
+const UPGRADE = "Lås upp receptbanken, full historik, sömntracking och export med Coavira Plus."
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ["clipboard-read", "clipboard-write"] })
 const p = await ctx.newPage()

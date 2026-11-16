@@ -25,7 +25,7 @@ import { usePurchaseMode } from "@/lib/native/use-digital-purchases"
 import { isPlusActive, PLUS_FEATURE_LABEL, type PlusFeature } from "@/lib/plus"
 import { cn } from "@/lib/utils"
 
-export const UPGRADE_TEXT = "Lås upp full historik, sömntracking och export med Coavira Plus."
+export const UPGRADE_TEXT = "Lås upp receptbanken, full historik, sömntracking och export med Coavira Plus."
 
 /** Har inloggad användare Coavira Plus? PT:er har aldrig låsta klientfunktioner. */
 export function usePlus() {

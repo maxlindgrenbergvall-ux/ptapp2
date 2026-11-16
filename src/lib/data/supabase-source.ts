@@ -1518,6 +1518,9 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       )
     case "deleteWorkout":
       return result(sb.from("scheduled_workouts").delete().eq("id", action.workoutId))
+    case "setWorkoutDate":
+      // RLS + triggern: klienten får bara byta datum på sina egna pass.
+      return result(sb.from("scheduled_workouts").update({ date: action.date }).eq("id", action.workoutId))
     case "leaveTrainer":
       return result(sb.rpc("end_coaching", { p_trainer: action.trainerId }))
     case "chooseNutritionPlan":

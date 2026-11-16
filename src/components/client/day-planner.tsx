@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Progress } from "@/components/ui/progress"
 import { trainableDays } from "@/lib/active-split"
 import { exerciseName } from "@/lib/data/selectors"
+import { MoveWorkoutButton } from "@/components/workouts/move-workout"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, parseISODate } from "@/lib/date"
 import { myTemplates } from "@/lib/templates"
@@ -196,6 +197,9 @@ export function WorkoutDayCard({ workout: w, clientId, future }: { workout: Sche
               {w.exercises.length} övningar · {total} set
             </CardDescription>
           </div>
+          <div className="flex shrink-0 items-center gap-1">
+          {/* v56: Flytta – byt dag med ett tryck (bara egna, planerade pass). */}
+          <MoveWorkoutButton workout={w} className="-my-1" />
           {w.status === "completed" ? (
             <Badge className="bg-primary text-primary-foreground" data-testid="done-badge">
               <Check strokeWidth={3} /> Klart
@@ -205,6 +209,7 @@ export function WorkoutDayCard({ workout: w, clientId, future }: { workout: Sche
               <CalendarPlus className="text-primary" /> Planerat
             </Badge>
           ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 px-5">

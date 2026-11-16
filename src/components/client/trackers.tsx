@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/common"
 import { AnimatedNumber, DrawnCheck } from "@/components/motion"
 import { FoodPicker } from "@/components/nutrition/food-picker"
 import { MacroInline } from "@/components/nutrition/macros"
+import { MealTiles } from "@/components/nutrition/meal-tiles"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { confirmDialog } from "@/components/ui/confirm"
@@ -51,8 +52,23 @@ export function ExtraFood({ date }: { date: ISODate }) {
     })
   }
 
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  // v56: + på en måltidsbricka väljer måltiden och lägger markören i sökfältet.
+  const quickAdd = (m: MealType) => {
+    setMeal(m)
+    setManual(false)
+    requestAnimationFrame(() => {
+      const input = rootRef.current?.querySelector<HTMLInputElement>('input[role="combobox"]')
+      if (!input) return
+      input.focus({ preventScroll: true })
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      input.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" })
+    })
+  }
+
   return (
-    <div className="space-y-4" data-testid="quick-log">
+    <div className="space-y-4" data-testid="quick-log" ref={rootRef}>
+      <MealTiles entries={entries} selected={meal} onQuickAdd={quickAdd} />
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Logga mat</h3>
         {/* Måltiden – förvald efter klockan, ett tryck för att byta. */}

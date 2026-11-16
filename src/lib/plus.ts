@@ -2,11 +2,11 @@
  * Coavira Plus och inbjudningar. Reglerna bestäms av databasen (v18) –
  * konstanterna här används för visning och i demoläget.
  *
- * Gratis för alla: matloggning och dagens kostschema, recept, boka pass,
+ * Gratis för alla: matloggning och dagens kostschema, egna recept, boka pass,
  * utföra pass, chatt och all framstegsmätning (tyngsta set och volym per
  * muskelgrupp – v24/v39).
- * Coavira Plus låser upp: sömntracking, historik äldre än 30 dagar och
- * CSV-export av träning och kost.
+ * Coavira Plus låser upp: Coaviras receptbank (v56), sömntracking, historik
+ * äldre än 30 dagar och CSV-export av träning och kost.
  * (Exporten av ALL egen data i Min data och sekretess är alltid gratis – GDPR.)
  */
 import { addDays } from "@/lib/date"
@@ -18,9 +18,10 @@ export const REFERRAL_PLUS_DAYS = 30
 export const REFERRAL_BOOST_DAYS = 7
 export const REFERRAL_WINDOW_DAYS = 14
 
-export type PlusFeature = "sleep" | "history" | "export"
+export type PlusFeature = "recipes" | "sleep" | "history" | "export"
 
 export const PLUS_FEATURE_LABEL: Record<PlusFeature, string> = {
+  recipes: "Receptbanken",
   sleep: "Sömntracking",
   history: "Historik äldre än 30 dagar",
   export: "Export till CSV",

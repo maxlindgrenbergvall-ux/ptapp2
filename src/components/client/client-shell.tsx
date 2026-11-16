@@ -28,7 +28,7 @@ const NAV: { href: string; label: string; icon: typeof Home; exact?: boolean; al
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { me, sync } = useAppData()
+  const { me } = useAppData()
   const unread = useUnreadCount(me.id, [me.id])
   const { data } = useAppData()
   const client = data.clients.find((c) => c.id === me.id)
@@ -79,11 +79,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
       )}
-      {!focusMode && sync.pending > 0 && (
-        <div className="px-4 pt-3">
-          <SyncIndicator />
-        </div>
-      )}
+      {/* v56: flytande (fixed) – tar ingen plats i flödet, så sidan hoppar inte vid sparning. Gäller även fokusläget (passloggern). */}
+      <SyncIndicator />
       {/* Luft under innehållet för bottenmenyn (4rem) + hemindikatorn. */}
       <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{blocked ? null : children}</main>
       {!focusMode && (

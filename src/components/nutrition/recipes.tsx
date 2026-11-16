@@ -1,6 +1,6 @@
 "use client"
 
-import { ChefHat, Clock, Droplet, Drumstick, Flame, Plus, Save, Search, Star, Trash2, UserRound, Wheat } from "lucide-react"
+import { ChefHat, Clock, Droplet, Drumstick, Flame, Lock, Plus, Save, Search, Sparkles, Star, Trash2, UserRound, Wheat } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -9,6 +9,7 @@ import { MacroInline } from "@/components/nutrition/macros"
 import { FavoriteButton, RecipeImage } from "@/components/nutrition/recipe-parts"
 import { RecipeSheet } from "@/components/nutrition/recipe-sheet"
 import { ItemList } from "@/components/pt/nutrition-builder"
+import { UpgradeDialog, usePlus } from "@/components/plus/require-plus"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -54,7 +55,13 @@ export function RecipesView() {
     .filter((r) => !query || r.name.toLowerCase().includes(query) || r.items.some((i) => i.name.toLowerCase().includes(query)))
     .sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)) || Number(!b.library) - Number(!a.library) || a.name.localeCompare(b.name, "sv"))
   const tabCount = (t: Tab) => all.filter(bySource).filter((r) => t === "all" || r.goalTypes?.includes(t)).length
-  const open = all.find((r) => r.id === openId) ?? null
+  // v56: Coaviras receptbank ingår i Coavira+. Egna recept är alltid öppna; PT:er låses aldrig.
+  const { isPlus } = usePlus()
+  const [upgrade, setUpgrade] = React.useState(false)
+  const isLocked = (r: Recipe) => !isPlus && Boolean(r.library)
+  const lockedCount = isPlus ? 0 : (library ?? []).length
+  const found = all.find((r) => r.id === openId) ?? null
+  const open = found && !isLocked(found) ? found : null
 
   return (
     <div className="space-y-4">
@@ -127,6 +134,8 @@ export function RecipesView() {
 
       {tab !== "all" && <p className="-mt-2 text-xs text-muted-foreground">{GOAL_INFO[tab].hint}.</p>}
 
+      {lockedCount > 0 && <RecipesPlusBanner count={lockedCount} onUpgrade={() => setUpgrade(true)} />}
+
       {library === null ? (
         <ul className="grid gap-2 sm:grid-cols-2" aria-label="Laddar recept">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -146,7 +155,7 @@ export function RecipesView() {
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2" aria-label="Recept">
           {recipes.map((r) => (
-            <RecipeCard key={r.id} recipe={r} onOpen={() => setOpenId(r.id)} />
+            <RecipeCard key={r.id} recipe={r} locked={isLocked(r)} onOpen={() => (isLocked(r) ? setUpgrade(true) : setOpenId(r.id))} />
           ))}
         </ul>
       )}
@@ -167,7 +176,28 @@ export function RecipesView() {
         initial={editing && editing !== "new" ? editing : undefined}
         onSaved={(id) => setOpenId(id)}
       />
+      <UpgradeDialog open={upgrade} onOpenChange={setUpgrade} feature="recipes" />
     </div>
+  )
+}
+
+/** Överst i listan för gratisklienter: vad receptbanken är och en väg att låsa upp den. */
+function RecipesPlusBanner({ count, onUpgrade }: { count: number; onUpgrade: () => void }) {
+  return (
+    <section className="glass-tile relative flex items-center gap-3 overflow-hidden rounded-3xl p-4" data-testid="recipes-plus-banner">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#84cc16] text-[#131916] shadow-[0_8px_20px_-8px_rgb(132_204_22/0.7)]">
+        <Lock className="size-5" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">Receptbanken ingår i Coavira+</p>
+        <p className="text-xs text-white/60">
+          {count} träningsanpassade recept med färdiga makron. Dina egna recept är alltid gratis.
+        </p>
+      </div>
+      <Button onClick={onUpgrade} className="shrink-0 bg-[#84cc16] text-[#131916] hover:bg-[#84cc16]/90" data-testid="recipes-unlock">
+        <Sparkles /> Lås upp
+      </Button>
+    </section>
   )
 }
 
@@ -176,23 +206,46 @@ export function RecipesView() {
  * aldrig överlappad) och små piller för tid och makron. 5–6 recept får plats
  * på en mobilskärm.
  */
-function RecipeCard({ recipe, onOpen }: { recipe: Recipe; onOpen: () => void }) {
+function RecipeCard({ recipe, onOpen, locked = false }: { recipe: Recipe; onOpen: () => void; locked?: boolean }) {
   const portion = perServing(recipe)
   return (
-    <li className="relative min-w-0" data-testid="recipe-card">
+    <li className="relative min-w-0" data-testid="recipe-card" data-locked={locked || undefined}>
       <button
         type="button"
         onClick={onOpen}
+        aria-label={locked ? `${recipe.name} – lås upp med Coavira Plus` : undefined}
         className="flex w-full max-w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl border border-border/70 bg-card p-2 text-left shadow-card transition-[background-color,transform] hover:bg-muted/40 active:scale-[0.99]"
       >
-        <RecipeImage recipe={recipe} size="thumb" className="aspect-square size-14 shrink-0 rounded-xl min-[360px]:size-16" />
+        <span className="relative shrink-0">
+          <RecipeImage recipe={recipe} size="thumb" className={cn("aspect-square size-14 shrink-0 rounded-xl min-[360px]:size-16", locked && "blur-[3px] saturate-50")} />
+          {locked && (
+            <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#131916]/35">
+              <span className="flex size-7 items-center justify-center rounded-full bg-[#131916]/80 text-[#84cc16] backdrop-blur">
+                <Lock className="size-3.5" aria-hidden />
+              </span>
+            </span>
+          )}
+        </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
           {/* Plats för stjärnan bredvid titeln – pillren under får hela bredden. */}
           <span className="line-clamp-2 pr-8 text-[15px] leading-snug font-semibold break-words">{recipe.name}</span>
-          <MacroPills recipe={recipe} portion={portion} />
+          {locked ? (
+            // Makron och tid syns bara suddigt – innehållet är Plus.
+            <span aria-hidden className="pointer-events-none blur-[3px] select-none">
+              <MacroPills recipe={recipe} portion={portion} />
+            </span>
+          ) : (
+            <MacroPills recipe={recipe} portion={portion} />
+          )}
         </span>
       </button>
-      <FavoriteButton recipe={recipe} className="absolute top-0.5 right-0.5 size-10" />
+      {locked ? (
+        <span className="pointer-events-none absolute top-2 right-2 rounded-full bg-[#131916] px-1.5 py-0.5 text-[10px] font-semibold text-[#84cc16]" aria-hidden>
+          Plus
+        </span>
+      ) : (
+        <FavoriteButton recipe={recipe} className="absolute top-0.5 right-0.5 size-10" />
+      )}
     </li>
   )
 }

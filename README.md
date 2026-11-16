@@ -578,6 +578,35 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v56: flytta pass, måltidsbrickor, receptbanken i Coavira+, stabil layout
+
+**Flytta pass** (`src/lib/workout-move.ts`, `src/components/workouts/move-workout.tsx`):
+- **Flytta**-knappen sitter på passkorten på startsidan och i kalendern. Den öppnar en kompakt dagväljare underifrån med idag och 13 dagar framåt.
+- Ett tryck på en ledig dag flyttar passet direkt. Har dagen redan ett eget pass erbjuds **Byt plats med [pass]** eller **Lägg båda samma dag**.
+- **Drag-and-drop** i kalenderns veckovy: dra i handtaget till en dag i veckoraden. Dagen lyser upp medan man drar över den, och kortet följer med via transform. På mobilen aktiveras draget med en kort långtryckning.
+- Allt sparas optimistiskt, och toasten har **Ångra**.
+- Bara klientens egna planerade pass kan flyttas (`trainer_id` null). PT:ns pass, bokade tider och påbörjade eller genomförda pass visar ingen knapp; databastriggern från v32 stoppar dem ändå.
+- Ny åtgärd `setWorkoutDate` i reducern och i Supabase-källan.
+
+**Måltidsbrickor** (`src/components/nutrition/meal-tiles.tsx`):
+- Frukost, Lunch, Middag och Mellanmål visas alltid, även tomma, som mörka glasbrickor (`glass-tile`) med fast höjd.
+- Varje bricka visar kcal och en segmenterad makrostapel: protein i lime, kolhydrater och fett i dämpade toner.
+- **+** väljer måltiden och lägger markören i sökfältet.
+- När mat läggs till räknar kcal upp och ikonen får en ring. Staplarna skalas med `scaleX`.
+
+**Receptbanken i Coavira+**:
+- Utan Plus visas Coaviras recept suddiga med ett lås och en banner med **Lås upp**. Ett tryck öppnar uppgraderingsrutan i stället för receptet.
+- Egna recept är alltid öppna, och PT:er låses aldrig.
+- `PlusFeature` har fått `recipes`, och uppgraderingstexten nämner receptbanken.
+- Spärren ligger i gränssnittet. Receptbanken är statiskt innehåll, inte personlig data.
+
+**Ingen hoppande layout**:
+- `SyncIndicator` är nu en flytande pill (`position: fixed`, `pointer-events: none`, bara opacity och transform). Tidigare låg den i flödet och tryckte ner sidan vid varje vattenglas eller bockat set.
+- En vanlig synk syns inte alls. Pillen kommer bara vid offline, fel eller om synken tar mer än 1,5 s.
+- När en övning blir klar i passloggern skrollas nästa övning mjukt i blick (`prefers-reduced-motion` respekteras), eftersom iOS saknar scroll-anchoring.
+
+Tester: `e2e/workout-move.unit.ts` och `e2e/v56-ux.test.mjs`. Ingen migration behövs.
+
 ## Nytt i v55: granskningskö, granskning av varje utskick, inga automatiska betalda sökningar
 
 **Granskningskö** (fliken *Granska (N)*, `src/components/crm/review-queue.tsx`):

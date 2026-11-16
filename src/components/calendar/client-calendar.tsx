@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Dumbbell,
+  GripVertical,
   Hourglass,
   MapPin,
   MessageCircle,
@@ -23,6 +24,9 @@ import { toast } from "sonner"
 import { CalendarSyncButton } from "@/components/calendar/calendar-sync-dialog"
 import { TONE_DOT } from "@/components/calendar/items"
 import { WorkoutHistoryDialog } from "@/components/workouts/workout-history-dialog"
+import { MoveWorkoutButton, useMoveWorkout } from "@/components/workouts/move-workout"
+import { canMove } from "@/lib/workout-move"
+import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core"
 import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
 import { PersonAvatar } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
@@ -82,6 +86,9 @@ export function ClientCalendar() {
     (w) => w.clientId === me.id && !linked.has(w.id) && (w.status === "planned" || w.status === "in_progress" || w.status === "completed")
   )
   const [historyId, setHistoryId] = React.useState<string | null>(null)
+  // v56: dra ett eget pass till en dag i veckoraden. Musen: några pixlar; touch: håll in en kort stund (annars scrollar man).
+  const dndSensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }))
+  const moveTo = useMoveWorkout()
 
   // Allt som hör till kalendern (för veckoslidern och dagsvyn).
   const entries: Entry[] = [
@@ -173,7 +180,17 @@ export function ClientCalendar() {
       </div>
 
       {view === "week" ? (
-        <>
+        <DndContext
+          sensors={dndSensors}
+          onDragStart={() => navigator.vibrate?.(10)}
+          onDragEnd={({ active, over }) => {
+            const id = String(active.id).replace(/^w:/, "")
+            const date = over ? String(over.id).replace(/^day:/, "") : null
+            const workout = data.workouts.find((w) => w.id === id)
+            if (!workout || !date || date === workout.date) return
+            if (moveTo(workout, date)) setSelected(startOfDay(parseISODate(date)))
+          }}
+        >
           <WeekSlider selected={selected} onSelect={setSelected} entries={entries} />
           <section
             key={localISODate(selected)}
@@ -204,13 +221,13 @@ export function ClientCalendar() {
                   e.kind === "event" ? (
                     <EventCard key={e.event.id} event={e.event} onPropose={setProposeFor} />
                   ) : (
-                    <PlannedCard key={e.workout.id} workout={e.workout} onHistory={setHistoryId} />
+                    <PlannedCard key={e.workout.id} workout={e.workout} onHistory={setHistoryId} draggable />
                   )
                 )}
               </ul>
             )}
           </section>
-        </>
+        </DndContext>
       ) : upcoming.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
           Inga kommande pass.{" "}
@@ -343,14 +360,18 @@ function WeekSlider({ selected, onSelect, entries }: { selected: Date; onSelect:
           const isSel = sameDay(d, selected)
           const isToday = sameDay(d, today)
           return (
-            <li key={d.toISOString()}>
+            <DropDay key={d.toISOString()} date={localISODate(d)}>
+              {(over) => (
               <button
                 type="button"
                 onClick={() => onSelect(d)}
                 aria-pressed={isSel}
                 aria-label={`${formatDayLong(d)}${isToday ? " (idag)" : ""}: ${list.length === 0 ? "inga pass" : `${list.length} pass`}`}
+                data-date={localISODate(d)}
                 className={cn(
-                  "flex w-full flex-col items-center gap-0.5 rounded-xl py-1.5 text-xs transition-colors",
+                  "flex w-full flex-col items-center gap-0.5 rounded-xl py-1.5 text-xs transition-[background-color,box-shadow,transform] duration-200",
+                  // v56: ett pass dras hit – dagen lyfts och får en ring.
+                  over && "scale-105 ring-2 ring-primary ring-offset-2 ring-offset-background",
                   isSel ? "bg-primary text-primary-foreground shadow-sm" : isToday ? "bg-primary/10 text-foreground" : "active:bg-muted",
                   d < today && !isSel && "text-muted-foreground"
                 )}
@@ -374,7 +395,8 @@ function WeekSlider({ selected, onSelect, entries }: { selected: Date; onSelect:
                   )}
                 </span>
               </button>
-            </li>
+              )}
+            </DropDay>
           )
         })}
       </ol>
@@ -546,7 +568,7 @@ function EventCard({ event, onPropose }: { event: CalendarEvent; onPropose: (e: 
   )
 }
 
-function PlannedCard({ workout, onHistory }: { workout: ScheduledWorkout; onHistory: (id: string) => void }) {
+function PlannedCard({ workout, onHistory, draggable = false }: { workout: ScheduledWorkout; onHistory: (id: string) => void; draggable?: boolean }) {
   if (workout.status === "completed") {
     const sets = workout.logs.filter((l) => l.done).length
     return (
@@ -570,13 +592,47 @@ function PlannedCard({ workout, onHistory }: { workout: ScheduledWorkout; onHist
       </li>
     )
   }
+  return <DraggablePlanned workout={workout} draggable={draggable} />
+}
+
+/**
+ * Planerat eget pass i veckovyn (v56): dra i handtaget till en dag i
+ * veckoraden ovanför (eller tryck på Flytta) – passet flyttas direkt.
+ */
+function DraggablePlanned({ workout, draggable }: { workout: ScheduledWorkout; draggable: boolean }) {
+  const movable = draggable && canMove(workout)
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } = useDraggable({ id: `w:${workout.id}`, disabled: !movable })
   return (
-    <li className="flex items-center gap-3 rounded-2xl border border-l-4 border-l-chart-1 bg-card p-4">
-      <Dumbbell className="size-5 shrink-0 text-chart-1" />
+    <li
+      ref={setNodeRef}
+      style={{ transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined }}
+      className={cn(
+        "flex items-center gap-3 rounded-2xl border border-l-4 border-l-chart-1 bg-card p-4 transition-[box-shadow,scale] duration-200",
+        isDragging && "relative z-30 scale-[1.02] shadow-float ring-2 ring-primary/40"
+      )}
+      data-testid="planned-card"
+      data-workout={workout.id}
+    >
+      {movable ? (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label={`Dra ${workout.name} till en annan dag`}
+          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted-foreground hover:bg-muted active:cursor-grabbing"
+          data-testid="drag-workout"
+        >
+          <GripVertical className="size-4" />
+        </button>
+      ) : (
+        <Dumbbell className="size-5 shrink-0 text-chart-1" />
+      )}
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium">{workout.name}</div>
         <div className="text-xs text-muted-foreground">Planerat träningspass · på egen hand</div>
       </div>
+      <MoveWorkoutButton workout={workout} />
       {sameDay(parseISODate(workout.date), new Date()) && (
         <Button asChild size="sm">
           <Link href={`/klient/pass/${workout.id}`}>
@@ -586,6 +642,12 @@ function PlannedCard({ workout, onHistory }: { workout: ScheduledWorkout; onHist
       )}
     </li>
   )
+}
+
+/** En dag i veckoraden som tar emot ett draget pass. */
+function DropDay({ date, children }: { date: string; children: (over: boolean) => React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` })
+  return <li ref={setNodeRef}>{children(isOver)}</li>
 }
 
 /**

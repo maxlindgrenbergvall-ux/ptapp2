@@ -43,7 +43,10 @@ const pressedBg = await p.locator(`[data-testid=week-strip] button[aria-pressed=
 check(/132,\s*204,\s*22|oklch|lab/.test(pressedBg) || pressedBg !== "rgba(0, 0, 0, 0)", `vald dag är fylld (${pressedBg})`)
 
 // Planera på onsdagen i nästa vecka (alltid i framtiden, oavsett veckodag).
-const ahead = 7 - ((new Date().getDay() + 6) % 7) + 2
+// Första lediga dagen från onsdag i nästa vecka (seed-datans pass beror på veckodagen).
+const busyDays = new Set((await demo()).workouts.filter((w) => w.clientId === "c1").map((w) => w.date))
+let ahead = 7 - ((new Date().getDay() + 6) % 7) + 2
+while (busyDays.has(plus(ahead)) && ahead < 13 - ((new Date().getDay() + 6) % 7)) ahead++
 const target = plus(ahead)
 await p.click("button[aria-label='Nästa vecka']")
 await p.waitForSelector(`[data-testid=week-strip] button[data-date="${target}"]`)

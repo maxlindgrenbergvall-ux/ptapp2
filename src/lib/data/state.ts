@@ -109,6 +109,8 @@ export type PersistableAction =
   | { type: "verifyWorkout"; workoutId: ID; verifiedAt: string; verifiedBy: ID; comment?: string }
   /** Klient: ta bort ett eget pass. */
   | { type: "deleteWorkout"; workoutId: ID }
+  /** v56: klienten flyttar ett eget planerat pass till en annan dag. */
+  | { type: "setWorkoutDate"; workoutId: ID; date: ISODate }
   | { type: "deleteProgressEntry"; id: ID }
   /** Klient: lägg en tjänst i varukorgen (samma tjänst bara en gång). */
   | { type: "addCartItem"; item: CartItem }
@@ -288,6 +290,9 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         ),
       }
     }
+
+    case "setWorkoutDate":
+      return mapWorkout(data, action.workoutId, (w) => ({ ...w, date: action.date }))
 
     case "deleteWorkout":
       return { ...data, workouts: data.workouts.filter((w) => w.id !== action.workoutId) }

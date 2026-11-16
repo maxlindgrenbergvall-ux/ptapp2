@@ -55,6 +55,14 @@ await p.click('button[aria-label="Bocka av set 2"]')
 await p.click('button[aria-label="Bocka av set 3"]')
 await p.waitForSelector("text=/Offline – 2 ändringar sparade lokalt/")
 ok("offline: indikatorn visar 2 köade ändringar")
+// v56: indikatorn flyter ovanpå sidan – den tar ingen plats och fångar inga tryck.
+await p.waitForFunction(() => getComputedStyle(document.querySelector("[data-testid=sync-indicator]")).opacity === "1", null, { timeout: 3000 }).catch(() => {})
+const pill = await p.evaluate(() => {
+  const el = document.querySelector("[data-testid=sync-indicator]")
+  const cs = el && getComputedStyle(el)
+  return cs && { position: cs.position, events: cs.pointerEvents, opacity: cs.opacity }
+})
+check(pill?.position === "fixed" && pill.events === "none" && pill.opacity === "1", `offline: indikatorn är en flytande pill (${JSON.stringify(pill)})`)
 await p.screenshot({ path: `${out}/sb-offline.png` })
 const queued = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("coavira:outbox")).map((k) => JSON.parse(localStorage[k]).length))
 check(queued[0] === 2, `offline: kön ligger i localStorage (${queued})`)

@@ -10,6 +10,7 @@
  * - **Demo**: mockdata i webbläsaren, för utveckling och visningar.
  */
 
+import { moveBlock, MOVE_BLOCK_TEXT } from "@/lib/workout-move"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
@@ -250,6 +251,26 @@ function createActions(ctx: {
       return id
     },
     deleteOwnWorkout: (workoutId: ID) => commit({ type: "deleteWorkout", workoutId }),
+    /**
+     * v56: flytta ett eget planerat pass till en annan dag (ett tryck eller
+     * drag-and-drop). Med `swapWith` byter två egna pass plats. Uppdateras direkt
+     * i appen (optimistiskt) och synkas i bakgrunden. Returnerar ett felmeddelande
+     * om passet inte får flyttas.
+     */
+    moveWorkout: (workoutId: ID, date: ISODate, swapWith?: ID): string | null => {
+      const data = getData()
+      const w = data.workouts.find((x) => x.id === workoutId)
+      if (!w) return "Passet finns inte längre"
+      const block = moveBlock(w)
+      if (block) return MOVE_BLOCK_TEXT[block]
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "Ogiltigt datum"
+      const other = swapWith ? data.workouts.find((x) => x.id === swapWith) : undefined
+      if (swapWith && (!other || moveBlock(other))) return other ? MOVE_BLOCK_TEXT[moveBlock(other)!] : "Passet finns inte längre"
+      const from = w.date
+      commit({ type: "setWorkoutDate", workoutId, date })
+      if (other) commit({ type: "setWorkoutDate", workoutId: other.id, date: from })
+      return null
+    },
     /**
      * Byt plats på två övningar i passet (pilknapparna: övningen och grannen
      * ovanför/under i samma del av passet). Set-loggarna följer med – de pekar

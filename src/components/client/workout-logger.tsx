@@ -11,7 +11,6 @@ import { DrawnCheck } from "@/components/motion"
 import { WorkoutSummaryView } from "@/components/client/workout-summary"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
-import { SyncIndicator } from "@/components/sync-indicator"
 import { VideoEmbed } from "@/components/video-embed"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { SortableList } from "@/components/workouts/sortable-list"
@@ -123,13 +122,29 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
     const doneSoFar = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length + 1
     if (doneSoFar >= exercise.sets) {
       const next = workout.exercises.find((e) => e.id !== exercise.id && !isExerciseDone(workout, e))
-      if (next) setOpenId(next.id)
+      if (next) {
+        setOpenId(next.id)
+        // v56: kortet ovanför fälls ihop när nästa öppnas – iOS saknar scroll-anchoring, så sidan
+        // hoppade. Lägg nästa övning mjukt i blick efter att layouten satt sig.
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const el = document.getElementById(`exercise-${next.id}`)
+            if (!el) return
+            const top = el.getBoundingClientRect().top
+            const header = document.querySelector<HTMLElement>("[data-logger-header]")?.getBoundingClientRect().bottom ?? 0
+            if (top < header + 8 || top > window.innerHeight * 0.6) {
+              const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              window.scrollTo({ top: window.scrollY + top - header - 12, behavior: reduce ? "auto" : "smooth" })
+            }
+          })
+        )
+      }
     }
   }
 
   return (
     <div className="page-push flex min-h-svh flex-col">
-      <header className="sticky top-0 z-20 border-b bg-background/95 pt-[var(--safe-top)] backdrop-blur">
+      <header data-logger-header className="sticky top-0 z-20 border-b bg-background/95 pt-[var(--safe-top)] backdrop-blur">
         <div className="flex h-14 items-center gap-2 px-2">
           <Button
             variant="ghost"
@@ -164,7 +179,6 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           )}
         </div>
         <Progress value={(done / total) * 100} className="h-1 rounded-none" aria-label={`${done} av ${total} set klara`} />
-        <SyncIndicator className="mx-4 my-2" />
       </header>
 
       <div className="flex-1 space-y-3 px-3 pt-3 pb-32 sm:p-4 sm:pb-32">
@@ -412,7 +426,7 @@ function ExerciseCard({
   const panelId = `ex-${exercise.id}`
 
   return (
-    <section className={cn("rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
+    <section id={`exercise-${exercise.id}`} className={cn("scroll-mt-28 rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
       <div className="flex items-center">
       <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left sm:p-4">
         {/* v46: när övningens sista set bockas av ritas bocken och brickan får en ring – inte vid sidladdning. */}
