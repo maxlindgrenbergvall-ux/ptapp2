@@ -6,9 +6,9 @@ import { searchConfigured, webSearch } from "@/lib/crm/search"
 import type { CrmStore } from "@/lib/crm/store"
 import type { EnrichmentResult, Lead, ServerLeadPatch } from "@/lib/crm/types"
 import { bolagsverketConfigured, lookupOrgNumber } from "@/lib/crm/enrichment/bolagsverket"
-import { decide, SURE, type Evidence } from "@/lib/crm/enrichment/decide"
+import { decide, FREE_MAIL, SURE, type Evidence } from "@/lib/crm/enrichment/decide"
 import { redactPersonnummer } from "@/lib/crm/enrichment/orgnr"
-import { fromLead, fromSearch, fromText, searchQuery } from "@/lib/crm/enrichment/signals"
+import { cleanPersonName, fromLead, fromSearch, fromText, registerQuery, searchQuery } from "@/lib/crm/enrichment/signals"
 
 /**
  * Berikningsmotorn (v54): avgör bolagstyp och roll för en lead och kopplar
@@ -21,13 +21,14 @@ import { fromLead, fromSearch, fromText, searchQuery } from "@/lib/crm/enrichmen
  *      hämtning som tidigare (robots.txt, paus mellan anrop, inga interna adresser).
  *   3. Sök-API:t (Brave): företagsregistrens EGNA utdrag (allabolag, merinfo …)
  *      för "Förnamn Efternamn" + ort. Inga registersidor hämtas eller skrapas.
+ *      v57: namnet tvättas först (Instagram-namn), första sökningen går mot
+ *      allabolag, och befattningar i AB räknas bara för bolag inom träning/hälsa.
  *   4. Bolagsverket: bekräftar ett hittat organisationsnummer (aktivt aktiebolag).
  *
  * Personnummer: känns igen som en signal för enskild firma men sparas aldrig –
  * varken i fälten, i bevisen eller i loggar.
  */
 
-const FREE_MAIL = /^(gmail|googlemail|hotmail|outlook|live|icloud|me|mac|yahoo|msn|telia|spray|bredband|bahnhof|comhem|tele2|proton|protonmail|pm)\.[a-z.]+$/i
 
 export interface EnrichOptions {
   /** Senast klockslag (ms) – källor som inte hinns med hoppas över. */
@@ -87,18 +88,29 @@ export async function enrichLead(store: CrmStore, leadId: string, opts: EnrichOp
       if (site) evidence.push(...(await websiteEvidence(site, deadline, skipped)))
     }
 
-    // 3. Företagsregistrens utdrag via sök-API:t.
-    if (!sure() && lead.name.trim().split(/\s+/).length >= 2) {
-      if (!opts.paid) skipped.push("Sökningen i företagsregister: körs bara när du klickar (kostar en sökning)")
+    // 3. Företagsregistrens utdrag via sök-API:t (v57: först allabolag, sedan bredare – högst två sökningar).
+    const person = cleanPersonName(lead.name)
+    if (!sure() && !person) skipped.push(`Sökningen i företagsregister: "${lead.name.slice(0, 40)}" har inget för- och efternamn – skriv in personens namn`)
+    else if (!sure()) {
+      if (!opts.paid) skipped.push("Sökningen i företagsregister: körs bara när du klickar (kostar en eller två sökningar)")
       else if (!searchConfigured()) skipped.push("Sökningen: inte konfigurerad (BRAVE_SEARCH_API_KEY)")
-      else if (Date.now() > deadline - 2000) skipped.push("Sökningen: tiden räckte inte")
       else {
-        try {
-          const results = (await webSearch(searchQuery(lead), 10)).map((r) => ({ title: r.title ?? "", url: r.url ?? "", snippet: (r.description ?? "").replace(/<[^>]+>/g, "") }))
-          evidence.push(...fromSearch(results.filter((r) => r.url), lead))
-        } catch (e) {
-          skipped.push(`Sökningen: ${e instanceof Error ? e.message : "fel"}`)
+        const settled = () => evidence.some((e) => e.source === "search" && e.weight >= SURE && (e.kind === "ab" || e.kind === "enskild"))
+        for (const q of [registerQuery(lead), searchQuery(lead)]) {
+          if (!q || settled()) continue
+          if (Date.now() > deadline - 2000) {
+            skipped.push("Sökningen: tiden räckte inte")
+            break
+          }
+          try {
+            const results = (await webSearch(q, 10)).map((r) => ({ title: r.title ?? "", url: r.url ?? "", snippet: (r.description ?? "").replace(/<[^>]+>/g, "") }))
+            evidence.push(...fromSearch(results.filter((r) => r.url), lead))
+          } catch (e) {
+            skipped.push(`Sökningen: ${e instanceof Error ? e.message : "fel"}`)
+            break
+          }
         }
+        if (!settled()) skipped.push(`Registren: inget säkert om ${person} – många med bara F-skatt finns inte i allabolag (inte registrerade i handelsregistret)`)
       }
     }
 

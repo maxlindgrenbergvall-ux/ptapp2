@@ -3,7 +3,7 @@
 import { parseRegistry } from "@/lib/crm/enrichment/registry"
 import { decide, type Evidence } from "@/lib/crm/enrichment/decide"
 import { classifyNumber, findNumbers, luhnDigit, luhnValid, redactPersonnummer } from "@/lib/crm/enrichment/orgnr"
-import { fromLead, fromSearch, fromText, searchQuery } from "@/lib/crm/enrichment/signals"
+import { cleanPersonName, companiesIn, fromLead, fromSearch, fromText, registerQuery, searchQuery } from "@/lib/crm/enrichment/signals"
 
 let failed = 0
 const check = (c: boolean, m: string, extra?: unknown) => {
@@ -61,7 +61,7 @@ const hits = fromSearch(
   ],
   lead
 )
-check(hits.length === 1 && hits[0].kind === "ab" && hits[0].orgNumber === AB_FMT && hits[0].weight === 80, "sökträff med namn + ort ger AB (namne och annan person räknas inte)", hits)
+check(hits.length === 1 && hits[0].kind === "ab" && hits[0].orgNumber === AB_FMT && hits[0].weight === 84, "sökträff med namn + ort ger AB (namne och annan person räknas inte)", hits)
 check(fromSearch([{ title: "Anna Lind, Göteborg", url: "https://www.merinfo.se/a", snippet: `Enskild firma. ${PNR_FMT}` }], lead).some((e) => e.kind === "enskild"), "registerutdrag för enskild firma")
 check(searchQuery(lead) === '"Anna Lind" Göteborg (organisationsnummer OR "enskild firma" OR aktiebolag)', "sökfrågan: namn, ort och registerord")
 
@@ -103,6 +103,39 @@ check(bv({ organisationsform: { kod: "HB", klartext: "Handelsbolag" } })?.isAkti
 check(bv({ organisationer: [{ organisationsform: { kod: "AB" }, avregistreringsdatum: "2024-01-01" }] })?.inactive === true, "avregistrerat bolag känns igen")
 check(bv({ organisationer: [{ organisationsform: { kod: "AB" }, avregistreringsdatum: null }] })?.inactive === false, "inget avregistreringsdatum = aktivt")
 check(bv({ helt: "annat" }) === null && bv(null) === null, "oväntat svar = inget besked (aldrig ett påhittat AB)")
+
+// ------------------------------------------- v57: Instagram-namn och allabolag ---
+check(cleanPersonName("Anna 🏋️ Andersson | PT Stockholm") === "Anna Andersson", "Instagram-namn: emojis, avdelare och PT bort")
+check(cleanPersonName("anna.andersson.pt") === "Anna Andersson", "användarnamn delas på punkter")
+check(cleanPersonName("Coach Erik Lind – Online coaching") === "Erik Lind", "Coach före namnet tas bort")
+check(cleanPersonName("Sara Holm (PT)") === "Sara Holm", "parentes bort")
+check(cleanPersonName("Karl-Johan Öberg") === "Karl-Johan Öberg", "bindestreck och å/ä/ö behålls")
+check(cleanPersonName("Coach Anna") === null && cleanPersonName("fitwithanna") === null && cleanPersonName("") === null, "utan efternamn: ingen sökning (risk för namnes)")
+check(registerQuery({ name: "Anna 💪 Andersson | PT" }) === 'site:allabolag.se "Anna Andersson"', "första sökningen går mot allabolag med det tvättade namnet")
+check(registerQuery({ name: "fitwithanna" }) === null, "inget namn = ingen sökning")
+check(searchQuery({ name: "Anna Lind | PT", city: "Göteborg" }).startsWith('"Anna Lind" Göteborg'), "breda sökningen använder också det tvättade namnet")
+
+const ABH = withCheck("559111222")
+const AB_H = `${ABH.slice(0, 6)}-${ABH.slice(6)}`
+const role = companiesIn(`Anna Andersson är styrelseledamot i Andersson Coaching AB (${AB_H}). Verksamhet: personlig träning.`)
+check(role.length === 1 && role[0].role === "Styrelseledamot" && role[0].fitness && role[0].orgNumber === AB_H, "befattning, bolag, bransch och org.nr ur ett utdrag", role)
+check(companiesIn("VD i Mindset Ledarskap AB")[0]?.fitness === true, "personlig utveckling/ledarskap räknas")
+check(companiesIn("Ledamot i Brf Solgläntan AB")[0]?.fitness === false, "bostadsrättsförening räknas inte")
+
+const ext = (title: string, snippet: string) => fromSearch([{ title, url: "https://www.allabolag.se/person/x", snippet }], { name: "Anna 🏋️ Andersson | PT", city: "Uppsala" })
+const fitAb = ext("Anna Andersson - Befattningar", `Anna Andersson, Uppsala. VD i Andersson Hälsa AB, org.nr ${AB_H}.`)
+check(fitAb.some((e) => e.kind === "ab" && e.weight >= 70 && e.orgNumber === AB_H && /VD i Andersson Hälsa AB/.test(e.detail)), "VD i ett hälsobolag → AB (Instagram-namnet matchar registret)", fitAb)
+const otherAb = ext("Anna Andersson - Befattningar", `Anna Andersson, Uppsala. Styrelseledamot i Byggbolaget Norr AB, org.nr ${AB_H}.`)
+check(otherAb.every((e) => e.weight < 70) && otherAb.some((e) => /ingen koppling till träning/.test(e.detail)), "befattning i ett bolag utan koppling till träning räknas inte", otherAb)
+const efAlla = ext("Anna Andersson - Enskild näringsidkare", "Anna Andersson, Uppsala. Bolagsform: Enskild näringsidkare. Verksamhet: Personlig träning.")
+check(efAlla.some((e) => e.kind === "enskild" && e.weight >= 70), "\"Enskild näringsidkare\" på allabolag → enskild firma", efAlla)
+check(decide(efAlla, { legalBasis: "unknown" as never }).type === "enskild_firma", "beslutet: enskild firma (låst)")
+
+// En befattning gör inte en privat adress till B2B.
+const viaGmail = decide(fitAb, { legalBasis: "unknown" as never, email: "anna.andersson@gmail.com" })
+check(viaGmail.type === "ab" && !viaGmail.salesAllowed && viaGmail.legalBasis === "research" && viaGmail.status === "needs_review" && /bolagets adress/.test(viaGmail.summary), "AB men gmail → låst och Granska tills bolagets adress läggs in", viaGmail)
+const viaOwn = decide(fitAb, { legalBasis: "unknown" as never, email: "anna@anderssonhalsa.se" })
+check(viaOwn.type === "ab" && viaOwn.salesAllowed && viaOwn.legalBasis === "company", "AB med egen domän → B2B tillåtet", viaOwn)
 
 console.log(failed ? `\n${failed} fel` : "\nBERIKNINGSMOTORN GODKÄND")
 process.exit(failed ? 1 : 0)

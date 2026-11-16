@@ -578,6 +578,21 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v57: berikningen hittar enskild firma och befattningar via allabolag
+
+När du klickar **Sök i register** på en lead gör motorn så här:
+- **Tvättar namnet** (`cleanPersonName`). Instagram-namn som "Anna 🏋️ Andersson | PT Stockholm" och användarnamn som `anna.andersson.pt` blir "Anna Andersson". Utan för- och efternamn görs ingen sökning, eftersom det ger namnes. Motorn ber då om personens namn.
+- **Söker först mot allabolag:** `site:allabolag.se "Förnamn Efternamn"` via sök-API:t. Bara om det inte ger något säkert görs en bredare sökning. Det blir högst två sökningar per klick, och aldrig automatiskt.
+- **Läser utdragen:**
+  - **Enskild näringsidkare/firma** blir enskild firma, låst till referensgrupp eller DM.
+  - **Befattning (VD, styrelseledamot, innehavare, delägare …) i ett AB** räknas bara när bolaget håller på med träning, hälsa, coaching, kost eller personlig utveckling. Det avgörs på namn, verksamhet eller SNI-kod (93.1x, 85.51, 96.04, 96.09, 86.90). Org.nr i utdraget bekräftas hos Bolagsverket.
+  - **Befattning i ett annat bolag,** till exempel ett byggbolag, räknas inte. Den visas som bevis med förklaringen "ingen koppling till träning".
+- **Privat e-post låser B2B.** Ett AB med en privat adress (gmail, hotmail …) blir *AB men låst* och hamnar i Granska med texten "lägg in bolagets adress". Mottagaren är fortfarande en privatperson enligt marknadsföringslagen 19 §. När bolagets adress läggs in och du söker igen låses B2B upp.
+- **Begränsning:** PT:er med bara F-skatt, som inte är registrerade i handelsregistret, finns inte i allabolag. De förblir *Okänd* och är därmed låsta, och motorn förklarar varför.
+- **Ingen skrapning:** allabolags sidor hämtas inte, bara sök-API:ts utdrag används.
+
+Tester: `e2e/enrichment.unit.ts` (namn, befattningar, bransch, privat adress) och `e2e/v54-berikning.test.mjs` (Moa, Ellen, Rolf). Ingen migration behövs.
+
 ## Nytt i v56: flytta pass, måltidsbrickor, receptbanken i Coavira+, stabil layout
 
 **Flytta pass** (`src/lib/workout-move.ts`, `src/components/workouts/move-workout.tsx`):

@@ -25,6 +25,9 @@ const ORG_SODERBERG = luhn("559123456") // på webbplatsen
 const ORG_LARSSON = luhn("559876543") // i registrets utdrag (sökningen)
 const ORG_DEAD = luhn("556111222") // avregistrerat hos Bolagsverket
 const PNR_PER = luhn("790315123") // personnummer (enskild firma) – sparas aldrig
+const ORG_MALM = luhn("559222333") // v57: Moa Malm är VD i ett träningsbolag (allabolag)
+const ORG_ROS = luhn("556333444") // v57: Rolf Ros sitter i ett byggbolag – räknas inte
+const queries = []
 
 const PAGES = {
   // v54: berikningsmotorn
@@ -131,14 +134,25 @@ http
       const id = String(JSON.parse(body || "{}").identitetsbeteckning ?? "")
       lookups.push(id)
       const fmt = `${id.slice(0, 6)}-${id.slice(6)}`
+      if (fmt === ORG_MALM) return send(200, "application/json", JSON.stringify({ organisationer: [{ organisationsform: { kod: "AB", klartext: "Aktiebolag" }, organisationsnamn: { namn: "Malm Träning AB" }, avregistreringsdatum: null }] }))
       if (fmt === ORG_LARSSON || fmt === ORG_SODERBERG) return send(200, "application/json", JSON.stringify({ organisationer: [{ identitet: { identitetsbeteckning: id }, organisationsform: { kod: "AB", klartext: "Aktiebolag" }, organisationsnamn: { namn: fmt === ORG_LARSSON ? "Larsson Hälsa AB" : "Söderberg Träning AB" }, avregistreringsdatum: null }] }))
       if (fmt === ORG_DEAD) return send(200, "application/json", JSON.stringify({ organisationer: [{ organisationsform: { kod: "AB", klartext: "Aktiebolag" }, avregistreringsdatum: "2023-06-30" }] }))
       return send(404, "application/json", "{}")
     }
     if (req.url === "/__bv") return send(200, "application/json", JSON.stringify(lookups))
+    if (req.url === "/__queries") return send(200, "application/json", JSON.stringify(queries))
     if (req.url?.startsWith("/res/v1/web/search")) {
       if (req.headers["x-subscription-token"] !== "test-key") return send(401, "application/json", "{}")
       const q = new URL(req.url, "http://x").searchParams.get("q") ?? ""
+      queries.push(q)
+      // v57: allabolags egna utdrag (site:allabolag.se "Förnamn Efternamn").
+      if (/site:allabolag\.se/.test(q)) {
+        const results = []
+        if (/"Moa Malm"/.test(q)) results.push({ title: "Moa Malm - Befattningar - Allabolag", url: "https://www.allabolag.se/befattningshavare/moa-malm", description: `Moa Malm, Örebro. VD i Malm Träning AB, org.nr ${ORG_MALM}. Verksamhet: personlig träning och kostrådgivning.` })
+        if (/"Ellen Ek"/.test(q)) results.push({ title: "Ellen Ek - Enskild näringsidkare - Västerås", url: "https://www.allabolag.se/ellen-ek", description: "Ellen Ek, Västerås. Bolagsform: Enskild näringsidkare. Verksamhet: Hälso- och träningsverksamhet." })
+        if (/"Rolf Ros"/.test(q)) results.push({ title: "Rolf Ros - Befattningar - Allabolag", url: "https://www.allabolag.se/befattningshavare/rolf-ros", description: `Rolf Ros, Gävle. Styrelseledamot i Ros Bygg & Fastighet AB, org.nr ${ORG_ROS}.` })
+        return send(200, "application/json", JSON.stringify({ query: q, web: { results } }))
+      }
       // v54: registersökningar från berikningsmotorn – företagsregistrens egna utdrag.
       if (/organisationsnummer/.test(q)) {
         const results = []

@@ -21,6 +21,7 @@ const luhn = (nine) => {
 const ORG_SODERBERG = luhn("559123456")
 const ORG_LARSSON = luhn("559876543")
 const ORG_DEAD = luhn("556111222")
+const ORG_MALM = luhn("559222333")
 
 const base = process.env.BASE_URL ?? "http://localhost:3000"
 const mock = "http://localhost:54810"
@@ -73,6 +74,29 @@ check(!/\d{6}-\d{4}/.test(JSON.stringify(per.enrichment)) && per.orgNumber === n
 const gustav = await search(await create({ name: "Gustav Gammal", email: "gustav@gmail.com", city: "Lund" }))
 check(gustav.companyType !== "ab" && gustav.legalBasis === "research" && kinds(gustav).includes("bolagsverket:inactive"), "avregistrerat bolag hos Bolagsverket räknas inte som AB", { t: gustav.companyType, k: kinds(gustav) })
 
+// ------------------------------- v57: Instagram-namn → allabolag (befattning, enskild näringsidkare) ---
+const q0 = (await (await fetch(`${mock}/__queries`)).json()).length
+let moa = await search(await create({ name: "Moa 💪 Malm | PT Örebro", email: "moa.malm@gmail.com", city: "Örebro", instagram: "moamalm.pt" }))
+const moaQ = (await (await fetch(`${mock}/__queries`)).json()).slice(q0)
+check(moaQ[0] === 'site:allabolag.se "Moa Malm"' && moaQ.length === 1, "Instagram-namnet tvättas och första sökningen går mot allabolag (en sökning räckte)", moaQ)
+check(moa.companyType === "ab" && moa.orgNumber === ORG_MALM && Boolean(moa.verifiedAt), "VD i ett träningsbolag → AB, bekräftat hos Bolagsverket", { t: moa.companyType, org: moa.orgNumber })
+check(moa.legalBasis === "research" && moa.enrichmentStatus === "needs_review" && /bolagets adress/.test(moa.enrichment.summary), "men gmail-adressen är privat → låst och Granska", { lb: moa.legalBasis, s: moa.enrichment.summary })
+pv = await api("outreach.preview", { leadIds: [moa.id], templateId: null })
+check(pv.items[0].templateKind === "research", "ingen säljande mall till den privata adressen", pv.items[0].templateName)
+moa = (await api("lead.update", { id: moa.id, patch: { email: "moa@malmtraning.se" } })).lead
+moa = await search(moa)
+check(moa.companyType === "ab" && moa.legalBasis === "company" && moa.enrichmentStatus === "done", "bolagets adress inlagd → B2B tillåtet", { t: moa.companyType, lb: moa.legalBasis })
+
+const ellen = await search(await create({ name: "ellen.ek.pt", email: "ellen.ek@hotmail.com" }))
+check(ellen.companyType === "enskild_firma" && ellen.legalBasis === "research", "användarnamnet ellen.ek.pt → \"Enskild näringsidkare\" på allabolag → enskild firma", { t: ellen.companyType, s: ellen.enrichment.summary })
+
+const rolf = await search(await create({ name: "Rolf Ros", email: "rolf@gmail.com", city: "Gävle" }))
+check(rolf.companyType === "unknown" && rolf.enrichment.evidence.some((e) => /ingen koppling till träning/.test(e.detail)), "styrelseledamot i ett byggbolag räknas inte", rolf.enrichment.evidence.map((e) => e.detail))
+check(rolf.enrichment.skipped.some((s) => /F-skatt finns inte i allabolag/.test(s)), "inget säkert → förklaring om F-skatt utan handelsregister", rolf.enrichment.skipped)
+
+const fitwith = await search(await create({ name: "fitwithanna", email: "fitwithanna@gmail.com" }))
+check(fitwith.enrichment.skipped.some((s) => /inget för- och efternamn/.test(s)), "bara ett användarnamn → ingen sökning, ber om personens namn", fitwith.enrichment.skipped)
+
 const nisse = await create({ name: "Nisse Okänd", email: "nisse@gmail.com" })
 check(nisse.companyType === "unknown" && nisse.enrichmentStatus === "needs_review" && nisse.legalBasis === "research", "inget hittat → Granska, och låst under tiden", { t: nisse.companyType, s: nisse.enrichmentStatus })
 pv = await api("outreach.preview", { leadIds: [nisse.id], templateId: null })
@@ -103,10 +127,16 @@ await p.waitForSelector("[data-testid=enrich-all]")
 const label = await p.locator("[data-testid=enrich-all]").innerText()
 check(/Auto-berika nya \(\d+\)/.test(label), `knappen visar antalet nya (${label.trim()})`)
 check((await p.locator("[data-testid=lead-row] [data-enrichment=pending]").count()) >= 3, "väntande leads har en streckad badge")
+// Svepet syns bara medan en lead berikas (mockarna svarar snabbt) – registrera det när det händer.
+await p.evaluate(() => {
+  window.__sweep = false
+  const seen = () => document.querySelector("[data-testid=lead-row] [data-enrichment=running].enrich-sweep") && (window.__sweep = true)
+  new MutationObserver(seen).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-enrichment", "class"] })
+})
 await p.click("[data-testid=enrich-all]")
 await p.waitForSelector("[data-testid=enrich-progress]")
 ok("förloppet visas medan motorn arbetar")
-await p.waitForSelector("[data-testid=lead-row] [data-enrichment=running].enrich-sweep", { timeout: 15_000 })
+await p.waitForFunction(() => window.__sweep, null, { timeout: 15_000 })
 ok("svepet över badgarna medan de berikas")
 await p.waitForSelector("[data-testid=enrich-progress]", { state: "detached", timeout: 180_000 })
 await p.waitForSelector("[data-sonner-toast] >> text=/leads berikade/")

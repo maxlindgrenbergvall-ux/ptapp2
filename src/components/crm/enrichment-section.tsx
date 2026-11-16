@@ -63,7 +63,7 @@ export function EnrichmentSection({ lead, busy, onUpdate, onSaved }: { lead: Lea
             <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run")} data-testid="enrich-run" title="Gratis källor: uppgifterna, webbplatsen och Bolagsverket">
               {working ? <Sparkles className="animate-pulse" /> : <RefreshCw />} {lead.enrichedAt ? "Kör igen" : "Auto-berika"}
             </Button>
-            <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run", true)} data-testid="enrich-search" title="Söker i företagsregistrens utdrag – kostar en sökning">
+            <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run", true)} data-testid="enrich-search" title="Söker på allabolag (och vid behov bredare) med personens namn – kostar en eller två sökningar">
               <Search /> Sök i register
             </Button>
           </span>

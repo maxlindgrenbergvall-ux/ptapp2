@@ -6,6 +6,7 @@
  *
  *   1. Gymkedjans egen e-postdomän (t.ex. @sats.se)         → gym_anstalld (bolagets adress)
  *   2. Aktiebolag (org.nr 5…, verifierat eller med namnträff) → ab
+ *      (v57: på en privat adress som gmail → ab men låst och Granska)
  *   3. Enskild firma (text, personnummer som "org.nr")        → enskild_firma
  *   4. Privatperson (uttryckligen ingen firma)                → privatperson
  *   5. Kopplad till en gymkedja (utan kedjans e-post)          → gym_anstalld
@@ -82,12 +83,16 @@ export interface Decision {
   summary: string
 }
 
+/** Gratis e-posttjänster: adressen tillhör en privatperson, inte ett bolag. */
+export const FREE_MAIL = /^(gmail|googlemail|hotmail|outlook|live|icloud|me|mac|yahoo|msn|telia|spray|bredband|bahnhof|comhem|tele2|proton|protonmail|pm)\.[a-z.]+$/i
+export const isPrivateEmail = (email: string | null | undefined) => Boolean(email && FREE_MAIL.test(email.split("@")[1]?.toLowerCase() ?? ""))
+
 /** Minsta vikt för att något ska räknas som säkert. */
 export const SURE = 70
 
 const best = (ev: Evidence[], kind: Evidence["kind"]) => ev.filter((e) => e.kind === kind).sort((a, b) => b.weight - a.weight)[0]
 
-export function decide(evidence: Evidence[], current: { legalBasis: LegalBasis }): Decision {
+export function decide(evidence: Evidence[], current: { legalBasis: LegalBasis; email?: string | null }): Decision {
   const gymEmail = best(evidence, "gym_email")
   const ab = best(evidence, "ab")
   const inactive = best(evidence, "inactive")
@@ -113,6 +118,15 @@ export function decide(evidence: Evidence[], current: { legalBasis: LegalBasis }
   }
   // Ett avregistrerat/inaktivt bolag räknas inte.
   if (ab && ab.weight >= SURE && !(inactive && inactive.orgNumber === ab.orgNumber)) {
+    // v57: personen har ett AB, men adressen vi har är privat (gmail …) – mottagaren är då
+    // fortfarande en privatperson. Låst tills bolagets adress läggs in.
+    if (isPrivateEmail(current.email)) {
+      return {
+        ...locked("ab", "ab", ab.weight, `${ab.detail}${ab.verified ? " (bekräftat hos Bolagsverket)" : ""} – men e-posten är privat: lägg in bolagets adress för B2B-utskick`, "needs_review"),
+        orgNumber: ab.orgNumber ?? null,
+        verified: Boolean(ab.verified),
+      }
+    }
     return {
       type: "ab",
       companyForm: "ab",
