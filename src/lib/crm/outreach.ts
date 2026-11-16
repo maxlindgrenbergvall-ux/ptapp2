@@ -21,8 +21,9 @@ export interface QueueConfig {
 }
 export const DEFAULT_QUEUE: QueueConfig = { minGapSeconds: 90, jitterSeconds: 60, dailyCap: 40, windowStartHour: 8, windowEndHour: 17, weekends: false }
 
-export type Blocker = "no_email" | "unsubscribed" | "suppressed" | "bad_domain" | "legal_basis" | "company_form" | "closed" | "engaged" | "recently_emailed" | "already_queued"
+export type Blocker = "not_reviewed" | "no_email" | "unsubscribed" | "suppressed" | "bad_domain" | "legal_basis" | "company_form" | "closed" | "engaged" | "recently_emailed" | "already_queued"
 export const BLOCKER_TEXT: Record<Blocker, string> = {
+  not_reviewed: "Inte granskad – bekräfta bolagstypen i granskningskön först",
   no_email: "Saknar e-postadress",
   unsubscribed: "Har avregistrerat sig",
   suppressed: "Adressen är spärrad (avregistrerad eller studsad tidigare)",
@@ -32,7 +33,7 @@ export const BLOCKER_TEXT: Record<Blocker, string> = {
   closed: "Leaden är avslutad (kund eller ej aktuell)",
   engaged: "Har redan svarat eller bokat samtal – fortsätt dialogen personligen",
   recently_emailed: "Fick ett mejl för mindre än 14 dagar sedan",
-  already_queued: "Har redan ett mejl i kö",
+  already_queued: "Har redan ett mejl i kö eller under granskning",
 }
 
 /** Minst så här länge mellan två mejl till samma person. */
@@ -41,6 +42,8 @@ export const RECONTACT_DAYS = 14
 /** Varför en lead inte får mejlas just nu (tom lista = går bra). */
 export function blockersFor(lead: Lead, ctx: { suppressed: boolean; queued: boolean; now: Date }): Blocker[] {
   const out: Blocker[] = []
+  // v55: varje lead granskas för hand innan den kan mejlas.
+  if (lead.companyTypeManual === false) out.push("not_reviewed")
   if (!lead.email) out.push("no_email")
   if (lead.unsubscribedAt) out.push("unsubscribed")
   if (ctx.suppressed && !lead.unsubscribedAt) out.push("suppressed")

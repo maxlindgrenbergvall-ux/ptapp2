@@ -34,6 +34,12 @@ export interface EnrichOptions {
   deadline?: number
   /** Webbplatsen lästes nyss (leaden lades till från en webbsida) – läs den inte igen. */
   skipWebsite?: boolean
+  /**
+   * v55: källor som kostar per anrop (sök-API:t) körs BARA när någon klickar.
+   * Automatiska körningar (ny lead, ändring, "Auto-berika nya") använder bara
+   * gratis källor: leadens fält, webbplatsen och Bolagsverket.
+   */
+  paid?: boolean
   now?: () => Date
 }
 
@@ -83,7 +89,8 @@ export async function enrichLead(store: CrmStore, leadId: string, opts: EnrichOp
 
     // 3. Företagsregistrens utdrag via sök-API:t.
     if (!sure() && lead.name.trim().split(/\s+/).length >= 2) {
-      if (!searchConfigured()) skipped.push("Sökningen: inte konfigurerad (BRAVE_SEARCH_API_KEY)")
+      if (!opts.paid) skipped.push("Sökningen i företagsregister: körs bara när du klickar (kostar en sökning)")
+      else if (!searchConfigured()) skipped.push("Sökningen: inte konfigurerad (BRAVE_SEARCH_API_KEY)")
       else if (Date.now() > deadline - 2000) skipped.push("Sökningen: tiden räckte inte")
       else {
         try {
@@ -139,7 +146,7 @@ export function pendingLeads(leads: Lead[], now = Date.now()): Lead[] {
   return leads.filter((l) => !l.companyTypeManual && (l.enrichmentStatus === "pending" || (l.enrichmentStatus === "running" && now - new Date(l.updatedAt).getTime() > 120_000)))
 }
 
-/** Berika upp till `limit` väntande leads inom tidsgränsen (batch-knappen och schemalagda körningar). */
+/** Berika upp till `limit` väntande leads inom tidsgränsen (knappen "Auto-berika nya") – bara gratis källor. */
 export async function enrichPending(store: CrmStore, limit = 3, budgetMs = 20_000): Promise<{ done: Lead[]; remaining: number }> {
   const start = Date.now()
   const queue = pendingLeads(await store.listLeads())

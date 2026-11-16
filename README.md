@@ -578,6 +578,44 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v55: granskningskö, granskning av varje utskick, inga automatiska betalda sökningar
+
+**Granskningskö** (fliken *Granska (N)*, `src/components/crm/review-queue.tsx`):
+- Varje lead granskas för hand innan den kan mejlas. Spärren "Inte granskad" gäller i förhandsgranskningen och i kön.
+- Kön visar en lead i taget med kontaktuppgifter, länkar och motorns förslag med ledtrådar.
+- Beslut tas med en tangent eller ett klick:
+  - **A** AB, **E** Enskild firma, **G** Gym-PT, **I** Influencer, **P** Privatperson, **X** Ej aktuell.
+  - **S** eller → hoppar över, **←** går tillbaka.
+  - **R** söker i företagsregister. Det kostar en sökning och körs bara på tangenttryck eller klick.
+  - **W** och **O** öppnar webbplatsen och Instagram.
+- Beslutet sparas som en manuell bolagstyp, och regelverket (rättslig grund och mallar) följer med.
+
+**Granskning av utskick** (överst under *Utskick*, `src/components/crm/email-review.tsx`):
+- Varje mejl skapas som **Väntar på granskning**, även automatiska uppföljningar, och skickas inte förrän någon har godkänt det.
+- Granskningen visar exakt det som går ut: mottagare, ämne, text och sidfoten som läggs till.
+- **Godkänn**, **Redigera** eller **Avvisa**.
+  - Redigerade mejl märks, och texten får inte innehålla kvarglömda `{{variabler}}` eller `[platshållare]`.
+  - *Godkänn alla* kräver en bekräftelse om att allt är läst.
+- Vem som godkände och när sparas på varje utskick (`approved_by`, `approved_at`, `edited_at`).
+- Databasen spärrar köade eller skickade utskick utan godkännande, och kön (`crm_claim_due_emails`) plockar bara godkända.
+- Ett godkänt mejl kontrolleras ännu en gång precis innan det skickas (avregistrering, spärrlista, svar).
+
+**Inga automatiska körningar som kostar:**
+- Sök-API:t används aldrig automatiskt. Det körs bara via *Sök i register* i granskningskön eller lead-panelen.
+- Automatiska körningar använder bara gratis källor: leadens uppgifter, webbplatsen och Bolagsverket. Det gäller nya leads, ändringar och *Auto-berika nya*.
+- Den schemalagda kön (`/api/crm/queue`) berikar ingenting längre.
+- Prospekteringsjobb ("Hitta PT:er", Apify) startas fortfarande bara för hand. Den schemalagda kön fortsätter ett jobb som redan är startat, inom dess kostnadstak.
+
+**Kör migrationen** `supabase/migrations/20261126000000_v55_crm_approval.sql`.
+- Den lägger till statusen `pending_approval` och kolumnerna `approved_at`, `approved_by` och `edited_at`.
+- Den lägger till spärren och den nya `crm_claim_due_emails`.
+- Befintliga utskick räknas som godkända.
+- RLS är oförändrad.
+
+Test:
+- `node e2e/v55-granskning.test.mjs` (34 kontroller)
+- Databas: `supabase/tests/rls_v55.test.sql`
+
 ## Nytt i v54: berikningsmotorn – bolagstyp och roll helt automatiskt
 
 När en lead läggs till eller får nya kontaktuppgifter avgör motorn **bolagstyp och roll** och kopplar den direkt till rätt regelverk. Importerade leads berikas i omgångar.

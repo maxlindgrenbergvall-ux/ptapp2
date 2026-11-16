@@ -1,7 +1,7 @@
 "use client"
 
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { BarChart3, CheckCheck, Sparkles, FilePen, Flame, GripVertical, Inbox, LayoutList, Mail, MailCheck, PhoneCall, Plus, Radar, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
+import { BarChart3, CheckCheck, ScanSearch, Sparkles, FilePen, Flame, GripVertical, Inbox, LayoutList, Mail, MailCheck, PhoneCall, Plus, Radar, RefreshCw, Search, Send, ShieldCheck, SquareKanban, Users, X } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -12,6 +12,8 @@ import { OutreachDialog, TemplatesDialog } from "@/components/crm/outreach-dialo
 import { ProspectBanner, ProspectDialog, useProspectJob } from "@/components/crm/prospect"
 import { ApiError, CompanyTypeBadge, crm, EmailStatusText, fmtDate, fmtDateTime, ScoreBadge, SegmentBadge, StatusBadge } from "@/components/crm/parts"
 import { StatsView } from "@/components/crm/stats-view"
+import { EmailReview } from "@/components/crm/email-review"
+import { needsReview, ReviewQueue } from "@/components/crm/review-queue"
 import { TodayView } from "@/components/crm/today-view"
 import { AnimatedNumber } from "@/components/motion"
 import { Button } from "@/components/ui/button"
@@ -42,7 +44,7 @@ interface Boot {
   converted?: number
   config: Config
 }
-type View = "today" | "list" | "kanban" | "queue" | "stats"
+type View = "review" | "today" | "list" | "kanban" | "queue" | "stats"
 type ScoreFilter = "all" | "high" | "mid" | "low"
 const ALL = "all"
 
@@ -104,6 +106,9 @@ export function CrmDashboard() {
   }, [leads, q, segment, status, city, score])
 
   const queued = logs.filter((l) => l.status === "queued" || l.status === "sending")
+  // v55: utskick som väntar på granskning och leads som inte är granskade.
+  const toApprove = logs.filter((l) => l.status === "pending_approval").length
+  const toReview = leads.filter(needsReview).length
 
   // Kön drivs medan panelen är öppen: ett steg (högst ett mejl) var 30:e sekund när något väntar.
   // Ett schemalagt jobb mot /api/crm/queue gör samma sak när ingen har panelen öppen.
@@ -306,10 +311,11 @@ export function CrmDashboard() {
           <div className="ml-auto flex rounded-lg border border-border/70 p-0.5" role="tablist" aria-label="Vy">
             {(
               [
+                ["review", ScanSearch, `Granska${toReview ? ` (${toReview})` : ""}`],
                 ["today", Flame, "Att göra"],
                 ["list", LayoutList, "Lista"],
                 ["kanban", SquareKanban, "Pipeline"],
-                ["queue", Send, `Utskick${queued.length ? ` (${queued.length})` : ""}`],
+                ["queue", Send, toApprove ? `Utskick (${toApprove} att granska)` : `Utskick${queued.length ? ` (${queued.length})` : ""}`],
                 ["stats", BarChart3, "Statistik"],
               ] as const
             ).map(([key, Icon, label]) => (
@@ -404,6 +410,8 @@ export function CrmDashboard() {
         </div>
       )}
 
+      {view === "review" && <ReviewQueue leads={leads} onSaved={upsert} onOpen={setOpenId} />}
+      {view === "queue" && <EmailReview logs={logs} leads={leads} templates={boot.templates} onChange={(next) => setBoot((b) => (b ? { ...b, logs: next } : b))} />}
       {view === "today" && <TodayView leads={leads} logs={logs} activities={activities} onOpen={setOpenId} onEmail={(ids) => setOutreach(ids)} />}
       {view === "stats" && <StatsView leads={leads} logs={logs} activities={activities} templates={boot.templates} />}
       {view === "list" && <TodayView compact leads={leads} logs={logs} activities={activities} onOpen={setOpenId} onEmail={(ids) => setOutreach(ids)} onShowAll={() => setView("today")} />}

@@ -6,7 +6,7 @@ import { queueConfig } from "@/lib/crm/queue"
 import { emailHash, type CrmStore } from "@/lib/crm/store"
 import { templateBlock } from "@/lib/crm/compliance"
 import { renderTemplate, senderName, templateFor, variablesFor } from "@/lib/crm/templates"
-import type { Lead } from "@/lib/crm/types"
+import { isOpenLog, type Lead } from "@/lib/crm/types"
 
 export interface PreviewItem {
   leadId: string
@@ -37,7 +37,7 @@ export async function buildOutreach(store: CrmStore, leadIds: string[], template
   const [all, templates, logs] = await Promise.all([store.listLeads(), store.listTemplates(), store.listLogs({ limit: 1000 })])
   const leads = leadIds.map((id) => all.find((l) => l.id === id)).filter((l): l is Lead => Boolean(l))
   const suppressed = await store.suppressedHashes(leads.filter((l) => l.email).map((l) => emailHash(l.email!)))
-  const queuedFor = new Set(logs.filter((l) => l.status === "queued" || l.status === "sending").map((l) => l.leadId))
+  const queuedFor = new Set(logs.filter(isOpenLog).map((l) => l.leadId))
   const chosen = templateId ? templates.find((t) => t.id === templateId) : undefined
 
   const items = leads.map((lead): PreviewItem => {
@@ -73,10 +73,10 @@ export async function buildOutreach(store: CrmStore, leadIds: string[], template
   // Tiderna: efter det som redan ligger i kön, och med hänsyn till det som redan skickats i dag.
   const sentPerDay: Record<string, number> = {}
   for (const l of logs) {
-    const at = l.sentAt ?? (l.status === "queued" || l.status === "sending" ? l.scheduledAt : null)
+    const at = l.sentAt ?? (isOpenLog(l) ? l.scheduledAt : null)
     if (at) sentPerDay[stockholmDay(new Date(at))] = (sentPerDay[stockholmDay(new Date(at))] ?? 0) + 1
   }
-  const lastQueued = logs.filter((l) => l.status === "queued" || l.status === "sending").reduce<Date | null>((t, l) => (!t || new Date(l.scheduledAt) > t ? new Date(l.scheduledAt) : t), null)
+  const lastQueued = logs.filter(isOpenLog).reduce<Date | null>((t, l) => (!t || new Date(l.scheduledAt) > t ? new Date(l.scheduledAt) : t), null)
   const lastSent = logs.reduce<Date | null>((t, l) => (l.sentAt && (!t || new Date(l.sentAt) > t) ? new Date(l.sentAt) : t), null)
   const ok = items.filter((i) => !i.blockers.length)
   // Dygnstaket räknas på det som redan är köat; köade poster ska inte räknas två gånger som "skickade".

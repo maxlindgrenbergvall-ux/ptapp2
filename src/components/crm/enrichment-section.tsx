@@ -1,6 +1,6 @@
 "use client"
 
-import { BadgeCheck, ChevronDown, ExternalLink, Info, RefreshCw, ShieldAlert, Sparkles, Wand2 } from "lucide-react"
+import { BadgeCheck, ChevronDown, ExternalLink, Info, RefreshCw, Search, ShieldAlert, Sparkles, Wand2 } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -27,11 +27,11 @@ export function EnrichmentSection({ lead, busy, onUpdate, onSaved }: { lead: Lea
   const r = lead.enrichment
   const working = running || lead.enrichmentStatus === "running"
 
-  const run = async (action: "enrich.run" | "enrich.reset") => {
+  const run = async (action: "enrich.run" | "enrich.reset", paid = false) => {
     setRunning(true)
     onSaved({ ...lead, enrichmentStatus: "running" })
     try {
-      const { lead: saved } = await crm<{ lead: Lead }>(action, { id: lead.id })
+      const { lead: saved } = await crm<{ lead: Lead }>(action, action === "enrich.run" ? { id: lead.id, paid } : { id: lead.id })
       onSaved(saved)
       toast.success(`${COMPANY_TYPE_LABEL[saved.companyType]}${saved.enrichment ? ` · ${saved.enrichment.confidence} % säker` : ""}`, { description: saved.enrichment?.summary })
     } catch (e) {
@@ -59,9 +59,14 @@ export function EnrichmentSection({ lead, busy, onUpdate, onSaved }: { lead: Lea
             <Wand2 /> Automatisk
           </Button>
         ) : (
-          <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run")} data-testid="enrich-run">
-            {working ? <Sparkles className="animate-pulse" /> : <RefreshCw />} {lead.enrichedAt ? "Kör igen" : "Auto-berika"}
-          </Button>
+          <span className="flex gap-1.5">
+            <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run")} data-testid="enrich-run" title="Gratis källor: uppgifterna, webbplatsen och Bolagsverket">
+              {working ? <Sparkles className="animate-pulse" /> : <RefreshCw />} {lead.enrichedAt ? "Kör igen" : "Auto-berika"}
+            </Button>
+            <Button variant="outline" size="sm" className="h-7" disabled={working || busy} onClick={() => void run("enrich.run", true)} data-testid="enrich-search" title="Söker i företagsregistrens utdrag – kostar en sökning">
+              <Search /> Sök i register
+            </Button>
+          </span>
         )}
       </div>
 

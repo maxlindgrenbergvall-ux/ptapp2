@@ -59,20 +59,24 @@ check(pv.items.find((i) => i.leadId === emma.id).templateKind === "research" && 
 const anna = await create({ name: "Anna Berg", email: "anna.berg@sats.se", gym: "SATS", segment: "gym_chain" })
 check(anna.companyType === "gym_anstalld" && anna.legalBasis === "company" && anna.companyForm === "ab", "e-post på SATS domän → gym-PT på bolagets adress", { t: anna.companyType, lb: anna.legalBasis })
 
-const lisa = await create({ name: "Lisa Larsson", email: "lisa.larsson@gmail.com", city: "Uppsala" })
+// v55: sökningen i företagsregister kostar och körs bara när någon klickar ("Sök i register").
+const search = async (lead) => (await api("enrich.run", { id: lead.id, paid: true })).lead
+let lisa = await create({ name: "Lisa Larsson", email: "lisa.larsson@gmail.com", city: "Uppsala" })
+check(lisa.companyType === "unknown" && lisa.enrichment.skipped.some((s) => /bara när du klickar/.test(s)), "ny lead: ingen betald sökning automatiskt", lisa.enrichment.skipped)
+lisa = await search(lisa)
 check(lisa.companyType === "ab" && lisa.orgNumber === ORG_LARSSON && Boolean(lisa.verifiedAt), "registrets utdrag (sökning) → AB, bekräftat – namnen i en annan stad räknas inte", { t: lisa.companyType, org: lisa.orgNumber })
 
-const per = await create({ name: "Per Persson", email: "per.persson@gmail.com", city: "Malmö" })
+const per = await search(await create({ name: "Per Persson", email: "per.persson@gmail.com", city: "Malmö" }))
 check(per.companyType === "enskild_firma" && per.legalBasis === "research", "registret: enskild firma → låst", per.companyType)
 check(!/\d{6}-\d{4}/.test(JSON.stringify(per.enrichment)) && per.orgNumber === null, "personnumret från registret sparas inte någonstans", per.enrichment)
 
-const gustav = await create({ name: "Gustav Gammal", email: "gustav@gmail.com", city: "Lund" })
+const gustav = await search(await create({ name: "Gustav Gammal", email: "gustav@gmail.com", city: "Lund" }))
 check(gustav.companyType !== "ab" && gustav.legalBasis === "research" && kinds(gustav).includes("bolagsverket:inactive"), "avregistrerat bolag hos Bolagsverket räknas inte som AB", { t: gustav.companyType, k: kinds(gustav) })
 
 const nisse = await create({ name: "Nisse Okänd", email: "nisse@gmail.com" })
 check(nisse.companyType === "unknown" && nisse.enrichmentStatus === "needs_review" && nisse.legalBasis === "research", "inget hittat → Granska, och låst under tiden", { t: nisse.companyType, s: nisse.enrichmentStatus })
 pv = await api("outreach.preview", { leadIds: [nisse.id], templateId: null })
-check(pv.items[0].templateKind === "research" && !pv.items[0].blockers.length, "en okänd lead kan bara få referensgruppsmallen", pv.items[0])
+check(pv.items[0].templateKind === "research" && pv.items[0].blockers.every((b) => b.code === "not_reviewed"), "en okänd lead kan bara få referensgruppsmallen (och granskas först)", pv.items[0])
 
 const coach = await create({ name: "Olle Online", email: "olle@gmail.com", segment: "influencer" })
 check(coach.companyType === "influencer" && coach.legalBasis === "research", "onlinecoach utan bolag → Influencer, låst", coach.companyType)

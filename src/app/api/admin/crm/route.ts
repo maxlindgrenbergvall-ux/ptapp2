@@ -116,7 +116,12 @@ const body = z.discriminatedUnion("action", [
   }).strict(),
   z.object({ action: z.literal("conversions.sync") }).strict(),
   // v54: berikningsmotorn
-  z.object({ action: z.literal("enrich.run"), id: uuid }).strict(),
+  // paid = sök även i företagsregister via sök-API:t (kostar en sökning) – bara när någon klickar.
+  z.object({ action: z.literal("enrich.run"), id: uuid, paid: z.boolean().default(false) }).strict(),
+  // v55: granskning av utskick – inget skickas utan godkännande.
+  z.object({ action: z.literal("email.approve"), ids: z.array(uuid).min(1).max(200) }).strict(),
+  z.object({ action: z.literal("email.reject"), id: uuid, reason: text(200).optional() }).strict(),
+  z.object({ action: z.literal("email.edit"), id: uuid, subject: text(200).min(1), body: z.string().trim().min(1).max(8000) }).strict(),
   z.object({ action: z.literal("enrich.reset"), id: uuid }).strict(),
   z.object({ action: z.literal("enrich.batch"), limit: z.number().int().min(1).max(5).default(3) }).strict(),
   z.object({ action: z.literal("lead.import"), leads: z.array(leadFields.required({ name: true })).min(1).max(2000) }).strict(),
@@ -312,7 +317,27 @@ export async function POST(request: Request) {
         const lead = await store.getLead(input.id)
         if (!lead) return bad("Leaden finns inte längre", 404)
         if (lead.companyTypeManual) return bad("Bolagstypen är satt för hand – välj Automatisk först.", 409)
-        return NextResponse.json({ lead: await enrichLead(store, lead.id, { deadline: Date.now() + 12_000 }) })
+        if (input.paid && (await rateLimited(`crm-search:${limitKey}`, 60, 3600))) return tooManyRequests(600)
+        return NextResponse.json({ lead: await enrichLead(store, lead.id, { deadline: Date.now() + 12_000, paid: input.paid }) })
+      }
+      case "email.approve": {
+        // Godkänn de granskade utskicken – de går sedan ut i kön (takt, dygnstak, kontorstid) och
+        // kontrolleras ännu en gång precis innan de skickas.
+        let approved = 0
+        for (const id of input.ids) if (await store.approveLog(id)) approved++
+        return NextResponse.json({ approved, logs: await store.listLogs({ limit: 1000 }) })
+      }
+      case "email.reject": {
+        const n = await store.cancelQueued({ id: input.id }, `Avvisad vid granskning${input.reason ? `: ${input.reason}` : ""}`)
+        return n ? NextResponse.json({ ok: true }) : bad("Utskicket är redan hanterat", 409)
+      }
+      case "email.edit": {
+        const log = (await store.listLogs({ limit: 1000 })).find((l) => l.id === input.id)
+        if (!log || log.status !== "pending_approval") return bad("Bara utskick som väntar på granskning kan ändras", 409)
+        // Kvarglömda variabler eller platshållare får inte gå ut.
+        if (/\{\{[^}]*\}\}|\[[^\]\n]{2,40}\]/.test(`${input.subject}\n${input.body}`)) return bad("Texten har en variabel eller platshållare kvar ({{…}} eller […])")
+        await store.updateLog(input.id, { subject: input.subject, body: input.body, editedAt: new Date().toISOString() })
+        return NextResponse.json({ log: { ...log, subject: input.subject, body: input.body, editedAt: new Date().toISOString() } })
       }
       case "enrich.reset": {
         // Tillbaka till automatik: motorn får bestämma igen.

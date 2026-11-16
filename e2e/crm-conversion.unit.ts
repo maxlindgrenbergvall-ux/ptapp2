@@ -22,7 +22,7 @@ const lead = (p: Partial<Lead> = {}): Lead => ({
   email: "ella@ellapt.se", emailVerified: true, phone: null, instagram: null, instagramFollowers: null, websiteUrl: null, gym: null, city: "Malmö",
   specialties: ["Styrka"], source: "manual", sourceUrl: null, score: 60, scoreBreakdown: [], legalBasis: "unknown", unsubscribedAt: null,
   lastEmailedAt: null, statusChangedAt: "", companyForm: "unknown", orgNumber: null, preferredChannel: "email", nextActionAt: null,
-  nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null, companyType: "unknown", companyTypeManual: false, enrichmentStatus: "done", enrichment: null, enrichedAt: null, verifiedAt: null, ...p,
+  nextActionNote: null, lastContactedAt: null, meetingAt: null, convertedAt: null, companyType: "unknown", companyTypeManual: true, enrichmentStatus: "done", enrichment: null, enrichedAt: null, verifiedAt: null, ...p,
 })
 const templates: EmailTemplate[] = DEFAULT_TEMPLATES.map((t, i) => ({ id: `T${i}`, updatedAt: "", ...t }))
 const tpl = (key: string) => templates.find((t) => t.key === key)!
@@ -88,6 +88,8 @@ check(recommendedChannel({ ...ef, instagram: "ella.pt" }) === "instagram" && rec
 const now = new Date("2026-11-16T09:00:00Z") // måndag 10:00 svensk tid
 const ctx = { suppressed: false, queued: false, now }
 check(blockersFor(lead({ companyForm: "enskild", legalBasis: "company" }), ctx).includes("company_form"), "enskild firma kan inte ha grunden Företagsadress")
+check(blockersFor(lead({ ...ab, companyTypeManual: false }), ctx)[0] === "not_reviewed", "v55: en lead som inte är granskad kan inte mejlas")
+check(nextAction(lead({ ...ab, companyTypeManual: false }), { logs: [], activities: [], now }).label === "Granska leaden", "v55: nästa steg för en ogranskad lead är att granska den")
 check(blockersFor(ef, ctx).length === 0, "enskild firma med icke-säljande grund får mejlas (med rätt mall)")
 check(blockersFor(lead({ ...ab, status: "replied" }), ctx).includes("engaged") && blockersFor(lead({ ...ab, status: "meeting" }), ctx).includes("engaged"), "svarat/bokat: inga massutskick")
 
@@ -131,7 +133,7 @@ check(activityEffect("dm_sent", { status: "replied" }, "t").patch.status === und
 check(activityEffect("converted", { status: "meeting" }, "t").patch.status === "customer", "blev PT → kund")
 
 // ---------------------------------------------------------- statistik ---
-const log = (p: Partial<EmailLog>): EmailLog => ({ id: Math.random().toString(36).slice(2), leadId: "", templateId: "T1", createdAt: "", toEmail: "x@y.se", subject: "", body: "", status: "delivered", scheduledAt: "", sentAt: "2026-11-10T09:00:00Z", deliveredAt: "2026-11-10T09:00:00Z", resendId: null, error: null, step: 1, parentId: null, openedAt: null, openCount: 0, ...p })
+const log = (p: Partial<EmailLog>): EmailLog => ({ id: Math.random().toString(36).slice(2), leadId: "", templateId: "T1", createdAt: "", toEmail: "x@y.se", subject: "", body: "", status: "delivered", scheduledAt: "", sentAt: "2026-11-10T09:00:00Z", deliveredAt: "2026-11-10T09:00:00Z", resendId: null, error: null, step: 1, parentId: null, openedAt: null, openCount: 0, approvedAt: "2026-11-10T08:00:00Z", editedAt: null, ...p })
 const leads = [lead({ id: "1", status: "replied" }), lead({ id: "2", status: "emailed" }), lead({ id: "3", status: "customer" }), lead({ id: "4", status: "meeting" }), lead({ id: "5" })]
 const logs = [log({ leadId: "1" }), log({ leadId: "2" }), log({ leadId: "3", templateId: "T0" }), log({ leadId: "2", step: 2, parentId: "x" }), log({ leadId: "4", status: "bounced" })]
 const acts: Activity[] = [{ id: "d1", leadId: "5", kind: "dm_sent", body: null, occurredAt: "2026-11-10T09:00:00Z" }]

@@ -68,7 +68,7 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
     try {
       const r = await crm<{ logs: EmailLog[]; skipped: number }>("outreach.schedule", { leadIds, templateId: templateId === AUTO ? null : templateId })
       onScheduled(r.logs)
-      toast.success(`${r.logs.length} mejl schemalagda`, { description: r.skipped ? `${r.skipped} hoppades över` : "De går ut ett i taget med paus emellan." })
+      toast.success(`${r.logs.length} mejl väntar på granskning`, { description: `Läs och godkänn dem under Utskick – inget skickas innan.${r.skipped ? ` ${r.skipped} hoppades över.` : ""}` })
       onOpenChange(false)
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Kunde inte schemalägga")
@@ -90,10 +90,10 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
     >
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl" data-testid="outreach">
         <DialogHeader>
-          <DialogTitle>Förhandsgranska &amp; schemalägg utskick</DialogTitle>
+          <DialogTitle>Förbered utskick</DialogTitle>
           <DialogDescription>
             {queue
-              ? `Mejlen går ut ett i taget med minst ${queue.minGapSeconds} sekunder emellan, högst ${queue.dailyCap} per dygn, vardagar kl. ${queue.windowStartHour}–${queue.windowEndHour}.`
+              ? `Mejlen hamnar under Utskick för granskning. När de är godkända går de ut ett i taget med minst ${queue.minGapSeconds} sekunder emellan, högst ${queue.dailyCap} per dygn, vardagar kl. ${queue.windowStartHour}–${queue.windowEndHour}.`
               : "Räknar ut vilka som kan få ett mejl …"}
           </DialogDescription>
         </DialogHeader>
@@ -187,7 +187,7 @@ export function OutreachDialog({ open, onOpenChange, leadIds, templates, onSched
             Avbryt
           </Button>
           <Button onClick={schedule} disabled={busy || !ok.length} data-testid="outreach-schedule">
-            <Send /> Schemalägg {ok.length || ""} mejl
+            <Send /> Skicka {ok.length || ""} till granskning
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -71,6 +71,8 @@ await api("template.delete", { id: salesy.template.id })
 const sentBefore = (await (await fetch(`${mock}/__sent`)).json()).length
 r = await api("outreach.schedule", { leadIds: [ella.id, anna.id], templateId: null })
 check(r.logs?.length === 2, "två mejl schemalagda", r)
+// v55: godkänn efter granskning.
+await api("email.approve", { ids: r.logs.map((l) => l.id) })
 let sentNow = 0
 for (let i = 0; i < 4 && sentNow < 2; i++) {
   const q = await api("queue.run")
@@ -86,7 +88,7 @@ check(/eftersom du arbetar som personlig tränare/.test(mailAnna.text) && mailAn
 boot = await api("bootstrap")
 const followups = boot.logs.filter((l) => l.step === 2)
 const fuAnna = followups.find((l) => l.leadId === anna.id)
-check(fuAnna?.status === "queued" && !followups.some((l) => l.leadId === ella.id), "uppföljning köad för aktiebolaget – inte för den enskilda firman", followups.map((l) => [l.leadId === anna.id ? "anna" : "ella", l.status]))
+check(fuAnna?.status === "pending_approval" && !followups.some((l) => l.leadId === ella.id), "uppföljning (väntar på granskning) för aktiebolaget – inte för den enskilda firman", followups.map((l) => [l.leadId === anna.id ? "anna" : "ella", l.status]))
 const days = (new Date(fuAnna.scheduledAt) - Date.now()) / 86_400_000
 check(days > 3.9 && days < 6, `uppföljningen går om ca fyra dagar (${days.toFixed(1)} d)`)
 check(/lyfter det en gång till/.test(fuAnna.body) && fuAnna.parentId, "uppföljningens text och koppling till första mejlet")

@@ -215,10 +215,12 @@ export interface Activity {
   occurredAt: string
 }
 
-export const EMAIL_STATUSES = ["queued", "sending", "sent", "delivered", "bounced", "complained", "failed", "cancelled"] as const
+export const EMAIL_STATUSES = ["pending_approval", "queued", "sending", "sent", "delivered", "bounced", "complained", "failed", "cancelled"] as const
 export type EmailStatus = (typeof EMAIL_STATUSES)[number]
 export const EMAIL_STATUS_LABEL: Record<EmailStatus, string> = {
-  queued: "I kö",
+  // v55: varje utskick granskas och godkänns innan det kan skickas.
+  pending_approval: "Väntar på granskning",
+  queued: "Godkänt, i kö",
   sending: "Skickas",
   sent: "Skickat",
   delivered: "Levererat",
@@ -248,7 +250,13 @@ export interface EmailLog {
   /** Bara om öppningsspårning är påslagen i Resend (avstängt som standard). */
   openedAt: string | null
   openCount: number
+  /** v55: godkänt för utskick (null = väntar på granskning). */
+  approvedAt: string | null
+  /** Texten ändrades vid granskningen. */
+  editedAt: string | null
 }
+/** Utskick som väntar på svar eller går ut – räknas som "i kö" för spärrar och planering. */
+export const isOpenLog = (l: Pick<EmailLog, "status">) => l.status === "pending_approval" || l.status === "queued" || l.status === "sending"
 
 /** Det parsern hittar på en publik sida – ett förslag som en människa granskar innan det sparas. */
 export interface Extracted {

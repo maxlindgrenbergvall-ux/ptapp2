@@ -33,7 +33,7 @@ export interface NewLog {
   step?: 1 | 2
   parentId?: string | null
 }
-export type LogPatch = Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt" | "openedAt" | "openCount">>
+export type LogPatch = Partial<Pick<EmailLog, "status" | "sentAt" | "deliveredAt" | "resendId" | "error" | "scheduledAt" | "openedAt" | "openCount" | "subject" | "body" | "editedAt">>
 
 export type SaveResult = { lead: Lead; duplicate?: undefined } | { lead?: undefined; duplicate: Lead; field: "e-postadressen" | "Instagram-kontot" | "webbadressen" }
 
@@ -61,6 +61,8 @@ export interface CrmStore {
   /** Hämtar och låser utskick som är dags (status → sending). */
   claimDue(limit: number): Promise<EmailLog[]>
   cancelQueued(filter: { leadId?: string; id?: string }, reason?: string): Promise<number>
+  /** v55: godkänn ett utskick som väntar på granskning (status → i kö). false = fanns inte / redan hanterat. */
+  approveLog(id: string): Promise<boolean>
   suppressedHashes(hashes: string[]): Promise<Set<string>>
   suppress(email: string, reason: "unsubscribed" | "bounced" | "complained" | "manual"): Promise<void>
   countSuppressed(): Promise<number>
@@ -169,6 +171,8 @@ const toLog = (r: Row): EmailLog => ({
   parentId: s(r.parent_id),
   openedAt: s(r.opened_at),
   openCount: Number(r.open_count ?? 0),
+  approvedAt: s(r.approved_at),
+  editedAt: s(r.edited_at),
 })
 
 const toJob = (r: Row): ProspectJob => ({ id: String(r.id), createdAt: String(r.created_at), updatedAt: String(r.updated_at), status: r.status as ProspectStatus, config: r.config as ProspectConfig, state: r.state as ProspectState, error: s(r.error) })
@@ -353,13 +357,14 @@ export class SupabaseStore implements CrmStore {
   async createLogs(rows: NewLog[]) {
     const { data, error } = await this.db
       .from("crm_email_logs")
-      .insert(rows.map((r) => ({ lead_id: r.leadId, template_id: r.templateId, to_email: r.toEmail, subject: r.subject, body: r.body, scheduled_at: r.scheduledAt, step: r.step ?? 1, parent_id: r.parentId ?? null, created_by: this.userId })))
+      // v55: alltid "väntar på granskning" – en människa godkänner innan något skickas.
+      .insert(rows.map((r) => ({ lead_id: r.leadId, template_id: r.templateId, to_email: r.toEmail, subject: r.subject, body: r.body, scheduled_at: r.scheduledAt, step: r.step ?? 1, parent_id: r.parentId ?? null, created_by: this.userId, status: "pending_approval" })))
       .select("*")
     this.fail(error)
     return (data ?? []).map(toLog)
   }
   async updateLog(id: string, patch: LogPatch) {
-    const map: Record<string, string> = { sentAt: "sent_at", deliveredAt: "delivered_at", resendId: "resend_id", scheduledAt: "scheduled_at", openedAt: "opened_at", openCount: "open_count" }
+    const map: Record<string, string> = { sentAt: "sent_at", deliveredAt: "delivered_at", resendId: "resend_id", scheduledAt: "scheduled_at", openedAt: "opened_at", openCount: "open_count", editedAt: "edited_at" }
     const row = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined).map(([k, v]) => [map[k] ?? k, v]))
     const { error } = await this.db.from("crm_email_logs").update(row).eq("id", id)
     this.fail(error)
@@ -375,12 +380,22 @@ export class SupabaseStore implements CrmStore {
     return ((data as Row[] | null) ?? []).map(toLog)
   }
   async cancelQueued(filter: { leadId?: string; id?: string }, reason?: string) {
-    let q = this.db.from("crm_email_logs").update({ status: "cancelled", ...(reason ? { error: reason } : {}) }).eq("status", "queued")
+    let q = this.db.from("crm_email_logs").update({ status: "cancelled", ...(reason ? { error: reason } : {}) }).in("status", ["queued", "pending_approval"])
     if (filter.leadId) q = q.eq("lead_id", filter.leadId)
     if (filter.id) q = q.eq("id", filter.id)
     const { data, error } = await q.select("id")
     this.fail(error)
     return data?.length ?? 0
+  }
+  async approveLog(id: string) {
+    const { data, error } = await this.db
+      .from("crm_email_logs")
+      .update({ status: "queued", approved_at: new Date().toISOString(), approved_by: this.userId })
+      .eq("id", id)
+      .eq("status", "pending_approval")
+      .select("id")
+    this.fail(error)
+    return Boolean(data?.length)
   }
   async suppressedHashes(hashes: string[]) {
     if (!hashes.length) return new Set<string>()
@@ -523,8 +538,8 @@ function seed(): DemoState {
   const templates: EmailTemplate[] = DEFAULT_TEMPLATES.map((t, i) => ({ id: `20000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`, key: t.key, segment: t.segment, kind: t.kind, companyForm: t.companyForm, name: t.name, subject: t.subject, body: t.body, followupDays: t.followupDays, followupSubject: t.followupSubject, followupBody: t.followupBody, updatedAt: ago(1) }))
   const notes: Note[] = [{ id: randomUUID(), leadId: leads[3].id, body: "Svarade att hon vill se en demo efter jul. Följ upp vecka 2.", createdAt: ago(5) }]
   const logs: EmailLog[] = [
-    { id: randomUUID(), leadId: leads[2].id, templateId: templates[3].id, createdAt: ago(3), toEmail: leads[2].email!, subject: "Onlinecoaching utan PDF:er och DM-kaos", body: "Hej Viktor, …", status: "delivered", scheduledAt: ago(3), sentAt: ago(3), deliveredAt: ago(3), resendId: "demo-1", error: null, step: 1, parentId: null, openedAt: null, openCount: 0 },
-    { id: randomUUID(), leadId: leads[3].id, templateId: templates[2].id, createdAt: ago(20), toEmail: leads[3].email!, subject: "Dina PT-klienter mellan passen på Nordic Wellness", body: "Hej Maja, …", status: "delivered", scheduledAt: ago(20), sentAt: ago(20), deliveredAt: ago(20), resendId: "demo-2", error: null, step: 1, parentId: null, openedAt: null, openCount: 0 },
+    { id: randomUUID(), leadId: leads[2].id, templateId: templates[3].id, createdAt: ago(3), toEmail: leads[2].email!, subject: "Onlinecoaching utan PDF:er och DM-kaos", body: "Hej Viktor, …", status: "delivered", scheduledAt: ago(3), sentAt: ago(3), deliveredAt: ago(3), resendId: "demo-1", error: null, step: 1, parentId: null, openedAt: null, openCount: 0, approvedAt: ago(20), editedAt: null },
+    { id: randomUUID(), leadId: leads[3].id, templateId: templates[2].id, createdAt: ago(20), toEmail: leads[3].email!, subject: "Dina PT-klienter mellan passen på Nordic Wellness", body: "Hej Maja, …", status: "delivered", scheduledAt: ago(20), sentAt: ago(20), deliveredAt: ago(20), resendId: "demo-2", error: null, step: 1, parentId: null, openedAt: null, openCount: 0, approvedAt: ago(20), editedAt: null },
   ]
   const activities: Activity[] = [{ id: randomUUID(), leadId: leads[3].id, kind: "email_reply", body: "Vill se en demo efter jul", occurredAt: ago(5) }]
   return { leads, notes, templates, logs, activities, suppressed: new Map(), jobs: [] }
@@ -650,7 +665,7 @@ export class DemoStore implements CrmStore {
       .slice(0, opts.limit ?? 500)
   }
   async createLogs(rows: NewLog[]) {
-    const created = rows.map((r): EmailLog => ({ id: randomUUID(), createdAt: new Date().toISOString(), status: "queued", sentAt: null, deliveredAt: null, resendId: null, error: null, openedAt: null, openCount: 0, ...r, step: r.step ?? 1, parentId: r.parentId ?? null }))
+    const created = rows.map((r): EmailLog => ({ id: randomUUID(), createdAt: new Date().toISOString(), status: "pending_approval", sentAt: null, deliveredAt: null, resendId: null, error: null, openedAt: null, openCount: 0, approvedAt: null, editedAt: null, ...r, step: r.step ?? 1, parentId: r.parentId ?? null }))
     demo().logs.push(...created)
     return created
   }
@@ -663,7 +678,7 @@ export class DemoStore implements CrmStore {
   async claimDue(limit: number) {
     const now = new Date().toISOString()
     const due = demo()
-      .logs.filter((l) => l.status === "queued" && l.scheduledAt <= now)
+      .logs.filter((l) => l.status === "queued" && l.approvedAt && l.scheduledAt <= now)
       .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
       .slice(0, limit)
     for (const l of due) l.status = "sending"
@@ -672,12 +687,19 @@ export class DemoStore implements CrmStore {
   async cancelQueued(filter: { leadId?: string; id?: string }, reason?: string) {
     let n = 0
     for (const l of demo().logs) {
-      if (l.status !== "queued" || (filter.leadId && l.leadId !== filter.leadId) || (filter.id && l.id !== filter.id)) continue
+      if ((l.status !== "queued" && l.status !== "pending_approval") || (filter.leadId && l.leadId !== filter.leadId) || (filter.id && l.id !== filter.id)) continue
       l.status = "cancelled"
       if (reason) l.error = reason
       n++
     }
     return n
+  }
+  async approveLog(id: string) {
+    const log = demo().logs.find((l) => l.id === id && l.status === "pending_approval")
+    if (!log) return false
+    log.status = "queued"
+    log.approvedAt = new Date().toISOString()
+    return true
   }
   async suppressedHashes(hashes: string[]) {
     return new Set(hashes.filter((h) => demo().suppressed.has(h)))

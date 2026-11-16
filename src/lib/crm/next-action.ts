@@ -4,7 +4,7 @@
  * "Att göra" alltid är förklarlig. Enhetstestad i e2e/crm-conversion.unit.ts.
  */
 import { recommendedChannel } from "@/lib/crm/compliance"
-import type { Activity, EmailLog, Lead } from "@/lib/crm/types"
+import { isOpenLog, type Activity, type EmailLog, type Lead } from "@/lib/crm/types"
 
 export type ActionKind = "reminder" | "book_call" | "prep_call" | "log_call" | "convert" | "assess" | "dm" | "email" | "follow_up" | "none"
 
@@ -61,9 +61,12 @@ export function nextAction(lead: Lead, ctx: { logs: EmailLog[]; activities: Acti
   }
 
   const contacted = lead.lastContactedAt ?? lead.lastEmailedAt
-  const queued = logs.some((l) => l.status === "queued" || l.status === "sending")
+  const queued = logs.some(isOpenLog)
 
-  // 4. Inte kontaktad.
+  // 4. Inte kontaktad. v55: först granskas leaden (bolagstypen bekräftas för hand).
+  if (!contacted && !queued && !lead.companyTypeManual) {
+    return { kind: "assess", label: "Granska leaden", reason: "Bekräfta bolagstypen i granskningskön", priority: 40 + boost, due: true, hot }
+  }
   if (!contacted && !queued) {
     if (lead.companyForm === "unknown" && lead.legalBasis !== "consent") return { kind: "assess", label: "Bedöm bolagsform", reason: "AB eller enskild firma avgör vilket utskick som är tillåtet", priority: 40 + boost, due: false, hot }
     const channel = recommendedChannel(lead)

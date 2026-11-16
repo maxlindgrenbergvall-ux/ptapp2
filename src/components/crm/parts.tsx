@@ -79,6 +79,7 @@ export function ScoreBadge({ score, className }: { score: number; className?: st
 }
 
 const EMAIL_STYLE: Record<EmailStatus, string> = {
+  pending_approval: "text-warning",
   queued: "text-muted-foreground",
   sending: "text-foreground",
   sent: "text-primary",

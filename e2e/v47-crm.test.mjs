@@ -127,6 +127,10 @@ check(preview.items.find((i) => i.leadId === elin.id)?.templateKind === "researc
 check(preview.items.find((i) => i.leadId === karin.id)?.blockers.some((b) => b.code === "legal_basis"), "utan rättslig grund går inga mejl ut", preview.items.map((i) => i.blockers.map((b) => b.code)))
 await api("lead.bulk", { ids: [elin.id], patch: { legalBasis: "consent" } })
 await api("lead.bulk", { ids: [karin.id], patch: { legalBasis: "company" } })
+// v55: varje lead granskas för hand innan den kan mejlas (samtycke behålls, gymkedjans adress = bolag).
+check((await api("outreach.preview", { leadIds: [elin.id], templateId: null })).items[0].blockers.some((b) => b.code === "not_reviewed"), "en ogranskad lead kan inte mejlas")
+await api("lead.update", { id: elin.id, patch: { companyType: "enskild_firma" } })
+await api("lead.update", { id: karin.id, patch: { companyType: "gym_anstalld" } })
 preview = await api("outreach.preview", { leadIds: [elin.id, karin.id], templateId: null })
 // v53: startmallarna har inga platshållare – avsändaren fylls i från CRM_FROM_EMAIL ("Test på Coavira <…>" → Test).
 check(preview.items.every((i) => i.blockers.length === 0 && /\nTest\nCoavira/.test(i.body)), "startmallarna går att skicka direkt – avsändaren fylls i", preview.items.map((i) => i.blockers))
@@ -148,8 +152,11 @@ const mail = await p.locator("[data-testid=outreach-mail]").innerText()
 check(/Hej (Elin|Karin)[,!]/.test(mail) && !/\{\{/.test(mail), "förhandsgranskning: variablerna är ifyllda", mail.slice(0, 80))
 check((await p.locator("[data-testid=outreach-ok] > li").count()) === 2, "förhandsgranskning: två mejl, var och en med sin segmentmall")
 await p.click("[data-testid=outreach-schedule]")
-await p.waitForSelector("[data-testid=queue-list] li[data-status=queued]")
-let logs = (await api("bootstrap")).logs.filter((l) => l.status === "queued")
+await p.waitForSelector("[data-testid=queue-list] li[data-status=pending_approval]")
+let logs = (await api("bootstrap")).logs.filter((l) => l.status === "pending_approval")
+// v55: inget skickas innan det är granskat och godkänt.
+check((await api("queue.run")).result.sent === 0, "ogranskade mejl skickas inte")
+check((await api("email.approve", { ids: logs.map((l) => l.id) })).approved === 2, "båda mejlen godkända efter granskning")
 const gap = Math.abs(new Date(logs[0].scheduledAt) - new Date(logs[1].scheduledAt)) / 1000
 check(logs.length === 2 && gap >= 20, `kö: två mejl schemalagda med paus emellan (${gap} s)`)
 check((await api("outreach.preview", { leadIds: [elin.id], templateId: null })).items[0].blockers.some((b) => b.code === "already_queued"), "samma lead kan inte köas två gånger")
