@@ -50,7 +50,11 @@ export function finalizeExercises(
     if (item.sets === undefined || !Number.isInteger(item.sets) || item.sets < 1 || item.sets > MAX_SETS) {
       return { error: `Fyll i antal set (1–${MAX_SETS}) för ${label}` }
     }
-    if (!item.reps.trim()) return { error: `Fyll i reps för ${label}` }
+    // v58: löpning kräver distans eller tid; kondition distans eller reps/kalorier; styrka reps.
+    const type = item.trackingType ?? "strength"
+    if (type === "running" && !item.distanceM && !item.durationSec) return { error: `Fyll i distans för ${label}` }
+    if (type === "conditioning" && !item.distanceM && !item.reps.trim()) return { error: `Fyll i distans eller reps för ${label}` }
+    if (type === "strength" && !item.reps.trim()) return { error: `Fyll i reps för ${label}` }
     if (item.restSec === undefined || item.restSec < 0 || item.restSec > MAX_REST_SEC) {
       return { error: `Fyll i vilotid (0–${MAX_REST_SEC} s) för ${label}` }
     }

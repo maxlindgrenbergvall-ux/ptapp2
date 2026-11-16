@@ -14,7 +14,9 @@
 import { addDays, parseISODate } from "@/lib/date"
 import type { ISODate, WorkoutExercise } from "@/types/domain"
 
-export type SplitKey = "ppl" | "ppl6" | "upper_lower" | "four_split" | "bro_split" | "full_body"
+export type SplitKey = "ppl" | "ppl6" | "upper_lower" | "four_split" | "bro_split" | "full_body" | "hyrox_prep" | "run_5k" | "run_10k" | "hybrid"
+/** v58: kategorin i filtret Alla/Styrka/Löpning/Hyrox (ett upplägg kan höra till flera). */
+export type SplitCategory = "strength" | "running" | "hyrox"
 
 export type SplitExercise = Omit<WorkoutExercise, "id">
 export interface SplitDay {
@@ -23,6 +25,8 @@ export interface SplitDay {
   exercises: SplitExercise[]
   /** v52: vilodag (inga övningar) – kan flyttas fritt i ordningen. */
   rest?: boolean
+  /** v58: nyckel i ordboken (plans.day.* / plans.focus.*) – namnet visas på användarens språk. */
+  i18n?: string
 }
 export interface Split {
   key: SplitKey | "custom"
@@ -33,7 +37,32 @@ export interface Split {
   /** Rekommenderade veckodagar (0 = måndag … 6 = söndag). */
   weekdays: number[]
   days: SplitDay[]
+  /** v58: saknas = styrka. */
+  categories?: SplitCategory[]
 }
+
+export const splitCategories = (s: Pick<Split, "categories">): SplitCategory[] => s.categories ?? ["strength"]
+
+// v58: löpning, Hyrox-stationer och block. distanceM i meter, tempo i s/km.
+const run = (exerciseId: string, distanceM: number, sets = 1, paceSecPerKm?: number, restSec = 0, blockId?: string): SplitExercise => ({
+  exerciseId,
+  trackingType: "running",
+  sets,
+  reps: "",
+  restSec,
+  distanceM,
+  ...(paceSecPerKm ? { paceSecPerKm } : {}),
+  ...(blockId ? { blockId } : {}),
+})
+const station = (exerciseId: string, rounds: number, opts: { distanceM?: number; reps?: string; blockId?: string } = {}): SplitExercise => ({
+  exerciseId,
+  trackingType: "conditioning",
+  sets: rounds,
+  reps: opts.reps ?? "",
+  restSec: 0,
+  ...(opts.distanceM ? { distanceM: opts.distanceM } : {}),
+  ...(opts.blockId ? { blockId: opts.blockId } : {}),
+})
 
 // Hjälpare: tung basövning, medeltung, isolering.
 const heavy = (exerciseId: string, sets = 4): SplitExercise => ({ exerciseId, sets, reps: "6–8", restSec: 150 })
@@ -132,6 +161,90 @@ export const SPLITS: Split[] = [
     ],
   },
 ]
+
+/** v58: löpning, Hyrox och hybrid – färdiga upplägg under "Upplägg / Tips". */
+SPLITS.push(
+  {
+    key: "hyrox_prep",
+    name: "Hyrox Race Prep",
+    short: "Hyrox",
+    description: "Fyra pass mot loppet: race-simulering i block, löpintervaller, Hyrox-styrka och ett lugnt zon 2-pass.",
+    level: "Alla nivåer",
+    weekdays: [0, 1, 3, 5],
+    categories: ["hyrox"],
+    days: [
+      {
+        name: "Race-simulering",
+        focus: "Löpning + stationer i varv",
+        i18n: "hyrox_sim",
+        exercises: [
+          // Block A: 4 varv 1000 m löpning + 50 m Sled Push. Block B: 4 varv 1000 m + 25 Wall Balls.
+          run("e-hyrox-run", 1000, 4, 300, 0, "sim-a"),
+          station("e-sledpush", 4, { distanceM: 50, blockId: "sim-a" }),
+          run("e-hyrox-run", 1000, 4, 300, 0, "sim-b"),
+          station("e-wallball", 4, { reps: "25", blockId: "sim-b" }),
+        ],
+      },
+      { name: "Löpintervaller", focus: "1000 m i racefart", i18n: "hyrox_intervals", exercises: [run("e-intervals", 1000, 6, 280, 90)] },
+      {
+        name: "Hyrox-styrka",
+        focus: "Ben, grepp och bål",
+        i18n: "hyrox_strength",
+        exercises: [heavy("e-squat", 4), mid("e-rdl"), station("e-sandbag", 3, { distanceM: 50 }), station("e-farmers", 3, { distanceM: 100 }), station("e-sledpull", 3, { distanceM: 25 })],
+      },
+      { name: "Zon 2", focus: "Lugnt, kunna prata", i18n: "zone2", exercises: [run("e-long-run", 10000, 1, 390)] },
+    ],
+  },
+  {
+    key: "run_5k",
+    name: "5 km Löpning",
+    short: "5 km",
+    description: "Tre löppass i veckan mot 5 km: intervaller, tempo och ett längre lugnt pass.",
+    level: "Nybörjare",
+    weekdays: [1, 3, 5],
+    categories: ["running"],
+    days: [
+      { name: "Intervaller", focus: "Snabbt med vila", i18n: "run_intervals", exercises: [run("e-intervals", 800, 6, 300, 90)] },
+      { name: "Tempo / tröskel", focus: "Comfortably hard", i18n: "run_tempo", exercises: [run("e-tempo-run", 4000, 1, 320)] },
+      { name: "Långpass", focus: "Lugnt och långt", i18n: "run_long", exercises: [run("e-long-run", 8000, 1, 400)] },
+    ],
+  },
+  {
+    key: "run_10k",
+    name: "10 km Löpning",
+    short: "10 km",
+    description: "Fyra löppass mot 10 km: intervaller, tröskel, distans och långpass i zon 2.",
+    level: "Van",
+    weekdays: [0, 2, 4, 6],
+    categories: ["running"],
+    days: [
+      { name: "Intervaller", focus: "Snabbt med vila", i18n: "run_intervals", exercises: [run("e-intervals", 1000, 5, 285, 90)] },
+      { name: "Tempo / tröskel", focus: "Comfortably hard", i18n: "run_tempo", exercises: [run("e-tempo-run", 6000, 1, 305)] },
+      { name: "Lugn distans", focus: "Återhämtning", i18n: "run_easy", exercises: [run("e-run", 6000, 1, 380)] },
+      { name: "Långpass", focus: "Lugnt och långt", i18n: "run_long", exercises: [run("e-long-run", 14000, 1, 390)] },
+    ],
+  },
+  {
+    key: "hybrid",
+    name: "Hybrid Styrka + Kondition",
+    short: "Hybrid",
+    description: "Styrka och kondition i samma vecka: tunga lyft plus en motor som håller i Hyrox och löpning.",
+    level: "Van",
+    weekdays: [0, 1, 3, 4],
+    categories: ["strength", "hyrox"],
+    days: [
+      { name: "Överkropp + motor", focus: "Press, drag och ergometer", i18n: "hybrid_upper", exercises: [heavy("e-bench"), heavy("e-row"), mid("e-ohp"), station("e-skierg", 4, { distanceM: 250 })] },
+      { name: "Underkropp + motor", focus: "Knäböj, marklyft och släde", i18n: "hybrid_lower", exercises: [heavy("e-squat"), heavy("e-deadlift", 3), station("e-sledpush", 4, { distanceM: 25 })] },
+      { name: "Löpintervaller", focus: "1000 m i racefart", i18n: "hyrox_intervals", exercises: [run("e-intervals", 1000, 5, 290, 90)] },
+      {
+        name: "Kondition (stationer)",
+        focus: "SkiErg, rodd och wall balls",
+        i18n: "hybrid_engine",
+        exercises: [station("e-skierg", 3, { distanceM: 500, blockId: "eng" }), station("e-row-erg", 3, { distanceM: 500, blockId: "eng" }), station("e-wallball", 3, { reps: "20", blockId: "eng" })],
+      },
+    ],
+  }
+)
 
 export const WEEKDAY_SHORT = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"]
 

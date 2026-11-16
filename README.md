@@ -578,6 +578,50 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v58: intressebaserad träning (Styrka, Löpning, Hyrox, Hybrid) och fem språk
+
+**Migration:** `supabase/migrations/20261127000000_v58_i18n_training_modes.sql`. Den körs i en transaktion och testas i `supabase/tests/rls_v58.test.sql`. Den lägger till:
+- `profiles.preferred_language` (`sv`/`en`/`es`/`fr`/`de`, `null` = enhetens språk) och `profiles.training_interests` (`strength`/`running`/`hyrox`/`hybrid`/`health`, högst fem). Kolumnbehörighet ges till `authenticated`, och raderna styrs av den befintliga RLS-policyn "profiles: update self".
+- `exercises.modality` (`strength`/`running`/`hyrox`/`conditioning`) och `exercises.tracking_type` (`strength`/`running`/`conditioning`). Hyrox-stationerna får internationella namn, och nya löpövningar läggs till: Tempo, Långpass zon 2, Backintervaller och Hyrox 1 km.
+- En check på passens och mallarnas övningar (jsonb): `trackingType`, `distanceM`, `paceSecPerKm`, `durationSec` och `blockId` valideras.
+- `set_logs.distance_m`, `duration_sec` och `calories` med rimliga gränser. RLS på `set_logs` gäller som förut.
+- Appen fungerar även innan migrationen är körd. Då gäller enhetens språk, styrkeloggar sparas som vanligt och språkvalet sparas bara i webbläsaren.
+
+**Språk (i18n)** (`src/lib/i18n/*`):
+- Ett lätt lager över React-kontext, utan omladdning eller sidhopp. Valet sparas i webbläsaren (localStorage + cookie), i profilen och i `<html lang>`.
+- Ordböcker för `sv`, `en`, `es`, `fr` och `de`. Svenska är källan, och de andra språken typkontrolleras mot den, så en saknad nyckel ger ett kompileringsfel.
+- Gymlingo per land, till exempel Set/Reps/Vikt, Series/Repes/Peso, Séries/Reps/Charge/Allure/Fractionné och Sätze/Wdh./Gewicht/Grundlagenausdauer.
+- Hyrox-stationerna heter samma sak på alla språk och har en lokal hjälptext per station.
+- Översatt hittills: bottenmenyn, registreringens språkval, intro-flödets första steg, Appinställningar, "Upplägg / Tips" (texter, tips, nivåer, uppläggens namn och dagar) samt passbyggarens och passloggerns fält för löpning, kondition och block. Resten av appen är fortfarande på svenska och kan översättas skärm för skärm med `useT()`.
+- **Förval:** riktiga konton följer enhetens språk (`navigator.languages`; nordiska språk ger svenska, övriga okända engelska). Demoläget startar på svenska eftersom demodatan är svensk.
+
+**Registrering och intro:**
+- Språkchips överst på registreringssidan.
+- Intro-flödets första steg har språkchips (byter hela vyn direkt) och intresse-pills: Styrka & hypertrofi, Löpning, Hyrox, Hybridträning och Allmän hälsa. Allt sparas optimistiskt i profilen.
+
+**Appinställningar** (Profil → Inställningar → Appinställningar, `/klient/installningar/app` och `/pt/installningar/app`):
+- Språklista och intresse-pills med fasta höjder. Ändringar slår igenom direkt i hela appen.
+
+**Intressestyrd passbyggare och "Upplägg / Tips":**
+- En pill-rad Alla · Styrka · Löpning · Hyrox, förvald efter intressena. Upplägg som passar intressena märks *För dig* och visas först, med tre tips per kategori.
+- Nya färdiga upplägg: **Hyrox Race Prep** (race-simulering i block: 4 varv 1000 m + Sled Push och 4 varv 1000 m + Wall Balls), **5 km** och **10 km Löpning** samt **Hybrid Styrka + Kondition**.
+- PT:ns passbyggare har samma filter i övningsbanken. Övningsväljaren har egna grupper för Löpning och Hyrox, och de fälls ut när intressena pekar dit.
+
+**Adaptiva fält** (`src/components/workouts/adaptive-fields.tsx`):
+- Bara de fält som hör till övningen visas:
+  - **Styrka:** Set × Reps × Vikt.
+  - **Löpning:** Intervaller × Distans (km) × Tempo (min/km) × Vila.
+  - **Kondition/Hyrox:** Varv × Distans (m) × Reps/kal.
+- Standardmålen följer med när en övning läggs till, till exempel SkiErg 1000 m, Sled Push 50 m, Burpee Broad Jumps 80 m och Wall Balls 100.
+- Ett tömt fält blir blankt (`""`) och faller aldrig tillbaka på 1. Valideringen sker först när passet sparas.
+- Passloggern loggar distans och tid per intervall eller varv och räknar fram tempot på en fast plats, så raden inte hoppar. Löpning och kondition kräver aldrig vikt.
+
+**Block/varv:**
+- I passbyggaren kopplas en övning till den ovanför. Blocket visas som "Block A · 4 varv", varven gäller hela blocket och ordningen ändras med drag-and-drop.
+- I passloggern visas blockrubriken och en markering på blockets övningar.
+
+Tester: `e2e/training-modes.unit.ts` (53 kontroller: övningar, tider, block, filter och gymlingo på alla språk), `e2e/splits.unit.ts`, `supabase/tests/rls_v58.test.sql` och `e2e/v58-i18n-traning.test.mjs`.
+
 ## Nytt i v57: berikningen hittar enskild firma och befattningar via allabolag
 
 När du klickar **Sök i register** på en lead gör motorn så här:

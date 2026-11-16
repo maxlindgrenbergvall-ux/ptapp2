@@ -38,7 +38,11 @@ import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecon
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { cn } from "@/lib/utils"
-import type { Exercise, ScheduledWorkout, WorkoutExercise } from "@/types/domain"
+import type { Exercise, ScheduledWorkout, SetLog, TrackingType, WorkoutExercise } from "@/types/domain"
+import { TimeInput } from "@/components/workouts/adaptive-fields"
+import { useT } from "@/lib/i18n/provider"
+import { hasMessage } from "@/lib/i18n/translate"
+import { blocks, formatDistance, formatPace, missingForType, paceOf, trackingTypeOf } from "@/lib/training-modes"
 
 /*
  * UX-principer för loggen (används mellan set, ofta med en hand och svettiga fingrar):
@@ -234,8 +238,14 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               <h2 className="px-1 pt-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{group.label}</h2>
             ) : null}
             {(() => {
+              // v58: block/varv – rubrik på blockets första övning, markering på alla.
+              const blockOf = new Map<string, { name: string; first: boolean; rounds: number }>()
+              for (const b of blocks(group.exercises)) {
+                if (b.name) b.items.forEach((it, i) => blockOf.set(it.id, { name: b.name!, first: i === 0, rounds: it.sets }))
+              }
               const card = (exercise: WorkoutExercise, dragHandle?: React.ReactNode) => (
                 <ExerciseCard
+                  block={blockOf.get(exercise.id)}
                   key={exercise.id}
                   index={workout.exercises.indexOf(exercise)}
                   workout={workout}
@@ -385,6 +395,7 @@ function ExerciseCard({
   onRemoveSet,
   onRemove,
   dragHandle,
+  block,
 }: {
   index: number
   workout: ScheduledWorkout
@@ -393,7 +404,7 @@ function ExerciseCard({
   open: boolean
   onToggle: () => void
   readOnly: boolean
-  onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
+  onLog: (log: SetLog) => void
   onSetDone: () => void
   /** Ett set till (saknas = passet är låst). */
   onAddSet?: () => void
@@ -403,8 +414,11 @@ function ExerciseCard({
   onRemoveSet?: () => void
   /** Handtag för drag-and-drop (saknas = ordningen är låst). */
   dragHandle?: React.ReactNode
+  /** v58: övningen ingår i ett block ("Block A · 4 varv"). */
+  block?: { name: string; first: boolean; rounds: number }
 }) {
   const { data, me } = useAppData()
+  const t = useT()
   // PT:ns eget namn för klienten om det finns.
   const name = exerciseName(data, exercise.exerciseId, workout.clientId)
   const last = lastPerformance(exercise.exerciseId, history)
@@ -412,7 +426,10 @@ function ExerciseCard({
   const libraryExercise = data.exercises.find((x) => x.id === exercise.exerciseId)
   const info = { equipment: libraryExercise?.equipment, muscleGroup: libraryExercise?.muscleGroup }
   // Progressiv överbelastning (v32): dagens mål för toppsetet ur historiken.
-  const target = workout.status === "completed" ? null : nextTarget(exercise, history, info)
+  // v58: löpning och kondition loggas med distans/tid – ingen viktprogression.
+  const type = trackingTypeOf(exercise, libraryExercise)
+  const target = workout.status === "completed" || type !== "strength" ? null : nextTarget(exercise, history, info)
+  const hyroxHelp = hasMessage(`hyrox.${exercise.exerciseId}`) ? t(`hyrox.${exercise.exerciseId}`) : null
   const doneCount = workout.logs.filter((l) => l.workoutExerciseId === exercise.id && l.done).length
   const complete = doneCount >= exercise.sets
   // Räknar upp varje gång övningen går från ofärdig till klar (medan sidan är öppen).
@@ -426,7 +443,17 @@ function ExerciseCard({
   const panelId = `ex-${exercise.id}`
 
   return (
-    <section id={`exercise-${exercise.id}`} className={cn("scroll-mt-28 rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm")}>
+    <section
+      id={`exercise-${exercise.id}`}
+      className={cn("scroll-mt-28 rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm", block && "border-l-4 border-l-primary")}
+      data-tracking={type}
+      data-block={block?.name}
+    >
+      {block?.first && (
+        <p className="flex items-center gap-1.5 px-3 pt-2.5 text-xs font-semibold text-primary sm:px-4" data-testid="logger-block">
+          <Repeat className="size-3.5" aria-hidden /> {t("fields.blockRounds", { name: block.name, n: block.rounds })}
+        </p>
+      )}
       <div className="flex items-center">
       <button onClick={onToggle} aria-expanded={open} aria-controls={panelId} className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left sm:p-4">
         {/* v46: när övningens sista set bockas av ritas bocken och brickan får en ring – inte vid sidladdning. */}
@@ -451,9 +478,19 @@ function ExerciseCard({
             )}
           </span>
           <span className="block text-xs text-muted-foreground tabular">
-            {exercise.sets} × {repsLabel(exercise)}
-            {exercise.targetKg ? ` · ${exercise.targetKg} kg` : ""}
-            {exercise.rpe ? ` · RPE ${exercise.rpe}` : ""} · {doneCount}/{exercise.sets} klara
+            {type === "strength" ? (
+              <>
+                {exercise.sets} × {repsLabel(exercise)}
+                {exercise.targetKg ? ` · ${exercise.targetKg} kg` : ""}
+                {exercise.rpe ? ` · RPE ${exercise.rpe}` : ""}
+              </>
+            ) : (
+              <>
+                {exercise.sets} × {[exercise.distanceM ? formatDistance(exercise.distanceM, t.tag) : "", exercise.reps].filter(Boolean).join(" · ")}
+                {exercise.paceSecPerKm ? ` · ${formatPace(exercise.paceSecPerKm)}${t("fields.perKm")}` : ""}
+              </>
+            )}{" "}
+            · {doneCount}/{exercise.sets} klara
           </span>
         </span>
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
@@ -464,7 +501,7 @@ function ExerciseCard({
       {open && (
         <div id={panelId} className="space-y-2.5 px-3 pb-3 sm:space-y-3 sm:px-4 sm:pb-4">
           {/* v37: en samlad ruta – dagens mål, PT:ns anteckning, video och förra gången. */}
-          {((target && target.kind !== "start") || exercise.notes || exercise.videoUrl || last) && (
+          {((target && target.kind !== "start") || exercise.notes || exercise.videoUrl || (last && type === "strength") || hyroxHelp) && (
             <div
               className={cn(
                 "space-y-1.5 rounded-xl border px-3 py-2 text-sm",
@@ -473,13 +510,19 @@ function ExerciseCard({
               data-testid="exercise-brief"
             >
               {target && target.kind !== "start" && <ProgressionHint target={target} usesWeight={usesWeight} />}
+              {/* v58: Hyrox-stationerna har en kort hjälptext på användarens språk. */}
+              {hyroxHelp && (
+                <p className="flex gap-2 text-muted-foreground" data-testid="hyrox-help">
+                  <Info className="mt-0.5 size-4 shrink-0" /> {hyroxHelp}
+                </p>
+              )}
               {exercise.notes && (
                 <p className="flex gap-2">
                   <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> {exercise.notes}
                 </p>
               )}
               {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={name} />}
-              {last && (
+              {last && type === "strength" && (
                 <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground tabular">
                   <span>
                     Förra gången: {last.kg ? `${last.kg} kg × ` : ""}
@@ -500,6 +543,34 @@ function ExerciseCard({
             </div>
           )}
 
+          {type !== "strength" ? (
+            // v58: löpning och kondition – distans och tid (eller reps/kal) per intervall/varv.
+            <>
+              <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
+                <span>{block ? t("fields.rounds") : type === "running" ? "#" : t("fields.rounds")}</span>
+                <span className="text-center">{type === "running" ? t("fields.distanceKm") : exercise.distanceM ? t("fields.distanceM") : t("fields.repsOrCal")}</span>
+                <span className="text-center">{t("fields.time")}</span>
+                <span />
+              </div>
+              <ol className="space-y-2">
+                {Array.from({ length: exercise.sets }, (_, setIndex) => (
+                  <EnduranceRow
+                    key={setIndex}
+                    type={type}
+                    setIndex={setIndex}
+                    exercise={exercise}
+                    workout={workout}
+                    name={name}
+                    readOnly={readOnly}
+                    isNext={setIndex === nextSet}
+                    onLog={onLog}
+                    onDone={onSetDone}
+                  />
+                ))}
+              </ol>
+            </>
+          ) : (
+            <>
           <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
             <span>Set</span>
             <span className="text-center">{usesWeight ? "Kg" : "–"}</span>
@@ -546,6 +617,8 @@ function ExerciseCard({
               />
             ))}
           </ol>
+            </>
+          )}
           {(onAddSet || onRemove || onRemoveSet) && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               {onAddSet && (
@@ -599,7 +672,7 @@ function SetRow({
   readOnly: boolean
   /** Setet som står på tur – markeras diskret så att ögat hittar det efter en avbockning. */
   isNext: boolean
-  onLog: (log: { workoutExerciseId: string; setIndex: number; kg: number; reps: number; done: boolean }) => void
+  onLog: (log: SetLog) => void
   onDone: () => void
 }) {
   const logged = findLog(workout.logs, exercise.id, setIndex)
@@ -696,6 +769,137 @@ function SetRow({
         )}
       >
         {/* v46: bocken ritas och knappen får en ring när setet bockas av (inte vid sidladdning). */}
+        {isDone ? <DrawnCheck play={pop} className="size-6" /> : <Check className="size-6" strokeWidth={3} />}
+        {isDone && pop > 0 && <span key={pop} aria-hidden className="ring-burst" />}
+      </button>
+    </li>
+  )
+}
+
+/**
+ * v58: ett intervall/varv för löpning och kondition. Löpning: distans (km) och
+ * tid – tempot räknas fram. Kondition: distans (m) eller reps/kalorier, tid valfri.
+ * Fälten får vara tomma; valideringen sker först när raden bockas av.
+ */
+function EnduranceRow({
+  type,
+  setIndex,
+  exercise,
+  workout,
+  name,
+  readOnly,
+  isNext,
+  onLog,
+  onDone,
+}: {
+  type: Exclude<TrackingType, "strength">
+  setIndex: number
+  exercise: WorkoutExercise
+  workout: ScheduledWorkout
+  name: string
+  readOnly: boolean
+  isNext: boolean
+  onLog: (log: SetLog) => void
+  onDone: () => void
+}) {
+  const t = useT()
+  const logged = findLog(workout.logs, exercise.id, setIndex)
+  const usesReps = type === "conditioning" && !exercise.distanceM
+  const planned = {
+    distanceM: exercise.distanceM,
+    reps: usesReps && /^\d+$/.test(exercise.reps.trim()) ? Number(exercise.reps.trim()) : undefined,
+    durationSec: exercise.paceSecPerKm && exercise.distanceM ? Math.round((exercise.paceSecPerKm * exercise.distanceM) / 1000) : exercise.durationSec,
+  }
+  type V = { distanceM?: number; reps?: number; durationSec?: number }
+  const [draft, setDraft] = React.useState<V | null>(null)
+  const base: V = logged ? { distanceM: logged.distanceM, reps: logged.reps || undefined, durationSec: logged.durationSec } : { distanceM: planned.distanceM, reps: planned.reps }
+  const v: V = { ...base, ...draft }
+  const isDone = logged?.done ?? false
+  const [invalid, setInvalid] = React.useState(false)
+  const [pop, setPop] = React.useState(0)
+  const toLog = (x: V, done: boolean): SetLog => ({
+    workoutExerciseId: exercise.id,
+    setIndex,
+    kg: 0,
+    reps: x.reps ?? 0,
+    done,
+    ...(x.distanceM !== undefined ? { distanceM: x.distanceM } : {}),
+    ...(x.durationSec !== undefined ? { durationSec: x.durationSec } : {}),
+  })
+  const change = (patch: V) => {
+    const next = { ...v, ...patch }
+    if (!missingForType(type, next, false)) setInvalid(false)
+    if (logged?.done && !missingForType(type, next, false)) {
+      onLog(toLog(next, true))
+      setDraft(null)
+    } else setDraft(next)
+  }
+  const toggle = () => {
+    if (isDone) return onLog(toLog(v, false))
+    const missing = missingForType(type, v, false)
+    if (missing) {
+      setInvalid(true)
+      toast.error(missing === "time" ? t("fields.fillTime", { what: name }) : t("fields.fillDistance", { what: name }))
+      return
+    }
+    onLog(toLog(v, true))
+    setDraft(null)
+    setPop((n) => n + 1)
+    navigator.vibrate?.(15)
+    onDone()
+  }
+  const pace = type === "running" ? paceOf(v.distanceM, v.durationSec) : undefined
+  const label = type === "running" ? t("fields.intervalOf", { n: setIndex + 1 }) : t("fields.roundOf", { n: setIndex + 1 })
+  return (
+    <li
+      data-next={isNext || undefined}
+      className={cn(
+        "grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2",
+        isDone && "bg-brand/15"
+      )}
+      data-testid="endurance-row"
+    >
+      <span className={cn("flex size-6 items-center justify-center justify-self-center rounded-full text-sm font-semibold tabular", isNext && "bg-primary text-primary-foreground")}>{setIndex + 1}</span>
+      {type === "running" ? (
+        <Stepper
+          value={v.distanceM === undefined ? undefined : Math.round(v.distanceM) / 1000}
+          step={0.1}
+          unit="km"
+          disabled={readOnly}
+          invalid={(invalid || isDone) && v.distanceM === undefined}
+          onChange={(km) => change({ distanceM: km === undefined ? undefined : Math.round(km * 1000) })}
+          label={`${t("fields.distance")} ${label}`}
+        />
+      ) : usesReps ? (
+        <Stepper value={v.reps} step={5} unit="reps" disabled={readOnly} invalid={(invalid || isDone) && v.reps === undefined} onChange={(reps) => change({ reps: reps === undefined ? undefined : Math.round(reps) })} label={`${t("fields.repsOrCal")} ${label}`} />
+      ) : (
+        <Stepper value={v.distanceM} step={10} unit="m" disabled={readOnly} invalid={(invalid || isDone) && v.distanceM === undefined} onChange={(m) => change({ distanceM: m === undefined ? undefined : Math.round(m) })} label={`${t("fields.distance")} ${label}`} />
+      )}
+      <div className="relative">
+        <TimeInput
+          value={v.durationSec}
+          onValueChange={(sec) => change({ durationSec: sec })}
+          disabled={readOnly}
+          placeholder={planned.durationSec ? formatPace(planned.durationSec) : "m:ss"}
+          aria-label={`${t("fields.time")} ${label}`}
+          aria-invalid={(invalid && type === "running" && v.durationSec === undefined) || undefined}
+          className="h-12 rounded-xl border-0 bg-muted text-center text-lg font-semibold"
+        />
+        {/* Tempot under tiden – fast plats, så raden inte ändrar höjd. */}
+        <span className="pointer-events-none absolute inset-x-0 -bottom-3.5 h-3 text-center text-[10px] text-muted-foreground tabular">
+          {pace ? `${formatPace(pace)}${t("fields.perKm")}` : ""}
+        </span>
+      </div>
+      <button
+        onClick={toggle}
+        disabled={readOnly}
+        aria-pressed={isDone}
+        aria-label={isDone ? `Ångra ${label}` : `Bocka av ${label}`}
+        className={cn(
+          "relative flex h-12 items-center justify-center rounded-xl border-2 transition-[background-color,border-color,color,scale] duration-200 active:scale-90 disabled:active:scale-100",
+          isDone ? "border-brand bg-brand text-brand-foreground" : isNext ? "border-primary/60 text-primary" : "border-muted-foreground/30 text-muted-foreground hover:border-foreground"
+        )}
+      >
         {isDone ? <DrawnCheck play={pop} className="size-6" /> : <Check className="size-6" strokeWidth={3} />}
         {isDone && pop > 0 && <span key={pop} aria-hidden className="ring-burst" />}
       </button>

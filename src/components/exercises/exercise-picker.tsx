@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { useAppData } from "@/lib/data/store"
 import { displayGroup, type DisplayGroup, GROUP_LABEL, groupExercises } from "@/lib/exercises/groups"
 import { matchesExercise } from "@/lib/exercises/search"
+import { favouredCategories } from "@/lib/training-modes"
 import { cn } from "@/lib/utils"
 import type { Exercise } from "@/types/domain"
 
@@ -67,7 +68,14 @@ export function ExercisePicker({
     setFilterState(g)
     onFilterChange?.(g)
   }
-  const [open, setOpen] = React.useState<Set<DisplayGroup>>(() => new Set(current ? [displayGroup(current)] : []))
+  // v58: intressena lyfter fram Löpning/Hyrox – de grupperna är utfällda från början.
+  const [open, setOpen] = React.useState<Set<DisplayGroup>>(() => {
+    const fav = favouredCategories(data.preferences?.trainingInterests)
+    const initial: DisplayGroup[] = current ? [displayGroup(current)] : []
+    if (!current && fav.has("running")) initial.push("lopning")
+    if (!current && fav.has("hyrox")) initial.push("hyrox")
+    return new Set(initial)
+  })
   const excluded = excludeIds?.join(",") ?? ""
   const groups = React.useMemo(() => {
     const skip = new Set(excluded ? excluded.split(",") : [])

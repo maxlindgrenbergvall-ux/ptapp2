@@ -31,6 +31,9 @@ export const DISPLAY_GROUPS: { key: DisplayGroup; label: string }[] = [
   { key: "mage", label: "Mage" },
   { key: "helkropp", label: "Helkropp" },
   { key: "kondition", label: "Kondition" },
+  // v58: egna grupper för löpning och Hyrox-stationerna.
+  { key: "lopning", label: "Löpning" },
+  { key: "hyrox", label: "Hyrox" },
 ]
 /** Övningsbankens grova muskelgrupp för en grupp i listan (egna övningar, v43). */
 export const MUSCLE_GROUP_OF: Record<DisplayGroup, MuscleGroup> = {
@@ -47,6 +50,8 @@ export const MUSCLE_GROUP_OF: Record<DisplayGroup, MuscleGroup> = {
   mage: "bål",
   helkropp: "helkropp",
   kondition: "kondition",
+  lopning: "kondition",
+  hyrox: "kondition",
 }
 export const GROUP_LABEL = Object.fromEntries(DISPLAY_GROUPS.map((g) => [g.key, g.label])) as Record<DisplayGroup, string>
 
@@ -58,9 +63,12 @@ const GLUTE = /hip thrust|glute|bridge|abduct|kickback|säte|höftlyft|clamshell
 const HAMSTRING = /leg curl|nordic|romanian|stiff-?leg|good ?morning|hamstring|lårcurl|raka ben|rdl/i
 
 /** Visningsgruppen för en övning. */
-export function displayGroup(e: Pick<Exercise, "name" | "muscleGroup"> & { sv?: string; displayGroup?: DisplayGroup }): DisplayGroup {
+export function displayGroup(e: Pick<Exercise, "name" | "muscleGroup"> & { sv?: string; displayGroup?: DisplayGroup; modality?: Exercise["modality"] }): DisplayGroup {
   // v43: egna övningar kan ha en vald grupp.
   if (e.displayGroup) return e.displayGroup
+  // v58: löpning och Hyrox-stationer.
+  if (e.modality === "running") return "lopning"
+  if (e.modality === "hyrox") return "hyrox"
   const name = `${e.name} ${e.sv ?? ""}`
   const g: MuscleGroup = e.muscleGroup
   switch (g) {
@@ -94,7 +102,7 @@ export interface ExerciseGroup<T> {
  * övningar först, sedan i bankens ordning (vanligaste/baslyften först) – inte
  * alfabetiskt. Tomma grupper tas bort.
  */
-export function groupExercises<T extends Pick<Exercise, "name" | "muscleGroup"> & { custom?: unknown; sv?: string; displayGroup?: DisplayGroup }>(list: T[]): ExerciseGroup<T>[] {
+export function groupExercises<T extends Pick<Exercise, "name" | "muscleGroup"> & { custom?: unknown; sv?: string; displayGroup?: DisplayGroup; modality?: Exercise["modality"] }>(list: T[]): ExerciseGroup<T>[] {
   const buckets = new Map<DisplayGroup, T[]>()
   for (const e of list) {
     const k = displayGroup(e)

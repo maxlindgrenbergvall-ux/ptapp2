@@ -14,7 +14,9 @@ import type { AppData, Exercise, ScheduledWorkout, WorkoutExercise, WorkoutSecti
 /** Utrustning som innebär att vikten ska anges (samma mönster som i databasen). */
 export const WEIGHTED_EQUIPMENT = /(skivstång|hantl|hantel|kettlebell|kabel|släde|trap bar|sandsäck|^maskin)/i
 
-export const usesWeights = (exercise: Exercise | undefined) => Boolean(exercise && WEIGHTED_EQUIPMENT.test(exercise.equipment))
+// v58: löpning och kondition (Hyrox-stationer, ergometrar) loggas med distans/tid – aldrig vikt.
+export const usesWeights = (exercise: Exercise | undefined) =>
+  Boolean(exercise && (exercise.trackingType ?? "strength") === "strength" && WEIGHTED_EQUIPMENT.test(exercise.equipment))
 
 /** Starttid för passets kopplade (ej avbokade) kalenderpass, om det finns ett. */
 export function linkedEventStart(data: AppData, workout: ScheduledWorkout): string | undefined {

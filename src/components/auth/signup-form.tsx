@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authCallbackUrl, DASHBOARD_PATH } from "@/lib/auth-redirect"
 import { normalizePhone } from "@/lib/phone"
+import { LanguageChips } from "@/components/settings/app-settings"
+import { setAppLocale } from "@/lib/i18n/provider"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 
@@ -113,6 +115,8 @@ export function SignupForm() {
         </>
       }
     >
+      {/* v58: språket väljs redan här (förvalt efter enheten) – sparas i profilen vid första inloggningen. */}
+      <LanguageChips onPick={setAppLocale} />
       <ReferralBanner />
       <ConsentCheckbox
         id="signup-consent"

@@ -2,6 +2,7 @@
  * Egna övningar (custom_exercises, v19): klienter och PT:er lägger till
  * övningar som saknas i övningsbanken, med startvikt (kg eller lbs), set och reps.
  */
+import { newExerciseEntry } from "@/lib/training-modes"
 import type { Exercise, ExerciseDisplayGroup, MuscleGroup, WeightUnit, WorkoutExercise } from "@/types/domain"
 
 export interface CustomExerciseInput {
@@ -35,6 +36,8 @@ export function formatDefaultWeight(e: Exercise) {
 /** Övningen som rad i ett pass, med den egna övningens förslag (set, reps och startvikt). */
 export function workoutExerciseFor(e: Exercise, id: string): WorkoutExercise {
   const c = e.custom
+  // v58: löpning och Hyrox-stationer får distans/tempo i stället för reps och vikt.
+  if (!c && e.trackingType && e.trackingType !== "strength") return { id, ...newExerciseEntry(e) }
   return {
     id,
     exerciseId: e.id,

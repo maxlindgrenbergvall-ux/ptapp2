@@ -10,6 +10,7 @@ import { useUnreadCount } from "@/components/chat/chat-thread"
 import { PersonAvatar } from "@/components/common"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
+import { PreferenceSync } from "@/components/settings/app-settings"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAppData } from "@/lib/data/store"
@@ -142,6 +143,7 @@ export function PtShell({ children }: { children: React.ReactNode }) {
         {/* Under lg: luft för bottenmenyn (4 rem) + hemindikatorn. */}
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-[calc(var(--safe-bottom)+5.5rem)] sm:px-6 lg:px-8 lg:pb-[calc(var(--safe-bottom)+1.5rem)]">
           <SyncIndicator />
+          <PreferenceSync />
           {children}
         </main>
       </div>

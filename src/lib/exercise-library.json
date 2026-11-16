@@ -757,38 +757,73 @@
  },
  {
   "id": "e-farmers",
-  "name": "Farmer's Walk",
+  "name": "Farmers Carry",
   "sv": "Farmer's walk",
   "muscleGroup": "helkropp",
-  "equipment": "Hantlar/kettlebells"
+  "equipment": "Hantlar/kettlebells",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 200,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-sandbag",
-  "name": "Sandbag Lunge",
+  "name": "Sandbag Lunges",
   "sv": "Sandsäcksutfall",
   "muscleGroup": "helkropp",
-  "equipment": "Sandsäck"
+  "equipment": "Sandsäck",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 100,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-wallball",
-  "name": "Wall Ball",
+  "name": "Wall Balls",
   "sv": "Wall balls",
   "muscleGroup": "helkropp",
-  "equipment": "Medicinboll"
+  "equipment": "Medicinboll",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "reps": "100",
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-sledpush",
   "name": "Sled Push",
   "sv": "Slädpush",
   "muscleGroup": "helkropp",
-  "equipment": "Släde"
+  "equipment": "Släde",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 50,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-sledpull",
   "name": "Sled Pull",
   "sv": "Slädpull",
   "muscleGroup": "helkropp",
-  "equipment": "Släde"
+  "equipment": "Släde",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 50,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-burpee",
@@ -799,10 +834,17 @@
  },
  {
   "id": "e-burpee-bj",
-  "name": "Burpee Broad Jump",
+  "name": "Burpee Broad Jumps",
   "sv": "Burpee broad jumps",
   "muscleGroup": "helkropp",
-  "equipment": "Kroppsvikt"
+  "equipment": "Kroppsvikt",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 80,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-boxjump",
@@ -837,83 +879,229 @@
   "name": "Running",
   "sv": "Löpning",
   "muscleGroup": "kondition",
-  "equipment": "—"
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running",
+  "names": {
+   "sv": "Löpning",
+   "en": "Easy run",
+   "es": "Rodaje",
+   "fr": "Footing",
+   "de": "Dauerlauf"
+  },
+  "defaults": {
+   "distanceM": 5000,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-intervals",
   "name": "Interval Running",
   "sv": "Intervallöpning",
   "muscleGroup": "kondition",
-  "equipment": "—"
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running",
+  "names": {
+   "sv": "Intervaller",
+   "en": "Intervals",
+   "es": "Series / Intervalos",
+   "fr": "Fractionné",
+   "de": "Intervalle"
+  },
+  "defaults": {
+   "distanceM": 1000,
+   "sets": 5,
+   "restSec": 90,
+   "paceSecPerKm": 270
+  }
  },
  {
   "id": "e-treadmill",
   "name": "Treadmill",
   "sv": "Löpband",
   "muscleGroup": "kondition",
-  "equipment": "Löpband"
+  "equipment": "Löpband",
+  "modality": "running",
+  "trackingType": "running"
  },
  {
   "id": "e-row-erg",
-  "name": "Rowing Machine",
-  "sv": "Roddmaskin",
+  "name": "Rowing",
+  "sv": "Rodd (roddmaskin)",
   "muscleGroup": "kondition",
-  "equipment": "Roddmaskin"
+  "equipment": "Roddmaskin",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 1000,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-skierg",
   "name": "SkiErg",
   "sv": "SkiErg",
   "muscleGroup": "kondition",
-  "equipment": "SkiErg"
+  "equipment": "SkiErg",
+  "modality": "hyrox",
+  "trackingType": "conditioning",
+  "defaults": {
+   "distanceM": 1000,
+   "sets": 1,
+   "restSec": 0
+  }
  },
  {
   "id": "e-bikeerg",
   "name": "Bike Erg",
   "sv": "Cykel (BikeErg/spinning)",
   "muscleGroup": "kondition",
-  "equipment": "Cykel"
+  "equipment": "Cykel",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-airbike",
   "name": "Air Bike",
   "sv": "Airbike",
   "muscleGroup": "kondition",
-  "equipment": "Airbike"
+  "equipment": "Airbike",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-crosstrainer",
   "name": "Elliptical",
   "sv": "Crosstrainer",
   "muscleGroup": "kondition",
-  "equipment": "Crosstrainer"
+  "equipment": "Crosstrainer",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-stairs",
   "name": "Stair Climber",
   "sv": "Trappmaskin",
   "muscleGroup": "kondition",
-  "equipment": "Trappmaskin"
+  "equipment": "Trappmaskin",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-jumprope",
   "name": "Jump Rope",
   "sv": "Hopprep",
   "muscleGroup": "kondition",
-  "equipment": "Hopprep"
+  "equipment": "Hopprep",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-swim",
   "name": "Swimming",
   "sv": "Simning",
   "muscleGroup": "kondition",
-  "equipment": "Bassäng"
+  "equipment": "Bassäng",
+  "modality": "conditioning",
+  "trackingType": "conditioning"
  },
  {
   "id": "e-walk",
   "name": "Incline Walk",
   "sv": "Promenad / incline walk",
   "muscleGroup": "kondition",
-  "equipment": "—"
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running"
+ },
+ {
+  "id": "e-tempo-run",
+  "name": "Tempo Run",
+  "sv": "Tempopass / tröskel",
+  "muscleGroup": "kondition",
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running",
+  "names": {
+   "sv": "Tempopass / tröskel",
+   "en": "Tempo run / threshold",
+   "es": "Tempo / umbral",
+   "fr": "Tempo / seuil",
+   "de": "Tempodauerlauf / Schwelle"
+  },
+  "defaults": {
+   "distanceM": 6000,
+   "sets": 1,
+   "restSec": 0,
+   "paceSecPerKm": 300
+  }
+ },
+ {
+  "id": "e-long-run",
+  "name": "Long Run Zone 2",
+  "sv": "Långpass zon 2",
+  "muscleGroup": "kondition",
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running",
+  "names": {
+   "sv": "Långpass zon 2",
+   "en": "Long run (Zone 2)",
+   "es": "Tirada larga (Zona 2)",
+   "fr": "Sortie longue (endurance fondamentale)",
+   "de": "Langer Lauf (Grundlagenausdauer)"
+  },
+  "defaults": {
+   "distanceM": 12000,
+   "sets": 1,
+   "restSec": 0,
+   "paceSecPerKm": 360
+  }
+ },
+ {
+  "id": "e-hill-reps",
+  "name": "Hill Repeats",
+  "sv": "Backintervaller",
+  "muscleGroup": "kondition",
+  "equipment": "—",
+  "modality": "running",
+  "trackingType": "running",
+  "names": {
+   "sv": "Backintervaller",
+   "en": "Hill repeats",
+   "es": "Cuestas",
+   "fr": "Côtes",
+   "de": "Bergsprints"
+  },
+  "defaults": {
+   "distanceM": 200,
+   "sets": 8,
+   "restSec": 90
+  }
+ },
+ {
+  "id": "e-hyrox-run",
+  "name": "Hyrox 1 km Run",
+  "sv": "Hyrox 1 km löpning",
+  "muscleGroup": "kondition",
+  "equipment": "—",
+  "modality": "hyrox",
+  "trackingType": "running",
+  "names": {
+   "sv": "Hyrox 1 km löpning",
+   "en": "Hyrox 1 km run",
+   "es": "Hyrox carrera 1 km",
+   "fr": "Hyrox course 1 km",
+   "de": "Hyrox 1 km Lauf"
+  },
+  "defaults": {
+   "distanceM": 1000,
+   "sets": 1,
+   "restSec": 0,
+   "paceSecPerKm": 300
+  }
  }
 ]

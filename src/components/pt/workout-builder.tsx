@@ -65,6 +65,10 @@ import { SECTION_LABEL, sectionOf, sortBySection, WORKOUT_SECTIONS } from "@/lib
 import { parseVideo } from "@/lib/video"
 import { matchesExercise } from "@/lib/exercises/search"
 import { type ExerciseDraft, finalizeExercises, MAX_REST_SEC, MAX_SETS, moveItem, resizeSetReps } from "@/lib/exercises/draft"
+import { AdaptiveFields, CategoryPills } from "@/components/workouts/adaptive-fields"
+import { useT } from "@/lib/i18n/provider"
+import { blocks, defaultCategory, exerciseCategory, favouredCategories, linkToPrevious, newExerciseEntry, type PlanCategory, setBlockRounds, trackingTypeOf, unlink } from "@/lib/training-modes"
+import { Link2, Unlink } from "lucide-react"
 import { exerciseName } from "@/lib/data/selectors"
 import { copyExercises, myTemplates } from "@/lib/templates"
 import type { Exercise, MuscleGroup, WorkoutExercise, WorkoutSection, WorkoutTemplate } from "@/types/domain"
@@ -129,7 +133,10 @@ export function WorkoutBuilder() {
     // Egna övningar har förslag på set, reps och startvikt.
     const entry: WorkoutExercise = exercise.custom
       ? workoutExerciseFor(exercise, actions.newId())
-      : { id: actions.newId(), exerciseId: exercise.id, sets: 3, reps: exercise.muscleGroup === "kondition" ? "500 m" : "10", restSec: 90 }
+      : exercise.trackingType && exercise.trackingType !== "strength"
+        ? // v58: löpning och Hyrox-stationer får sina standardmål (SkiErg 1000 m, Sled Push 50 m …).
+          { id: actions.newId(), ...newExerciseEntry(exercise) }
+        : { id: actions.newId(), exerciseId: exercise.id, sets: 3, reps: exercise.muscleGroup === "kondition" ? "500 m" : "10", restSec: 90 }
     setDraft((d) => (d ? { ...d, exercises: [...d.exercises, entry] } : d))
   }
 
@@ -313,6 +320,11 @@ function SortableExercises({
   }
   const update = (id: string, patch: Partial<ExerciseDraft>) =>
     onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)))
+  // v58: block/varv – övningar i följd med samma blockId. Varven gäller hela blocket.
+  const blockOf = new Map<string, { name: string; first: boolean; rounds: number | undefined; id: string }>()
+  for (const b of blocks(items)) {
+    if (b.id && b.name) b.items.forEach((it, i) => blockOf.set(it.id, { name: b.name!, first: i === 0, rounds: b.items[0].sets, id: b.id! }))
+  }
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -323,7 +335,15 @@ function SortableExercises({
               key={item.id}
               index={index}
               item={item}
-              onUpdate={(patch) => update(item.id, patch)}
+              onUpdate={(patch) => {
+                const block = blockOf.get(item.id)
+                // Varv i ett block ändrar hela blocket.
+                if (block && "sets" in patch) onChange(setBlockRounds(items.map((i) => (i.id === item.id ? { ...i, ...patch } : i)), block.id, patch.sets))
+                else update(item.id, patch)
+              }}
+              block={blockOf.get(item.id)}
+              onLink={index > 0 && !blockOf.get(item.id) ? () => onChange(linkToPrevious(items, index, () => `b${Date.now().toString(36)}`)) : undefined}
+              onUnlink={blockOf.get(item.id) ? () => onChange(unlink(items, index)) : undefined}
               onRemove={() => onChange(items.filter((i) => i.id !== item.id))}
               onMoveUp={index > 0 ? () => onChange(moveItem(items, index, -1)) : undefined}
               onMoveDown={index < items.length - 1 ? () => onChange(moveItem(items, index, 1)) : undefined}
@@ -342,6 +362,9 @@ function SortableExerciseRow({
   onRemove,
   onMoveUp,
   onMoveDown,
+  block,
+  onLink,
+  onUnlink,
 }: {
   item: ExerciseDraft
   index: number
@@ -349,9 +372,15 @@ function SortableExerciseRow({
   onRemove: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+  /** v58: övningen ingår i ett block (A, B …). */
+  block?: { name: string; first: boolean; rounds: number | undefined }
+  onLink?: () => void
+  onUnlink?: () => void
 }) {
   const { data } = useAppData()
+  const t = useT()
   const exercise = data.exercises.find((e) => e.id === item.exerciseId)
+  const type = trackingTypeOf(item, exercise)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
   const [showNotes, setShowNotes] = React.useState(Boolean(item.notes || item.videoUrl))
 
@@ -359,8 +388,20 @@ function SortableExerciseRow({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn("rounded-lg border bg-card p-3", isDragging && "relative z-10 shadow-lg ring-2 ring-ring/40")}
+      className={cn("rounded-lg border bg-card p-3", block && "border-l-4 border-l-primary", isDragging && "relative z-10 shadow-lg ring-2 ring-ring/40")}
+      data-block={block?.name}
+      data-tracking={type}
     >
+      {block?.first && (
+        <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-primary" data-testid="block-header">
+          <Link2 className="size-3.5" aria-hidden /> {t("fields.block", { name: block.name })}
+          <span className="font-normal text-muted-foreground">·</span>
+          <label className="flex items-center gap-1 font-normal text-muted-foreground">
+            {t("fields.rounds")}
+            <NumberInput min={1} max={MAX_SETS} value={block.rounds} onValueChange={(v) => onUpdate({ sets: v })} className="h-7 w-14 text-center tabular" aria-label={t("fields.blockRounds", { name: block.name, n: block.rounds ?? "" })} />
+          </label>
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <button
           className="mt-1.5 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted active:cursor-grabbing"
@@ -397,11 +438,25 @@ function SortableExerciseRow({
               >
                 <Video /> <span className="hidden text-xs sm:inline">{item.videoUrl ? "Video" : "Video/notis"}</span>
               </Button>
+              {onLink && (
+                <Button variant="ghost" size="icon-sm" aria-label={t("fields.linkBlock")} title={t("fields.linkBlock")} onClick={onLink} data-testid="link-block">
+                  <Link2 />
+                </Button>
+              )}
+              {onUnlink && (
+                <Button variant="ghost" size="icon-sm" aria-label={t("fields.unlinkBlock")} title={t("fields.unlinkBlock")} onClick={onUnlink} data-testid="unlink-block">
+                  <Unlink />
+                </Button>
+              )}
               <Button variant="ghost" size="icon-sm" aria-label="Ta bort övning" onClick={onRemove}>
                 <Trash2 />
               </Button>
             </div>
           </div>
+          {type !== "strength" ? (
+            // v58: löpning och kondition – bara deras egna fält.
+            <AdaptiveFields type={type} item={item} onUpdate={onUpdate} name={exercise?.name ?? ""} inBlock={Boolean(block)} />
+          ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             <Field label="Del">
               <Select value={sectionOf(item)} onValueChange={(v) => onUpdate({ section: v === "main" ? undefined : (v as WorkoutSection) })}>
@@ -417,7 +472,8 @@ function SortableExerciseRow({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Set">
+            {/* I ett block styr blockets varv antalet set. */}
+            <Field label={block ? t("fields.rounds") : "Set"}>
               <NumberInput
                 required
                 min={1}
@@ -445,7 +501,8 @@ function SortableExerciseRow({
               <NumberInput decimal min={1} max={10} value={item.rpe} onValueChange={(v) => onUpdate({ rpe: v })} />
             </Field>
           </div>
-          <SetRepsEditor item={item} onUpdate={onUpdate} name={exercise?.name ?? "övningen"} />
+          )}
+          {type === "strength" && <SetRepsEditor item={item} onUpdate={onUpdate} name={exercise?.name ?? "övningen"} />}
           {showNotes && (
             <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
               <Textarea
@@ -533,11 +590,14 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
   const { data } = useAppData()
   const [q, setQ] = React.useState("")
   const [group, setGroup] = React.useState<MuscleGroup | null>(null)
+  // v58: Alla/Styrka/Löpning/Hyrox – förvalt efter träningsintressena.
+  const interests = data.preferences?.trainingInterests
+  const [category, setCategory] = React.useState<PlanCategory | "all">(() => defaultCategory(interests))
   // Egna övningar först, sedan övningsbanken.
   const results = data.exercises
     .filter(
       (e) =>
-        (!group || e.muscleGroup === group) && matchesExercise(e, q)
+        (category === "all" || exerciseCategory(e) === category) && (!group || e.muscleGroup === group) && matchesExercise(e, q)
     )
     .sort((a, b) => Number(Boolean(b.custom)) - Number(Boolean(a.custom)))
 
@@ -571,6 +631,7 @@ function ExerciseLibrary({ onAdd, disabled, compact }: { onAdd: (e: Exercise) =>
           <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök övning eller utrustning" className="pl-8" aria-label="Sök övning" />
         </div>
+        <CategoryPills value={category} onChange={setCategory} favoured={favouredCategories(interests)} className="mx-0 px-0" testId="builder-category" />
         <div className="flex flex-wrap gap-1">
           {MUSCLE_GROUPS.map((g) => (
             <button

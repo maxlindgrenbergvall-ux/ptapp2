@@ -10,6 +10,7 @@
  * - **Demo**: mockdata i webbläsaren, för utveckling och visningar.
  */
 
+import { isTrainingInterest } from "@/lib/training-modes"
 import { moveBlock, MOVE_BLOCK_TEXT } from "@/lib/workout-move"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -82,6 +83,7 @@ import type {
   WorkoutTemplate,
   GoalProfile,
   ActiveSplit,
+  Preferences,
 } from "@/types/domain"
 import { START_PATH } from "@/lib/site"
 import { DELETE_CONFIRM_WORD } from "@/lib/account"
@@ -377,6 +379,14 @@ function createActions(ctx: {
     chooseNutritionPlan: (planId: ID | null) => commit({ type: "chooseNutritionPlan", clientId: me.id, planId }),
     /** Klient: avsluta samarbetet med en PT. */
     leaveTrainer: (trainerId: ID) => commit({ type: "leaveTrainer", clientId: me.id, trainerId, at: now() }),
+    /** v58: språk och träningsintressen (profilen). Optimistiskt – hela appen följer direkt. */
+    setPreferences: (patch: Preferences) => {
+      const clean: Preferences = {
+        ...(patch.language ? { language: patch.language } : {}),
+        ...(patch.trainingInterests ? { trainingInterests: [...new Set(patch.trainingInterests.filter(isTrainingInterest))] } : {}),
+      }
+      commit({ type: "setPreferences", userId: me.id, patch: clean })
+    },
     /** Klient: namn, intressen och fokus (syns för klientens PT:er). */
     updateProfile: (patch: ClientProfilePatch) => {
       const clean: ClientProfilePatch = {

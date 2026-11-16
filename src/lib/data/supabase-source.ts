@@ -5,6 +5,8 @@
 import type { PostgrestError, RealtimeChannel, SupabaseClient } from "@supabase/supabase-js"
 
 import type { PersistResult } from "@/lib/data/outbox"
+import { isLocale } from "@/lib/i18n/config"
+import { isTrainingInterest } from "@/lib/training-modes"
 import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
@@ -55,6 +57,7 @@ import type {
   WearableConnection,
   WorkoutExercise,
   WorkoutTemplate,
+  Preferences,
 } from "@/types/domain"
 
 // ----------------------------------------------------------------- rader ---
@@ -142,6 +145,10 @@ interface SetLogRow {
   kg: number | string
   reps: number
   done: boolean
+  /** v58 (saknas före migrationen). */
+  distance_m?: number | string | null
+  duration_sec?: number | null
+  calories?: number | null
 }
 interface ActivityRow {
   id: string
@@ -545,6 +552,9 @@ const toSetLog = (r: SetLogRow): SetLog => ({
   kg: Number(r.kg),
   reps: r.reps,
   done: r.done,
+  ...(r.distance_m != null ? { distanceM: Number(r.distance_m) } : {}),
+  ...(r.duration_sec != null ? { durationSec: r.duration_sec } : {}),
+  ...(r.calories != null ? { calories: r.calories } : {}),
 })
 
 export const toWorkout = (r: WorkoutRow): ScheduledWorkout => ({
@@ -892,6 +902,13 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
   const onboarding = await sb.from("profiles").select("onboarding_completed").eq("id", uid).maybeSingle()
   const onboardingCompleted = onboarding.error ? undefined : (onboarding.data as { onboarding_completed?: boolean } | null)?.onboarding_completed
   const me: Me = { id: uid, role: profile.role, name: profile.full_name, email: auth.user.email, onboardingCompleted }
+  // v58: språk och träningsintressen. Egen fråga – saknas kolumnerna (före migrationen) gäller enhetens språk.
+  const prefs = await sb.from("profiles").select("preferred_language, training_interests").eq("id", uid).maybeSingle()
+  const prefRow = prefs.error ? null : (prefs.data as { preferred_language?: string | null; training_interests?: string[] | null } | null)
+  const preferences: Preferences = {
+    ...(isLocale(prefRow?.preferred_language) ? { language: prefRow.preferred_language } : {}),
+    ...(prefRow?.training_interests ? { trainingInterests: prefRow.training_interests.filter(isTrainingInterest) } : {}),
+  }
   const since = addDays(todayISO(), -HISTORY_DAYS)
 
   const trainerSelect = TRAINER_SELECT
@@ -1007,6 +1024,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
         recipes: must<RecipeRow[]>(recipes, "recept").map(toRecipe),
         favoriteRecipes: [],
         goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
+        preferences,
         activities: ptActivities.error ? [] : ((ptActivities.data ?? []) as ActivityRow[]).map(toActivity),
         activityDays: ptActivityDays.error ? [] : ((ptActivityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
         activeSplits: ptSplits.error ? [] : ((ptSplits.data ?? []) as SplitRow[]).map(toActiveSplit),
@@ -1091,6 +1109,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       recipes: recipes.error ? [] : ((recipes.data ?? []) as RecipeRow[]).map(toRecipe),
       favoriteRecipes: favorites.error ? [] : ((favorites.data ?? []) as { recipe_id: string }[]).map((f) => f.recipe_id),
       goalProfiles: goals.error ? [] : ((goals.data ?? []) as GoalRow[]).map(toGoalProfile),
+      preferences,
       activities: activities.error ? [] : ((activities.data ?? []) as ActivityRow[]).map(toActivity),
       activityDays: activityDays.error ? [] : ((activityDays.data ?? []) as ActivityDayRow[]).map(toActivityDay),
       activeSplits: splits.error ? [] : ((splits.data ?? []) as SplitRow[]).map(toActiveSplit),
@@ -1152,6 +1171,10 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           reps: log.reps,
           done: log.done,
           logged_at: new Date().toISOString(),
+          // v58: bara när de används – styrkeloggar fungerar även före migrationen.
+          ...(log.distanceM !== undefined ? { distance_m: log.distanceM } : {}),
+          ...(log.durationSec !== undefined ? { duration_sec: log.durationSec } : {}),
+          ...(log.calories !== undefined ? { calories: log.calories } : {}),
         })
       )
     }
@@ -1518,6 +1541,12 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       )
     case "deleteWorkout":
       return result(sb.from("scheduled_workouts").delete().eq("id", action.workoutId))
+    case "setPreferences": {
+      const row: Record<string, unknown> = {}
+      if (action.patch.language !== undefined) row.preferred_language = action.patch.language
+      if (action.patch.trainingInterests !== undefined) row.training_interests = action.patch.trainingInterests
+      return result(sb.from("profiles").update(row).eq("id", action.userId))
+    }
     case "setWorkoutDate":
       // RLS + triggern: klienten får bara byta datum på sina egna pass.
       return result(sb.from("scheduled_workouts").update({ date: action.date }).eq("id", action.workoutId))

@@ -13,22 +13,27 @@ import { Button } from "@/components/ui/button"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { SyncIndicator } from "@/components/sync-indicator"
 import { useAppData } from "@/lib/data/store"
+import { PreferenceSync } from "@/components/settings/app-settings"
+import { useT } from "@/lib/i18n/provider"
+import type { MessageKey } from "@/lib/i18n/translate"
 import { cn } from "@/lib/utils"
 import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
 
-const NAV: { href: string; label: string; icon: typeof Home; exact?: boolean; also?: string[] }[] = [
-  { href: "/klient", label: "Idag", icon: Home, exact: true },
-  { href: "/klient/kalender", label: "Kalender", icon: CalendarDays },
-  { href: "/klient/hitta", label: "Hitta PT", icon: Search },
-  { href: "/klient/framsteg", label: "Framsteg", icon: LineChart },
+// v58: etiketterna kommer från ordboken (nav.*) – byter språk direkt.
+const NAV: { href: string; label: MessageKey; icon: typeof Home; exact?: boolean; also?: string[] }[] = [
+  { href: "/klient", label: "nav.today", icon: Home, exact: true },
+  { href: "/klient/kalender", label: "nav.calendar", icon: CalendarDays },
+  { href: "/klient/hitta", label: "nav.findPt", icon: Search },
+  { href: "/klient/framsteg", label: "nav.progress", icon: LineChart },
   // v42: Kost är en egen flik (kostdagboken) – Recept ligger under samma flik.
-  { href: "/klient/kost", label: "Kost", icon: Utensils, also: ["/klient/recept"] },
+  { href: "/klient/kost", label: "nav.nutrition", icon: Utensils, also: ["/klient/recept"] },
 ]
 
 export function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { me } = useAppData()
+  const t = useT()
   const unread = useUnreadCount(me.id, [me.id])
   const { data } = useAppData()
   const client = data.clients.find((c) => c.id === me.id)
@@ -81,11 +86,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       )}
       {/* v56: flytande (fixed) – tar ingen plats i flödet, så sidan hoppar inte vid sparning. Gäller även fokusläget (passloggern). */}
       <SyncIndicator />
+      <PreferenceSync />
       {/* Luft under innehållet för bottenmenyn (4rem) + hemindikatorn. */}
       <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{blocked ? null : children}</main>
       {!focusMode && (
         <nav
-          aria-label="Huvudmeny"
+          aria-label={t("nav.mainMenu")}
           className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t border-border/60 bg-background/75 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 md:border-x"
         >
           {NAV.map(({ href, label, icon: Icon, exact, also }) => {
@@ -109,7 +115,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                 >
                   <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
                 </span>
-                {label}
+                {t(label)}
                 {href === "/klient/kalender" && pendingCount > 0 && (
                   <span
                     className="absolute top-2 left-1/2 ml-2 size-2 rounded-full bg-warning ring-2 ring-background"

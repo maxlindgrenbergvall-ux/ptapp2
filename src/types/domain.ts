@@ -176,6 +176,13 @@ export interface Exercise {
    * valt för en egen övning. Saknas den räknas den fram ur namnet (exercises/groups.ts).
    */
   displayGroup?: ExerciseDisplayGroup
+  /** v58: saknas = styrka. */
+  trackingType?: TrackingType
+  modality?: Modality
+  /** v58: standardmål när övningen läggs i ett pass, t.ex. SkiErg 1000 m, Wall Balls 100 reps. */
+  defaults?: { distanceM?: number; reps?: string; sets?: number; restSec?: number; paceSecPerKm?: number }
+  /** v58: namn per språk (löpövningar – Hyrox-stationerna heter samma överallt). */
+  names?: Partial<Record<"sv" | "en" | "es" | "fr" | "de", string>>
 }
 
 /** Muskelgrupperna i övningslistan (src/lib/exercises/groups.ts). */
@@ -193,6 +200,19 @@ export type ExerciseDisplayGroup =
   | "mage"
   | "helkropp"
   | "kondition"
+  /** v58: löpning och Hyrox-stationer får egna grupper i övningslistan. */
+  | "lopning"
+  | "hyrox"
+
+/**
+ * v58: hur en övning loggas – styr vilka fält som visas (bara de som hör till övningen).
+ *   strength      Set × Reps × Vikt
+ *   running       Distans (km) × Tempo (min/km) / Tid × Vila
+ *   conditioning  Distans (m) eller Reps/Kalorier × Varv (Hyrox-stationer, ergometrar)
+ */
+export type TrackingType = "strength" | "running" | "conditioning"
+/** v58: träningsform – filtret Alla/Styrka/Löpning/Hyrox. */
+export type Modality = "strength" | "running" | "hyrox" | "conditioning"
 
 export type WeightUnit = "kg" | "lbs"
 
@@ -232,6 +252,16 @@ export interface WorkoutExercise {
   videoUrl?: string
   /** Tillagd av klienten under passet (v32) – extra utöver PT:ns program. */
   extra?: boolean
+  /** v58: hur övningen loggas (kopia från övningen när den lades till; saknas = övningens eller styrka). */
+  trackingType?: TrackingType
+  /** v58: distans per set/intervall/varv i meter (löpning, Hyrox, ergometrar). */
+  distanceM?: number
+  /** v58: måltempo i sekunder per km (löpning). */
+  paceSecPerKm?: number
+  /** v58: måltid per set i sekunder (t.ex. 4 × 3 min). */
+  durationSec?: number
+  /** v58: block/varv – övningar med samma blockId körs i följd, `sets` = antal varv. */
+  blockId?: string
 }
 
 /**
@@ -270,6 +300,10 @@ export interface SetLog {
   kg: number
   reps: number
   done: boolean
+  /** v58: löpning/kondition – distans i meter, tid i sekunder, kalorier. */
+  distanceM?: number
+  durationSec?: number
+  calories?: number
 }
 
 export type WorkoutStatus = "planned" | "in_progress" | "completed" | "skipped"
@@ -683,6 +717,16 @@ export interface Me {
   onboardingCompleted?: boolean
 }
 
+/** v58: språk i appen. */
+export type Locale = "sv" | "en" | "es" | "fr" | "de"
+/** v58: träningsintressen vid registreringen (profiles.training_interests). */
+export type TrainingInterest = "strength" | "running" | "hyrox" | "hybrid" | "health"
+/** v58: den inloggades egna val (profiles.preferred_language, training_interests). */
+export interface Preferences {
+  language?: Locale
+  trainingInterests?: TrainingInterest[]
+}
+
 export interface AppData {
   trainers: Trainer[]
   clients: Client[]
@@ -728,6 +772,8 @@ export interface AppData {
   progressEntries: ProgressEntry[]
   /** Klientens varukorg (tjänster från en eller flera PT:er). Tom för PT:er. */
   cart: CartItem[]
+  /** v58: språk och träningsintressen för den inloggade (saknas = välj automatiskt). */
+  preferences?: Preferences
   /** Kod och Coavira Plus per användare (Supabase: bara den inloggades eget konto). */
   accounts: Record<ID, Account>
   /** Inbjudningar där jag bjudit in eller blivit inbjuden. */

@@ -32,7 +32,7 @@ const dayNames = (s) => s.days.map((d) => (d.rest ? "Vila" : d.name)).join(",")
 // ----------------------------------------------- 1. upplägg + vilodagar ---
 await p.goto(base + "/klient/schema")
 await p.waitForSelector("[data-testid=active-split]")
-check((await p.locator("h1").innerText()).trim() === "Upplägg", "sidan heter Upplägg")
+check((await p.locator("h1").innerText()).trim() === "Upplägg / Tips", "sidan heter Upplägg / Tips")
 // Uppläggens egennamn (4-split, Bro split) får finnas kvar – men inte "splits" som begrepp.
 check(!/\bsplits\b|egen split|träningssplit|schema och splits/i.test(await p.locator("main").innerText()), "begreppet splits syns inte för klienten")
 const before = await split()

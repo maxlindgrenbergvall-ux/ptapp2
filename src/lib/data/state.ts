@@ -7,7 +7,7 @@
  *  2. läggas i offlinekön och skickas till Supabase senare, och
  *  3. spelas upp igen ovanpå nyladdad data efter en omstart.
  */
-import type {
+import type { Preferences,
   ActiveSplit,
   Account,
   AppData,
@@ -111,6 +111,8 @@ export type PersistableAction =
   | { type: "deleteWorkout"; workoutId: ID }
   /** v56: klienten flyttar ett eget planerat pass till en annan dag. */
   | { type: "setWorkoutDate"; workoutId: ID; date: ISODate }
+  /** v58: språk och träningsintressen (profiles.preferred_language, training_interests). */
+  | { type: "setPreferences"; userId: ID; patch: Preferences }
   | { type: "deleteProgressEntry"; id: ID }
   /** Klient: lägg en tjänst i varukorgen (samma tjänst bara en gång). */
   | { type: "addCartItem"; item: CartItem }
@@ -293,6 +295,9 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
 
     case "setWorkoutDate":
       return mapWorkout(data, action.workoutId, (w) => ({ ...w, date: action.date }))
+
+    case "setPreferences":
+      return { ...data, preferences: { ...data.preferences, ...action.patch } }
 
     case "deleteWorkout":
       return { ...data, workouts: data.workouts.filter((w) => w.id !== action.workoutId) }
@@ -751,6 +756,8 @@ export function normalizeAppData(raw: unknown): AppData | null {
           .map((c) => ({ trainerId: c.trainerId!, clientId: c.id, status: c.status, goal: c.goal, startDate: c.startDate })),
     progressEntries: list(d.progressEntries),
     cart: list(d.cart),
+    // v58: språk och träningsintressen.
+    ...(d.preferences && typeof d.preferences === "object" ? { preferences: d.preferences as Preferences } : {}),
     accounts: d.accounts && typeof d.accounts === "object" && !Array.isArray(d.accounts) ? (d.accounts as Record<ID, Account>) : {},
     referrals: list(d.referrals),
     ptInvites: list(d.ptInvites),

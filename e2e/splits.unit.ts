@@ -11,10 +11,13 @@ const check = (cond: boolean, msg: string) => {
 }
 const ids = new Set((library as { id: string }[]).map((e) => e.id))
 
-check(SPLITS.map((s) => s.key).join() === "ppl,ppl6,upper_lower,four_split,bro_split,full_body", "PPL, PPL×2, Upper/Lower, 4-split, Bro split och Full Body")
+check(SPLITS.map((s) => s.key).join() === "ppl,ppl6,upper_lower,four_split,bro_split,full_body,hyrox_prep,run_5k,run_10k,hybrid", "PPL, PPL×2, Upper/Lower, 4-split, Bro split, Full Body + v58: Hyrox, 5 km, 10 km, Hybrid")
 const missing = SPLITS.flatMap((s) => s.days.flatMap((d) => d.exercises.map((e) => e.exerciseId))).filter((id) => !ids.has(id))
 check(missing.length === 0, `alla övningar finns i övningsbanken${missing.length ? `: ${missing.join(", ")}` : ""}`)
-check(SPLITS.every((s) => s.days.every((d) => d.exercises.every((e) => parseRepRange(e.reps)))), "alla övningar har repintervall (driver progressionen)")
+check(SPLITS.every((s) => s.days.every((d) => d.exercises.every((e) => (e.trackingType ?? "strength") !== "strength" || parseRepRange(e.reps)))), "alla styrkeövningar har repintervall (driver progressionen)")
+// v58: löpning har distans, kondition distans eller reps.
+check(SPLITS.every((s) => s.days.every((d) => d.exercises.every((e) => e.trackingType !== "running" || (e.distanceM ?? 0) > 0))), "alla löpövningar har distans")
+check(SPLITS.every((s) => s.days.every((d) => d.exercises.every((e) => e.trackingType !== "conditioning" || (e.distanceM ?? 0) > 0 || e.reps.trim()))), "alla konditionsövningar har distans eller reps")
 check(SPLITS.every((s) => s.weekdays.length === s.days.length || s.key === "ppl6"), "rekommenderade veckodagar = antal dagar")
 
 // Schemat: PPL mån/ons/fre i 2 veckor från en måndag.

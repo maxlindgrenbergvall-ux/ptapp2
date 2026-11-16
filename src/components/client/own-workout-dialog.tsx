@@ -1,5 +1,6 @@
 "use client"
 
+import { AdaptiveFields } from "@/components/workouts/adaptive-fields"
 import { Plus, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -136,6 +137,10 @@ export function OwnWorkoutDialog({
                       <Trash2 />
                     </Button>
                   </div>
+                  {it.trackingType && it.trackingType !== "strength" ? (
+                    // v58: löpning och kondition – bara deras egna fält.
+                    <AdaptiveFields type={it.trackingType} item={it} onUpdate={(p) => update(idx, p)} name={data.exercises.find((x) => x.id === it.exerciseId)?.name ?? ""} />
+                  ) : (
                   <div className="grid grid-cols-3 gap-2">
                     <label className="space-y-1 text-xs text-muted-foreground">
                       Set
@@ -150,6 +155,7 @@ export function OwnWorkoutDialog({
                       <NumberInput decimal min={0} max={1000} value={it.targetKg} onValueChange={(v) => update(idx, { targetKg: v })} aria-label="Kg" />
                     </label>
                   </div>
+                  )}
                 </div>
               )}
             />

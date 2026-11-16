@@ -1,6 +1,6 @@
 "use client"
 
-import { BellRing, LogOut, Palette, RotateCcw, Timer } from "lucide-react"
+import { BellRing, Languages, LogOut, Palette, RotateCcw, Timer } from "lucide-react"
 
 import { appMenuLinks } from "@/components/app-menu"
 import { LegalLinksCard } from "@/components/legal-links"
@@ -12,6 +12,8 @@ import { PtInviteRedeemCard } from "@/components/pt/pt-invite-redeem"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
 import { useAppData } from "@/lib/data/store"
+import { LOCALE_NAME } from "@/lib/i18n/config"
+import { useT } from "@/lib/i18n/provider"
 import { useInterests } from "@/lib/offers/interests"
 
 /** Rubrik + kort beskrivning för undersidorna i logomenyn. */
@@ -29,9 +31,21 @@ export function SettingsPage() {
   const { me, mode, signOut, actions } = useAppData()
   const interests = useInterests(me.id)
   const links = appMenuLinks(me.role).slice(1)
+  const t = useT()
   return (
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-5">
       <SettingsHeader title="Inställningar" description={me.email ? `Inloggad som ${me.email}` : undefined} />
+      {/* v58: språk och träningsintressen – egen undersida, inte i träningsvyns menyer. */}
+      <SettingsGroup>
+        <SettingsLinkRow
+          href={me.role === "trainer" ? "/pt/installningar/app" : "/klient/installningar/app"}
+          icon={Languages}
+          label={t("settings.app")}
+          hint={t("settings.appLink")}
+          value={LOCALE_NAME[t.locale]}
+          data-testid="app-settings-link"
+        />
+      </SettingsGroup>
       <SettingsGroup>
         {links.map(({ href, label, hint, icon }) => (
           <SettingsLinkRow key={href} href={href} icon={icon} label={label} hint={hint} />

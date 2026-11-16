@@ -9,9 +9,11 @@ import { toast } from "sonner"
 import { ActivityPicker, BodyFields, GoalDisclaimer, GoalPicker, GoalResults } from "@/components/goals/goal-editor"
 import { AgreementFields } from "@/components/onboarding/agreement-step"
 import { profileDraft, type ProfileDraft, profileErrors, ProfileStepFields } from "@/components/onboarding/profile-step"
+import { InterestPills, LanguageChips, useChangeLanguage } from "@/components/settings/app-settings"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { useAppData } from "@/lib/data/store"
+import { useT } from "@/lib/i18n/provider"
 import { type DraftField, draftErrors, draftFromProfile, type GoalDraft, profileFromDraft } from "@/lib/goals/draft"
 import { acceptUserAgreement, agreementAccepted, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveGoalsNow, saveProfileStep } from "@/lib/onboarding-client"
 import { cn } from "@/lib/utils"
@@ -59,6 +61,10 @@ export function GoalIntro() {
   const errors = showErrors ? draftErrors(draft, current.fields) : {}
   const profileErrs = showErrors && step === 0 ? profileErrors(profile, false) : {}
   const patch = (p: Partial<GoalDraft>) => setDraft((d) => ({ ...d, ...p }))
+  // v58: språk och träningsintressen i första steget – sparas direkt (optimistiskt).
+  const t = useT()
+  const changeLanguage = useChangeLanguage()
+  const interests = data.preferences?.trainingInterests ?? []
 
   // Förifyll steg 1 med det databasen har (för- och efternamn sedan v31).
   React.useEffect(() => {
@@ -186,7 +192,26 @@ export function GoalIntro() {
             </h1>
             <p className="text-sm text-muted-foreground">{current.lead}</p>
           </div>
-          {step === 0 && <ProfileStepFields value={profile} onChange={(p) => setProfile((d) => ({ ...d, ...p }))} userId={me.id} errors={profileErrs} requireAvatar={false} />}
+          {step === 0 && (
+            <>
+              <section className="space-y-2" aria-labelledby="intro-lang">
+                <h2 id="intro-lang" className="text-sm font-semibold">
+                  {t("lang.choose")}
+                </h2>
+                <LanguageChips onPick={(l) => changeLanguage(l)} />
+              </section>
+              <ProfileStepFields value={profile} onChange={(p) => setProfile((d) => ({ ...d, ...p }))} userId={me.id} errors={profileErrs} requireAvatar={false} />
+              <section className="space-y-2" aria-labelledby="intro-interests">
+                <div>
+                  <h2 id="intro-interests" className="text-sm font-semibold">
+                    {t("interests.title")}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">{t("interests.lead")}</p>
+                </div>
+                <InterestPills value={interests} onChange={(next) => actions.setPreferences({ trainingInterests: next })} />
+              </section>
+            </>
+          )}
           {step === 1 && <BodyFields draft={draft} onChange={patch} errors={errors} />}
           {step === 2 && <ActivityPicker value={draft.activity} onChange={(activity) => patch({ activity })} error={errors.activity} />}
           {step === 3 && <GoalPicker value={draft.goals} onChange={(goals) => patch({ goals })} error={errors.goals} />}

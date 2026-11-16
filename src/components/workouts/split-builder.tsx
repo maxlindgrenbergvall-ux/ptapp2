@@ -12,7 +12,11 @@ import { NumberInput } from "@/components/ui/number-input"
 import { CustomExerciseDialog } from "@/components/exercises/custom-exercise-dialog"
 import { MAX_SPLIT_DAYS, suggestedDaysPerWeek, withRestDays } from "@/lib/active-split"
 import { useAppData } from "@/lib/data/store"
-import { cloneSplit, customSplit, type Split, type SplitDay, type SplitExercise, SPLITS } from "@/lib/splits"
+import { cloneSplit, customSplit, type Split, type SplitDay, type SplitExercise, splitCategories, SPLITS } from "@/lib/splits"
+import { AdaptiveFields, CategoryPills } from "@/components/workouts/adaptive-fields"
+import { useT } from "@/lib/i18n/provider"
+import { hasMessage } from "@/lib/i18n/translate"
+import { defaultCategory, favouredCategories, newExerciseEntry, type PlanCategory } from "@/lib/training-modes"
 import { buildTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
 import { SortableList } from "@/components/workouts/sortable-list"
@@ -34,11 +38,22 @@ const stripId = (e: EditExercise): SplitExercise => {
 }
 /** Övningar där set eller reps är tomma (måste fyllas i innan schemat sparas). */
 export const incompleteExercises = (s: Pick<EditSplit, "days">) =>
-  s.days.flatMap((d) => d.exercises.filter((e) => !e.sets || e.sets < 1 || !e.reps.trim()))
+  s.days.flatMap((d) =>
+    d.exercises.filter((e) => {
+      if (!e.sets || e.sets < 1) return true
+      // v58: löpning behöver distans, kondition distans eller reps, styrka reps.
+      const type = e.trackingType ?? "strength"
+      if (type === "running") return !e.distanceM && !e.durationSec
+      if (type === "conditioning") return !e.distanceM && !e.reps.trim()
+      return !e.reps.trim()
+    })
+  )
 const toPlain = (s: EditSplit): Split => ({
   ...s,
   days: s.days.map((d) => ({ name: d.name, focus: d.focus, exercises: d.exercises.map(stripId), ...(d.rest ? { rest: true } : {}) })),
 })
+
+const LEVEL_KEY: Record<Split["level"], "beginner" | "intermediate" | "advanced" | "all"> = { Nybörjare: "beginner", Van: "intermediate", Avancerad: "advanced", "Alla nivåer": "all" }
 
 /** Valen för antal träningsdagar per vecka (v43). */
 const DAYS_PER_WEEK = [2, 3, 4, 5, 6]
@@ -59,9 +74,19 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
   const [customDays, setCustomDays] = React.useState<number | undefined>(3)
   const [showErrors, setShowErrors] = React.useState(false)
   const nameOf = (id: string) => data.exercises.find((e) => e.id === id)?.name ?? id
+  const t = useT()
+  // v58: filtret Alla/Styrka/Löpning/Hyrox – förvalt efter träningsintressena, "För dig" först.
+  const interests = data.preferences?.trainingInterests
+  const favoured = favouredCategories(interests)
+  const [category, setCategory] = React.useState<PlanCategory | "all">(() => defaultCategory(interests))
+  const shown = SPLITS.filter((s) => category === "all" || splitCategories(s).includes(category)).sort(
+    (a, b) => Number(splitCategories(b).some((c) => favoured.has(c))) - Number(splitCategories(a).some((c) => favoured.has(c)))
+  )
+  const tipCategory: PlanCategory | null = category !== "all" ? category : ([...favoured][0] ?? null)
 
   const choose = (s: Split) => {
-    const copy = cloneSplit(s)
+    // v58: dagarnas namn på användarens språk (de blir passens namn i kalendern).
+    const copy = { ...cloneSplit(s), days: cloneSplit(s).days.map((d) => (d.i18n ? { ...d, name: t(`plans.day.${d.i18n}`), focus: t(`plans.focus.${d.i18n}`) } : d)) }
     const training: EditDay[] = copy.days.map((d) => ({ ...d, id: actions.newId(), exercises: d.exercises.map((e) => ({ ...e, id: actions.newId() })) }))
     // v52: klientens upplägg läggs ut på en vecka med vilodagar emellan – de kan flyttas fritt.
     const restDay = (): EditDay => ({ id: actions.newId(), name: "Vila", focus: "Återhämtning", exercises: [], rest: true })
@@ -76,14 +101,29 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
         {mode === "client" && (
           <p className="flex items-start gap-2 rounded-2xl bg-primary/8 px-3.5 py-3 text-sm text-muted-foreground">
             <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-            <span>
-              Se uppläggen som <b className="font-medium text-foreground">tips att utgå från</b>. Välj ett, testa det en vecka och byt övningar, ordning eller vilodagar tills det passar dig. Du kan byta upplägg när du vill – dina genomförda pass ligger kvar.
-            </span>
+            <span>{t("plans.intro")}</span>
           </p>
         )}
-        <ul className="grid gap-2 sm:grid-cols-2">
-          {SPLITS.map((s) => (
-            <li key={s.key}>
+        <CategoryPills value={category} onChange={setCategory} favoured={favoured} testId="plan-category" />
+        {/* Tips för kategorin – fast plats så att listan under inte hoppar när filtret byts. */}
+        {tipCategory && (
+          <section className="min-h-[6.5rem] rounded-2xl border border-border/70 bg-card px-4 py-3" aria-label={t("plans.tipsTitle")} data-testid="plan-tips">
+            <p className="text-xs font-semibold text-primary">
+              {t("plans.tipsTitle")} · {t(`filter.${tipCategory}`)}
+            </p>
+            <ul className="mt-1.5 space-y-1 text-[13px] text-muted-foreground">
+              {[1, 2, 3].map((n) => (
+                <li key={n} className="flex gap-2">
+                  <span aria-hidden className="mt-[7px] size-1 shrink-0 rounded-full bg-primary" />
+                  {t(`tips.${tipCategory}${n}`)}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        <ul className="grid gap-2 sm:grid-cols-2" data-testid="split-list">
+          {shown.map((s) => (
+            <li key={s.key} data-categories={splitCategories(s).join(" ")}>
               <button
                 type="button"
                 onClick={() => choose(s)}
@@ -91,23 +131,30 @@ export function SplitBuilder({ mode, onDone }: { mode: "client" | "trainer"; onD
                 data-testid={`split-${s.key}`}
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="font-semibold">{s.name}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 font-semibold">
+                    <span className="truncate">{hasMessage(`plans.name.${s.key}`) ? t(`plans.name.${s.key}`) : s.name}</span>
+                    {splitCategories(s).some((c) => favoured.has(c)) && (
+                      <span className="shrink-0 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="for-you">
+                        {t("filter.forYou")}
+                      </span>
+                    )}
+                  </span>
                   <Badge variant="secondary" className="shrink-0">
-                    {s.days.length} pass/vecka
+                    {t("plans.perWeek", { n: s.days.length })}
                   </Badge>
                 </span>
-                <span className="text-xs text-muted-foreground">{s.description}</span>
+                <span className="text-xs text-muted-foreground">{t(`plans.desc.${s.key}`)}</span>
                 <span className="mt-auto flex flex-wrap gap-1 pt-1">
                   {s.days.slice(0, 6).map((d) => (
                     <span key={d.name} className="rounded-full bg-muted px-2 py-0.5 text-[11px]">
-                      {d.name}
+                      {d.i18n ? t(`plans.day.${d.i18n}`) : d.name}
                     </span>
                   ))}
                 </span>
                 <span className="flex items-center justify-between pt-0.5 text-[11px] text-muted-foreground">
-                  {s.level}
+                  {t(`plans.level.${LEVEL_KEY[s.level]}`)}
                   <span className="flex items-center gap-1 font-medium text-primary">
-                    Testa <ArrowRight className="size-3 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+                    {t("plans.tryIt")} <ArrowRight className="size-3 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
                   </span>
                 </span>
               </button>
@@ -358,52 +405,61 @@ function SplitExerciseRow({
           <Trash2 />
         </Button>
       </div>
+      {exercise.trackingType && exercise.trackingType !== "strength" ? (
+        // v58: löpning och kondition – bara deras egna fält.
+        <div className="pt-1 pl-10">
+          <AdaptiveFields type={exercise.trackingType} item={exercise} onUpdate={(p) => onChange(p as Partial<EditExercise>)} name={name} />
+        </div>
+      ) : (
       <div className="grid grid-cols-3 gap-2 pt-1 pl-10">
-        <label className="space-y-0.5">
-          <span className="block text-[11px] text-muted-foreground">Set</span>
-          <NumberInput
-            min={1}
-            max={20}
-            value={exercise.sets}
-            // Tomt fält = tomt värde (undefined) – ingen automatisk etta.
-            onValueChange={(v) => onChange({ sets: v === undefined ? undefined : Math.min(20, v), setReps: undefined })}
-            aria-invalid={(showErrors && !exercise.sets) || undefined}
-            aria-label={`Set för ${name}`}
-            className="h-9 tabular"
-          />
-        </label>
-        <label className="space-y-0.5">
-          <span className="block text-[11px] text-muted-foreground">Reps</span>
-          <Input
-            value={exercise.reps}
-            onChange={(e) => onChange({ reps: e.target.value.slice(0, 20) })}
-            aria-invalid={(showErrors && !exercise.reps.trim()) || undefined}
-            aria-label={`Reps för ${name}`}
-            placeholder="8–12"
-            className="h-9 tabular"
-          />
-        </label>
-        <label className="space-y-0.5">
-          <span className="block text-[11px] text-muted-foreground">Startvikt</span>
-          <NumberInput
-            min={0}
-            max={500}
-            decimal
-            inputMode="decimal"
-            value={exercise.targetKg}
-            onValueChange={(v) => onChange({ targetKg: v || undefined })}
-            aria-label={`Startvikt (kg) för ${name}`}
-            placeholder="kg"
-            className="h-9 tabular"
-          />
-        </label>
-      </div>
+          <label className="space-y-0.5">
+            <span className="block text-[11px] text-muted-foreground">Set</span>
+            <NumberInput
+              min={1}
+              max={20}
+              value={exercise.sets}
+              // Tomt fält = tomt värde (undefined) – ingen automatisk etta.
+              onValueChange={(v) => onChange({ sets: v === undefined ? undefined : Math.min(20, v), setReps: undefined })}
+              aria-invalid={(showErrors && !exercise.sets) || undefined}
+              aria-label={`Set för ${name}`}
+              className="h-9 tabular"
+            />
+          </label>
+          <label className="space-y-0.5">
+            <span className="block text-[11px] text-muted-foreground">Reps</span>
+            <Input
+              value={exercise.reps}
+              onChange={(e) => onChange({ reps: e.target.value.slice(0, 20) })}
+              aria-invalid={(showErrors && !exercise.reps.trim()) || undefined}
+              aria-label={`Reps för ${name}`}
+              placeholder="8–12"
+              className="h-9 tabular"
+            />
+          </label>
+          <label className="space-y-0.5">
+            <span className="block text-[11px] text-muted-foreground">Startvikt</span>
+            <NumberInput
+              min={0}
+              max={500}
+              decimal
+              inputMode="decimal"
+              value={exercise.targetKg}
+              onValueChange={(v) => onChange({ targetKg: v || undefined })}
+              aria-label={`Startvikt (kg) för ${name}`}
+              placeholder="kg"
+              className="h-9 tabular"
+            />
+          </label>
+        </div>
+      )}
     </div>
   )
 }
 
 /** Standardvärden när en övning läggs i en split: tunga baslyft 6–8 reps, annars 8–12, kondition 500 m. */
 export function splitExerciseFor(e: Exercise): SplitExercise {
+  // v58: löpning och Hyrox-stationer får sina standardmål.
+  if (e.trackingType && e.trackingType !== "strength") return newExerciseEntry(e)
   const compound = ["ben", "rygg", "bröst"].includes(e.muscleGroup) && /stång|trap/i.test(e.equipment ?? "")
   return { exerciseId: e.id, sets: 3, reps: e.muscleGroup === "kondition" ? "500 m" : compound ? "6–8" : "8–12", restSec: compound ? 150 : 90 }
 }
@@ -414,6 +470,13 @@ export function splitExerciseFor(e: Exercise): SplitExercise {
  * får kondition-standarden (distans i stället för reps).
  */
 export function replaceSplitExercise<T extends Omit<SplitExercise, "sets">>(current: T, next: Exercise): T {
+  // v58: byte mellan träningsformer (styrka ⇄ löpning ⇄ kondition) tar nya övningens fält.
+  const fromType = current.trackingType ?? "strength"
+  const toType = next.trackingType ?? "strength"
+  if (fromType !== toType) {
+    const d = splitExerciseFor(next)
+    return { ...current, exerciseId: next.id, targetKg: undefined, trackingType: d.trackingType, distanceM: d.distanceM, paceSecPerKm: d.paceSecPerKm, durationSec: undefined, reps: d.reps, restSec: d.restSec }
+  }
   const wasCardio = /\d\s*(m|km|min|s)\b/i.test(current.reps)
   const isCardio = next.muscleGroup === "kondition"
   const defaults = splitExerciseFor(next)
