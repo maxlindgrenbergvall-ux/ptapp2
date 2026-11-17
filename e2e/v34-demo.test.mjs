@@ -165,11 +165,14 @@ await p.waitForSelector("[data-testid=split-editor]")
 const push = p.locator("[data-testid=split-day]").first()
 const names = async () => push.locator("[data-testid=split-exercise] span.truncate").allInnerTexts()
 const before = await names()
-// Hela Push-dagen i bild (dragningen sker med skärmkoordinater).
+// Hela Push-dagen i bild (dragningen sker med skärmkoordinater). v60: varje övning har en guide-rad – högre skärm för draget.
+const vp = p.viewportSize()
+await p.setViewportSize({ width: vp.width, height: 1200 })
 await push.evaluate((el) => el.scrollIntoView({ block: "start" }))
 // v52: dagen har ett eget handtag – välj övningarnas handtag.
 await drag(push.locator("[data-testid=split-exercise] [data-testid=drag-handle]").nth(before.length - 1), push.locator("[data-sortable-id]").first())
 const after = await names()
+await p.setViewportSize(vp)
 check(after[0] === before.at(-1), `split: sista övningen i Push dras överst (${after[0]})`)
 await push.locator(`input[aria-label="Set för ${after[0]}"]`).fill("5")
 await push.locator(`input[aria-label="Reps för ${after[0]}"]`).fill("5–7")

@@ -195,7 +195,7 @@ check((await p.locator("[data-testid=logger-block]").innerText()).includes("Bloc
 const runCard = p.locator("section[data-tracking=running]")
 if (!(await runCard.locator("[data-testid=endurance-row]").count())) await runCard.locator("button[aria-expanded]").first().click()
 await runCard.locator("[data-testid=endurance-row]").first().waitFor()
-const head = await runCard.locator("div.grid").first().innerText()
+const head = await runCard.locator("[data-testid=set-columns]").first().innerText()
 check(/Distans \(km\)/.test(head) && /Tid/.test(head) && !/Kg/.test(head), "löpning: kolumnerna Distans (km) och Tid – ingen vikt", head)
 const row1 = runCard.locator("[data-testid=endurance-row]").first()
 const rowH = (await row1.boundingBox()).height
@@ -225,11 +225,11 @@ check(d.workouts.find((w) => w.id === "w-v58").logs.find((l) => l.workoutExercis
 
 const wbCard = p.locator("section[data-tracking=conditioning]").nth(1)
 await wbCard.locator("button[aria-expanded]").first().click()
-const wbHead = await wbCard.locator("div.grid").first().innerText()
+const wbHead = await wbCard.locator("[data-testid=set-columns]").first().innerText()
 check(/Reps \/ kal/.test(wbHead), "Wall Balls: Reps / kal i stället för distans", wbHead)
 const strengthCard = p.locator("section[data-tracking=strength]")
 await strengthCard.locator("button[aria-expanded]").first().click()
-check(/Kg/.test(await strengthCard.locator("div.grid").first().innerText()), "styrka: Set × Kg × Reps som förut")
+check(/Kg/.test(await strengthCard.locator("[data-testid=set-columns]").first().innerText()), "styrka: Set × Kg × Reps som förut")
 await p.screenshot({ path: `${out}/v58-logger.png`, fullPage: true })
 
 // Samma pass på spanska: gymlingo.
@@ -239,7 +239,7 @@ await p.goto(base + "/klient/pass/w-v58")
 await p.waitForSelector("[data-testid=logger-block]")
 check((await p.locator("[data-testid=logger-block]").innerText()).includes("Bloque A · 2 rondas"), "spanska: Bloque A · 2 rondas")
 await p.locator("section[data-tracking=running] [data-testid=endurance-row]").first().waitFor().catch(async () => p.locator("section[data-tracking=running] button[aria-expanded]").first().click())
-check(/Distancia \(km\)/.test(await p.locator("section[data-tracking=running] div.grid").first().innerText()) && /Tiempo/.test(await p.locator("section[data-tracking=running] div.grid").first().innerText()), "spanska: Distancia (km), Tiempo")
+check(/Distancia \(km\)/.test(await p.locator("section[data-tracking=running] [data-testid=set-columns]").first().innerText()) && /Tiempo/.test(await p.locator("section[data-tracking=running] [data-testid=set-columns]").first().innerText()), "spanska: Distancia (km), Tiempo")
 await p.screenshot({ path: `${out}/v58-logger-es.png` })
 await p.goto(base + "/klient/installningar/app")
 await p.click("[data-testid=language-picker] [data-locale=sv]")

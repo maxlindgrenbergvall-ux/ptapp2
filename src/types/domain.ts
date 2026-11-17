@@ -168,6 +168,7 @@ export interface Exercise {
   name: string
   muscleGroup: MuscleGroup
   equipment: string
+  /** v60: AI-videoguiden (bara från Storage-bucketen exercise-guides – se guideVideo()). */
   videoUrl?: string
   /** Egen övning (custom_exercises) – saknas för övningsbanken. */
   custom?: CustomExerciseInfo
@@ -248,7 +249,10 @@ export interface WorkoutExercise {
   rpe?: number
   targetKg?: number
   notes?: string
-  /** Instruktionsvideo från PT:n (t.ex. YouTube/Vimeo eller egen uppladdning). */
+  /**
+   * Äldre fält (före v60): PT:ns egen instruktionsvideo. Visas inte längre –
+   * alla förinlagda övningar har Coaviras Videoguide / Utförande (exercise-guide.tsx).
+   */
   videoUrl?: string
   /** Tillagd av klienten under passet (v32) – extra utöver PT:ns program. */
   extra?: boolean

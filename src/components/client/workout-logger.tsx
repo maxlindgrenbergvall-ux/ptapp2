@@ -11,7 +11,7 @@ import { DrawnCheck } from "@/components/motion"
 import { WorkoutSummaryView } from "@/components/client/workout-summary"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
-import { VideoEmbed } from "@/components/video-embed"
+import { ExerciseGuide } from "@/components/exercises/exercise-guide"
 import { SaveAsTemplateDialog } from "@/components/workouts/save-template-dialog"
 import { SortableList } from "@/components/workouts/sortable-list"
 import { ExercisePicker } from "@/components/exercises/exercise-picker"
@@ -500,8 +500,10 @@ function ExerciseCard({
 
       {open && (
         <div id={panelId} className="space-y-2.5 px-3 pb-3 sm:space-y-3 sm:px-4 sm:pb-4">
-          {/* v37: en samlad ruta – dagens mål, PT:ns anteckning, video och förra gången. */}
-          {((target && target.kind !== "start") || exercise.notes || exercise.videoUrl || (last && type === "strength") || hyroxHelp) && (
+          {/* v60: Videoguide / Utförande direkt under övningen (fälls ut inline). Inte för egna övningar. */}
+          <ExerciseGuide exercise={libraryExercise} name={name} className="-mx-1" />
+          {/* v37: en samlad ruta – dagens mål, PT:ns anteckning och förra gången. */}
+          {((target && target.kind !== "start") || exercise.notes || (last && type === "strength") || hyroxHelp) && (
             <div
               className={cn(
                 "space-y-1.5 rounded-xl border px-3 py-2 text-sm",
@@ -521,7 +523,6 @@ function ExerciseCard({
                   <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> {exercise.notes}
                 </p>
               )}
-              {exercise.videoUrl && <ExerciseVideo source={exercise.videoUrl} title={name} />}
               {last && type === "strength" && (
                 <p className="flex items-center justify-between gap-2 text-xs text-muted-foreground tabular">
                   <span>
@@ -546,7 +547,7 @@ function ExerciseCard({
           {type !== "strength" ? (
             // v58: löpning och kondition – distans och tid (eller reps/kal) per intervall/varv.
             <>
-              <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
+              <div data-testid="set-columns" className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
                 <span>{block ? t("fields.rounds") : type === "running" ? "#" : t("fields.rounds")}</span>
                 <span className="text-center">{type === "running" ? t("fields.distanceKm") : exercise.distanceM ? t("fields.distanceM") : t("fields.repsOrCal")}</span>
                 <span className="text-center">{t("fields.time")}</span>
@@ -571,7 +572,7 @@ function ExerciseCard({
             </>
           ) : (
             <>
-          <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
+          <div data-testid="set-columns" className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 px-1 text-[11px] text-muted-foreground sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2">
             <span>Set</span>
             <span className="text-center">{usesWeight ? "Kg" : "–"}</span>
             <span className="text-center">Reps</span>
@@ -1254,24 +1255,6 @@ function VerifyDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/** Videon fälls ut först på begäran, så att loggen förblir kompakt och inte laddar video i onödan. */
-function ExerciseVideo({ source, title }: { source: string; title: string }) {
-  const [show, setShow] = React.useState(false)
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={() => setShow((s) => !s)}
-        aria-expanded={show}
-        className="flex items-center gap-2 font-medium text-primary underline-offset-4 hover:underline"
-      >
-        <PlayCircle className="size-4" /> {show ? "Dölj instruktionsvideo" : "Visa instruktionsvideo"}
-      </button>
-      {show && <VideoEmbed source={source} title={`Instruktionsvideo: ${title}`} />}
-    </div>
   )
 }
 

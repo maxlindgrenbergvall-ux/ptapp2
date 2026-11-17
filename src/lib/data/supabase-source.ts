@@ -6,6 +6,8 @@ import type { PostgrestError, RealtimeChannel, SupabaseClient } from "@supabase/
 
 import type { PersistResult } from "@/lib/data/outbox"
 import { isLocale } from "@/lib/i18n/config"
+import { guideVideo } from "@/lib/exercise-guides/guides"
+import exerciseLibrary from "@/lib/exercise-library.json"
 import { isTrainingInterest } from "@/lib/training-modes"
 import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
@@ -74,6 +76,9 @@ interface ProfileRow {
 }
 
 /** Kontot finns men kontotyp är inte vald (nytt konto via e-post, Apple eller Google). */
+/** v60: övningsbanken per id (namn, träningsform och standardmål kommer alltid från källan). */
+const LIBRARY_BY_ID = new Map((exerciseLibrary as unknown as Exercise[]).map((e) => [e.id, e]))
+
 export class OnboardingRequired extends Error {}
 interface TrainerRow {
   id: string
@@ -956,7 +961,13 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       exercises,
       "övningar"
     )
-      .map((e): Exercise => ({ id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, videoUrl: e.video_url ?? undefined }))
+      // v60: banken (namn, träningsform, standardmål) från källan + AI-videon ur exercise-guides.
+      // Andra videolänkar (YouTube, Vimeo …) används aldrig.
+      .map((e): Exercise => {
+        const bank = LIBRARY_BY_ID.get(e.id)
+        const videoUrl = guideVideo(e.video_url) ?? undefined
+        return bank ? { ...bank, ...(videoUrl ? { videoUrl } : {}) } : { id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, ...(videoUrl ? { videoUrl } : {}) }
+      })
       // Äldre databaser (före v19) saknar custom_exercises.
       .concat(custom.error ? [] : ((custom.data ?? []) as CustomExerciseRow[]).map(toCustomExercise)),
     workouts: must<WorkoutRow[]>(workouts, "pass").map(toWorkout),

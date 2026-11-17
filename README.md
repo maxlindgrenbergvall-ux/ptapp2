@@ -578,6 +578,53 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v60: Videoguide / Utförande direkt under varje övning
+
+**Inline, ingen popup** (`src/components/exercises/exercise-guide.tsx`):
+- Raden **Videoguide / Utförande** ligger direkt under övningen i passet (`workout-logger.tsx`) och i den delade passbyggaren (`split-builder.tsx`, både klient och PT).
+- Ett tryck fäller ut guiden mjukt rakt under övningen, så att set, reps och vikter syns samtidigt.
+- Video eller animation laddas först när guiden fälls ut, och pausas och släpps när den stängs (lazy load).
+- Bildytan har fast format (16:10), så inget hoppar när videon laddats.
+
+**En och samma AI-modell** – tvåstegssystemet:
+1. **AI-video:**
+   - Bucketen `exercise-guides` (publik läsning, bara servern laddar upp).
+   - Batch-scriptet `scripts/generate-ai-exercise-videos.ts` använder fal.ai bild-till-video med en **låst referensbild** (`GUIDE_REFERENCE_IMAGE_URL`), en låst karaktärsprompt och ett låst seed.
+   - Det sparar MP4-loopar som `exercise-guides/<id>.mp4` och sätter `exercises.video_url`. Appen spelar dem `autoPlay loop muted playsInline`.
+   - Scriptet kör torrt som standard och genererar bara med `--yes` (det kostar per video). Det finns ingen automatisk kö.
+   - Det testas mot en lokal mock i `e2e/ai-videos.unit.ts`.
+2. **Inbyggd animation med samma modell:**
+   - `src/lib/exercise-guides/figure.ts`, `motions.ts` och `src/components/exercises/guide-figure.tsx` ger en atletisk silhuett i mörk studio (#131916) med limegröna detaljer (pannband, skor, viktskivor).
+   - Det finns 93 rörelser med poser. Motorn håller fötterna (eller händerna) i marken och skalar hela rörelsen in i bild.
+   - Animationen använder genererade CSS-keyframes med bara `transform`, alltså GPU-vänligt utan omräkning av layouten. Med Minska rörelse står atleten still.
+   - Den visas för alla övningar som ännu inte har AI-video, och om videon inte går att ladda.
+
+**100 % av övningsbanken:**
+- Alla **135** förinlagda övningar (JSON-banken och databasens seed) pekar på en rörelse och tre utförandesteg (`src/lib/exercise-guides/guides.ts`).
+- Stegen är **Utgångsläge**, **Rörelse** och **Kontroll / andning**, på sv/en/es/fr/de (`guide.steps.*`, 97 rörelsemönster, genererade av `scripts/guide-steps.py`).
+- **Egna övningar** har ingen guide.
+- Verifieras i `e2e/exercise-guides.unit.ts`:
+  - täckning 100 %;
+  - steg på alla språk;
+  - alla rörelser ryms i bild;
+  - bara `exercise-guides`-URL:er godtas;
+  - inga YouTube/Vimeo-embeds;
+  - ingen 1RM.
+
+**Inga YouTube- eller Vimeo-klipp längre:**
+- Fältet för videolänk eller uppladdning i passbyggaren, YouTube/Vimeo-spelaren (`video-embed.tsx`, `lib/video.ts`) och "Visa instruktionsvideo" i passet är borttagna.
+
+**Migration** `supabase/migrations/20261129000000_v60_exercise_guides.sql`:
+- Bucketen `exercise-guides`: publik läsning, MP4/WebM upp till 25 MB, och ingen skrivrätt för inloggade.
+- Kontrollen `exercises_video_guide_only`, som bara tillåter `https://…/storage/v1/object/public/exercise-guides/<id>.mp4|webm`. Äldre länkar nollställs.
+- Testas i `supabase/tests/rls_v60.test.sql`. Klient och PT kan inte ladda upp eller byta bankens videor.
+
+**Kör AI-videorna** (på din dator, med nycklar som aldrig läggs i `NEXT_PUBLIC_`):
+```
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… FAL_KEY=… GUIDE_REFERENCE_IMAGE_URL=… \
+  npx tsx --tsconfig tsconfig.json scripts/generate-ai-exercise-videos.ts --yes --limit 5
+```
+
 ## Nytt i v59: samma passbyggare för klient och PT
 
 **En komponent:** `src/components/workouts/split-builder.tsx` (`<SplitBuilder mode="client" | "trainer">`).

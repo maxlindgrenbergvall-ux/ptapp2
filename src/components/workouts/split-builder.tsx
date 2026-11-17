@@ -32,7 +32,8 @@ import { CustomExerciseDialog } from "@/components/exercises/custom-exercise-dia
 import { ExercisePickerDialog } from "@/components/exercises/exercise-picker"
 import { PersonAvatar } from "@/components/common"
 import { AdaptiveFields, CategoryPills } from "@/components/workouts/adaptive-fields"
-import { ExerciseVideoField, SetRepsEditor } from "@/components/workouts/exercise-extras"
+import { SetRepsEditor } from "@/components/workouts/exercise-extras"
+import { ExerciseGuide } from "@/components/exercises/exercise-guide"
 import { SortableList } from "@/components/workouts/sortable-list"
 import { MAX_SPLIT_DAYS, suggestedDaysPerWeek, withRestDays } from "@/lib/active-split"
 import { useAppData } from "@/lib/data/store"
@@ -610,7 +611,8 @@ function SplitExerciseRow({
   const t = useT()
   const type = exercise.trackingType ?? "strength"
   const [more, setMore] = React.useState(false)
-  const extras = Boolean(exercise.notes || exercise.videoUrl || exercise.rpe || exercise.setReps || exercise.section)
+  const extras = Boolean(exercise.notes || exercise.rpe || exercise.setReps || exercise.section)
+  const { data } = useAppData()
   return (
     <div className={cn("rounded-xl border bg-background px-2 py-1.5", block && "border-l-4 border-l-primary")} data-testid="split-exercise" data-tracking={type} data-block={block?.name}>
       {block?.first && (
@@ -720,6 +722,8 @@ function SplitExerciseRow({
             </label>
           </div>
         )}
+        {/* v60: Videoguide / Utförande direkt under övningen – samma för klient och PT. */}
+        <ExerciseGuide exercise={data.exercises.find((x) => x.id === exercise.exerciseId)} name={name} className="-ml-2 mt-1" />
         {more && (
           <div className="mt-2 space-y-2 border-t pt-2" data-testid="exercise-more-panel">
             <div className="grid grid-cols-[1.5fr_1fr_1fr] gap-2">
@@ -767,7 +771,6 @@ function SplitExerciseRow({
               onChange={(e) => onChange({ notes: e.target.value.slice(0, 500) || undefined })}
               aria-label={`Instruktioner för ${name}`}
             />
-            <ExerciseVideoField value={exercise.videoUrl} title={name} onChange={(videoUrl) => onChange({ videoUrl })} />
           </div>
         )}
       </div>
