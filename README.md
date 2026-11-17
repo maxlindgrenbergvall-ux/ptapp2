@@ -578,6 +578,40 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v59: samma passbyggare för klient och PT
+
+**En komponent:** `src/components/workouts/split-builder.tsx` (`<SplitBuilder mode="client" | "trainer">`).
+- Den renderas på klientens "Upplägg / Tips" (`/klient/schema`) och på PT:ns Passbyggare (`/pt/pass`, `src/components/pt/pt-workout-builder.tsx`).
+- Den gamla PT-byggaren (`src/components/pt/workout-builder.tsx`) är borttagen. Ändringar i byggaren slår nu igenom på båda sidor samtidigt.
+- Ett e2e-test jämför byggarens struktur för rollerna och kräver att den är identisk.
+
+**I byggaren, för båda rollerna:**
+- Filtret Alla/Styrka/Löpning/Hyrox, färdiga upplägg, **Mina mallar** (öppnas och uppdateras på plats) och eget upplägg.
+- Dagar och vilodagar som dras fritt.
+- Övningar med adaptiva fält per `tracking_type`: Set × Reps × Vikt (kg), eller Intervaller × Distans × Tempo × Vila, eller Varv × Distans (m) × Reps/kal.
+- Block/varv.
+- Övningslistan grupperad efter muskelgrupp plus Löpning och Hyrox, och **Skapa egen övning** direkt i dagen.
+- Antal dagar per vecka, utan datumfält.
+- Blanka fält vid radering, aldrig 1. Ingen 1RM någonstans.
+- Allt som fanns i PT:ns gamla byggare ligger kvar bakom **Mer** per övning: del av passet (uppvärmning/huvudpass/nedvarvning), vila, RPE, olika reps per set, instruktioner och video.
+- Texterna finns på sv/en/es/fr/de (`builder.*`).
+
+**Det enda som skiljer (längst ned i byggaren):**
+- **Klient:** Använd upplägget (aktivt schema, Nästa pass).
+- **PT:** **Tilldela till klient** (en eller flera aktiva klienter, så att klientens aktiva schema ersätts) eller **Spara som PT-mall**. Panelen har fast höjd i båda lägena.
+- Klienten ser "Från <PT>" på ett tilldelat upplägg. Väljer klienten ett eget upplägg blir det klientens eget.
+- Att lägga ut en mall på bestämda datum (betalda pass) görs som förut från klientsidan för PT:n (`/pt/klienter/[id]`).
+
+**Migration** `supabase/migrations/20261128000000_v59_pt_assign_split.sql` (kräver v43 och v58, körs i en transaktion):
+- `client_splits.assigned_by`.
+- Policyerna "splits: trainer assign" och "splits: trainer update", som bara gäller **aktiva** klienter (`is_active_coach_of`; pausade och andra PT:ers klienter nekas).
+- En trigger: en PT måste stå som avsändare, klienten kan inte märka upplägget som en annan PT:s, och dagarnas övningsfält valideras som passen (v58).
+- Mallar (`workout_templates`) och egna övningar (`custom_exercises`) använder befintliga policyer. Det verifieras i `supabase/tests/rls_v59.test.sql`.
+
+**Kalendern:** drag-and-drop väljer nu dagen under fingret/pekaren (`pointerWithin`). Tidigare kunde ett brett kort täcka flera dagknappar så att fel dag (eller ingen) valdes beroende på veckodag.
+
+Tester: `e2e/v59-delad-passbyggare.test.mjs` (42 kontroller) och `rls_v59.test.sql` (18). De äldre passbyggartesterna (v2, v3, v14, v19, v24, v29, v32, v58, demo-mode) är uppdaterade till den gemensamma byggaren och kontrollerar samma funktioner som förut.
+
 ## Nytt i v58: intressebaserad träning (Styrka, Löpning, Hyrox, Hybrid) och fem språk
 
 **Migration:** `supabase/migrations/20261127000000_v58_i18n_training_modes.sql`. Den körs i en transaktion och testas i `supabase/tests/rls_v58.test.sql`. Den lägger till:

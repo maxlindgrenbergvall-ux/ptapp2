@@ -272,7 +272,7 @@ r3.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await r3.goto(`${base}/registrera`)
 check((await r3.locator("text=/Jag är PT|PT-konto/").count()) === 0, "registreringen har inget PT-val")
 await r3.goto(`${base}/logga-in/pt`)
-check(await r3.locator("h1:has-text('PT-inloggning')").isVisible(), "PT-inloggningen finns")
+check(await r3.waitForSelector("h1:has-text('PT-inloggning')", { timeout: 10_000 }).then(() => true, () => false), "PT-inloggningen finns")
 check((await r3.locator("text=/Fortsätt med|Registrera dig/").count()) === 0, "PT-inloggningen har bara e-post och lösenord (ingen registrering eller Apple/Google)")
 await r3.screenshot({ path: `${out}/sb-pt-login.png` })
 // Klientkonto på PT-inloggningen → utloggad med förklaring.

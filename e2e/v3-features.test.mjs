@@ -144,10 +144,12 @@ ok("historiksidan visar PT:ns namn")
 
 // ------------------------------------------------------ övningsbibliotek ---
 await d.goto(`${base}/pt/pass`)
-await d.waitForSelector("text=Övningsbank >> visible=true")
-await d.fill('input[aria-label="Sök övning"] >> visible=true', "marklyft")
+await d.locator("[data-testid=open-template]").first().click()
+await d.locator("[data-testid=split-add-exercise]").first().click()
+await d.waitForSelector("[data-testid=exercise-picker-dialog]")
+await d.locator("[data-testid=exercise-picker-dialog]").getByRole("textbox").first().fill("marklyft")
 // v24: engelska facktermer – det svenska ordet "marklyft" hittar ändå alla deadlift-varianter.
-const hits = await d.locator("aside, div").locator('button:has-text("Deadlift")').filter({ visible: true }).count()
+const hits = await d.locator("[data-testid=exercise-picker-dialog] button:has-text('Deadlift')").count()
 check(hits >= 4, `övningsbiblioteket: ${hits} marklyftsvarianter (sök på svenska, engelska namn)`)
 
 console.log(errors.length ? errors.join("\n") : "inga sidfel")

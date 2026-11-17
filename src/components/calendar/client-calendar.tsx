@@ -26,7 +26,7 @@ import { TONE_DOT } from "@/components/calendar/items"
 import { WorkoutHistoryDialog } from "@/components/workouts/workout-history-dialog"
 import { MoveWorkoutButton, useMoveWorkout } from "@/components/workouts/move-workout"
 import { canMove } from "@/lib/workout-move"
-import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core"
+import { DndContext, MouseSensor, pointerWithin, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core"
 import { ProposeTimeDialog } from "@/components/calendar/propose-time-dialog"
 import { PersonAvatar } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
@@ -182,6 +182,8 @@ export function ClientCalendar() {
       {view === "week" ? (
         <DndContext
           sensors={dndSensors}
+          // v59: dagen under fingret/pekaren gäller – kortet är bredare än dagknapparna och täcker flera.
+          collisionDetection={pointerWithin}
           onDragStart={() => navigator.vibrate?.(10)}
           onDragEnd={({ active, over }) => {
             const id = String(active.id).replace(/^w:/, "")

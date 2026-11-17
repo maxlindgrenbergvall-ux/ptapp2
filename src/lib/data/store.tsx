@@ -756,8 +756,11 @@ function createActions(ctx: {
     // ----- aktivt träningsschema (v43)
     /** Klient: gör en split till det aktiva schemat (ersätter ett tidigare). Första dagen står på tur. */
     saveActiveSplit: (input: Omit<ActiveSplit, "clientId" | "nextDay" | "updatedAt" | "currentWorkoutId">) => {
+      // v59: ersätter klienten ett upplägg från PT:n blir det nya klientens eget.
+      const wasAssigned = Boolean(getData().activeSplits.find((x) => x.clientId === me.id)?.assignedBy)
       const split: ActiveSplit = {
         ...input,
+        ...(wasAssigned ? { assignedBy: undefined } : {}),
         clientId: me.id,
         daysPerWeek: Math.min(MAX_DAYS_PER_WEEK, Math.max(MIN_DAYS_PER_WEEK, Math.round(input.daysPerWeek))),
         nextDay: 0,
@@ -765,6 +768,30 @@ function createActions(ctx: {
       }
       commit({ type: "saveActiveSplit", split })
       return split
+    },
+    /**
+     * v59: PT – tilldela ett upplägg som aktivt schema till en eller flera aktiva
+     * klienter (ersätter klientens nuvarande). Returnerar ett felmeddelande eller null.
+     */
+    assignSplit: (clientIds: ID[], input: Omit<ActiveSplit, "clientId" | "nextDay" | "updatedAt" | "currentWorkoutId" | "assignedBy">): string | null => {
+      const data = getData()
+      if (!clientIds.length) return "Välj minst en klient"
+      const active = new Set(data.relationships.filter((r) => r.trainerId === me.id && r.status === "active").map((r) => r.clientId))
+      if (clientIds.some((id) => !active.has(id))) return "Du kan bara tilldela upplägg till dina aktiva klienter"
+      for (const clientId of clientIds) {
+        commit({
+          type: "assignActiveSplit",
+          split: {
+            ...input,
+            clientId,
+            daysPerWeek: Math.min(MAX_DAYS_PER_WEEK, Math.max(MIN_DAYS_PER_WEEK, Math.round(input.daysPerWeek))),
+            nextDay: 0,
+            updatedAt: now(),
+            assignedBy: me.id,
+          },
+        })
+      }
+      return null
     },
     /** Klient: ändra antal dagar per vecka i det aktiva schemat. */
     setSplitDaysPerWeek: (daysPerWeek: number) => {

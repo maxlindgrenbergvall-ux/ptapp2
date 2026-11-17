@@ -176,18 +176,22 @@ ok("PT:n tar bort en oanvänd kod")
 check(!(await demo()).ptInvites.some((i) => i.code === code), "borttagen ur datan")
 
 // ----------------------------------------- 5. PT: egen övning i passbyggaren ---
+// v59: samma passbyggare som klienten – "Skapa egen övning" direkt i dagen.
 await p.goto(base + "/pt/pass")
 await p.waitForSelector("h1:has-text('Passbyggare')")
 const before = (await demo()).templates[0].exercises.length
-await p.locator("button:has-text('Lägg till egen övning'):visible").first().click()
+await p.locator("[data-testid=open-template]").first().click()
+await p.waitForSelector("[data-testid=split-editor]")
+await p.locator("[data-testid=split-create-exercise]").first().click()
 await dlg.waitFor()
 await p.fill("#cx-name", "Kedjeböj mot låda")
 await p.fill("#cx-weight", "60")
-await dlg.locator("button:has-text('Spara och lägg i passet')").click()
+await dlg.locator("button:has-text('Spara och lägg i')").click()
 await dlg.waitFor({ state: "detached" })
 await p.waitForSelector("text=Kedjeböj mot låda")
-await p.getByRole("button", { name: "Spara", exact: true }).first().click()
-await p.waitForSelector("text=Mallen är sparad")
+await p.click("[data-testid=pt-action] [data-action=template]")
+await p.click("[data-testid=split-create]")
+await p.waitForSelector("text=Mallen är uppdaterad")
 const d5 = await demo()
 const tpl = d5.templates[0]
 const slade = d5.exercises.find((e) => e.name === "Kedjeböj mot låda")

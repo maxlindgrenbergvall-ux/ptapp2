@@ -603,6 +603,8 @@ export interface SplitRow {
   next_day: number
   current_workout_id: string | null
   updated_at: string
+  /** v59 (saknas före migrationen). */
+  assigned_by?: string | null
 }
 export const toActiveSplit = (r: SplitRow): ActiveSplit => ({
   clientId: r.client_id,
@@ -614,6 +616,7 @@ export const toActiveSplit = (r: SplitRow): ActiveSplit => ({
   nextDay: r.next_day,
   currentWorkoutId: r.current_workout_id ?? undefined,
   updatedAt: r.updated_at,
+  ...(r.assigned_by ? { assignedBy: r.assigned_by } : {}),
 })
 export const splitRow = (s: ActiveSplit) => ({
   client_id: s.clientId,
@@ -1509,9 +1512,15 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       return result(sb.from("client_goals").upsert(goalRow(me.id, action.profile)))
     // v43: ett aktivt schema per klient (RLS: bara klientens egen rad).
     case "saveActiveSplit":
-      return result(sb.from("client_splits").upsert(splitRow({ ...action.split, clientId: me.id })))
+      // v59: assigned_by skickas bara när den ändras (ett eget upplägg ersätter PT:ns) – fungerar även före migrationen.
+      return result(
+        sb.from("client_splits").upsert({ ...splitRow({ ...action.split, clientId: me.id }), ...("assignedBy" in action.split ? { assigned_by: action.split.assignedBy ?? null } : {}) })
+      )
     case "deleteActiveSplit":
       return result(sb.from("client_splits").delete().eq("client_id", me.id))
+    // v59: PT:n tilldelar ett upplägg till en aktiv klient (RLS: is_active_trainer_of).
+    case "assignActiveSplit":
+      return result(sb.from("client_splits").upsert({ ...splitRow(action.split), assigned_by: me.id }))
     case "syncDeviceActivity":
       return persistDeviceActivity(sb, me, action.days, action.activities)
     case "setFavoriteRecipe":

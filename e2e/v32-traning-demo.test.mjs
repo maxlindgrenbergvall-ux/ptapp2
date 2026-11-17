@@ -109,11 +109,12 @@ check(active.days[0].exercises.length === pushExercises - 1, "anpassningen följ
 await p.goto(base + "/pt/pass")
 await p.waitForSelector("h1:has-text('Passbyggare')")
 const ptBefore = (await demo()).templates.filter((t) => t.trainerId === "t1").length
-await p.click("[data-testid=new-workout-menu]")
-await p.click("[data-testid=new-from-split]")
-await p.click("[role=dialog] [data-testid=split-upper_lower]")
-await p.click("[role=dialog] [data-testid=split-create]")
-await p.waitForSelector("text=4 mallar skapade")
+// v59: samma byggare som klienten – Spara som PT-mall längst ned.
+await p.click("[data-testid=plan-category] [data-category=all]")
+await p.click("[data-testid=split-upper_lower]")
+await p.click("[data-testid=pt-action] [data-action=template]")
+await p.click("[data-testid=split-create]")
+await p.waitForSelector("text=4 mallar sparade")
 check((await demo()).templates.filter((t) => t.trainerId === "t1").length - ptBefore === 4, "PT: Upper/Lower blir fyra mallar")
 
 // --------------------------------------------------- 5. kalorimätaren ---

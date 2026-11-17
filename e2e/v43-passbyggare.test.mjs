@@ -65,7 +65,7 @@ check((await sets.inputValue()) === "", "set: fältet förblir tomt när man lä
 await reps.fill("")
 check((await reps.inputValue()) === "", "reps: kan tömmas helt")
 await p.click("[data-testid=split-create]")
-await p.waitForSelector("text=/Fyll i set och reps/")
+await p.waitForSelector("text=/Fyll i fälten/")
 check((await sets.getAttribute("aria-invalid")) === "true" && (await reps.getAttribute("aria-invalid")) === "true", "sparas inte – de tomma fälten markeras")
 await sets.click()
 await p.keyboard.type("4")

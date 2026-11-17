@@ -65,6 +65,8 @@ export type PersistableAction =
   | { type: "saveGoalProfile"; profile: GoalProfile }
   /** v43: klientens aktiva schema (ett per klient) – sparas eller tas bort. */
   | { type: "saveActiveSplit"; split: ActiveSplit }
+  /** v59: PT:n tilldelar ett upplägg som klientens aktiva schema. */
+  | { type: "assignActiveSplit"; split: ActiveSplit }
   | { type: "deleteActiveSplit"; clientId: ID }
   /** Telefonens hälsodata (HealthKit / Health Connect): dagssummor och pass (v32). */
   | { type: "syncDeviceActivity"; days: ActivityDay[]; activities: ActivityLog[] }
@@ -573,6 +575,7 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       return { ...data, goalProfiles: upsertBy(data.goalProfiles, action.profile, (g) => g.clientId === action.profile.clientId) }
 
     case "saveActiveSplit":
+    case "assignActiveSplit":
       return { ...data, activeSplits: upsertBy(data.activeSplits, action.split, (s) => s.clientId === action.split.clientId) }
 
     case "deleteActiveSplit":

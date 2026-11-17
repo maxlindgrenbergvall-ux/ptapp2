@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 
-import { WorkoutBuilder } from "@/components/pt/workout-builder"
+import { PtWorkoutBuilder } from "@/components/pt/pt-workout-builder"
 
 export const metadata: Metadata = { title: "Passbyggare" }
 
+/** v59: samma passbyggare som klienten – plus tilldelning till klient eller PT-mall. */
 export default function WorkoutBuilderPage() {
-  return <WorkoutBuilder />
+  return <PtWorkoutBuilder />
 }

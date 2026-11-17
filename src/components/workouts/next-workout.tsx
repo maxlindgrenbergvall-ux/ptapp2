@@ -124,7 +124,10 @@ export function ActiveSplitOverview({ onChange }: { onChange: () => void }) {
     <div className="space-y-4" data-testid="active-split">
       <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-card">
         <div>
-          <p className="text-xs text-muted-foreground">Ditt upplägg</p>
+          {/* v59: upplägg som PT:n tilldelat visar vem det kommer från. */}
+          <p className="text-xs text-muted-foreground" data-testid="split-owner">
+            {split.assignedBy ? `Från ${data.trainers.find((tr) => tr.id === split.assignedBy)?.name ?? "din PT"}` : "Ditt upplägg"}
+          </p>
           <p className="text-lg font-semibold">{split.name}</p>
         </div>
         <SortableList

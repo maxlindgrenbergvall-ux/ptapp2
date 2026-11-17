@@ -284,6 +284,8 @@ export interface ActiveSplit {
   /** Passet som senast startades från schemat (öppnas igen tills det är klart). */
   currentWorkoutId?: ID
   updatedAt: ISODateTime
+  /** v59: PT:n som tilldelade upplägget (saknas = klientens eget). */
+  assignedBy?: ID
 }
 
 export interface WorkoutTemplate {
