@@ -578,6 +578,27 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v62: guide-atleten har rätt stance, lyft och hållning
+
+Alla 93 rörelser är granskade bildruta för bildruta. Motorn (`src/lib/exercise-guides/figure.ts`) löser nu fysiken i varje bildruta, så att även mellanlägena blir rätt:
+
+- **Stance:** foten har en egen fotled. Den står plant i stående styrka och hälen lyfts bara i tåhävningar (tårna står still). I utfall och split squat står bakre foten kvar i golvet eller på bänken (`plant`, invers kinematik).
+- **Stångbana och balans:** i knäböj, frontböj, goblet squat, good morning, press, push press, thruster och wall ball lutar bålen så att tyngdpunkten (kropp + redskap) står över mittfoten (`track: "bar"`). I marklyft och RDL hänger armarna och stången går över mittfoten, tätt mot benen (`track: "hang"`). Övriga stående övningar använder ankelstrategin (högst 12° lutning), till exempel i curl, frontlyft och kettlebellsving.
+- **Hållning:** marklyftets start har skivorna i golvet, höften över knäna och ryggen i 58°. RDL och good morning skjuter höften bakåt. Frivändning, ryck och upright row drar stången nära kroppen med en arm-IK (armbågen bakom stången, aldrig översträckt). Armarna har realistisk längd.
+- **Golvkontakt:** i armhävning, planka, mountain climbers och ab wheel ligger händer (armbågar, hjul) och tår (knän) i golvet samtidigt. Burpees, hopp och löpning går aldrig igenom golvet. I glute bridge ligger skulderbladen kvar i golvet.
+- **Redskapen ritas tydligare:**
+  - skivstången som viktskiva med hylsa och en skiva bakom (djup)
+  - hantlar som skivpar
+  - kettlebell med handtag
+  - D-handtag på kabel
+  - maghjul
+  - räcke med bom och stolpe i pull-ups och hängande benlyft
+  - dipstation, låg stång (inverterad rodd) och släde med stolpar, alla där händerna greppar
+  - bänkar med ben, även under bakre foten i bulgarisk split squat och under händerna i bänkdips
+- **Tester:** `e2e/exercise-guides.unit.ts` kontrollerar balans i alla fristående rörelser, stångbana, marklyftets startläge, knäböjsdjup, plana fötter, planterade fötter, golvkontakt och att varje redskap ritas. Hjälpfunktionerna finns i `src/lib/exercise-guides/biomech.ts`.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v61: videoguiden är bara animation – inga API-nycklar
 
 - Videoguiden visar **alltid** samma guide-atlet, animerad efter varje övnings rörelse och nu med **övningens eget redskap**. Exempel: hantlar i hantelpress och rumänsk marklyft med hantlar, kabelhandtag i kabelcurl, kabelsidolyft och kabelflyes, kettlebell i goblet squat och suitcase carry, inget redskap i Hip Thrust i maskin. Det styrs av `hand` i `src/lib/exercise-guides/guides.ts`.

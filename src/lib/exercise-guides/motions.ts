@@ -3,22 +3,61 @@
  * Vinklarna förklaras i figure.ts. Varje förinlagd övning pekar på en
  * rörelse och en uppsättning utförandesteg (guides.ts).
  */
-import type { Motion, Pose } from "@/lib/exercise-guides/figure"
+import { legIk, type Motion, type Pose, SEG } from "@/lib/exercise-guides/figure"
 
 const P = (p: Partial<Pose>): Pose => ({ t: 0, h: 0, k: 0, s: 0, e: 0, ...p })
-const STAND = P({})
-/** Stången på övre ryggen (knäböj, good morning). */
+
+/**
+ * Armen till en punkt (invers kinematik, armbågen bakom stången och böjd
+ * framåt – aldrig översträckt): handen `x` framför
+ * och `y` under axeln (kroppens ram, y nedåt) vid bållutningen `t`. Ger s och e.
+ * Används där stången ska gå nära kroppen (upright row, frivändningens högdrag).
+ */
+const armTo = (t: number, x: number, y: number): { s: number; e: number } => {
+  const L1 = SEG.upperArm, L2 = SEG.forearm
+  const D = Math.min(Math.hypot(x, y), L1 + L2 - 0.01)
+  const deg = (r: number) => (r * 180) / Math.PI
+  const phi = deg(Math.atan2(x, y))
+  const alpha = deg(Math.acos((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D)))
+  const a1 = phi - alpha
+  const elbow = { x: Math.sin((a1 * Math.PI) / 180) * L1, y: Math.cos((a1 * Math.PI) / 180) * L1 }
+  const a2 = deg(Math.atan2(x - elbow.x, y - elbow.y))
+  // Armbågsvinkeln i (−180, 180] (atan2 slår om vid ±180°).
+  const e = ((((a2 - a1) % 360) + 540) % 360) - 180
+  return { s: +(a1 + t).toFixed(1), e: +e.toFixed(1) }
+}
+/** Stången på övre ryggen, strax bakom axeln (knäböj, good morning). */
 const BACK_BAR = { s: -50, e: 186 }
-/** Stången i "racken" framför axlarna (frontböj, press, frivändning). */
-const RACK = { s: 70, e: 135 }
+/** Stången i "racken" på främre axeln, armbågarna högt (frontböj, press, frivändning). */
+const RACK = { s: 70, e: 160 }
+/** Marklyftets startläge (stången över mittfoten mot smalbenen, höften över knäna) – löst med track "hang". */
+const PULL_START = { t: 58, h: 84, k: 96, s: 54 }
+/**
+ * Glute bridge (rygg i golvet): bålen lyfts `lift` grader med skulderbladen kvar
+ * i golvet och fötterna stilla – höft och knä löses med invers kinematik.
+ * Armarna ligger längs sidorna i golvet.
+ */
+const bridge = (lift: number): Pose => {
+  const FOOT = { x: 30, y: 4 } // fotleden relativt bäckenet i liggande startläge
+  const t = -(90 + lift)
+  const sh = { x: Math.sin((t * Math.PI) / 180) * SEG.torso, y: -Math.cos((t * Math.PI) / 180) * SEG.torso }
+  // Axeln står still i golvet: bäckenet flyttas dit axeln inte rör sig.
+  const pelvis = { x: -SEG.torso - sh.x, y: -sh.y }
+  const leg = legIk({ x: FOOT.x - pelvis.x, y: FOOT.y - pelvis.y })
+  return P({ t, h: +leg.h.toFixed(1), k: +leg.k.toFixed(1), s: 90 + t, e: 0 })
+}
+
+/** Plankläge på raka armar, händer och tår i golvet (burpee, broad jump). */
+const PLANK = { t: 68, h: -68, k: 0, s: 68, e: 0 }
 const FLOOR = { kind: "bench", x: 0, y: 0, w: 0 } as const
 
 export const MOTIONS = {
   // ------------------------------------------------------------ ben ---
-  squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", poses: [P({ t: 4, ...BACK_BAR }), P({ t: 38, h: 98, k: 128, ...BACK_BAR })] },
-  front_squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", poses: [P({ t: 2, ...RACK }), P({ t: 22, h: 100, k: 132, ...RACK })] },
-  goblet_squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "kettlebell", poses: [P({ s: 25, e: 125 }), P({ t: 24, h: 100, k: 130, s: 35, e: 125 })] },
+  squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ t: 4, ...BACK_BAR }), P({ t: 40, h: 100, k: 130, ...BACK_BAR })] },
+  front_squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ t: 2, ...RACK }), P({ t: 22, h: 102, k: 134, ...RACK })] },
+  goblet_squat: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "kettlebell", track: { kind: "bar" }, poses: [P({ s: 20, e: 135 }), P({ t: 24, h: 102, k: 132, s: 28, e: 135 })] },
   machine_squat: {
+    supported: true,
     mode: "alternate",
     duration: 2.6,
     anchor: "feet",
@@ -31,29 +70,35 @@ export const MOTIONS = {
     duration: 2.4,
     anchor: "hips",
     hand: "none",
+    feet: "shin",
     poses: [P({ t: -55, h: 120, k: 120, s: 20, e: 30 }), P({ t: -55, h: 105, k: 15, s: 20, e: 30 })],
     scene: [{ kind: "bench", x: 52, y: 108, w: 56, tilt: -35 }, { kind: "machine", x: 150, y: 30, w: 10, h: 70 }],
   },
-  lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "dumbbell", poses: [P({ hb: -5 }), P({ t: 4, h: 85, k: 88, hb: -28, kb: 112 })] },
-  loaded_lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "none", poses: [P({ hb: -5, ...BACK_BAR }), P({ t: 4, h: 85, k: 88, hb: -28, kb: 112, ...BACK_BAR })] },
+  lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "dumbbell", plant: { dx: 62 }, poses: [P({ t: 2, h: 24, k: 6, fb: 40 }), P({ t: 4, h: 84, k: 86, fb: 62 })] },
+  loaded_lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "none", plant: { dx: 62 }, poses: [P({ t: 2, h: 24, k: 6, fb: 40, ...BACK_BAR }), P({ t: 4, h: 84, k: 86, fb: 62, ...BACK_BAR })] },
   split_squat: {
     mode: "alternate",
     duration: 2.6,
     anchor: "feet",
     hand: "dumbbell",
-    poses: [P({ t: 6, h: 20, k: 10, hb: -45, kb: 85 }), P({ t: 12, h: 90, k: 92, hb: -30, kb: 115 })],
-    scene: [{ kind: "bench", x: 18, y: 150, w: 34 }],
+    // Bakre foten på bänken (vristen vilar på dynan), främre benet böjer.
+    plant: { dx: 60, dy: -40 },
+    poses: [P({ t: 8, h: 18, k: 4, fb: 100 }), P({ t: 16, h: 86, k: 90, fb: 100 })],
+    scene: [{ kind: "benchrear", at: "rear" }],
   },
   step_up: {
     mode: "alternate",
     duration: 2.6,
     anchor: "feet",
     hand: "dumbbell",
-    poses: [P({ t: 14, h: 80, k: 95 }), P({ t: 2, h: 0, k: 0, hb: -12, kb: 60 })],
+    // Främre foten på lådan, bakre trycker från golvet och följer med upp.
+    plant: { dx: 30, dy: 36 },
+    poses: [P({ t: 14, h: 80, k: 95, fb: 20 }), P({ t: 2, h: 0, k: 0, fb: 40 })],
     scene: [{ kind: "box", x: 108, y: 150, w: 44, h: 36 }],
   },
   pistol: { mode: "alternate", duration: 3, anchor: "feet", hand: "none", poses: [P({ s: 80, hb: 20 }), P({ t: 40, h: 108, k: 140, s: 95, hb: 90, kb: 0 })] },
   wall_sit: {
+    supported: true,
     mode: "alternate",
     duration: 3.2,
     anchor: "feet",
@@ -66,6 +111,7 @@ export const MOTIONS = {
     duration: 2.2,
     anchor: "hips",
     hand: "none",
+    feet: "shin",
     poses: [P({ t: -6, h: 90, k: 95, s: 10, e: 20 }), P({ t: -6, h: 90, k: 5, s: 10, e: 20 })],
     scene: [{ kind: "bench", x: 70, y: 108, w: 40 }],
   },
@@ -74,6 +120,7 @@ export const MOTIONS = {
     duration: 2.2,
     anchor: "hips",
     hand: "none",
+    feet: "shin",
     poses: [P({ t: -8, h: 90, k: 5, s: 10, e: 20 }), P({ t: -8, h: 90, k: 105, s: 10, e: 20 })],
     scene: [{ kind: "bench", x: 70, y: 108, w: 40 }],
   },
@@ -87,16 +134,18 @@ export const MOTIONS = {
     scene: [{ kind: "bench", x: 40, y: 104, w: 120 }],
   },
   nordic: {
+    supported: true,
     mode: "alternate",
     duration: 3,
     anchor: "feet",
     hand: "none",
     poses: [P({ k: 90, s: 20, e: 60 }), P({ t: 55, h: 55, k: 145, s: 80, e: 20 })],
   },
-  hinge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", poses: [P({ k: 8 }), P({ t: 78, h: 14, k: 24, s: 78 })] },
-  good_morning: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", poses: [P({ k: 8, ...BACK_BAR }), P({ t: 75, h: 14, k: 22, ...BACK_BAR })] },
-  deadlift: { mode: "alternate", duration: 2.8, anchor: "feet", hand: "barbell", poses: [P({ t: 58, h: 68, k: 92, s: 58 }), STAND] },
+  hinge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", track: { kind: "hang", arm: 4 }, poses: [P({ k: 8 }), P({ t: 70, h: 44, k: 48 })] },
+  good_morning: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ k: 8, ...BACK_BAR }), P({ t: 70, h: 42, k: 46, ...BACK_BAR })] },
+  deadlift: { mode: "alternate", duration: 2.8, anchor: "feet", hand: "barbell", track: { kind: "hang", arm: 4 }, poses: [P(PULL_START), P({ k: 4 })] },
   hip_thrust: {
+    supported: true,
     mode: "alternate",
     duration: 2.4,
     anchor: "feet",
@@ -105,14 +154,17 @@ export const MOTIONS = {
     scene: [{ kind: "bench", x: 40, y: 104, w: 30 }],
   },
   glute_bridge: {
+    supported: true,
     mode: "alternate",
     duration: 2.4,
     anchor: "feet",
     hand: "none",
-    poses: [P({ t: -90, h: 55, k: 120, s: -170, e: 0, y: 0 }), P({ t: -112, h: 92, k: 120, s: -170, e: 0 })],
+    // Skulderbladen i golvet, armarna längs sidorna, höften pressas upp.
+    poses: [bridge(0), bridge(26)],
   },
-  kb_swing: { mode: "alternate", duration: 1.6, anchor: "feet", hand: "kettlebell", poses: [P({ t: 68, h: 20, k: 30, s: 48 }), P({ t: -4, s: 92 })] },
-  calf_raise: { mode: "alternate", duration: 1.8, anchor: "hips", hand: "dumbbell", poses: [P({}), P({ y: -9 })] },
+
+  kb_swing: { mode: "alternate", duration: 1.6, anchor: "feet", hand: "kettlebell", poses: [P({ t: 58, h: 42, k: 52, s: 40 }), P({ t: 12, h: 6, k: 10, s: 40 }), P({ t: -6, k: 2, s: 92 })] },
+  calf_raise: { mode: "alternate", duration: 1.8, anchor: "toes", hand: "dumbbell", poses: [P({ h: -3, t: 3 }), P({ f: 38, h: -7, t: 7 })] },
   seated_calf: {
     mode: "alternate",
     duration: 1.8,
@@ -139,14 +191,14 @@ export const MOTIONS = {
     scene: [{ kind: "bench", x: 104, y: 118, w: 26, tilt: 45 }],
   },
   // ------------------------------------------------------------ drag ---
-  bent_row: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ t: 70, h: 16, k: 26, s: 70 }), P({ t: 70, h: 16, k: 26, s: 18, e: 62 })] },
+  bent_row: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ t: 55, h: 38, k: 46, s: 55 }), P({ t: 55, h: 38, k: 46, s: -8, e: 88 })] },
   db_row: {
     mode: "alternate",
     duration: 2.2,
     anchor: "feet",
     hand: "dumbbell",
-    poses: [P({ t: 78, h: 30, k: 40, s: 78, sb: 78 }), P({ t: 78, h: 30, k: 40, s: 22, e: 66, sb: 78 })],
-    scene: [{ kind: "bench", x: 112, y: 128, w: 40 }],
+    poses: [P({ t: 74, h: 38, k: 44, s: 74, sb: 74 }), P({ t: 74, h: 38, k: 44, s: 4, e: 86, sb: 74 })],
+    scene: [{ kind: "bench", x: 116, y: 128, w: 40 }],
   },
   seated_row: {
     mode: "alternate",
@@ -162,7 +214,7 @@ export const MOTIONS = {
     anchor: "hands",
     hand: "none",
     poses: [P({ h: 10, k: 50, s: 178 }), P({ t: -6, h: 14, k: 55, s: 28, e: 150 })],
-    scene: [{ kind: "bar", x: 70, y: 22, w: 60 }],
+    scene: [{ kind: "pullup", at: "hand" }],
   },
   pulldown: {
     mode: "alternate",
@@ -180,10 +232,11 @@ export const MOTIONS = {
     body: -72,
     hand: "none",
     poses: [P({ s: 90 }), P({ s: 30, e: 100 })],
+    scene: [{ kind: "lowbar", at: "hand" }],
   },
   shrug: { mode: "alternate", duration: 1.6, anchor: "hips", hand: "barbell", poses: [P({}), P({ y: -5, s: 2 })] },
   face_pull: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "handle", poses: [P({ t: -4, s: 95 }), P({ t: -6, s: 95, e: 125 })], scene: [{ kind: "pulley", x: 186, y: 50 }] },
-  reverse_fly: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ t: 70, h: 14, k: 22, s: 70, e: 10 }), P({ t: 70, h: 14, k: 22, s: -10, e: 10 })] },
+  reverse_fly: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ t: 55, h: 34, k: 44, s: 55, e: 10 }), P({ t: 55, h: 34, k: 44, s: 20, e: 40 })] },
   // ---------------------------------------------------------- tryck ---
   bench_press: {
     mode: "alternate",
@@ -220,19 +273,27 @@ export const MOTIONS = {
     poses: [P({ t: -10, h: 90, k: 90, s: 35, e: 100 }), P({ t: -10, h: 90, k: 90, s: 90, e: 0 })],
     scene: [{ kind: "bench", x: 70, y: 108, w: 40 }, { kind: "machine", x: 56, y: 40, w: 10, h: 70 }],
   },
-  push_up: { mode: "alternate", duration: 2.2, anchor: "feet", body: 90, hand: "none", poses: [P({ s: 90 }), P({ s: 30, e: 62 })] },
-  dip: { mode: "alternate", duration: 2.2, anchor: "hands", hand: "none", poses: [P({ t: 6, h: 10, k: 70, s: 6 }), P({ t: 22, h: 14, k: 70, s: -62, e: 92 })], scene: [{ kind: "bar", x: 84, y: 108, w: 44 }] },
+  push_up: { mode: "alternate", duration: 2.2, anchor: "toes", body: 90, hand: "none", track: { kind: "plank" }, poses: [P({ s: 90 }), P({ s: 34, e: 70 })] },
+  dip: {
+    mode: "alternate",
+    duration: 2.2,
+    anchor: "hands",
+    hand: "none",
+    poses: [P({ t: 6, h: 10, k: 70, s: 6 }), P({ t: 22, h: 14, k: 70, s: -62, e: 92 })],
+    scene: [{ kind: "dip", at: "hand" }],
+  },
   bench_dip: {
     mode: "alternate",
     duration: 2.2,
     anchor: "hands",
     hand: "none",
+    feet: "shin",
     poses: [P({ h: 85, k: 10, s: -20 }), P({ t: 4, h: 85, k: 10, s: -70, e: 85 })],
-    scene: [{ kind: "bench", x: 52, y: 112, w: 40 }],
+    scene: [{ kind: "benchgrip", at: "hand" }],
   },
-  overhead_press: { mode: "alternate", duration: 2.4, anchor: "feet", hand: "barbell", poses: [P({ ...RACK }), P({ t: -3, s: 176 })] },
-  push_press: { mode: "alternate", duration: 1.8, anchor: "feet", hand: "barbell", poses: [P({ ...RACK }), P({ h: 22, k: 38, ...RACK }), P({ t: -3, s: 176 })] },
-  db_press: { mode: "alternate", duration: 2.4, anchor: "feet", hand: "dumbbell", poses: [P({ s: 75, e: 128 }), P({ s: 172, e: 6 })] },
+  overhead_press: { mode: "alternate", duration: 2.4, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ ...RACK }), P({ t: -3, s: 176 })] },
+  push_press: { mode: "alternate", duration: 1.8, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ ...RACK }), P({ h: 22, k: 38, ...RACK }), P({ t: -3, s: 176 })] },
+  db_press: { mode: "alternate", duration: 2.4, anchor: "feet", hand: "dumbbell", track: { kind: "bar" }, poses: [P({ s: 75, e: 140 }), P({ s: 172, e: 6 })] },
   seated_press: {
     mode: "alternate",
     duration: 2.4,
@@ -241,10 +302,10 @@ export const MOTIONS = {
     poses: [P({ t: -4, h: 90, k: 90, s: 75, e: 128 }), P({ t: -4, h: 90, k: 90, s: 172, e: 6 })],
     scene: [{ kind: "bench", x: 70, y: 108, w: 40 }],
   },
-  landmine: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ t: 8, h: 10, k: 15, s: 60, e: 120 }), P({ t: 12, h: 10, k: 15, s: 140, e: 0 })] },
+  landmine: { supported: true, mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ t: 8, h: 10, k: 15, s: 60, e: 120 }), P({ t: 12, h: 10, k: 15, s: 140, e: 0 })] },
   handstand_pu: { mode: "alternate", duration: 2.4, anchor: "hands", body: 180, hand: "none", poses: [P({ s: 180 }), P({ s: 140, e: 88 })] },
   raise: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ s: 4, e: 10 }), P({ s: 88, e: 10 })] },
-  upright_row: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ s: 4 }), P({ s: 62, e: 112 })] },
+  upright_row: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P(armTo(0, 4, 57)), P(armTo(0, 8, 30)), P(armTo(0, 9, 4))] },
   // ---------------------------------------------------------- armar ---
   curl: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ s: 4 }), P({ s: 12, e: 138 })] },
   barbell_curl: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "barbell", poses: [P({ s: 4 }), P({ s: 12, e: 138 })] },
@@ -259,10 +320,10 @@ export const MOTIONS = {
     poses: [P({ h: 5, k: 95, s: 100, e: 4, x: -10, y: -12 }), P({ h: 5, k: 95, s: 100, e: 112, x: -10, y: -12 })],
     scene: [{ kind: "bench", x: 40, y: 98, w: 80 }],
   },
-  kickback: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ t: 62, h: 18, k: 28, s: -28, e: 90 }), P({ t: 62, h: 18, k: 28, s: -28, e: 4 })] },
+  kickback: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "dumbbell", poses: [P({ t: 62, h: 20, k: 28, s: -6, e: 66 }), P({ t: 62, h: 20, k: 28, s: -6, e: 2 })] },
   // ------------------------------------------------------------ bål ---
-  plank: { mode: "alternate", duration: 3.2, anchor: "feet", body: 90, hand: "none", poses: [P({ s: 92, e: -88 }), P({ s: 92, e: -88, y: -1.5 })] },
-  side_plank: { mode: "alternate", duration: 3.2, anchor: "feet", body: 72, hand: "none", poses: [P({ s: 90, e: -90 }), P({ s: 90, e: -90, y: -2 })] },
+  plank: { mode: "alternate", duration: 3.2, anchor: "toes", body: 90, hand: "none", track: { kind: "plank" }, poses: [P({ s: 90, e: -90 }), P({ s: 90, e: -90, t: -1.5, h: 1.5 })] },
+  side_plank: { mode: "alternate", duration: 3.2, anchor: "toes", body: 90, hand: "none", track: { kind: "plank" }, poses: [P({ s: 90, e: -90 }), P({ s: 90, e: -90, t: -2, h: 2 })] },
   dead_bug: {
     mode: "alternate",
     duration: 2.4,
@@ -278,15 +339,18 @@ export const MOTIONS = {
     hand: "none",
     poses: [P({ t: 90, k: 90, s: 90, sb: 90, y: 40 }), P({ t: 90, k: 90, s: 180, sb: 90, hb: -90, kb: 0, y: 40 })],
   },
-  hanging_raise: { mode: "alternate", duration: 2.4, anchor: "hands", hand: "none", poses: [P({ s: 178, k: 5 }), P({ s: 178, h: 92, k: 5 })], scene: [{ kind: "bar", x: 70, y: 22, w: 60 }] },
-  knee_raise: { mode: "alternate", duration: 2.2, anchor: "hands", hand: "none", poses: [P({ s: 178, k: 5 }), P({ s: 178, h: 100, k: 110 })], scene: [{ kind: "bar", x: 70, y: 22, w: 60 }] },
+  hanging_raise: { mode: "alternate", duration: 2.4, anchor: "hands", hand: "none", poses: [P({ s: 178, k: 5 }), P({ s: 178, h: 92, k: 5 })], scene: [{ kind: "pullup", at: "hand" }] },
+  knee_raise: { mode: "alternate", duration: 2.2, anchor: "hands", hand: "none", poses: [P({ s: 178, k: 5 }), P({ s: 178, h: 100, k: 110 })], scene: [{ kind: "pullup", at: "hand" }] },
   ab_wheel: {
     mode: "alternate",
     duration: 2.6,
     anchor: "hips",
-    hand: "none",
-    poses: [P({ t: 40, h: 0, k: 92, s: 40, y: 38 }), P({ t: 82, h: -35, k: 125, s: 175, x: 4, y: 52 })],
-    scene: [{ kind: "wheel", x: 150, y: 178, r: 7 }],
+    hand: "wheel",
+    feet: "shin",
+    ground: true,
+    track: { kind: "plank" },
+    // Knäståendes: hjulet under axlarna → rulla ut med rak bål, knäna i golvet.
+    poses: [P({ t: 40, h: -10, k: 100, s: 40 }), P({ t: 72, h: -40, k: 130, s: 160 })],
   },
   crunch: { mode: "alternate", duration: 2.2, anchor: "hips", body: -90, hand: "none", poses: [P({ h: 50, k: 110, s: 150, e: 150, y: 70 }), P({ t: 32, h: 50, k: 110, s: 150, e: 150, y: 70 })] },
   cable_crunch: {
@@ -302,38 +366,46 @@ export const MOTIONS = {
   pallof: { mode: "alternate", duration: 2.2, anchor: "feet", hand: "handle", poses: [P({ h: 12, k: 18, s: 40, e: 100 }), P({ h: 12, k: 18, s: 90, e: 0 })], scene: [{ kind: "pulley", x: 186, y: 88 }] },
   woodchop: { mode: "alternate", duration: 2, anchor: "feet", hand: "handle", poses: [P({ s: 160, e: 0 }), P({ t: 30, h: 20, k: 35, s: 30, e: 0 })], scene: [{ kind: "pulley", x: 180, y: 16 }] },
   // ------------------------------------------------------- helkropp ---
-  clean: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", poses: [P({ t: 58, h: 68, k: 92, s: 58 }), P({ t: -6, s: 8 }), P({ h: 30, k: 48, ...RACK })] },
-  snatch: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", poses: [P({ t: 58, h: 68, k: 92, s: 58 }), P({ t: -6, s: 30 }), P({ t: 10, h: 40, k: 60, s: 176 })] },
-  thruster: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", poses: [P({ t: 22, h: 100, k: 132, ...RACK }), P({ t: -3, s: 176 })] },
+  clean: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", poses: [P(PULL_START), P({ t: -6, s: -4 }), P({ t: -4, k: 4, ...armTo(-4, 6, 40) }), P({ t: -4, k: 6, ...armTo(-4, 8, 22) }), P({ t: 6, h: 24, k: 36, ...armTo(6, 8, 4) }), P({ t: 14, h: 40, k: 58, ...RACK })] },
+  snatch: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", poses: [P(PULL_START), P({ t: -6, s: -4 }), P({ t: -4, k: 4, ...armTo(-4, 6, 36) }), P({ t: -4, k: 6, ...armTo(-4, 8, 8) }), P({ t: 6, h: 30, k: 44, ...armTo(6, 4, -30) }), P({ t: 10, h: 50, k: 70, ...armTo(10, 2, -50) }), P({ t: 16, h: 70, k: 100, ...armTo(16, 0, -57) })] },
+  thruster: { mode: "alternate", duration: 2, anchor: "feet", hand: "barbell", track: { kind: "bar" }, poses: [P({ t: 22, h: 102, k: 134, ...RACK }), P({ t: -3, s: 176 })] },
   kb_clean_press: { mode: "alternate", duration: 2.4, anchor: "feet", hand: "kettlebell", poses: [P({ t: 50, h: 40, k: 60, s: 50 }), P({ s: 60, e: 135 }), P({ s: 176 })] },
-  getup: { mode: "alternate", duration: 3.4, anchor: "feet", hand: "kettlebell", poses: [P({ t: 4, h: 85, k: 88, hb: -28, kb: 115, s: 176 }), P({ s: 176 })] },
+  getup: { supported: true, mode: "alternate", duration: 3.4, anchor: "feet", hand: "kettlebell", poses: [P({ t: 4, h: 85, k: 88, hb: -28, kb: 115, s: 176 }), P({ s: 176 })] },
   burpee: {
     mode: "cycle",
     duration: 2.4,
-    anchor: "hips",
+    anchor: "feet",
     hand: "none",
-    poses: [P({}), P({ t: 40, h: 110, k: 135, s: 60, y: 30 }), P({ t: 82, h: -82, s: 82, y: 40 }), P({ t: 40, h: 110, k: 135, s: 60, y: 30 }), P({ s: 176, y: -14 })],
+    feet: "shin",
+    ground: true,
+    poses: [P({}), P({ t: 40, h: 110, k: 135, s: 60 }), P(PLANK), P({ t: 40, h: 110, k: 135, s: 60 }), P({ s: 176, y: -14 })],
   },
   broad_jump: {
     mode: "cycle",
     duration: 2.6,
-    anchor: "hips",
+    anchor: "feet",
     hand: "none",
-    poses: [P({ t: 40, h: 110, k: 135, s: 60, y: 30 }), P({ t: 82, h: -82, s: 82, y: 40 }), P({ t: 40, h: 110, k: 135, s: 60, y: 30 }), P({ t: 30, h: 60, k: 30, s: 160, y: -12, x: 18 }), P({ t: 30, h: 80, k: 100, s: -30, y: 18, x: 30 })],
+    feet: "shin",
+    ground: true,
+    poses: [P({ t: 40, h: 110, k: 135, s: 60 }), P(PLANK), P({ t: 40, h: 110, k: 135, s: 60 }), P({ t: 30, h: 60, k: 30, s: 160, y: -14, x: 18 }), P({ t: 30, h: 90, k: 110, s: -30, x: 30 })],
   },
   box_jump: {
     mode: "cycle",
     duration: 2.2,
-    anchor: "hips",
+    anchor: "feet",
     hand: "none",
-    poses: [P({}), P({ t: 32, h: 70, k: 95, s: -35, y: 16 }), P({ t: 10, h: 40, k: 30, s: 160, y: -28, x: 14 }), P({ t: 20, h: 70, k: 100, s: 60, y: -18, x: 30 }), P({ y: -36, x: 30 })],
-    scene: [{ kind: "box", x: 112, y: 144, w: 48, h: 42 }],
+    feet: "shin",
+    ground: true,
+    poses: [P({}), P({ t: 32, h: 70, k: 95, s: -35 }), P({ t: 10, h: 40, k: 30, s: 160, y: -44, x: 22 }), P({ t: 20, h: 70, k: 100, s: 60, y: -40, x: 44 }), P({ y: -40, x: 44 })],
+    scene: [{ kind: "box", x: 128, y: 146, w: 46, h: 40 }],
   },
   battle_ropes: { mode: "alternate", duration: 0.7, anchor: "feet", hand: "handle", poses: [P({ t: 20, h: 45, k: 60, s: 40, e: 30, sb: 85 }), P({ t: 20, h: 45, k: 60, s: 85, e: 30, sb: 40 })] },
-  mountain_climber: { mode: "alternate", duration: 0.9, anchor: "hips", body: 90, hand: "none", poses: [P({ s: 90, h: 85, k: 110, hb: 0, kb: 0, y: -6 }), P({ s: 90, h: 0, k: 0, hb: 85, kb: 110, y: -6 })] },
+  mountain_climber: { mode: "alternate", duration: 0.9, anchor: "hips", body: 90, hand: "none", ground: true, track: { kind: "plank" }, poses: [P({ s: 90, h: 85, k: 110, hb: 0, kb: 0 }), P({ s: 90, h: 0, k: 0, hb: 85, kb: 110 })] },
   // ------------------------------------------------------- kondition ---
   run: {
     mode: "cycle",
+    feet: "shin",
+    ground: true,
     duration: 0.72,
     anchor: "hips",
     hand: "none",
@@ -346,6 +418,8 @@ export const MOTIONS = {
   },
   hill_run: {
     mode: "cycle",
+    feet: "shin",
+    ground: true,
     duration: 0.8,
     anchor: "hips",
     hand: "none",
@@ -358,6 +432,8 @@ export const MOTIONS = {
   },
   walk: {
     mode: "cycle",
+    feet: "shin",
+    ground: true,
     duration: 1.3,
     anchor: "hips",
     hand: "none",
@@ -365,6 +441,8 @@ export const MOTIONS = {
   },
   carry: {
     mode: "cycle",
+    feet: "shin",
+    ground: true,
     duration: 1.1,
     anchor: "hips",
     hand: "kettlebell",
@@ -372,6 +450,7 @@ export const MOTIONS = {
   },
   stairs: {
     mode: "cycle",
+    feet: "shin",
     duration: 1.4,
     anchor: "hips",
     hand: "none",
@@ -380,6 +459,7 @@ export const MOTIONS = {
   },
   bike: {
     mode: "cycle",
+    feet: "shin",
     duration: 0.9,
     anchor: "hips",
     hand: "handle",
@@ -387,6 +467,7 @@ export const MOTIONS = {
     scene: [{ kind: "erg", x: 88, y: 106, w: 70 }],
   },
   row_erg: {
+    supported: true,
     mode: "cycle",
     duration: 2.2,
     anchor: "feet",
@@ -395,7 +476,7 @@ export const MOTIONS = {
     scene: [{ kind: "erg", x: 30, y: 104, w: 150 }],
   },
   ski_erg: { mode: "alternate", duration: 1.6, anchor: "feet", hand: "handle", poses: [P({ t: -4, s: 170, e: 10 }), P({ t: 42, h: 25, k: 40, s: 18, e: 0 })], scene: [{ kind: "machine", x: 150, y: 20, w: 12, h: 166 }] },
-  jump_rope: { mode: "alternate", duration: 0.5, anchor: "hips", hand: "handle", poses: [P({ s: 20, e: 40, k: 10, h: 4 }), P({ s: 26, e: 46, y: -7, k: 4 })] },
+  jump_rope: { mode: "alternate", duration: 0.5, anchor: "hips", hand: "handle", feet: "shin", ground: true, poses: [P({ s: 20, e: 40, k: 10, h: 4 }), P({ s: 26, e: 46, y: -7, k: 4 })] },
   swim: {
     mode: "cycle",
     duration: 1.6,
@@ -407,15 +488,17 @@ export const MOTIONS = {
   },
   sled_push: {
     mode: "cycle",
+    feet: "shin",
+    ground: true,
     duration: 1.2,
     anchor: "hips",
     hand: "none",
-    poses: [P({ t: 55, h: 40, k: 50, hb: -35, kb: 30, s: 140, e: 20, y: 18 }), P({ t: 55, h: -35, k: 30, hb: 40, kb: 50, s: 140, e: 20, y: 18 })],
-    scene: [{ kind: "sled", x: 148, y: 146 }],
+    poses: [P({ t: 55, h: 40, k: 50, hb: -35, kb: 30, s: 120, e: 20 }), P({ t: 55, h: -35, k: 30, hb: 40, kb: 50, s: 120, e: 20 })],
+    scene: [{ kind: "sledpush", at: "hand" }],
   },
-  sled_pull: { mode: "alternate", duration: 1.2, anchor: "feet", hand: "none", poses: [P({ t: -14, h: 30, k: 40, s: 95, e: 0, sb: 40, eb: 70 }), P({ t: -14, h: 30, k: 40, s: 40, e: 70, sb: 95, eb: 0 })], scene: [{ kind: "sled", x: 168, y: 146 }] },
-  wall_ball: { mode: "alternate", duration: 1.8, anchor: "feet", hand: "ball", poses: [P({ t: 20, h: 100, k: 132, s: 60, e: 120 }), P({ t: -4, s: 165, e: 10 })], scene: [{ kind: "target", x: 168, y: 28 }] },
-  sandbag_lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "none", poses: [P({ hb: -5, ...BACK_BAR }), P({ t: 4, h: 85, k: 88, hb: -28, kb: 112, ...BACK_BAR })] },
+  sled_pull: { supported: true, mode: "alternate", duration: 1.2, anchor: "feet", hand: "none", poses: [P({ t: -14, h: 30, k: 40, s: 95, e: 0, sb: 40, eb: 70 }), P({ t: -14, h: 30, k: 40, s: 40, e: 70, sb: 95, eb: 0 })], scene: [{ kind: "sled", x: 168, y: 146 }] },
+  wall_ball: { mode: "alternate", duration: 1.8, anchor: "feet", hand: "ball", track: { kind: "bar" }, poses: [P({ t: 20, h: 100, k: 132, s: 60, e: 120 }), P({ t: -4, s: 165, e: 10 })], scene: [{ kind: "target", x: 168, y: 28 }] },
+  sandbag_lunge: { mode: "alternate", duration: 2.6, anchor: "feet", hand: "none", plant: { dx: 62 }, poses: [P({ t: 2, h: 24, k: 6, fb: 40, ...BACK_BAR }), P({ t: 4, h: 84, k: 86, fb: 62, ...BACK_BAR })] },
 } satisfies Record<string, Motion>
 
 export type MotionId = keyof typeof MOTIONS
