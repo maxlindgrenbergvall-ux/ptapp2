@@ -7,7 +7,7 @@ import { join } from "node:path"
 
 import library from "@/lib/exercise-library.json"
 import { fitMotion, frames, keyframesCss, type Motion, outOfFrame } from "@/lib/exercise-guides/figure"
-import { GUIDES, guideFor, guideVideo } from "@/lib/exercise-guides/guides"
+import { GUIDES, guideFor } from "@/lib/exercise-guides/guides"
 import { MOTIONS } from "@/lib/exercise-guides/motions"
 import { LOCALES } from "@/lib/i18n/config"
 import { translate } from "@/lib/i18n/translate"
@@ -87,20 +87,13 @@ check(guideFor({ id: "cx-123", custom: { ownerId: "t1" } as never }) === null, "
 check(guideFor({ id: "e-squat", custom: { ownerId: "t1" } as never }) === null, "egen övning med bankens id: ingen videoguide")
 check(guideFor(undefined) === null && guideFor({ id: "okänd" }) === null, "okänd övning: ingen guide (kraschar inte)")
 
-// --------------------------------------------- bara Coaviras AI-video ---
-check(guideVideo("https://abc.supabase.co/storage/v1/object/public/exercise-guides/e-squat.mp4") !== null, "AI-video från exercise-guides godtas")
-check(guideVideo("https://abc.supabase.co/storage/v1/object/public/exercise-guides/e-run.webm") !== null, "WebM godtas")
-for (const bad of [
-  "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  "https://youtu.be/dQw4w9WgXcQ",
-  "https://vimeo.com/123456",
-  "https://player.vimeo.com/video/1",
-  "http://abc.supabase.co/storage/v1/object/public/exercise-guides/e-squat.mp4",
-  "https://abc.supabase.co/storage/v1/object/public/exercise-videos/e-squat.mp4",
-  "https://cdn.stock.example/squat.mp4",
-  "javascript:alert(1)",
-])
-  check(guideVideo(bad) === null, `avvisas: ${bad}`)
+// -------------------------------------- bara animation, inga externa tjänster ---
+const guideSrc = readFileSync("src/components/exercises/exercise-guide.tsx", "utf8") + readFileSync("src/components/exercises/guide-figure.tsx", "utf8")
+check(!/<video|fetch\(|https?:\/\//.test(guideSrc.replace(/\/\*[\s\S]*?\*\//g, "")), "guiden ritas i appen – ingen video, inga nätverksanrop, inga API-nycklar")
+check(!readdirSync("scripts").some((f) => /ai-exercise-videos/.test(f)), "inget betalt AI-videoscript")
+// Övningens eget redskap (v61).
+const hands = { "e-db-bench": "dumbbell", "e-bench": undefined, "e-cablecurl": "handle", "e-goblet": "kettlebell", "e-machine-hipthrust": "none" } as Record<string, string | undefined>
+check(Object.entries(hands).every(([id, h]) => GUIDES[id].hand === h), "redskap per övning: hantlar i hantelpress, handtag i kabelcurl, kettlebell i goblet")
 
 // ------------------------------------------------ inga YouTube-embeds, ingen 1RM ---
 function walk(dir: string): string[] {

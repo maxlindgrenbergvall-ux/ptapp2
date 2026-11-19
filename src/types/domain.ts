@@ -168,7 +168,7 @@ export interface Exercise {
   name: string
   muscleGroup: MuscleGroup
   equipment: string
-  /** v60: AI-videoguiden (bara från Storage-bucketen exercise-guides – se guideVideo()). */
+  /** Äldre fält (exercises.video_url). Används inte – guiden är appens animation (v61). */
   videoUrl?: string
   /** Egen övning (custom_exercises) – saknas för övningsbanken. */
   custom?: CustomExerciseInfo

@@ -49,7 +49,6 @@ import type { Preferences,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
 import exerciseLibrary from "@/lib/exercise-library.json"
-import { guideVideo } from "@/lib/exercise-guides/guides"
 
 /** Ändringar som användaren gör och som ska sparas i backend. */
 export type PersistableAction =
@@ -806,7 +805,5 @@ function slotToRule(trainerId: ID, slot: string): AvailabilityRule {
 function withLibrary(saved: Exercise[]): Exercise[] {
   const bank = exerciseLibrary as Exercise[]
   const ids = new Set(bank.map((e) => e.id))
-  // v60: AI-videon (exercise-guides) som hämtats från databasen följer med bankens övning.
-  const video = new Map(saved.filter((e) => ids.has(e.id) && guideVideo(e.videoUrl)).map((e) => [e.id, e.videoUrl!]))
-  return [...bank.map((b) => (video.has(b.id) ? { ...b, videoUrl: video.get(b.id) } : b)), ...saved.filter((e) => !ids.has(e.id))]
+  return [...bank, ...saved.filter((e) => !ids.has(e.id))]
 }

@@ -1,26 +1,33 @@
 /**
- * Videoguiden per övning (v60): varje FÖRINLAGD övning i banken har en rörelse
- * för guide-atleten (animationen) och tre utförandesteg i språkfilerna
- * (guide.steps.<steg>.start/move/control). Egna övningar har ingen guide.
+ * Videoguiden per övning (v60/v61): varje FÖRINLAGD övning i banken har en
+ * rörelse för guide-atleten (animationen), övningens redskap och tre
+ * utförandesteg i språkfilerna (guide.steps.<steg>.start/move/control).
+ * Egna övningar har ingen guide. Inga videor eller externa tjänster – allt
+ * ritas i appen med samma modell.
  *
  * Verifieras i e2e/exercise-guides.unit.ts: 100 % av övningsbanken.
  */
+import type { Motion } from "@/lib/exercise-guides/figure"
 import type { MotionId } from "@/lib/exercise-guides/motions"
 import type { Exercise } from "@/types/domain"
+
+export type Hand = NonNullable<Motion["hand"]>
 
 export interface Guide {
   motion: MotionId
   /** Nyckel under guide.steps i ordböckerna. */
   steps: string
+  /** Övningens eget redskap när det skiljer sig från rörelsens (t.ex. hantlar i hantelpress). */
+  hand?: Hand
 }
 
-const g = (motion: MotionId, steps: string = motion): Guide => ({ motion, steps })
+const g = (motion: MotionId, steps: string = motion, hand?: Hand): Guide => ({ motion, steps, ...(hand ? { hand } : {}) })
 
 export const GUIDES: Record<string, Guide> = {
   // ----------------------------------------------------------- ben ---
   "e-squat": g("squat"),
   "e-frontsquat": g("front_squat"),
-  "e-goblet": g("goblet_squat", "goblet"),
+  "e-goblet": g("goblet_squat", "goblet", "kettlebell"),
   "e-boxsquat": g("squat"),
   "e-pausesquat": g("squat"),
   "e-hacksquat": g("machine_squat"),
@@ -35,16 +42,16 @@ export const GUIDES: Record<string, Guide> = {
   "e-wallsit": g("wall_sit"),
   "e-rdl": g("hinge", "rdl"),
   "e-sldl": g("hinge", "rdl"),
-  "e-db-rdl": g("hinge", "rdl"),
+  "e-db-rdl": g("hinge", "rdl", "dumbbell"),
   "e-hipthrust": g("hip_thrust"),
-  "e-machine-hipthrust": g("hip_thrust"),
+  "e-machine-hipthrust": g("hip_thrust", "hip_thrust", "none"),
   "e-glutebridge": g("glute_bridge"),
   "e-legcurl": g("lying_leg_curl", "leg_curl"),
   "e-seatedcurl": g("seated_leg_curl", "leg_curl"),
   "e-nordic": g("nordic"),
   "e-kbswing": g("kb_swing"),
   "e-goodmorning": g("good_morning"),
-  "e-calfraise": g("calf_raise", "calf"),
+  "e-calfraise": g("calf_raise", "calf", "none"),
   "e-seatedcalf": g("seated_calf", "calf"),
   "e-abduction": g("seated_machine", "hip_ab"),
   "e-adduction": g("seated_machine", "hip_ad"),
@@ -58,7 +65,7 @@ export const GUIDES: Record<string, Guide> = {
   "e-db-row": g("db_row"),
   "e-cablerow": g("seated_row", "cable_row"),
   "e-tbarrow": g("bent_row", "row"),
-  "e-chestrow": g("bent_row", "row"),
+  "e-chestrow": g("bent_row", "row", "dumbbell"),
   "e-pullup": g("pull_up"),
   "e-chinup": g("pull_up"),
   "e-assistpull": g("pull_up"),
@@ -66,18 +73,18 @@ export const GUIDES: Record<string, Guide> = {
   "e-straightarm": g("straight_arm"),
   "e-invrow": g("inverted_row", "inv_row"),
   "e-backext": g("back_extension", "back_ext"),
-  "e-shrug": g("shrug"),
+  "e-shrug": g("shrug", "shrug", "barbell"),
   "e-rackpull": g("deadlift"),
   // ---------------------------------------------------------- bröst ---
   "e-bench": g("bench_press", "bench"),
   "e-closegrip": g("bench_press", "bench"),
   "e-inclinebb": g("incline_press", "incline"),
-  "e-db-bench": g("bench_press", "bench"),
+  "e-db-bench": g("bench_press", "bench", "dumbbell"),
   "e-incline": g("incline_press", "incline"),
   "e-declinebench": g("bench_press", "bench"),
   "e-pausebench": g("bench_press", "bench"),
   "e-dbfly": g("fly"),
-  "e-cablefly": g("fly"),
+  "e-cablefly": g("fly", "fly", "handle"),
   "e-pecdeck": g("chest_press", "fly"),
   "e-chestpress": g("chest_press"),
   "e-pushup": g("push_up"),
@@ -85,12 +92,12 @@ export const GUIDES: Record<string, Guide> = {
   // ---------------------------------------------------------- axlar ---
   "e-ohp": g("overhead_press", "ohp"),
   "e-db-ohp": g("seated_press", "db_press"),
-  "e-machine-ohp": g("seated_press", "db_press"),
+  "e-machine-ohp": g("seated_press", "db_press", "handle"),
   "e-pushpress": g("push_press"),
   "e-arnold": g("db_press"),
   "e-landmine": g("landmine"),
   "e-lateral": g("raise"),
-  "e-cablelateral": g("raise"),
+  "e-cablelateral": g("raise", "raise", "handle"),
   "e-frontraise": g("raise"),
   "e-reardelt": g("reverse_fly", "rear_delt"),
   "e-facepull": g("face_pull"),
@@ -103,9 +110,9 @@ export const GUIDES: Record<string, Guide> = {
   "e-hammer": g("curl"),
   "e-preacher": g("barbell_curl", "curl"),
   "e-inclinecurl": g("curl"),
-  "e-cablecurl": g("curl"),
+  "e-cablecurl": g("curl", "curl", "handle"),
   "e-pushdown": g("pushdown"),
-  "e-ohext": g("overhead_ext", "oh_ext"),
+  "e-ohext": g("overhead_ext", "oh_ext", "handle"),
   "e-skullcrusher": g("skull_crusher", "skull"),
   "e-kickback": g("kickback"),
   "e-benchdip": g("bench_dip"),
@@ -121,15 +128,15 @@ export const GUIDES: Record<string, Guide> = {
   "e-abwheel": g("ab_wheel"),
   "e-cablecrunch": g("cable_crunch", "crunch"),
   "e-crunch": g("crunch"),
-  "e-russian": g("russian_twist", "russian"),
+  "e-russian": g("russian_twist", "russian", "ball"),
   "e-hollow": g("hollow"),
   "e-woodchop": g("woodchop"),
-  "e-suitcase": g("carry"),
+  "e-suitcase": g("carry", "carry", "kettlebell"),
   // ------------------------------------------------------- helkropp ---
   "e-clean": g("clean"),
   "e-hangclean": g("clean"),
   "e-snatch": g("snatch"),
-  "e-thruster": g("thruster"),
+  "e-thruster": g("thruster", "thruster", "barbell"),
   "e-kbcleanpress": g("kb_clean_press"),
   "e-tgu": g("getup", "tgu"),
   "e-burpee": g("burpee"),
@@ -167,18 +174,4 @@ export const GUIDES: Record<string, Guide> = {
 export function guideFor(exercise: Pick<Exercise, "id" | "custom"> | undefined | null): Guide | null {
   if (!exercise || exercise.custom) return null
   return GUIDES[exercise.id] ?? null
-}
-
-/**
- * AI-videon för övningen – bara från Coaviras egen bucket (exercise-guides).
- * YouTube, Vimeo och andra källor används aldrig (v60).
- */
-export function guideVideo(url: string | undefined | null): string | null {
-  if (!url) return null
-  try {
-    const u = new URL(url)
-    return u.protocol === "https:" && /\/storage\/v1\/object\/public\/exercise-guides\/[\w.-]+\.(mp4|webm)$/.test(u.pathname) ? url : null
-  } catch {
-    return null
-  }
 }

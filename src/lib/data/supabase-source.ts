@@ -6,7 +6,6 @@ import type { PostgrestError, RealtimeChannel, SupabaseClient } from "@supabase/
 
 import type { PersistResult } from "@/lib/data/outbox"
 import { isLocale } from "@/lib/i18n/config"
-import { guideVideo } from "@/lib/exercise-guides/guides"
 import exerciseLibrary from "@/lib/exercise-library.json"
 import { isTrainingInterest } from "@/lib/training-modes"
 import type { Action, PersistableAction } from "@/lib/data/state"
@@ -961,13 +960,9 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
       exercises,
       "övningar"
     )
-      // v60: banken (namn, träningsform, standardmål) från källan + AI-videon ur exercise-guides.
-      // Andra videolänkar (YouTube, Vimeo …) används aldrig.
-      .map((e): Exercise => {
-        const bank = LIBRARY_BY_ID.get(e.id)
-        const videoUrl = guideVideo(e.video_url) ?? undefined
-        return bank ? { ...bank, ...(videoUrl ? { videoUrl } : {}) } : { id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment, ...(videoUrl ? { videoUrl } : {}) }
-      })
+      // Banken (namn, träningsform, standardmål) kommer från källan. v61: inga videolänkar –
+      // varje förinlagd övning visas med appens animation (samma guide-atlet).
+      .map((e): Exercise => LIBRARY_BY_ID.get(e.id) ?? { id: e.id, name: e.name, muscleGroup: e.muscle_group, equipment: e.equipment })
       // Äldre databaser (före v19) saknar custom_exercises.
       .concat(custom.error ? [] : ((custom.data ?? []) as CustomExerciseRow[]).map(toCustomExercise)),
     workouts: must<WorkoutRow[]>(workouts, "pass").map(toWorkout),

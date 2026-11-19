@@ -578,6 +578,13 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v61: videoguiden är bara animation – inga API-nycklar
+
+- Videoguiden visar **alltid** samma guide-atlet, animerad efter varje övnings rörelse och nu med **övningens eget redskap**. Exempel: hantlar i hantelpress och rumänsk marklyft med hantlar, kabelhandtag i kabelcurl, kabelsidolyft och kabelflyes, kettlebell i goblet squat och suitcase carry, inget redskap i Hip Thrust i maskin. Det styrs av `hand` i `src/lib/exercise-guides/guides.ts`.
+- **AI-videodelen är borttagen:** `scripts/generate-ai-exercise-videos.ts`, videospelaren i guiden och mappningen av `exercises.video_url`. Ingen fal.ai-nyckel, ingen referensbild och inga betalda anrop behövs. Allt ritas i appen.
+- **Ingen ny migration.** v60:s migration kan ligga kvar: bucketen `exercise-guides` används inte, men regeln `exercises_video_guide_only` stoppar fortfarande YouTube- och Vimeo-länkar i databasen.
+- **Tester:** `e2e/exercise-guides.unit.ts` kontrollerar också att guiden inte har någon video, inga nätverksanrop och redskap per övning. `e2e/v60-videoguide.test.mjs` kontrollerar att inga video- eller AI-anrop görs.
+
 ## Nytt i v60: Videoguide / Utförande direkt under varje övning
 
 **Inline, ingen popup** (`src/components/exercises/exercise-guide.tsx`):

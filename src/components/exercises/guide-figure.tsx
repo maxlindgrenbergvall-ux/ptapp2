@@ -14,8 +14,10 @@ const FAR = "#8a948c"
 const LIME = "#84cc16"
 const STEEL = "#3a453f"
 
-export function GuideFigure({ motion, playing = true, className, title }: { motion: MotionId; playing?: boolean; className?: string; title?: string }) {
-  const m = MOTIONS[motion] as Motion
+export function GuideFigure({ motion, hand, playing = true, className, title }: { motion: MotionId; hand?: Motion["hand"]; playing?: boolean; className?: string; title?: string }) {
+  // Övningens eget redskap (v61) – annars rörelsens.
+  const base = MOTIONS[motion] as Motion
+  const m = React.useMemo(() => (hand ? { ...base, hand } : base), [base, hand])
   const prefix = `cg-${motion}`
   const first = frames(m)[0]
   const fit = React.useMemo(() => fitMotion(m), [m])
@@ -52,7 +54,7 @@ export function GuideFigure({ motion, playing = true, className, title }: { moti
     </g>
   )
   return (
-    <svg viewBox="0 0 200 200" className={className} role="img" aria-label={title} data-motion={motion} data-testid="guide-figure">
+    <svg viewBox="0 0 200 200" className={className} role="img" aria-label={title} data-motion={motion} data-hand={m.hand ?? "none"} data-testid="guide-figure">
       <style>{css}</style>
       {/* Studion: mörk bakgrund, golv och en diskret limegrön linje. */}
       <rect width={200} height={200} fill="#131916" />

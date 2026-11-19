@@ -5,37 +5,34 @@
  * passbyggaren (klient och PT). Ett tryck fäller ut guiden mjukt rakt under
  * just den övningen (ingen popup), så att set, reps och vikter syns samtidigt.
  *
- *   - AI-video (exercise-guides i Storage) när den finns, annars samma
- *     guide-atlet som animation – ingen förinlagd övning saknar guide.
- *   - Laddas först när guiden fälls ut (video och animation monteras då) och
- *     pausas/släpps när den stängs – inget minne eller batteri i onödan.
- *   - Fast bildformat (16:10) – inget hopp när videon laddats.
+ *   - Samma guide-atlet för alla övningar, animerad efter övningens rörelse och
+ *     med övningens redskap. Ritas i appen – inga videor, inga externa tjänster
+ *     och inga API-nycklar (v61).
+ *   - Animationen monteras först när guiden fälls ut och pausas/släpps när den
+ *     stängs – inget minne eller batteri i onödan.
+ *   - Fast bildformat (16:10) – inget hopp.
  *   - Egna övningar har ingen guide.
  */
 import { ChevronDown, PlayCircle } from "lucide-react"
 import * as React from "react"
 
 import { GuideFigure } from "@/components/exercises/guide-figure"
-import { guideFor, guideVideo } from "@/lib/exercise-guides/guides"
+import { guideFor } from "@/lib/exercise-guides/guides"
 import { useT } from "@/lib/i18n/provider"
 import { cn } from "@/lib/utils"
 import type { Exercise } from "@/types/domain"
 
-export function ExerciseGuide({ exercise, name, className }: { exercise: Pick<Exercise, "id" | "custom" | "videoUrl"> | undefined; name: string; className?: string }) {
+export function ExerciseGuide({ exercise, name, className }: { exercise: Pick<Exercise, "id" | "custom"> | undefined; name: string; className?: string }) {
   const t = useT()
   const guide = guideFor(exercise)
   const [open, setOpen] = React.useState(false)
   // Innehållet finns bara medan guiden är öppen (eller håller på att fällas ihop).
   const [mounted, setMounted] = React.useState(false)
-  const [videoFailed, setVideoFailed] = React.useState(false)
-  const videoRef = React.useRef<HTMLVideoElement>(null)
   const panelId = React.useId()
   if (!guide) return null
-  const video = videoFailed ? null : guideVideo(exercise?.videoUrl)
 
   const toggle = () => {
     if (open) {
-      videoRef.current?.pause()
       setOpen(false)
     } else {
       setMounted(true)
@@ -72,23 +69,7 @@ export function ExerciseGuide({ exercise, name, className }: { exercise: Pick<Ex
           {mounted && (
             <div className="space-y-2 pt-1 pb-1" data-testid="exercise-guide-panel">
               <div className="relative aspect-[16/10] max-h-56 w-full overflow-hidden rounded-2xl bg-[#131916] ring-1 ring-white/5">
-                {video ? (
-                  <video
-                    ref={videoRef}
-                    src={video}
-                    className="size-full object-cover"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    preload="metadata"
-                    onError={() => setVideoFailed(true)}
-                    aria-label={`${t("guide.video")}: ${name}`}
-                    data-testid="exercise-guide-video"
-                  />
-                ) : (
-                  <GuideFigure motion={guide.motion} playing={open} title={`${t("guide.animation")}: ${name}`} className="size-full" />
-                )}
+                <GuideFigure motion={guide.motion} hand={guide.hand} playing={open} title={`${t("guide.animation")}: ${name}`} className="size-full" />
               </div>
               <ol className="grid gap-1.5 text-[13px]" data-testid="exercise-guide-steps">
                 {(["start", "move", "control"] as const).map((k, i) => (

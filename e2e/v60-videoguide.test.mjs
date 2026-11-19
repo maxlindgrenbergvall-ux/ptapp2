@@ -35,18 +35,14 @@ const patch = async (fn) => {
   )
   await p.reload()
 }
-// Videoförfrågningar (ska bara ske när guiden fälls ut).
-const videoRequests = []
-await p.route("**/storage/v1/object/public/exercise-guides/**", (route) => {
-  videoRequests.push(route.request().url())
-  return route.abort()
-})
+// v61: guiden ritas i appen – inga videor och inga anrop till Storage eller AI-tjänster.
+const mediaRequests = []
+p.on("request", (r) => /\.(mp4|webm)(\?|$)|exercise-guides|fal\.run|replicate/.test(r.url()) && mediaRequests.push(r.url()))
 
 // ------------------------------------------------- passet: förberedelser ---
 await p.goto(base + "/klient")
 await p.waitForSelector("nav a:has-text('Kost')")
 await patch(`
-  d.exercises = d.exercises.map((e) => (e.id === "e-squat" ? { ...e, videoUrl: "https://demo.supabase.co/storage/v1/object/public/exercise-guides/e-squat.mp4" } : e))
   d.exercises.push({ id: "cx-v60", name: "Min egen v60-övning", muscleGroup: "ben", equipment: "", custom: { ownerId: "c1", weightUnit: "kg", defaultSets: 3, defaultReps: "10" } })
   d.workouts.push({ id: "w-v60", clientId: "c1", trainerId: null, byClient: true, date: new Date().toLocaleDateString("sv-SE"), name: "Guide-pass", status: "planned", logs: [],
     exercises: [
@@ -64,7 +60,7 @@ const guide = squat.locator("[data-testid=exercise-guide]")
 await guide.waitFor()
 const toggle = guide.locator("[data-testid=exercise-guide-toggle]")
 check((await toggle.innerText()).includes("Videoguide / Utförande"), "raden \"Videoguide / Utförande\" direkt under övningen")
-check((await guide.locator("[data-testid=exercise-guide-panel]").count()) === 0 && videoRequests.length === 0, "inget laddas innan guiden fälls ut (lazy)")
+check((await guide.locator("[data-testid=exercise-guide-panel]").count()) === 0, "inget monteras innan guiden fälls ut (lazy)")
 const setsBox = await squat.locator("li").first().boundingBox()
 // Sidövergången (template.tsx) glider in de första millisekunderna – mät när den är klar.
 await p.waitForTimeout(700)
@@ -74,13 +70,11 @@ await toggle.click()
 await guide.locator("[data-testid=exercise-guide-panel]").waitFor()
 check((await toggle.getAttribute("aria-expanded")) === "true", "guiden är utfälld (inline, ingen popup)")
 check((await p.locator("[role=dialog]").count()) === 0, "ingen dialog/popup som täcker skärmen")
-// Video från exercise-guides (avbruten här) → samma modell som animation.
-await p.waitForTimeout(400)
-check(videoRequests.length === 1 && videoRequests[0].endsWith("/exercise-guides/e-squat.mp4"), "AI-videon hämtas först när guiden fälls ut", videoRequests)
 await guide.locator("[data-testid=guide-figure]").waitFor()
-ok("videon kunde inte laddas → guide-atleten tar över (ingen tom ruta)")
+await p.waitForTimeout(300)
+check((await p.locator("video").count()) === 0 && mediaRequests.length === 0, "samma guide-atlet animerad i appen – ingen video, inga externa anrop", mediaRequests)
 const fig = guide.locator("[data-testid=guide-figure]")
-check((await fig.getAttribute("data-motion")) === "squat", "rätt rörelse för Back Squat")
+check((await fig.getAttribute("data-motion")) === "squat" && (await fig.getAttribute("data-hand")) === "barbell", "rätt rörelse och redskap för Back Squat (skivstång)")
 const playing = await fig.evaluate((el) => [...el.querySelectorAll("g[style]")].some((g) => getComputedStyle(g).animationPlayState === "running" && getComputedStyle(g).animationName !== "none"))
 check(playing, "animationen spelas när guiden är öppen")
 const steps = await guide.locator("[data-testid=exercise-guide-steps] li").allInnerTexts()
