@@ -33,7 +33,8 @@ import { formatDay, todayISO } from "@/lib/date"
 import { hasSetReps, repsLabel, targetRepsFor } from "@/lib/exercises/draft"
 import { workoutExerciseFor } from "@/lib/exercises/custom"
 import { exercisesFromWorkout } from "@/lib/templates"
-import { nextTarget, type ProgressionTarget } from "@/lib/progression"
+import { cleanDecimal, parseDecimal } from "@/lib/decimal-input"
+import { AUTO_INCREMENT_KG, nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
@@ -613,6 +614,7 @@ function ExerciseCard({
                 usesWeight={usesWeight}
                 readOnly={readOnly}
                 isNext={setIndex === nextSet}
+                autoKg={target?.kind === "increase_weight" ? target.kg : undefined}
                 onLog={onLog}
                 onDone={onSetDone}
               />
@@ -661,6 +663,7 @@ function SetRow({
   usesWeight,
   readOnly,
   isNext,
+  autoKg,
   onLog,
   onDone,
 }: {
@@ -673,6 +676,8 @@ function SetRow({
   readOnly: boolean
   /** Setet som står på tur – markeras diskret så att ögat hittar det efter en avbockning. */
   isNext: boolean
+  /** Dagens automatiska vikt (förra passet + 1,25 kg), om övningen har historik. */
+  autoKg?: number
   onLog: (log: SetLog) => void
   onDone: () => void
 }) {
@@ -683,13 +688,16 @@ function SetRow({
   const [draft, setDraft] = React.useState<Partial<SetValues> | null>(null)
   const values: SetValues = { ...(logged ?? suggestion), ...draft }
   const isDone = logged?.done ?? false
+  // Vikten är förinställd med +1,25 kg (inte loggad eller ändrad av klienten än).
+  const isAutoKg = autoKg !== undefined && !logged && !(draft && "kg" in draft) && values.kg === autoKg
   const [invalid, setInvalid] = React.useState(false)
   const ownTarget = hasSetReps(exercise) ? targetRepsFor(exercise, setIndex) : null
 
   const missing = (v: SetValues) => v.reps === undefined || (usesWeight && v.kg === undefined)
   const change = (patch: Partial<SetValues>) => {
     const next: SetValues = { ...values, ...patch }
-    if (next.kg !== undefined) next.kg = Math.max(0, Math.round(next.kg * 4) / 4)
+    // Valfri vikt (t.ex. 62,4) behålls – bara två decimaler, inget steg-avrundande.
+    if (next.kg !== undefined) next.kg = Math.max(0, Math.round(next.kg * 100) / 100)
     if (next.reps !== undefined) next.reps = Math.max(0, Math.round(next.reps))
     if (!missing(next)) setInvalid(false)
     // Redan avbockat set med ifyllda fält: rätta loggen direkt. Annars: håll som utkast.
@@ -745,6 +753,7 @@ function SetRow({
           invalid={(invalid || isDone) && values.kg === undefined}
           onChange={(kg) => change({ kg })}
           label={`Vikt set ${setIndex + 1}`}
+          highlight={isAutoKg ? `Förinställd: +${String(AUTO_INCREMENT_KG).replace(".", ",")} kg från förra passet` : undefined}
         />
       ) : (
         <span className="text-center text-muted-foreground">–</span>
@@ -909,7 +918,7 @@ function EnduranceRow({
 }
 
 const KIND_LABEL: Record<ProgressionTarget["kind"], string> = {
-  increase_weight: "Öka vikten",
+  increase_weight: `+${String(AUTO_INCREMENT_KG).replace(".", ",")} kg från förra passet`,
   add_reps: "Ett rep till",
   repeat: "Samma vikt",
   deload: "Avlastning",
@@ -970,6 +979,7 @@ export function Stepper({
   disabled,
   invalid,
   placeholder,
+  highlight,
   onChange,
 }: {
   value: number | undefined
@@ -979,14 +989,13 @@ export function Stepper({
   disabled?: boolean
   invalid?: boolean
   placeholder?: string
+  /** Förinställt värde (t.ex. +1,25 kg från förra passet): siffran blir limegrön, med förklaring för skärmläsare. */
+  highlight?: string
   onChange: (v: number | undefined) => void
 }) {
   const [text, setText] = React.useState<string | null>(null)
   const show = (n: number | undefined) => (n === undefined ? "" : String(n).replace(".", ","))
-  const parse = (t: string) => {
-    const n = Number(t.trim().replace(",", "."))
-    return t.trim() === "" || !Number.isFinite(n) ? undefined : Math.max(0, n)
-  }
+  const hintId = React.useId()
   return (
     <div className={cn("flex h-12 items-center rounded-xl bg-muted", invalid && "ring-2 ring-destructive")}>
       {!disabled && (
@@ -999,27 +1008,52 @@ export function Stepper({
           <Minus className="size-4" />
         </button>
       )}
+      {/* Siffran är ett eget fält: tryck → hela värdet markeras och sifferknappsatsen öppnas. */}
       <input
+        type="text"
+        inputMode="decimal"
+        pattern="[0-9.,]*"
+        autoComplete="off"
+        enterKeyHint="done"
         aria-label={`${label} (${unit})`}
         aria-invalid={invalid || undefined}
-        inputMode="decimal"
+        aria-describedby={highlight ? hintId : undefined}
+        title={highlight}
         disabled={disabled}
         placeholder={placeholder ?? "–"}
         value={text ?? show(value)}
         onFocus={(e) => {
           setText(show(value))
-          e.target.select()
+          // iOS Safari/WKWebView nollställer markeringen efter fokus – markera igen nästa bildruta.
+          const el = e.currentTarget
+          el.select()
+          const atFocus = el.value
+          // Bara om inget har skrivits än – annars skulle snabb inmatning markeras om.
+          requestAnimationFrame(() => {
+            if (document.activeElement === el && el.value === atFocus) el.setSelectionRange(0, el.value.length)
+          })
         }}
         onChange={(e) => {
-          // Bara siffror och ett decimaltecken; fältet får vara tomt.
-          const t = e.target.value.replace(/[^\d.,]/g, "")
+          // Punkt eller komma, ett decimaltecken; fältet får vara helt tomt.
+          const t = cleanDecimal(e.target.value)
           setText(t)
-          onChange(parse(t))
+          onChange(parseDecimal(t))
         }}
         onBlur={() => setText(null)}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        className="h-full w-full min-w-0 bg-transparent text-center text-lg font-semibold tabular outline-none placeholder:text-muted-foreground/50 disabled:opacity-100"
+        className={cn(
+          "h-full w-full min-w-0 bg-transparent text-center text-lg font-semibold tabular outline-none transition-colors selection:bg-primary/35 selection:text-foreground placeholder:text-muted-foreground/50 disabled:opacity-100",
+          // Långa värden (86,25) får plats även på 360 px – aldrig under 16 px (iOS zoomar annars vid tryck).
+          (text ?? show(value)).length >= 5 && "text-base tracking-tight",
+          highlight && text === null && "text-primary"
+        )}
+        data-auto={highlight ? "" : undefined}
       />
+      {highlight && (
+        <span id={hintId} className="sr-only">
+          {highlight}
+        </span>
+      )}
       {!disabled && (
         <button
           type="button"

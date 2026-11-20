@@ -1,20 +1,17 @@
 /**
  * Progressiv överbelastning (v32): nästa mål per övning, räknat ur historiken.
  *
- * Modellen är "dubbel progression" – den vanligaste och säkraste metoden för
- * styrka och muskeltillväxt:
+ * Hotfix v63 – automatisk viktökning: finns historik på en viktövning
+ * förinställs vikten till senast genomförda toppset + 1,25 kg (AUTO_INCREMENT_KG).
+ * Enkelt och förutsägbart – inga 1RM-beräkningar eller formler.
  *
  *   1. Varje övning har ett repintervall, t.ex. 6–8. Ett fast mål ("8") tolkas
  *      som 6–8 (målet är taket).
- *   2. Toppsetet (tyngsta avbockade setet) i senaste passet avgör nästa steg:
- *      - nådde taket (8 reps) → öka vikten ett steg och börja om på golvet
- *        (140 kg × 8 → 142,5 kg × 6),
- *      - inom intervallet → samma vikt, ett rep till (140 × 6 → 140 × 7),
- *      - under golvet → samma vikt igen; två pass i rad under golvet → avlasta
- *        10 % (deload) och bygg upp igen.
- *   3. Viktsteget följer utrustningen: skivstång 2,5 kg, hantlar 2 kg,
- *      kettlebell 4 kg, maskin/kabel 2,5 kg (5 kg för tunga benövningar).
- *      Kroppsviktsövningar ökar reps i stället.
+ *   2. Toppsetet (tyngsta avbockade setet) i senaste passet + 1,25 kg är
+ *      dagens vikt (140 kg × 8 → 141,25 kg × 8). Reps: samma som förra
+ *      gången, inom repintervallet.
+ *   3. Kroppsviktsövningar (utrustning utan vikt, eller 0 kg loggat) ökar reps
+ *      i stället. Tid/distans/AMRAP upprepar förra passet.
  *   4. Raka set (v34): alla arbetsset får samma mål – ingen automatisk stegring
  *      i vikt mellan seten. Har PT:n satt egna reps per set (12/10/8 …) används
  *      de, med samma vikt. Klienten ändrar själv vikten på ett set; nästa set
@@ -65,8 +62,8 @@ export function weightIncrement(equipment: string | undefined, muscleGroup?: Mus
   return 0
 }
 
-/** Avrunda nedåt till närmaste steg (så att en lättare uppbyggnad aldrig blir tyngre än tänkt). */
-const roundTo = (kg: number, step: number) => (step > 0 ? Math.max(0, Math.floor(kg / step + 1e-9) * step) : kg)
+/** Automatisk viktökning per pass (kg) när övningen har historik. */
+export const AUTO_INCREMENT_KG = 1.25
 
 export interface SessionTopSet {
   date: string
@@ -122,7 +119,7 @@ export function nextTarget(
 ): ProgressionTarget | null {
   const range = parseRepRange(exercise.reps)
   const increment = weightIncrement(info?.equipment, info?.muscleGroup)
-  const [last, before] = recentTopSets(exercise.exerciseId, history, 2)
+  const [last] = recentTopSets(exercise.exerciseId, history, 1)
 
   if (!last) {
     if (!exercise.targetKg || !range) return null
@@ -157,52 +154,15 @@ export function nextTarget(
     }
   }
 
-  if (last.reps >= range.max) {
-    const kg = Math.round((last.kg + increment) * 4) / 4
-    return {
-      kg,
-      reps: range.min,
-      kind: "increase_weight",
-      deltaKg: kg - last.kg,
-      reason: `Du klarade ${last.reps} reps på ${kgText(last.kg)} kg – öka till ${kgText(kg)} kg och sikta på ${range.min} reps. Arbeta dig sedan upp mot ${range.max}.`,
-      previous,
-      range,
-      increment,
-    }
-  }
-  if (last.reps >= range.min) {
-    const reps = last.reps + 1
-    return {
-      kg: last.kg,
-      reps,
-      kind: "add_reps",
-      deltaKg: 0,
-      reason: `${last.reps} reps på ${kgText(last.kg)} kg förra gången – samma vikt, sikta på ${reps} reps.`,
-      previous,
-      range,
-      increment,
-    }
-  }
-  // Under golvet. Två pass i rad (samma eller tyngre vikt) → avlasta 10 %.
-  if (before && before.reps < range.min && before.kg <= last.kg + 1e-9) {
-    const kg = roundTo(last.kg * 0.9, increment)
-    return {
-      kg,
-      reps: range.max,
-      kind: "deload",
-      deltaKg: kg - last.kg,
-      reason: `Två pass under ${range.min} reps på ${kgText(last.kg)} kg – avlasta till ${kgText(kg)} kg och bygg upp igen.`,
-      previous,
-      range,
-      increment,
-    }
-  }
+  // Automatisk viktökning: förra toppsetet + 1,25 kg, samma reps (inom intervallet).
+  const kg = Math.round((last.kg + AUTO_INCREMENT_KG) * 100) / 100
+  const reps = Math.min(Math.max(last.reps, range.min), range.max)
   return {
-    kg: last.kg,
-    reps: range.min,
-    kind: "repeat",
-    deltaKg: 0,
-    reason: `${last.reps} reps på ${kgText(last.kg)} kg – stanna på vikten och sikta på ${range.min} reps.`,
+    kg,
+    reps,
+    kind: "increase_weight",
+    deltaKg: AUTO_INCREMENT_KG,
+    reason: `Förra passet: ${kgText(last.kg)} kg × ${last.reps}. Vikten är förinställd med +${kgText(AUTO_INCREMENT_KG)} kg – sikta på ${reps} reps.`,
     previous,
     range,
     increment,

@@ -1,6 +1,6 @@
 // Enhetstest för progressiv överbelastning (src/lib/progression.ts).
 //   npx tsx --tsconfig tsconfig.json e2e/progression.unit.ts
-import { nextTarget, parseRepRange, setPlan, weightIncrement } from "@/lib/progression"
+import { AUTO_INCREMENT_KG, nextTarget, parseRepRange, setPlan, weightIncrement } from "@/lib/progression"
 import type { ScheduledWorkout } from "@/types/domain"
 
 let failed = 0
@@ -35,23 +35,23 @@ check(parseRepRange("AMRAP") === null && parseRepRange("500 m") === null && pars
 check(weightIncrement("Skivstång") === 2.5 && weightIncrement("Hantlar") === 2 && weightIncrement("Kettlebell") === 4, "steg: skivstång 2,5, hantlar 2, kettlebell 4")
 check(weightIncrement("Maskin", "ben") === 5 && weightIncrement("Kabel", "rygg") === 2.5 && weightIncrement("Kroppsvikt") === 0, "maskin ben 5, kabel 2,5, kroppsvikt = reps")
 
-// Exemplet: 8 reps på 140 kg i RDL → 142,5 kg × 6.
+// v63: automatisk viktökning – förra toppsetet + 1,25 kg, samma reps (inom intervallet).
+check(AUTO_INCREMENT_KG === 1.25, "automatisk ökning: 1,25 kg")
 const rdl = { exerciseId: "e-rdl", reps: "8" }
 const t1 = nextTarget(rdl, [session("2026-11-01", "e-rdl", [[130, 8], [135, 8], [140, 8]])], barbell)!
-check(t1.kind === "increase_weight" && t1.kg === 142.5 && t1.reps === 6 && t1.deltaKg === 2.5, `140 × 8 → ${t1.kg} × ${t1.reps} (+${t1.deltaKg} kg)`)
-check(/142,5 kg/.test(t1.reason) && /6 reps/.test(t1.reason), `förklaring: "${t1.reason}"`)
-// Inom intervallet: samma vikt, ett rep till.
+check(t1.kind === "increase_weight" && t1.kg === 141.25 && t1.reps === 8 && t1.deltaKg === 1.25, `140 × 8 → ${t1.kg} × ${t1.reps} (+${t1.deltaKg} kg)`)
+check(/1,25 kg/.test(t1.reason) && /140 kg × 8/.test(t1.reason), `förklaring: "${t1.reason}"`)
 const t2 = nextTarget(rdl, [session("2026-11-04", "e-rdl", [[142.5, 6]])], barbell)!
-check(t2.kind === "add_reps" && t2.kg === 142.5 && t2.reps === 7, `142,5 × 6 → 142,5 × 7`)
-// Under golvet en gång: samma vikt.
+check(t2.kg === 143.75 && t2.reps === 6, `142,5 × 6 → ${t2.kg} × ${t2.reps}`)
+// Under intervallet: vikten ökar ändå 1,25 kg, reps-målet blir golvet.
 const t3 = nextTarget(rdl, [session("2026-11-04", "e-rdl", [[142.5, 4]])], barbell)!
-check(t3.kind === "repeat" && t3.kg === 142.5 && t3.reps === 6, "4 reps (under golvet) → stanna på vikten")
-// Två pass i rad under golvet: avlasta 10 %.
-const t4 = nextTarget(rdl, [session("2026-11-07", "e-rdl", [[142.5, 4]]), session("2026-11-04", "e-rdl", [[142.5, 5]])], barbell)!
-check(t4.kind === "deload" && t4.kg === 127.5 && t4.reps === 8, `två missar → avlastning till ${t4.kg} kg × ${t4.reps}`)
-// Hantlar: steg 2 kg.
+check(t3.kg === 143.75 && t3.reps === 6, `142,5 × 4 → ${t3.kg} × ${t3.reps}`)
+// Senaste passet gäller, inte äldre.
+const t4 = nextTarget(rdl, [session("2026-11-07", "e-rdl", [[100, 8]]), session("2026-11-04", "e-rdl", [[142.5, 5]])], barbell)!
+check(t4.kg === 101.25, `senaste passet avgör: ${t4.kg} kg`)
+// Hantlar: samma +1,25 kg.
 const t5 = nextTarget({ exerciseId: "e-db", reps: "8–12" }, [session("2026-11-01", "e-db", [[24, 12]])], { equipment: "Hantlar" })!
-check(t5.kg === 26 && t5.reps === 8, "hantlar 24 × 12 → 26 × 8")
+check(t5.kg === 25.25 && t5.reps === 12, `hantlar 24 × 12 → ${t5.kg} × ${t5.reps}`)
 // Kroppsvikt: fler reps.
 const t6 = nextTarget({ exerciseId: "e-pull", reps: "6–10" }, [session("2026-11-01", "e-pull", [[0, 9]])], { equipment: "Kroppsvikt" })!
 check(t6.kind === "bodyweight" && t6.reps === 10 && t6.kg === 0, "chins 9 reps → 10 reps")
@@ -61,11 +61,11 @@ check(nextTarget({ exerciseId: "e-x", reps: "8" }, [], barbell) === null, "ny ö
 
 // v34: raka set – ingen automatisk stegring i vikt mellan seten.
 const plan = setPlan({ sets: 3, reps: "8" }, t1)
-check(plan.every((s) => s.kg === 142.5 && s.reps === 6), `alla set på målet: ${plan.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
+check(plan.every((s) => s.kg === 141.25 && s.reps === 8), `alla set på målet: ${plan.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
 check(new Set(plan.map((s) => s.kg)).size === 1, "ingen stegring mellan seten")
 const own = setPlan({ sets: 3, reps: "8", setReps: ["12", "10", "6"] }, t1)
-check(own.map((s) => s.reps).join("/") === "12/10/6" && own.every((s) => s.kg === 142.5), `PT:ns reps per set behålls, samma vikt: ${own.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
-check(same(setPlan({ sets: 5, reps: "8" }, t1).map((s) => s.kg), [142.5, 142.5, 142.5, 142.5, 142.5]), "fem set: raka set på målet")
+check(own.map((s) => s.reps).join("/") === "12/10/6" && own.every((s) => s.kg === 141.25), `PT:ns reps per set behålls, samma vikt: ${own.map((s) => `${s.kg}×${s.reps}`).join(", ")}`)
+check(same(setPlan({ sets: 5, reps: "8" }, t1).map((s) => s.kg), [141.25, 141.25, 141.25, 141.25, 141.25]), "fem set: raka set på målet")
 
 if (failed) {
   console.log(`${failed} test misslyckades`)

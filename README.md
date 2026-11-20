@@ -578,6 +578,34 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v63: automatisk viktökning och direkt viktinmatning (hotfix)
+
+- **+1,25 kg automatiskt:**
+  - Har en viktövning historik förinställs vikten i nästa pass till förra passets toppset plus 1,25 kg. Reps blir desamma som förra gången, inom repintervallet. Det gäller i `src/lib/progression.ts` (`AUTO_INCREMENT_KG`).
+  - Ingen 1RM, inga formler. Den tidigare dubbla progressionen (steg per utrustning, "ett rep till" och avlastning) är ersatt.
+  - Kroppsviktsövningar ökar fortfarande reps. Tid, distans och AMRAP upprepar förra passet.
+- **Synligt i passet:**
+  - Den förinställda vikten visas i limegrönt (#84cc16).
+  - Under "Mål idag" står "+1,25 kg från förra passet".
+  - Skärmläsare får samma förklaring.
+- **Tryck direkt på vikten:**
+  - Siffran mellan `−` och `+` är ett eget fält (`type="text"`, `inputMode="decimal"`, `pattern="[0-9.,]*"`).
+  - Ett tryck markerar hela värdet, även i iOS WKWebView, så att man skriver ny vikt direkt.
+  - `−` och `+` (2,5 kg) finns kvar.
+- **Punkt och komma:**
+  - 62.5 och 62,5 betyder samma sak (`src/lib/decimal-input.ts`).
+  - Bara ett decimaltecken och högst två decimaler.
+  - En egen vikt avrundas inte längre till 0,25 kg.
+- **Tomt är tomt:** raderar man vikten blir fältet blankt, aldrig 0 eller 1. Setet kan inte bockas av förrän en vikt fyllts i.
+- **Inga skärmhopp:**
+  - Fältet har fast storlek.
+  - Långa värden som 86,25 krymper till 16 px så att de får plats på 360 px breda telefoner. Mindre än 16 px blir det aldrig, eftersom iOS då zoomar in.
+- **Tester:**
+  - `e2e/progression.unit.ts` och `e2e/decimal-input.unit.ts`
+  - `e2e/v63-vikt.test.mjs` (21 kontroller, mobil i mörkt läge)
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v62: guide-atleten har rätt stance, lyft och hållning
 
 Alla 93 rörelser är granskade bildruta för bildruta. Motorn (`src/lib/exercise-guides/figure.ts`) löser nu fysiken i varje bildruta, så att även mellanlägena blir rätt:
