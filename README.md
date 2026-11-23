@@ -578,6 +578,24 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v70: laddningsskärm med Coaviras logga
+
+- **Ingen vit skärm när appen startar.** Medan appens data hämtas visas en mörk laddningsskärm (`src/components/boot-splash.tsx`) med lime-loggan och en vit ring som fylls hela vägen runt. Den ersätter det gamla skelettet (`app-skeleton.tsx` är borttagen).
+  - Skärmen finns redan i serverns HTML. Innan JavaScript har laddats fylls ringen med en CSS-animation.
+  - När React startar tar `requestAnimationFrame` över från samma punkt utan hopp och kryper mot ~85 % medan datan hämtas.
+  - När datan är redo fylls ringen klart, loggan pulserar till och skärmen tonas bort.
+  - Appen under är då redan renderad. Tryck släpps igenom så fort datan är redo.
+  - Skärmen visas en gång per appstart, inte vid byte av flik. Den gäller både klient- och PT-appen.
+  - Med "minska rörelse" försvinner den direkt.
+- **Sömlöst från native-startbilden:** loggan har samma färg (#aced37), storlek (11,2 % av skärmens längsta sida) och plats som i startbilden, på samma mörka bakgrund (#0b0f0d).
+- **Native (kräver nytt appbygge):**
+  - `capacitor.config.ts`: WebView-bakgrunden är #0b0f0d i stället för vit.
+  - Startbilden är mörk även i ljust läge: iOS `Splash.imageset`, Android `drawable*/splash.png` och bakgrunden i `LaunchScreen.storyboard`. Tidigare var den helt lime i ljust läge.
+  - Kör `npx cap sync` och bygg om appen i Xcode och Android Studio.
+- **Test:** `e2e/v70-laddningsskarm.test.mjs`. Det fördröjer JavaScript och kontrollerar att ringen rör sig före JS, bara går framåt, når hela varvet och försvinner, samt att loggan har native-startbildens storlek.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v69: bottenmenyn glider undan för tangentbordet
 
 - **Menyn lägger sig inte längre ovanpå tangentbordet.** När ett textfält får fokus på en pekskärm glider bottenmenyn undan (nedåt och tonas ut, 200 ms). Den kommer tillbaka när fältet lämnas. Det gäller både klientappen och PT-appen.

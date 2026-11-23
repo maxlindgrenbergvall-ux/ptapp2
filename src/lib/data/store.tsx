@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { AppSkeleton } from "@/components/app-skeleton"
+import { BootSplash } from "@/components/boot-splash"
 import { ErrorFallback } from "@/components/error-fallback"
 import { confirmDialog } from "@/components/ui/confirm"
 import { extendBoost } from "@/lib/boost"
@@ -1127,8 +1127,13 @@ function DemoProvider({ children, role }: { children: React.ReactNode; role: Use
     [data, me, actions]
   )
 
-  if (!value) return <AppSkeleton role={role} />
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
+  // v70: laddningsskärmen ligger kvar på samma plats i trädet och tonas bort när datan är redo.
+  return (
+    <>
+      {value ? <DataContext.Provider value={value}>{children}</DataContext.Provider> : null}
+      <BootSplash ready={Boolean(value)} />
+    </>
+  )
 }
 
 function loadDemo(): AppData {
@@ -1375,8 +1380,13 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
   )
 
   if (error) return <ErrorScreen message={error} />
-  if (!value) return <AppSkeleton role={role} />
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
+  // v70: laddningsskärmen ligger kvar på samma plats i trädet och tonas bort när datan är redo.
+  return (
+    <>
+      {value ? <DataContext.Provider value={value}>{children}</DataContext.Provider> : null}
+      <BootSplash ready={Boolean(value)} />
+    </>
+  )
 }
 
 function readCache(uid: string): { me: Me; data: AppData } | null {

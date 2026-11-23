@@ -36,7 +36,8 @@ const config: CapacitorConfig = {
   webDir: "mobile/www",
   // Låter webbappen känna igen att den körs i native-appen (inloggning, push).
   appendUserAgent: pushEnabled ? "CoaviraApp CoaviraPush" : "CoaviraApp",
-  backgroundColor: "#ffffff",
+  // v70: samma mörka färg som startbilden och laddningsskärmen – ingen vit blixt medan appen laddas.
+  backgroundColor: "#0b0f0d",
   // v42: ingen nypzoom i WebView – sidan kan då aldrig hamna bredare än skärmen
   // och dras i sidled (horisontellt svep låses även i CSS och natively).
   zoomEnabled: false,
