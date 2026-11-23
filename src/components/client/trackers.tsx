@@ -5,6 +5,7 @@ import { Droplet, Minus, Moon, Pencil, Plus, RefreshCw, Unplug, Utensils, Watch,
 import * as React from "react"
 import { toast } from "sonner"
 
+import { WaterGlass } from "@/components/client/water-glass"
 import { EmptyState } from "@/components/common"
 import { AnimatedNumber, DrawnCheck } from "@/components/motion"
 import { FoodPicker } from "@/components/nutrition/food-picker"
@@ -264,101 +265,66 @@ export function WaterTracker({ date }: { date: ISODate }) {
   const ml = data.waterLogs.find((w) => w.clientId === me.id && w.date === date)?.ml ?? 0
   const weight = data.clients.find((c) => c.id === me.id)?.weightLog.at(-1)?.kg
   const goal = waterGoal(weight)
-  const glasses = goal / GLASS
-  const filled = Math.floor(ml / GLASS)
   const pct = Math.min(100, Math.round((ml / goal) * 100))
   const reached = ml >= goal
 
-  // Förra mängden: varifrån hällningen börjar (för fördröjningen glas för glas) och om målet
-  // nåddes just nu. Byter man dag ska inget firas eller hällas – glasen visar bara den dagens läge.
-  const [track, setTrack] = React.useState({ date, ml, from: ml, celebrate: 0 })
-  if (track.date !== date) setTrack({ date, ml, from: ml, celebrate: 0 })
-  else if (track.ml !== ml) setTrack({ date, ml, from: track.ml, celebrate: track.ml < goal && ml >= goal ? track.celebrate + 1 : track.celebrate })
-  const { from, celebrate } = track
+  // Nåddes målet just nu? Byter man dag ska inget firas – glaset visar bara den dagens läge.
+  const [track, setTrack] = React.useState({ date, ml, celebrate: 0 })
+  if (track.date !== date) setTrack({ date, ml, celebrate: 0 })
+  else if (track.ml !== ml) setTrack({ date, ml, celebrate: track.ml < goal && ml >= goal ? track.celebrate + 1 : track.celebrate })
+  const { celebrate } = track
 
   const add = (delta: number) => {
-    if (delta > 0) navigator.vibrate?.(8)
+    navigator.vibrate?.(8)
     actions.addWater(date, delta)
     // v52: en liten belöning när dagens vattenmål nås (en gång per dag).
     if (ml < goal && ml + delta >= goal) {
       reward("water", "Vattenmålet i hamn", `${(goal / 1000).toLocaleString("sv-SE")} liter idag. Bra för både pass och huvud.`, { oncePerDay: `water:${date}` })
     }
   }
+  const liters = (n: number) => n.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 2 })
 
   return (
-    <section className="space-y-4 rounded-2xl border bg-card p-5" aria-labelledby="water-title" data-testid="water-tracker">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h2 id="water-title" className="flex items-center gap-2 font-semibold">
-            <span className="relative flex">
-              <Droplet className={cn("size-4 text-water", reached && "fill-current")} />
-              {celebrate > 0 && <span key={celebrate} aria-hidden className="ring-burst -inset-1.5 rounded-full border-water" />}
+    <section className="rounded-2xl border bg-card p-4 sm:p-5" aria-labelledby="water-title" data-testid="water-tracker">
+      <div className="flex items-center gap-4">
+        {/* v66: glaset från reklamfilmen – fylls och skvalpar vid varje + och −. */}
+        <div className="relative shrink-0" role="img" aria-label={`${liters(ml / 1000)} av ${liters(goal / 1000)} liter`}>
+          <WaterGlass level={ml / goal} className="h-24 w-[70px] text-foreground" />
+          {celebrate > 0 && <span key={celebrate} aria-hidden className="ring-burst -inset-1 rounded-2xl border-water" />}
+        </div>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 id="water-title" className="flex items-center gap-1.5 font-semibold">
+              <Droplet className={cn("size-4 text-water transition-[fill] duration-300", reached && "fill-current")} /> Vatten
+            </h2>
+            <span className="text-xs text-muted-foreground tabular">
+              <AnimatedNumber value={pct} /> %
             </span>
-            Vatten
-          </h2>
-          <p className="text-xs text-muted-foreground">
+          </div>
+          <div>
+            <span className="text-2xl font-semibold tracking-tight tabular">
+              <AnimatedNumber value={ml / 1000} format={liters} /> l
+            </span>{" "}
             {reached ? (
-              <span key={celebrate} className={cn("inline-flex items-center gap-1 font-medium text-primary", celebrate > 0 && "rise-in")} data-testid="water-goal-reached">
+              <span key={celebrate} className={cn("inline-flex items-center gap-1 text-xs font-medium text-primary", celebrate > 0 && "rise-in")} data-testid="water-goal-reached">
                 <DrawnCheck play={celebrate} className="size-3.5" /> Dagens mål nått
               </span>
             ) : (
-              <>Mål {(goal / 1000).toLocaleString("sv-SE")} l</>
+              <span className="text-xs text-muted-foreground">av {liters(goal / 1000)} l</span>
             )}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-semibold tabular">
-            <AnimatedNumber value={ml / 1000} format={(n) => n.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 2 })} /> l
           </div>
-          <div className="text-xs text-muted-foreground tabular">
-            <AnimatedNumber value={pct} /> %
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="icon" className="shrink-0" aria-label="Ta bort ett glas" onClick={() => add(-Math.min(GLASS, ml))} disabled={ml === 0}>
+              <Minus />
+            </Button>
+            <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till ett glas, 250 ml" onClick={() => add(GLASS)}>
+              <Plus /> 250 ml
+            </Button>
+            <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till en flaska, 500 ml" onClick={() => add(500)}>
+              <Plus /> 500 ml
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* Ett glas per 250 ml – tryck på ett glas för att fylla upp till det. */}
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label={`${filled} av ${glasses} glas`}>
-        {Array.from({ length: glasses }, (_, i) => {
-          // Hur fullt just det här glaset är (0–1).
-          const level = Math.max(0, Math.min(1, (ml - i * GLASS) / GLASS))
-          // Häller man flera glas fylls de i tur och ordning; tömmer man går det åt andra hållet.
-          const firstChanged = Math.floor(Math.min(from, ml) / GLASS)
-          const lastChanged = Math.ceil(Math.max(from, ml) / GLASS) - 1
-          const order = ml >= from ? i - firstChanged : lastChanged - i
-          const delay = i >= firstChanged && i <= lastChanged ? Math.max(0, order) * 120 : 0
-          return (
-            <button
-              key={i}
-              type="button"
-              aria-label={`${(i + 1) * GLASS} ml`}
-              onClick={() => add((i + 1) * GLASS - ml)}
-              data-level={level}
-              className={cn(
-                "relative h-9 w-6 overflow-hidden rounded-t-sm rounded-b-lg border-2 transition-[border-color,scale] duration-300 active:scale-90",
-                level > 0 ? "border-water" : "border-water/30 hover:border-water/60"
-              )}
-            >
-              <span
-                aria-hidden
-                className="absolute inset-0 bg-water transition-transform duration-700 ease-[var(--ease-out-soft)] will-change-transform motion-reduce:transition-none"
-                style={{ transform: `translate3d(0, ${(1 - level) * 100}%, 0)`, transitionDelay: `${delay}ms` }}
-              />
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="flex gap-2">
-        <Button variant="outline" size="icon" aria-label="Ta bort ett glas" onClick={() => add(-GLASS)} disabled={ml === 0}>
-          <Minus />
-        </Button>
-        {/* Smala mobiler: bara mängden, så att knapparna ryms bredvid varandra. */}
-        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till ett glas, 250 ml" onClick={() => add(GLASS)}>
-          <Plus /> <span className="hidden min-[400px]:inline">Glas ·</span> 250 ml
-        </Button>
-        <Button variant="secondary" className="min-w-0 flex-1 px-2" aria-label="Lägg till en flaska, 500 ml" onClick={() => add(500)}>
-          <Plus /> <span className="hidden min-[400px]:inline">Flaska ·</span> 500 ml
-        </Button>
       </div>
     </section>
   )

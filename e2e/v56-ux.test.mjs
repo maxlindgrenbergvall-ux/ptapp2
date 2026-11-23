@@ -201,7 +201,7 @@ const probe = async () =>
     return { y: window.scrollY, top: Math.round(w.getBoundingClientRect().top), h: Math.round(w.getBoundingClientRect().height), next: next ? Math.round(next.getBoundingClientRect().top) : null }
   })
 const w0 = await probe()
-const glassBtn = p.locator("[data-testid=water-tracker] [role=group] button").nth(2)
+const glassBtn = p.locator("[data-testid=water-tracker] button[aria-label='Lägg till ett glas, 250 ml']")
 await glassBtn.click()
 await p.waitForTimeout(500)
 const w1 = await probe()

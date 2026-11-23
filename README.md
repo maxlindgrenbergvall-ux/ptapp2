@@ -578,6 +578,19 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v66: vattenglaset från reklamfilmen
+
+- **Ett interaktivt glas** (`src/components/client/water-glass.tsx`) ersätter raden med små glas på Idag. Det fylls när man trycker på `+ 250 ml` eller `+ 500 ml` och töms med `−`.
+- **Samma fysik som i reklamfilmen:**
+  - Nivån följer en fjäder (damping 20, stiffness 140, mass 0.8). Ytan skvalpar till vid varje tryck, mer ju större ändringen är, och lägger sig.
+  - Animationen går att avbryta. Trycker man igen mitt i rörelsen fortsätter den från där vattnet är, utan hopp.
+  - Den ritas direkt i SVG med `requestAnimationFrame`, utan React-rendering per bildruta, och stannar när glaset står still.
+  - Med "minska rörelse" sätts nivån direkt.
+- **Layout som i filmen:** glaset till vänster, liter och mål i mitten, knapparna under. Rutans höjd är fast, så inget under den flyttar sig när man loggar.
+- **Tester:** v46, v52 och v56 mäter nu vattenytan i glaset (stiger mjukt, landar på rätt nivå, direkt med "minska rörelse", ingen förskjutning).
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v65: communityregler, rapportering och avstängning av konton
 
 - **Communityregler** (`/communityregler`, `src/components/legal/community-content.tsx`) är en ny del av användaravtalet för klienter och PT:er, del 3 i `/avtal` och `/avtal/pt`.

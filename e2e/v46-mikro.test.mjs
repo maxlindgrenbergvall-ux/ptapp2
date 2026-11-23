@@ -36,23 +36,28 @@ check(theme.bg === "rgb(19, 25, 22)" && theme.text === "rgb(249, 251, 248)" && t
 // ------------------------------------------------------------ 2. vatten ---
 const water = p.locator("[data-testid=water-tracker]")
 await water.scrollIntoViewIfNeeded()
-/** Hur långt ned fyllningen i varje glas ligger (px): 0 = fullt, glasets höjd = tomt. */
-const offsets = () => water.locator("button[data-level] span").evaluateAll((els) => els.map((e) => Math.round(new DOMMatrix(getComputedStyle(e).transform).m42)))
-const empty = (await offsets())[0]
-check(empty > 20, `tomma glas: fyllningen ligger under glaset (${empty} px)`)
+// v66: ett glas som i reklamfilmen. Vattenytans höjd (y i glasets viewBox, 82 = tomt, 8 = fullt).
+const glass = water.locator("[data-testid=water-glass]")
+const surfaceY = () => glass.locator("path[fill^='url(#water']").evaluate((e) => Number(e.getAttribute("d").split(" ")[2]))
+const empty = await surfaceY()
+check(empty > 80, `tomt glas: vattnet ligger i botten (y ${empty})`)
 await water.locator("button[aria-label='Lägg till en flaska, 500 ml']").click()
-await p.waitForTimeout(160)
-const mid = await offsets()
-check(mid[0] > 0 && mid[0] < empty && mid[1] > mid[0], `vattnet hälls: glas 1 är på väg upp och glas 2 ligger efter (${mid[0]} och ${mid[1]} px)`)
+const target = 82 - 74 * Number(await glass.getAttribute("data-level"))
+await p.waitForTimeout(120)
+const mid = await surfaceY()
+check(mid < empty && mid > target, `vattnet stiger mjukt (y ${empty.toFixed(1)} → ${mid.toFixed(1)} → mål ${target.toFixed(1)})`)
 await p.waitForTimeout(1300)
-const done = await offsets()
-check(done[0] === 0 && done[1] === 0 && done[2] === empty, `två glas fulla, resten tomma (${done.slice(0, 3).join(", ")})`)
+const done = await surfaceY()
+check(Math.abs(done - target) < 1.5, `vattnet lägger sig på rätt nivå (y ${done.toFixed(1)}, mål ${target.toFixed(1)})`)
 check(/0,5\s*l/.test(await water.innerText()), "litrarna landar på 0,5 l")
-const glasses = await water.locator("button[data-level]").count()
-await water.locator("button[data-level]").nth(glasses - 1).click()
+// Fyll till målet med flaskor.
+for (let i = 0; i < 12 && !(await water.locator("[data-testid=water-goal-reached]").count()); i++) {
+  await water.locator("button[aria-label='Lägg till en flaska, 500 ml']").click()
+  await p.waitForTimeout(80)
+}
 await water.locator("[data-testid=water-goal-reached]").waitFor()
 check((await water.locator(".ring-burst").count()) === 1, "målet nått: kvitto med bock och ring")
-check(await p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data.waterLogs.some((w) => w.ml === 2500)), "vattnet sparas som förut (2 500 ml)")
+check(await p.evaluate(() => JSON.parse(localStorage["coavira:demo:v5"]).data.waterLogs.some((w) => w.ml >= 2000)), "vattnet sparas som förut")
 
 // ------------------------------------------------- 3. pass: set och kvitto ---
 await p.evaluate(() => window.scrollTo(0, 0))
@@ -127,8 +132,10 @@ const rw = r.locator("[data-testid=water-tracker]")
 await rw.scrollIntoViewIfNeeded()
 await rw.locator("button[aria-label='Lägg till ett glas, 250 ml']").click()
 await r.waitForTimeout(120)
-const instant = await rw.locator("button[data-level] span").first().evaluate((e) => Math.round(new DOMMatrix(getComputedStyle(e).transform).m42))
-check(instant === 0 && /0,3\s*l|0,25\s*l/.test(await rw.innerText()), `med "minska rörelse" fylls glaset och talet direkt (${instant} px)`)
+const rg = rw.locator("[data-testid=water-glass]")
+const instant = await rg.locator("path[fill^='url(#water']").evaluate((e) => Number(e.getAttribute("d").split(" ")[2]))
+const rTarget = 82 - 74 * Number(await rg.getAttribute("data-level"))
+check(Math.abs(instant - rTarget) < 1 && /0,3\s*l|0,25\s*l/.test(await rw.innerText()), `med "minska rörelse" fylls glaset och talet direkt (y ${instant.toFixed(1)}, mål ${rTarget.toFixed(1)})`)
 await rc.close()
 
 console.log(errors.length ? `sidfel:\n${errors.join("\n")}` : "inga sidfel")

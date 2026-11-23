@@ -110,14 +110,20 @@ check(!d0.activities.some((a) => a.source === "strava") && !d0.wearables.some((w
 // ------------------------------------------- 4. belöningar: vatten ---
 await p.goto(base + "/klient")
 await p.waitForSelector("[data-testid=water-tracker]")
-const glasses = p.locator("[data-testid=water-tracker] [role=group] button")
-await glasses.last().click() // fyll upp till målet
+// v66: fyll upp till målet med flaskor (ett glas i stället för en rad glas).
+const fillToGoal = async () => {
+  for (let i = 0; i < 12 && !(await p.locator("[data-testid=water-goal-reached]").count()); i++) {
+    await p.click('button[aria-label="Lägg till en flaska, 500 ml"]')
+    await p.waitForTimeout(80)
+  }
+}
+await fillToGoal()
 await p.waitForSelector("[data-sonner-toast] >> text=Vattenmålet i hamn")
 check((await p.locator("[data-sonner-toast] [data-reward=water]").count()) === 1, "vattenmålet: belöning med ikon")
 const txt = await p.locator("[data-sonner-toast]").first().innerText()
 check(!/!|🔥|💪/.test(txt), `saklig text (${txt.replace(/\n/g, " · ")})`)
 await p.click('button[aria-label="Ta bort ett glas"]')
-await glasses.last().click()
+await fillToGoal()
 await p.waitForTimeout(600)
 check((await p.locator("[data-sonner-toast] >> text=Vattenmålet i hamn").count()) <= 1, "vattenmålet firas bara en gång per dag")
 
