@@ -1,5 +1,5 @@
-// E2E för v70 i demoläge: laddningsskärmen med Coaviras logga och en vit ring
-// som fylls hela vägen runt innan appen visas.
+// E2E för v70 i demoläge: laddningsskärmen där Coaviras logga (C:et) snurrar
+// medan appen laddar, landar rakt när den är redo och tonas bort.
 //   npm run build && npm start   (utan Supabase-variabler)
 //   BASE_URL=http://localhost:3000 node e2e/v70-laddningsskarm.test.mjs [skärmbildsmapp]
 import { chromium } from "playwright"
@@ -19,9 +19,9 @@ const check = (c, m, x) => (c ? ok(m) : fail(m, x))
 
 // ------------------------------------------------- i serverns HTML ---
 const html = await (await fetch(base + "/klient")).text()
-check(html.includes('data-testid="boot-splash"') && html.includes("boot-splash-fill"), "laddningsskärmen finns redan i serverns HTML (ingen vit skärm)")
+check(html.includes('data-testid="boot-splash"') && html.includes("boot-splash-spin"), "laddningsskärmen finns redan i serverns HTML (ingen vit skärm)")
 
-// ---------------------------------- långsamt nät: ringen rör sig före JS ---
+// ------------------------------- långsamt nät: loggan snurrar före JS ---
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
@@ -34,45 +34,48 @@ await p.route(/\/_next\/static\/chunks\/.*\.js(\?|$)/, async (route) => {
   await new Promise((r) => setTimeout(r, 1500))
   await route.continue().catch(() => {})
 })
-const samples = []
-const offset = () =>
+// Loggans vinkel (0–360) ur den beräknade transformen.
+const read = () =>
   p.evaluate(() => {
-    const c = document.querySelector("[data-testid=boot-splash-ring]")
-    return c ? Number.parseFloat(getComputedStyle(c).strokeDashoffset) : null
+    const el = document.querySelector("[data-testid=boot-splash]")
+    if (!el) return null
+    const m = getComputedStyle(el.querySelector("[data-testid=boot-splash-logo]")).transform.match(/matrix\(([^)]+)\)/)
+    const [a, b] = m ? m[1].split(",").map(Number) : [1, 0]
+    return { deg: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360, ready: el.dataset.ready === "true", done: el.dataset.done === "true", pe: el.style.pointerEvents }
   })
 const nav = p.goto(base + "/klient", { waitUntil: "commit" })
 await p.waitForSelector("[data-testid=boot-splash]")
 await p.waitForTimeout(250)
-const early = await offset()
-await p.waitForTimeout(500)
-const later = await offset()
-check(early !== null && early < 1 && later < early, `ringen fylls redan medan appen laddas (offset ${early?.toFixed(3)} → ${later?.toFixed(3)})`)
+const early = await read()
+await p.waitForTimeout(300)
+const later = await read()
+check(early && later && Math.abs(later.deg - early.deg) > 20, `C:et snurrar redan medan appen laddas (${early?.deg.toFixed(0)}° → ${later?.deg.toFixed(0)}°)`)
+check((await p.locator("[data-testid=boot-splash] circle").count()) === 1, "ingen ring runt loggan (bara punkten i C:et är en cirkel)")
 await p.screenshot({ path: `${out}/v70-laddningsskarm.png` })
 
 // Storleken: loggan som i native-startbilden (synlig bredd 11,2 % av 844 px ≈ 95 px).
-const glyph = await p.locator("[data-testid=boot-splash] svg").last().boundingBox()
-check(Math.abs(glyph.width * (16.1 / 24) - 0.112 * 844) < 4, `loggan har native-startbildens storlek (${(glyph.width * (16.1 / 24)).toFixed(0)} px synlig bredd)`)
+const logo = await p.locator("[data-testid=boot-splash-logo]").evaluate((el) => el.offsetWidth)
+check(Math.abs(logo * (16.1 / 24) - 0.112 * 844) < 4, `loggan har native-startbildens storlek (${(logo * (16.1 / 24)).toFixed(0)} px synlig bredd)`)
 const bg = await p.locator("[data-testid=boot-splash]").evaluate((el) => getComputedStyle(el).backgroundColor)
 check(bg === "rgb(11, 15, 13)", `samma mörka bakgrund som native-startbilden (${bg})`)
 
-// Följ ringen tills skärmen tonas bort: den går bara framåt och når hela varvet.
+// Följ loggan tills skärmen tonas bort: den snurrar bara framåt, utan hopp, och landar rakt.
+const samples = []
 let readyAt = null
-for (let i = 0; i < 200; i++) {
-  const s = await p.evaluate(() => {
-    const el = document.querySelector("[data-testid=boot-splash]")
-    const c = el?.querySelector("[data-testid=boot-splash-ring]")
-    return el ? { o: Number.parseFloat(getComputedStyle(c).strokeDashoffset), ready: el.dataset.ready === "true", done: el.dataset.done === "true", pe: el.style.pointerEvents } : null
-  })
+for (let i = 0; i < 240; i++) {
+  const s = await read()
   if (!s) break
   samples.push(s)
   if (s.ready && readyAt === null) readyAt = samples.length - 1
-  await p.waitForTimeout(25)
+  await p.waitForTimeout(20)
 }
 await nav
-const offsets = samples.map((s) => s.o)
-const backwards = offsets.some((o, i) => i > 0 && o > offsets[i - 1] + 0.002)
-check(!backwards, "ringen går bara framåt (ingen hopp tillbaka när React tar över)", backwards ? offsets.slice(0, 12) : undefined)
-check(samples.some((s) => s.done && s.o < 0.005), "ringen fylls hela vägen runt innan skärmen tonas bort")
+const steps = samples.slice(1).map((s, i) => (s.deg - samples[i].deg + 360) % 360)
+const jump = Math.max(...steps.filter((d) => d < 300))
+const backwards = steps.some((d) => d > 300 && d < 359)
+check(!backwards && jump < 70, `loggan snurrar bara framåt, utan hopp när React tar över (största steg ${jump.toFixed(0)}°)`)
+const landed = samples.filter((s) => s.done)
+check(landed.length > 0 && landed.every((s) => s.deg < 0.5 || s.deg > 359.5), `loggan landar rakt innan skärmen tonas bort (${landed[0]?.deg.toFixed(1)}°)`)
 check(readyAt !== null && samples[readyAt].pe === "none", "när appen är redo släpps tryck igenom direkt")
 check((await p.locator("[data-testid=boot-splash]").count()) === 0, "laddningsskärmen tas bort helt")
 check(await p.locator("nav a:has-text('Kost')").isVisible(), "appen syns under")

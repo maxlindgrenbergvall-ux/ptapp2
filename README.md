@@ -578,21 +578,24 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
-## Nytt i v70: laddningsskärm med Coaviras logga
+## Nytt i v70: laddningsskärm där Coavira-loggan snurrar
 
-- **Ingen vit skärm när appen startar.** Medan appens data hämtas visas en mörk laddningsskärm (`src/components/boot-splash.tsx`) med lime-loggan och en vit ring som fylls hela vägen runt. Den ersätter det gamla skelettet (`app-skeleton.tsx` är borttagen).
-  - Skärmen finns redan i serverns HTML. Innan JavaScript har laddats fylls ringen med en CSS-animation.
-  - När React startar tar `requestAnimationFrame` över från samma punkt utan hopp och kryper mot ~85 % medan datan hämtas.
-  - När datan är redo fylls ringen klart, loggan pulserar till och skärmen tonas bort.
-  - Appen under är då redan renderad. Tryck släpps igenom så fort datan är redo.
+- **Ingen vit skärm när appen startar.** Medan appens data hämtas visas en mörk laddningsskärm (`src/components/boot-splash.tsx`) där själva C:et i loggan snurrar. Den ersätter det gamla skelettet (`app-skeleton.tsx` är borttagen).
+  - Skärmen finns redan i serverns HTML. Innan JavaScript har laddats snurrar loggan med en CSS-animation (ett varv på 1,1 s).
+  - När React startar tar `requestAnimationFrame` över från samma vinkel och i samma fart, utan hopp.
+  - När datan är redo bromsar loggan in mjukt (en Hermite-kurva från snurrens fart till stilla) och landar rakt på nästa hela varv.
+  - Sedan tonas skärmen bort, så att appen fadear in. Appen under är redan renderad, och tryck släpps igenom så fort datan är redo.
   - Skärmen visas en gång per appstart, inte vid byte av flik. Den gäller både klient- och PT-appen.
-  - Med "minska rörelse" försvinner den direkt.
+  - Med "minska rörelse" står loggan still och skärmen försvinner direkt.
 - **Sömlöst från native-startbilden:** loggan har samma färg (#aced37), storlek (11,2 % av skärmens längsta sida) och plats som i startbilden, på samma mörka bakgrund (#0b0f0d).
 - **Native (kräver nytt appbygge):**
   - `capacitor.config.ts`: WebView-bakgrunden är #0b0f0d i stället för vit.
   - Startbilden är mörk även i ljust läge: iOS `Splash.imageset`, Android `drawable*/splash.png` och bakgrunden i `LaunchScreen.storyboard`. Tidigare var den helt lime i ljust läge.
   - Kör `npx cap sync` och bygg om appen i Xcode och Android Studio.
-- **Test:** `e2e/v70-laddningsskarm.test.mjs`. Det fördröjer JavaScript och kontrollerar att ringen rör sig före JS, bara går framåt, når hela varvet och försvinner, samt att loggan har native-startbildens storlek.
+- **Test:** `e2e/v70-laddningsskarm.test.mjs`. Det fördröjer JavaScript och kontrollerar:
+  - att loggan snurrar före JS, bara framåt och utan hopp,
+  - att den landar rakt och att skärmen försvinner,
+  - att storleken matchar native-startbilden.
 
 Inga databasändringar och inga migrationer.
 
