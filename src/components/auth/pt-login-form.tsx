@@ -6,9 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
+import { BootSplash } from "@/components/boot-splash"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { prepareAppData } from "@/lib/data/handoff"
 import { getSupabase } from "@/lib/supabase/client"
 import { HOME_FOR_ROLE, isSupabaseEnabled, roleFromClaims } from "@/lib/supabase/config"
 import { START_PATH } from "@/lib/site"
@@ -26,6 +28,7 @@ export function PtLoginForm() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [handoff, setHandoff] = React.useState(false)
   const [error, setError] = React.useState<string | null>(
     params.get("fel") === "social" ? "PT-konton kan bara logga in med e-post och lösenord, inte med Apple eller Google." : null
   )
@@ -50,11 +53,16 @@ export function PtLoginForm() {
       setPending(false)
       return setError("Kontot är inte ett PT-konto. Klienter loggar in på den vanliga inloggningssidan.")
     }
+    // v71: laddningsskärmen tonas in och appens data hämtas nu, så att appen är klar när den öppnas.
+    setHandoff(true)
+    await prepareAppData()
     // Hel sidladdning så att proxy.ts och servern ser den nya sessionscookien.
     window.location.href = HOME_FOR_ROLE.trainer
   }
 
   return (
+    <>
+    {handoff && <BootSplash ready={false} mode="handoff" />}
     <AuthCard
       title="PT-inloggning"
       description="Logga in med din e-post och ditt eget lösenord."
@@ -105,5 +113,6 @@ export function PtLoginForm() {
         </p>
       </form>
     </AuthCard>
+    </>
   )
 }

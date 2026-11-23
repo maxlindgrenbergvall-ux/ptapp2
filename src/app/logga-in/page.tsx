@@ -2,13 +2,17 @@ import type { Metadata } from "next"
 import { Suspense } from "react"
 
 import { LoginForm } from "@/components/auth/login-form"
+import { StartSplash } from "@/components/start-splash"
 
 export const metadata: Metadata = { title: "Logga in" }
 
 export default function LoginPage() {
   return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
+    <>
+      <StartSplash />
+      <Suspense>
+        <LoginForm />
+      </Suspense>
+    </>
   )
 }

@@ -7,9 +7,11 @@ import { toast } from "sonner"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { BootSplash } from "@/components/boot-splash"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { prepareAppData } from "@/lib/data/handoff"
 import { getSupabase } from "@/lib/supabase/client"
 import { homeFor, isSupabaseEnabled, ONBOARDING_PATH, PT_LOGIN_PATH, roleFromClaims } from "@/lib/supabase/config"
 
@@ -19,6 +21,7 @@ export function LoginForm() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [handoff, setHandoff] = React.useState(false)
   const [error, setError] = React.useState<string | null>(
     params.get("fel") === "lank" ? "Länken var ogiltig eller har gått ut. Försök igen." : null
   )
@@ -43,12 +46,19 @@ export function LoginForm() {
     const role = roleFromClaims(data.user)
     const home = homeFor(role)
     const next = params.get("next")
+    // v71: laddningsskärmen tonas in och appens data hämtas nu, så att appen är klar när den öppnas.
+    if (role) {
+      setHandoff(true)
+      await prepareAppData()
+    }
     // Hel sidladdning så att proxy.ts och servern ser den nya sessionscookien.
     // Konton utan vald kontotyp går till välkomststeget.
     window.location.href = role && next && next.startsWith(home) ? next : home
   }
 
   return (
+    <>
+    {handoff && <BootSplash ready={false} mode="handoff" />}
     <AuthCard
       title="Logga in"
       description="Välkommen tillbaka."
@@ -94,5 +104,6 @@ export function LoginForm() {
         </Button>
       </form>
     </AuthCard>
+    </>
   )
 }

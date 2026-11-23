@@ -37,9 +37,23 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 }
 
+/**
+ * Körs i <head> innan sidan ritas (ingen React):
+ *  - native-app: sidan visas i Coavira-appen (iOS/Android) – startskärmen visas bara där.
+ *  - app-started: startskärmen har redan visats under den här appstarten.
+ *  - --boot-spin-delay: laddningsskärmens snurr följer klockan, så att den fortsätter
+ *    i samma vinkel när sidan byts (inloggning → appen).
+ */
+const BOOT_SCRIPT = `(function(){try{var d=document.documentElement;d.style.setProperty("--boot-spin-delay",-(Date.now()%1100)+"ms");if(/CoaviraApp/.test(navigator.userAgent))d.classList.add("native-app");if(sessionStorage.getItem("coavira:started"))d.classList.add("app-started")}catch(e){}})()`
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="sv" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // suppressHydrationWarning: skriptet nedan sätter klasser och en CSS-variabel på <html> före React.
+    <html lang="sv" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* v71: laddningsskärmen – mobilappen känns igen och snurrens fas följer klockan redan innan något ritas. */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full font-sans">
         {children}
         <Toaster position="top-center" mobileOffset={{ top: "calc(var(--safe-top) + 16px)" }} />

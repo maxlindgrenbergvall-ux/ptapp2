@@ -578,6 +578,25 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v71: laddningsskärmen före inloggningen, och appen klar direkt
+
+- **Startskärmen i mobilappen** (`src/components/start-splash.tsx`): vid appstart snurrar Coavira-loggan över inloggningen (`/kom-igang`, `/logga-in`, `/logga-in/pt`, `/registrera`).
+  - Under tiden förladdas klient- och PT-appens kod och datalagret (`router.prefetch` och dynamiska importer), så att appen öppnas direkt efter inloggningen.
+  - Den visas minst 0,6 s och högst 3 s, och en gång per appstart (`sessionStorage` `coavira:started`).
+  - Den visas bara i mobilappen. På webben ser man inloggningen direkt.
+- **Inloggning → appen utan väntan** (`src/lib/data/handoff.ts`):
+  - När inloggningen lyckas tonas laddningsskärmen in, och appens data hämtas medan loggan snurrar (högst 10 s, annars laddar appen själv som vanligt).
+  - Datan läggs i den lokala cachen med en engångsmarkering som gäller 30 s, och appen visar den direkt.
+  - Mot mocken blev det 3 databasanrop efter sidbytet, mot 36 vid en vanlig laddning.
+  - Gäller e-postinloggningen för klienter och PT:er. Apple- och Google-inloggning laddar som förut.
+- **Snurren följer klockan:** ett litet skript i `<head>` (`src/app/layout.tsx`) sätter fasen (`--boot-spin-delay`) och känner igen mobilappen (`html.native-app`) innan något ritas. Vid sidbytet från inloggningen till appen fortsätter loggan därför i samma vinkel i stället för att börja om.
+- **Tester:**
+  - Nytt test: `e2e/v71-start-inloggning.test.mjs`. Startskärmen testas i demoläge, och inloggningen med överlämning i Supabase-läge (`SUPABASE_MODE=1`).
+  - v15 väntar nu in sidbytet efter OAuth-återkomsten.
+- **iOS-bygget:** workflowet `iOS → TestFlight` (`.github/workflows/ios-testflight.yml`) gör det man annars gör i Xcode: `npx cap sync ios`, arkivering, signering och uppladdning till TestFlight. Det körs från Actions → "iOS → TestFlight" → Run workflow.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v70: laddningsskärm där Coavira-loggan snurrar
 
 - **Ingen vit skärm när appen startar.** Medan appens data hämtas visas en mörk laddningsskärm (`src/components/boot-splash.tsx`) där själva C:et i loggan snurrar. Den ersätter det gamla skelettet (`app-skeleton.tsx` är borttagen).

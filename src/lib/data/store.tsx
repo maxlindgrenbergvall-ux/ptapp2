@@ -17,6 +17,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { BootSplash } from "@/components/boot-splash"
+import { cacheKey, takeHandoff } from "@/lib/data/handoff"
 import { ErrorFallback } from "@/components/error-fallback"
 import { confirmDialog } from "@/components/ui/confirm"
 import { extendBoost } from "@/lib/boost"
@@ -103,7 +104,6 @@ export interface CheckoutItem {
 
 const DEMO_KEY = "coavira:demo:v5"
 const outboxKey = (uid: string) => `coavira:outbox:v1:${uid}`
-const cacheKey = (uid: string) => `coavira:cache:v1:${uid}`
 
 /** Appen hette tidigare Forma. Flytta en ev. osynkad kö och cache till de nya nycklarna. */
 function migrateLegacyKeys(uid: string) {
@@ -1245,6 +1245,16 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
     let cancelled = false
     ;(async () => {
       const sb = getSupabase()
+      // v71: datan hämtades nyss vid inloggningen (bakom laddningsskärmen) – visa den direkt.
+      const handoffUid = takeHandoff()
+      const handoff = handoffUid ? readCache(handoffUid) : null
+      if (handoff && handoff.me.role === role) {
+        engine.start(handoff.me)
+        engine.apply({ type: "hydrate", data: replay(handoff.data, engine.outbox!.actions) })
+        setMe(handoff.me)
+        void engine.flush()
+        return
+      }
       const { loadRemote, OfflineError, OnboardingRequired } = await import("@/lib/data/supabase-source")
       try {
         const loaded = await loadRemote(sb)

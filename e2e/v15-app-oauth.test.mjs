@@ -47,6 +47,9 @@ await p.evaluate(() => window.__native.emit("App", "appUrlOpen", { url: "com.coa
 const req = await callback
 const cb = new URL(req.url())
 check(cb.searchParams.get("code") === "abc123" && cb.searchParams.get("next") === "/dashboard", "koden växlas på /auth/callback i appen")
+// Vänta in sidbytet från /auth/callback: "networkidle" ensam kan svara för den gamla sidan
+// (som redan var tyst medan laddningsskärmen landade, v71).
+await p.waitForURL((u) => !u.pathname.startsWith("/auth/") && u.pathname !== "/kom-igang")
 await p.waitForLoadState("networkidle")
 const closed = await p.evaluate(() => sessionStorage.getItem("fake:browser-closed"))
 check(closed === "1", "inloggningsfönstret stängs när appen tar över")

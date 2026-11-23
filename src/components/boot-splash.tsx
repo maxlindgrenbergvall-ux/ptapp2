@@ -14,6 +14,14 @@
  *      och landar rakt, och skärmen tonas bort så att appen fadear in. Appen
  *      under är då redan renderad och klickbar.
  * Med "minska rörelse": loggan står still och skärmen försvinner direkt.
+ *
+ * v71: tre lägen.
+ *  - "app": medan appens data hämtas (klient- och PT-appen).
+ *  - "start": i mobilappen över inloggningen vid appstart, medan appens kod
+ *    förladdas. En gång per appstart (html.app-started).
+ *  - "handoff": tonas in när man loggar in och snurrar medan datan hämtas.
+ * Snurren följer klockan (Date.now), inte sidan: vid sidbytet från inloggningen
+ * till appen fortsätter loggan i samma vinkel i stället för att börja om.
  */
 import * as React from "react"
 
@@ -26,16 +34,13 @@ const SPLASH_LIME = "#aced37"
 /** Ett varv på 1,1 s. */
 const SPIN_DEG_PER_S = 360 / 1.1
 
-/** Vinkeln (0–360) ur en beräknad transform, t.ex. "matrix(a, b, c, d, e, f)". */
-function angleOf(transform: string): number {
-  const m = transform.match(/matrix\(([^)]+)\)/)
-  if (!m) return 0
-  const [a, b] = m[1].split(",").map(Number)
-  const deg = (Math.atan2(b, a) * 180) / Math.PI
-  return (deg + 360) % 360
-}
+const SPIN_MS = 1100
+/** Vinkeln just nu enligt klockan – samma i alla laddningsskärmar, över sidbyten. */
+const clockAngle = () => ((Date.now() % SPIN_MS) / SPIN_MS) * 360
 
-export function BootSplash({ ready }: { ready: boolean }) {
+export type BootSplashMode = "app" | "start" | "handoff"
+
+export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: BootSplashMode }) {
   const root = React.useRef<HTMLDivElement>(null)
   const spinner = React.useRef<HTMLDivElement>(null)
   const [gone, setGone] = React.useState(false)
@@ -49,8 +54,12 @@ export function BootSplash({ ready }: { ready: boolean }) {
     const logo = spinner.current
     if (!el || !logo) return
     const reduce = prefersReducedMotion()
-    // Ta över från CSS-animationen där den är just nu.
-    let angle = angleOf(getComputedStyle(logo).transform)
+    // Startskärmen bara i mobilappen och en gång per appstart (klasserna sätts i <head>).
+    const html = document.documentElement
+    // Annars är den redan dold med CSS (display: none) och behöver inte röras.
+    if (mode === "start" && (!html.classList.contains("native-app") || html.classList.contains("app-started"))) return
+    // Ta över från CSS-animationen: den följer också klockan, så vinkeln är densamma.
+    let angle = clockAngle()
     logo.style.animation = "none"
     const draw = (deg: number) => {
       logo.style.transform = `rotate(${deg.toFixed(2)}deg)`
@@ -61,19 +70,23 @@ export function BootSplash({ ready }: { ready: boolean }) {
     let frame = 0
     let timer = 0
     let settling: { from: number; distance: number; start: number; duration: number } | null = null
-    let last = performance.now()
     const finish = () => {
       el.dataset.done = "true"
+      if (mode === "start") {
+        html.classList.add("app-started")
+        try {
+          window.sessionStorage.setItem("coavira:started", "1")
+        } catch {}
+      }
       timer = window.setTimeout(() => setGone(true), 480)
     }
     const tick = (now: number) => {
-      const dt = Math.min(64, now - last) / 1000
-      last = now
       if (readyRef.current && !settling) {
         // Appen är klar: släpp igenom tryck direkt, medan loggan landar.
         el.style.pointerEvents = "none"
         el.dataset.ready = "true"
         if (reduce) {
+          if (mode === "start") html.classList.add("app-started")
           setGone(true)
           return
         }
@@ -94,7 +107,7 @@ export function BootSplash({ ready }: { ready: boolean }) {
         return
       }
       if (!reduce) {
-        angle += SPIN_DEG_PER_S * dt
+        angle = clockAngle()
         draw(angle)
       }
       frame = requestAnimationFrame(tick)
@@ -104,7 +117,7 @@ export function BootSplash({ ready }: { ready: boolean }) {
       cancelAnimationFrame(frame)
       window.clearTimeout(timer)
     }
-  }, [])
+  }, [mode])
 
   if (gone) return null
   return (
@@ -114,6 +127,7 @@ export function BootSplash({ ready }: { ready: boolean }) {
       aria-live="polite"
       aria-label="Laddar Coavira"
       data-testid="boot-splash"
+      data-mode={mode}
       className="boot-splash fixed inset-0 z-[200] flex items-center justify-center"
       style={{ backgroundColor: SPLASH_BG }}
     >
@@ -129,16 +143,24 @@ export function BootSplash({ ready }: { ready: boolean }) {
           /* Den synliga loggan (C + punkt) centreras, som i native-startbilden. */
           translate: -2.5% 0;
           animation: boot-splash-spin 1.1s linear infinite;
+          /* Fasen följer klockan (sätts i <head>), så snurren fortsätter över sidbyten. */
+          animation-delay: var(--boot-spin-delay, 0ms);
           will-change: transform;
         }
         .boot-splash-glyph { display: block; width: 100%; height: 100%; transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1); }
         @keyframes boot-splash-spin { to { transform: rotate(360deg); } }
         .boot-splash { transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1) 80ms; }
         .boot-splash[data-done] { opacity: 0; }
+        /* Startskärmen: bara i mobilappen, en gång per appstart. */
+        html:not(.native-app) .boot-splash[data-mode="start"], html.app-started .boot-splash[data-mode="start"] { display: none; }
+        /* Vid inloggningen tonas skärmen in över formuläret. */
+        .boot-splash[data-mode="handoff"] { animation: boot-splash-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+        @keyframes boot-splash-in { from { opacity: 0; } }
         .boot-splash[data-done] .boot-splash-glyph { transform: scale(1.08); }
         @media (prefers-reduced-motion: reduce) {
           .boot-splash-spin { animation: none; }
           .boot-splash, .boot-splash-glyph { transition: none; }
+          .boot-splash[data-mode="handoff"] { animation: none; }
         }
       `}</style>
     </div>

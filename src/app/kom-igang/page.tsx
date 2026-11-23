@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
 import { BrandMark } from "@/components/brand"
+import { StartSplash } from "@/components/start-splash"
 import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
@@ -25,6 +26,9 @@ export const metadata: Metadata = { title: "Kom igång" }
  */
 export default function GetStarted() {
   return (
+    <>
+    {/* v71: i mobilappen – laddningsskärmen över inloggningen medan appen förladdas. */}
+    <StartSplash />
     <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+2rem)] pb-[calc(var(--safe-bottom)+2rem)]">
       <section className="flex flex-1 flex-col justify-center gap-8">
         <div className="space-y-4 text-center">
@@ -85,5 +89,6 @@ export default function GetStarted() {
         </a>
       </footer>
     </main>
+    </>
   )
 }

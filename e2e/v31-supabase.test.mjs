@@ -113,7 +113,8 @@ async function login(email, path = "/logga-in") {
   await p.getByTestId("activate-account").click()
   check(await p.locator("#accept-agreement-error").isVisible(), "kontot aktiveras inte utan godkänt avtal")
   const parts = await p.locator('[aria-label="Avtalet består av"] li').count()
-  check(parts === 4, `v34: ett avtal i fyra delar – användarvillkor, integritetspolicy, PT-avtal, GDPR (${parts})`)
+  // v65: communityreglerna är en egen del av avtalet (PT-avtalet blev del 4).
+  check(parts === 5, `ett avtal i fem delar – användarvillkor, integritetspolicy, communityregler, PT-avtal, GDPR (${parts})`)
   check((await p.locator('[data-testid=onboarding-terms] [role=checkbox]').count()) === 2, "v34: en bock för avtalet + en valfri för nyhetsbrev")
   check((await p.locator('a[href="/avtal/pt"]').count()) === 1, "hela avtalet går att läsa")
   await p.getByTestId("accept-agreement").click()
