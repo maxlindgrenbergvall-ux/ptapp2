@@ -119,3 +119,84 @@ export function FillBar({ value, className, barClassName, ...rest }: { value: nu
     </span>
   )
 }
+
+const EASE_OUT_SOFT = "cubic-bezier(0.22, 1, 0.36, 1)"
+
+/**
+ * En panel som fälls ut och ihop mjukt (v68) – t.ex. en övning i träningsloggen.
+ *
+ * Utfällning: panelen monteras och växer från 0 till sin höjd. Infällning:
+ * innehållet tas bort direkt ur React (så att fält, etiketter och test-id:n
+ * försvinner på en gång), och en stum kopia (inert, aria-hidden, utan id:n och
+ * etiketter) krymper i dess ställe. Inget under panelen hoppar. Med "minska
+ * rörelse" visas och döljs panelen direkt. Panelen som är öppen vid
+ * sidladdning animeras inte.
+ */
+export function CollapsePanel({ open, children, ...rest }: { open: boolean; children: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
+  const ghostHost = React.useRef<HTMLDivElement>(null)
+  const [openedOnLoad] = React.useState(open)
+  const mounts = React.useRef(0)
+  const lastHeight = React.useRef(0)
+
+  const panelRef = React.useCallback(
+    (el: HTMLDivElement | null) => {
+      if (!el) return
+      ghostHost.current?.replaceChildren()
+      const first = mounts.current++ === 0
+      const ro = new ResizeObserver(() => {
+        if (el.isConnected) lastHeight.current = el.getBoundingClientRect().height
+      })
+      ro.observe(el)
+      if (!(first && openedOnLoad) && !prefersReducedMotion() && typeof el.animate === "function") {
+        const h = el.getBoundingClientRect().height
+        const cs = getComputedStyle(el)
+        el.animate(
+          [
+            { height: "0px", paddingTop: "0px", paddingBottom: "0px", opacity: 0, overflow: "hidden" },
+            { height: `${h}px`, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, opacity: 1, overflow: "hidden" },
+          ],
+          { duration: 320, easing: EASE_OUT_SOFT }
+        )
+      }
+      return () => {
+        ro.disconnect()
+        const host = ghostHost.current
+        if (!host || prefersReducedMotion() || typeof el.animate !== "function") return
+        const h = el.isConnected ? el.getBoundingClientRect().height : lastHeight.current
+        if (h <= 0) return
+        const ghost = el.cloneNode(true) as HTMLElement
+        for (const n of [ghost, ...Array.from(ghost.querySelectorAll<HTMLElement>("*"))]) {
+          for (const a of ["id", "aria-label", "aria-labelledby", "aria-controls", "data-testid", "name", "role"]) n.removeAttribute(a)
+        }
+        ghost.setAttribute("inert", "")
+        ghost.setAttribute("aria-hidden", "true")
+        ghost.style.pointerEvents = "none"
+        host.replaceChildren(ghost)
+        ghost
+          .animate(
+            [
+              { height: `${h}px`, opacity: 1, overflow: "hidden" },
+              { height: "0px", paddingTop: "0px", paddingBottom: "0px", opacity: 0, overflow: "hidden" },
+            ],
+            { duration: 280, easing: EASE_OUT_SOFT, fill: "forwards" }
+          )
+          .finished.then(
+            () => ghost.remove(),
+            () => ghost.remove()
+          )
+      }
+    },
+    [openedOnLoad]
+  )
+
+  return (
+    <>
+      {open && (
+        <div ref={panelRef} {...rest}>
+          {children}
+        </div>
+      )}
+      <div ref={ghostHost} aria-hidden data-collapse-ghost />
+    </>
+  )
+}

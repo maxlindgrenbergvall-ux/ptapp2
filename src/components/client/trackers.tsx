@@ -106,9 +106,8 @@ export function ExtraFood({ date }: { date: ISODate }) {
     requestAnimationFrame(() => {
       const input = rootRef.current?.querySelector<HTMLInputElement>('input[role="combobox"]')
       if (!input) return
+      // v68: sökfältet läggs högt upp (FoodPicker), så att träffarna syns ovanför tangentbordet.
       input.focus({ preventScroll: true })
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      input.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" })
     })
   }
 
@@ -321,10 +320,16 @@ function ManualFoodForm({
 
 const GLASS = 250
 
-/** Vattenmål: 35 ml per kg kroppsvikt (avrundat till glas), annars 2,5 l. */
-function waterGoal(weightKg?: number) {
-  if (!weightKg) return 2500
-  return Math.min(4500, Math.max(1500, Math.round((weightKg * 35) / GLASS) * GLASS))
+/**
+ * Vattenmål att dricka (v68): 30 ml per kg kroppsvikt, avrundat till hela glas
+ * och begränsat till 1,5–3 l. Utan vikt 2 l. En del av vätskan kommer från maten,
+ * så målet för dryck ligger under det totala behovet – 4 l var för mycket.
+ */
+export const WATER_GOAL_MIN = 1500
+export const WATER_GOAL_MAX = 3000
+export function waterGoal(weightKg?: number) {
+  if (!weightKg) return 2000
+  return Math.min(WATER_GOAL_MAX, Math.max(WATER_GOAL_MIN, Math.round((weightKg * 30) / GLASS) * GLASS))
 }
 
 /**

@@ -108,3 +108,17 @@ export function useSpring(target: number, apply: (x: number) => void): Spring {
     []
   )
 }
+
+/**
+ * En liten studs (v68): elementets `scale` följer fjädern mot 1 och får en knuff
+ * vid `kick()`. Använder CSS-egenskapen `scale` (inte `transform`), så den
+ * krockar inte med andra transformer. Anropa `kick` från händelser eller effekter.
+ */
+export function useBounce<T extends HTMLElement>(): [React.RefObject<T | null>, (velocity?: number) => void] {
+  const ref = React.useRef<T>(null)
+  const spring = useSpring(1, (x) => {
+    if (ref.current) ref.current.style.scale = Math.abs(x - 1) < 1e-4 ? "" : x.toFixed(4)
+  })
+  const kick = React.useCallback((velocity = 0.6) => spring.kick(velocity), [spring])
+  return [ref, kick]
+}

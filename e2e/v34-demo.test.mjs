@@ -151,7 +151,12 @@ if (await p.locator("[data-testid=fill-last-session]").count()) {
 // Ta bort set (eget pass).
 const setsBefore = (await demo()).workouts.find((w) => w.name === "DnD-pass").exercises.find((e) => e.exerciseId === "e-deadlift").sets
 await p.locator("[data-testid=remove-set]").first().click()
-const setsAfter = (await demo()).workouts.find((w) => w.name === "DnD-pass").exercises.find((e) => e.exerciseId === "e-deadlift").sets
+// v68: raden fälls ihop först (~240 ms), sedan tas setet bort.
+let setsAfter = setsBefore
+for (let i = 0; i < 20 && setsAfter === setsBefore; i++) {
+  await p.waitForTimeout(50)
+  setsAfter = (await demo()).workouts.find((w) => w.name === "DnD-pass").exercises.find((e) => e.exerciseId === "e-deadlift").sets
+}
 check(setsAfter === setsBefore - 1, `ta bort set: ${setsBefore} → ${setsAfter}`)
 check(await noOverflow(), "passvyn: ingen horisontell overflow")
 

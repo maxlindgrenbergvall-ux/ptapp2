@@ -7,7 +7,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { CompletedWorkoutEditor } from "@/components/client/completed-workout-editor"
-import { DrawnCheck } from "@/components/motion"
+import { CollapsePanel, DrawnCheck, FillBar } from "@/components/motion"
 import { WorkoutSummaryView } from "@/components/client/workout-summary"
 import { RestSettingsButton } from "@/components/client/rest-settings"
 import { EmptyState } from "@/components/common"
@@ -24,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { confirmDialog } from "@/components/ui/confirm"
 import { exerciseName, workoutsFor } from "@/lib/data/selectors"
@@ -38,6 +37,8 @@ import { AUTO_INCREMENT_KG, nextTarget, type ProgressionTarget } from "@/lib/pro
 import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
+import { useBounce } from "@/lib/spring"
+import { prefersReducedMotion } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
 import type { Exercise, ScheduledWorkout, SetLog, TrackingType, WorkoutExercise } from "@/types/domain"
 import { TimeInput } from "@/components/workouts/adaptive-fields"
@@ -131,8 +132,9 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
         setOpenId(next.id)
         // v56: kortet ovanför fälls ihop när nästa öppnas – iOS saknar scroll-anchoring, så sidan
         // hoppade. Lägg nästa övning mjukt i blick efter att layouten satt sig.
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
+        // v68: korten fälls ihop/ut under ~300 ms – vänta tills de har satt sig.
+        const settle = (fn: () => void) => (prefersReducedMotion() ? requestAnimationFrame(() => requestAnimationFrame(fn)) : window.setTimeout(fn, 340))
+        settle(() => {
             const el = document.getElementById(`exercise-${next.id}`)
             if (!el) return
             const top = el.getBoundingClientRect().top
@@ -141,8 +143,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
               window.scrollTo({ top: window.scrollY + top - header - 12, behavior: reduce ? "auto" : "smooth" })
             }
-          })
-        )
+        })
       }
     }
   }
@@ -183,7 +184,18 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
             </Button>
           )}
         </div>
-        <Progress value={(done / total) * 100} className="h-1 rounded-none" aria-label={`${done} av ${total} set klara`} />
+        {/* v68: passets progress glider med fjädern för varje avbockat set. */}
+        <FillBar
+          value={total ? (done / total) * 100 : 0}
+          className="h-1 rounded-none bg-primary/20"
+          barClassName="rounded-none"
+          role="progressbar"
+          aria-label={`${done} av ${total} set klara`}
+          aria-valuenow={done}
+          aria-valuemin={0}
+          aria-valuemax={total}
+          data-testid="workout-progress"
+        />
       </header>
 
       <div className="flex-1 space-y-3 px-3 pt-3 pb-32 sm:p-4 sm:pb-32">
@@ -437,6 +449,30 @@ function ExerciseCard({
   const [completion, setCompletion] = React.useState({ complete, n: 0 })
   if (completion.complete !== complete) setCompletion({ complete, n: complete ? completion.n + 1 : completion.n })
   const justCompleted = completion.n
+  // v68: kortet studsar till när övningen blir klar.
+  const [cardRef, kickCard] = useBounce<HTMLElement>()
+  React.useEffect(() => {
+    if (justCompleted > 0) kickCard(0.45)
+  }, [justCompleted, kickCard])
+  // Set som läggs till under passet glider in; ett borttaget set fälls ihop först.
+  const [initialSets] = React.useState(exercise.sets)
+  const removeLastSet = onRemoveSet
+    ? () => {
+        const row = document.querySelector<HTMLElement>(`#ex-${CSS.escape(exercise.id)} ol > li:last-child`)
+        if (!row || prefersReducedMotion() || typeof row.animate !== "function") return onRemoveSet()
+        const h = row.getBoundingClientRect().height
+        row.style.pointerEvents = "none"
+        row
+          .animate(
+            [
+              { height: `${h}px`, opacity: 1 },
+              { height: "0px", opacity: 0, marginTop: "0px", paddingTop: "0px", paddingBottom: "0px" },
+            ],
+            { duration: 240, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+          )
+          .finished.then(onRemoveSet, onRemoveSet)
+      }
+    : undefined
   // Setet som står på tur: det första som inte är avbockat.
   const nextSet = complete || readOnly ? -1 : Array.from({ length: exercise.sets }, (_, i) => i).find((i) => !findLog(workout.logs, exercise.id, i)?.done) ?? -1
   // Viktövningar (skivstång, hantlar, maskin …) visar alltid kg – vikten måste fyllas i.
@@ -445,8 +481,9 @@ function ExerciseCard({
 
   return (
     <section
+      ref={cardRef}
       id={`exercise-${exercise.id}`}
-      className={cn("scroll-mt-28 rounded-2xl border bg-card", open && "border-foreground/25 shadow-sm", block && "border-l-4 border-l-primary")}
+      className={cn("scroll-mt-28 rounded-2xl border bg-card transition-[border-color,box-shadow] duration-300", open && "border-foreground/25 shadow-sm", block && "border-l-4 border-l-primary")}
       data-tracking={type}
       data-block={block?.name}
     >
@@ -494,13 +531,12 @@ function ExerciseCard({
             · {doneCount}/{exercise.sets} klara
           </span>
         </span>
-        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-300 ease-[var(--ease-out-soft)]", open && "rotate-180")} />
       </button>
       {dragHandle && <div className="shrink-0 pr-2">{dragHandle}</div>}
       </div>
 
-      {open && (
-        <div id={panelId} className="space-y-2.5 px-3 pb-3 sm:space-y-3 sm:px-4 sm:pb-4">
+      <CollapsePanel open={open} id={panelId} className="space-y-2.5 px-3 pb-3 sm:space-y-3 sm:px-4 sm:pb-4">
           {/* v60: Videoguide / Utförande direkt under övningen (fälls ut inline). Inte för egna övningar. */}
           <ExerciseGuide exercise={libraryExercise} name={name} className="-mx-1" />
           {/* v37: en samlad ruta – dagens mål, PT:ns anteckning och förra gången. */}
@@ -565,6 +601,7 @@ function ExerciseCard({
                     name={name}
                     readOnly={readOnly}
                     isNext={setIndex === nextSet}
+                    fresh={setIndex >= initialSets}
                     onLog={onLog}
                     onDone={onSetDone}
                   />
@@ -614,6 +651,7 @@ function ExerciseCard({
                 usesWeight={usesWeight}
                 readOnly={readOnly}
                 isNext={setIndex === nextSet}
+                fresh={setIndex >= initialSets}
                 autoKg={target?.kind === "increase_weight" ? target.kg : undefined}
                 onLog={onLog}
                 onDone={onSetDone}
@@ -622,19 +660,19 @@ function ExerciseCard({
           </ol>
             </>
           )}
-          {(onAddSet || onRemove || onRemoveSet) && (
+          {(onAddSet || onRemove || removeLastSet) && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               {onAddSet && (
                 <Button variant="ghost" size="sm" className="text-primary" onClick={onAddSet} disabled={exercise.sets >= 20} data-testid="add-set">
                   <Plus /> Lägg till set
                 </Button>
               )}
-              {onRemoveSet && exercise.sets > 1 && (
+              {removeLastSet && exercise.sets > 1 && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground"
-                  onClick={onRemoveSet}
+                  onClick={removeLastSet}
                   disabled={workout.logs.some((l) => l.workoutExerciseId === exercise.id && l.setIndex === exercise.sets - 1 && l.done)}
                   data-testid="remove-set"
                 >
@@ -648,8 +686,7 @@ function ExerciseCard({
               )}
             </div>
           )}
-        </div>
-      )}
+      </CollapsePanel>
     </section>
   )
 }
@@ -663,6 +700,7 @@ function SetRow({
   usesWeight,
   readOnly,
   isNext,
+  fresh,
   autoKg,
   onLog,
   onDone,
@@ -676,6 +714,8 @@ function SetRow({
   readOnly: boolean
   /** Setet som står på tur – markeras diskret så att ögat hittar det efter en avbockning. */
   isNext: boolean
+  /** v68: setet lades till under passet – glider in. */
+  fresh?: boolean
   /** Dagens automatiska vikt (förra passet + 1,25 kg), om övningen har historik. */
   autoKg?: number
   onLog: (log: SetLog) => void
@@ -709,6 +749,8 @@ function SetRow({
 
   // Ökar vid varje avbockning: bocken "poppar" (bara när den bockas av, inte vid sidladdning).
   const [pop, setPop] = React.useState(0)
+  // v68: raden studsar till lite när setet bockas av.
+  const [rowRef, kickRow] = useBounce<HTMLLIElement>()
   const toggle = () => {
     if (isDone) {
       onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg ?? 0, reps: values.reps ?? 0, done: false })
@@ -723,16 +765,19 @@ function SetRow({
     onLog({ workoutExerciseId: exercise.id, setIndex, kg: values.kg ?? 0, reps: values.reps!, done: true })
     setDraft(null)
     setPop((n) => n + 1)
+    kickRow(0.35)
     navigator.vibrate?.(15)
     onDone()
   }
 
   return (
     <li
+      ref={rowRef}
       data-next={isNext || undefined}
       className={cn(
         "grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2",
-        isDone && "bg-brand/15"
+        isDone && "bg-brand/15",
+        fresh && "rise-in"
       )}
     >
       <span className="flex flex-col items-center text-center leading-tight">
@@ -799,6 +844,7 @@ function EnduranceRow({
   name,
   readOnly,
   isNext,
+  fresh,
   onLog,
   onDone,
 }: {
@@ -809,6 +855,7 @@ function EnduranceRow({
   name: string
   readOnly: boolean
   isNext: boolean
+  fresh?: boolean
   onLog: (log: SetLog) => void
   onDone: () => void
 }) {
@@ -827,6 +874,7 @@ function EnduranceRow({
   const isDone = logged?.done ?? false
   const [invalid, setInvalid] = React.useState(false)
   const [pop, setPop] = React.useState(0)
+  const [rowRef, kickRow] = useBounce<HTMLLIElement>()
   const toLog = (x: V, done: boolean): SetLog => ({
     workoutExerciseId: exercise.id,
     setIndex,
@@ -855,6 +903,7 @@ function EnduranceRow({
     onLog(toLog(v, true))
     setDraft(null)
     setPop((n) => n + 1)
+    kickRow(0.35)
     navigator.vibrate?.(15)
     onDone()
   }
@@ -862,10 +911,12 @@ function EnduranceRow({
   const label = type === "running" ? t("fields.intervalOf", { n: setIndex + 1 }) : t("fields.roundOf", { n: setIndex + 1 })
   return (
     <li
+      ref={rowRef}
       data-next={isNext || undefined}
       className={cn(
         "grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_3rem] items-center gap-1.5 rounded-xl p-1 transition-colors duration-300 sm:grid-cols-[2rem_1fr_1fr_3.5rem] sm:gap-2",
-        isDone && "bg-brand/15"
+        isDone && "bg-brand/15",
+        fresh && "rise-in"
       )}
       data-testid="endurance-row"
     >
@@ -996,20 +1047,26 @@ export function Stepper({
   const [text, setText] = React.useState<string | null>(null)
   const show = (n: number | undefined) => (n === undefined ? "" : String(n).replace(".", ","))
   const hintId = React.useId()
+  // v68: siffran gör en liten studs vid − och +.
+  const [numRef, kickNum] = useBounce<HTMLInputElement>()
   return (
-    <div className={cn("flex h-12 items-center rounded-xl bg-muted", invalid && "ring-2 ring-destructive")}>
+    <div className={cn("flex h-12 items-center rounded-xl bg-muted transition-shadow duration-200", invalid && "ring-2 ring-destructive")}>
       {!disabled && (
         <button
           type="button"
-          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground active:text-foreground sm:w-9"
+          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground transition-[color,scale] duration-150 active:scale-90 active:text-foreground sm:w-9"
           aria-label={`Minska ${label}`}
-          onClick={() => onChange(Math.max(0, (value ?? 0) - step))}
+          onClick={() => {
+            onChange(Math.max(0, (value ?? 0) - step))
+            kickNum(-0.5)
+          }}
         >
           <Minus className="size-4" />
         </button>
       )}
       {/* Siffran är ett eget fält: tryck → hela värdet markeras och sifferknappsatsen öppnas. */}
       <input
+        ref={numRef}
         type="text"
         inputMode="decimal"
         pattern="[0-9.,]*"
@@ -1057,9 +1114,12 @@ export function Stepper({
       {!disabled && (
         <button
           type="button"
-          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground active:text-foreground sm:w-9"
+          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground transition-[color,scale] duration-150 active:scale-90 active:text-foreground sm:w-9"
           aria-label={`Öka ${label}`}
-          onClick={() => onChange((value ?? 0) + step)}
+          onClick={() => {
+            onChange((value ?? 0) + step)
+            kickNum(0.6)
+          }}
         >
           <Plus className="size-4" />
         </button>
@@ -1099,6 +1159,25 @@ function RestTimer({
     if (finished && getRestPreference().alert) restFinishedAlert()
   }, [finished])
 
+  // v68: en tunn stapel som töms i jämn takt (requestAnimationFrame, bara transform).
+  const drain = React.useRef<HTMLSpanElement>(null)
+  const { endsAt, total } = rest
+  React.useEffect(() => {
+    let frame = 0
+    const draw = () => {
+      const share = Math.max(0, Math.min(1, (endsAt - Date.now()) / (total * 1000)))
+      if (drain.current) drain.current.style.transform = `scaleX(${share.toFixed(4)})`
+      if (share > 0 && !prefersReducedMotion()) frame = requestAnimationFrame(draw)
+    }
+    draw()
+    // Med "minska rörelse" ritas stapeln om fyra gånger i sekunden i stället.
+    const t = prefersReducedMotion() ? window.setInterval(draw, 250) : 0
+    return () => {
+      cancelAnimationFrame(frame)
+      window.clearInterval(t)
+    }
+  }, [endsAt, total])
+
   const mm = Math.floor(left / 60)
   const ss = String(left % 60).padStart(2, "0")
   /** ±15 s. Under 15 s kvar avslutar "-15 s" vilan (0:00) – aldrig negativ tid. */
@@ -1109,15 +1188,16 @@ function RestTimer({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg p-3 pb-[max(0.75rem,var(--safe-bottom))]">
+    <div className="rise-in fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg p-3 pb-[max(0.75rem,var(--safe-bottom))]">
       <div
         className={cn(
-          "flex items-center gap-3 rounded-2xl border p-3 shadow-lg backdrop-blur",
+          "relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 shadow-lg backdrop-blur transition-colors duration-300",
           finished ? "border-brand bg-brand text-brand-foreground" : "bg-background/95"
         )}
         role="timer"
         aria-live={finished ? "assertive" : "off"}
       >
+        <span ref={drain} aria-hidden data-testid="rest-drain" className="absolute inset-x-0 bottom-0 h-1 origin-left bg-primary/70" style={{ transform: "scaleX(1)" }} />
         <Timer className="size-5 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="text-xs opacity-80">{finished ? "Vilan är slut" : "Vila"}</div>

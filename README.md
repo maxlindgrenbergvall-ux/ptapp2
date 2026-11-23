@@ -132,7 +132,7 @@ npm run dev                  # http://localhost:3000
 
 **Klient**
 - **Dagens kost:** fältet *Övrigt / extra* för mat utanför schemat, via snabbsök eller en egen rad med kcal och makron.
-- **Vattentracker:** glas om 250 ml, med mål efter kroppsvikt (35 ml per kg).
+- **Vattentracker:** glas om 250 ml, med mål efter kroppsvikt (30 ml per kg, 1,5–3 l sedan v68).
 - **Sömntracker:**
   - timmar och känsla
   - sömnsteg och sömnpoäng från klocka
@@ -577,6 +577,26 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 **Återbetalningar** görs i Stripe-panelen. Välj **Reverse transfer** (och vid behov *Refund application fee*), så att pengarna tas tillbaka från PT:ns konto.
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
+
+## Nytt i v68: träningsloggen lika mjuk, lägre vattenmål och sökfältet ovanför tangentbordet
+
+- **Övningarna fälls ut och ihop mjukt** (`CollapsePanel` i `src/components/motion.tsx`).
+  - När ett kort stängs försvinner fälten ur sidan direkt. En stum kopia (inert, aria-hidden, utan id:n och etiketter) krymper i dess ställe, så inget hoppar och inga fält dubbleras.
+  - Nästa övning växer fram. Rullningen till den sker när korten har satt sig.
+- **Fjädern från vattenglaset överallt i loggen** (`useBounce` i `src/lib/spring.ts`):
+  - Passets progress i sidhuvudet glider för varje avbockat set (`FillBar`, `data-testid="workout-progress"`).
+  - Raden studsar till när ett set bockas av, och kortet när övningen blir klar.
+  - Siffran i − och + gör en liten studs.
+- **Set:** ett tillagt set glider in. "Ta bort set" fäller först ihop raden och tar sedan bort setet.
+- **Vilotimern** glider in och har en tunn stapel som töms i jämn takt.
+- **Vattenmålet** är nu 30 ml per kg kroppsvikt, avrundat till hela glas och begränsat till 1,5–3 l (2 l utan vikt). Förut var det 35 ml per kg, upp till 4,5 l. En del av vätskan kommer från maten.
+- **Kost: tangentbordet täcker inte längre träffarna.** När sökfältet får fokus (via + på en måltidsbricka eller ett tryck i fältet) läggs fältet strax under sidhuvudet. Det görs igen när tangentbordet har öppnats (`visualViewport`), så att träffarna syns ovanför det.
+- **Med "minska rörelse"** sker allt direkt.
+- **Tester:**
+  - Nytt test: `e2e/v68-traning-smooth.test.mjs`.
+  - v34 väntar in att setet tas bort efter infällningen.
+
+Inga databasändringar och inga migrationer.
 
 ## Nytt i v67: kostloggen lika mjuk som vattenglaset
 

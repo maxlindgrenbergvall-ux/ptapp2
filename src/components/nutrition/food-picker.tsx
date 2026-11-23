@@ -26,6 +26,33 @@ export type NewFoodEntry = Omit<FoodEntry, "id" | "clientId" | "date">
  * (g eller ml för drycker) och se makron direkt. Saknas varan kan den läggas
  * till som egen produkt, som sparas och hittas nästa gång.
  */
+/**
+ * v68: på mobilen täcker tangentbordet nedre halvan av skärmen. När sökfältet får
+ * fokus läggs det därför strax under sidhuvudet, så att träffarna under fältet
+ * syns i ytan ovanför tangentbordet. Görs igen när tangentbordet har öppnats
+ * (visualViewport ändrar storlek), eftersom iOS själv flyttar sidan då.
+ */
+function keepAboveKeyboard(input: HTMLElement) {
+  const place = () => {
+    if (document.activeElement !== input) return
+    const vv = window.visualViewport
+    const header = document.querySelector<HTMLElement>("header")?.getBoundingClientRect().bottom ?? 0
+    const top = input.getBoundingClientRect().top
+    const want = Math.max(header, 0) + 12
+    const room = (vv?.height ?? window.innerHeight) - (top - (vv?.offsetTop ?? 0))
+    // Redan högt upp med gott om plats under? Låt sidan vara.
+    if (Math.abs(top - want) < 24 || (top >= want && room > 320)) return
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    window.scrollTo({ top: window.scrollY + top - want, behavior: reduce ? "auto" : "smooth" })
+  }
+  requestAnimationFrame(place)
+  const vv = window.visualViewport
+  if (!vv) return
+  const onResize = () => place()
+  vv.addEventListener("resize", onResize)
+  window.setTimeout(() => vv.removeEventListener("resize", onResize), 1200)
+}
+
 export function FoodPicker({
   onAdd,
   recent,
@@ -143,7 +170,10 @@ export function FoodPicker({
               setQuery(e.target.value)
               setOpen(true)
             }}
-            onFocus={() => setOpen(true)}
+            onFocus={(e) => {
+              setOpen(true)
+              keepAboveKeyboard(e.currentTarget)
+            }}
             onKeyDown={(e) => {
               if (e.key === "Escape") setOpen(false)
               if (e.key === "Enter") {
