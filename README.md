@@ -578,6 +578,17 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v69: bottenmenyn glider undan för tangentbordet
+
+- **Menyn lägger sig inte längre ovanpå tangentbordet.** När ett textfält får fokus på en pekskärm glider bottenmenyn undan (nedåt och tonas ut, 200 ms). Den kommer tillbaka när fältet lämnas. Det gäller både klientappen och PT-appen.
+  - `useKeyboardOpen` (`src/lib/use-keyboard-open.ts`) avgör detta med `useSyncExternalStore`, `focusin`/`focusout` och `pointer: coarse`.
+  - Knappar, kryssrutor och filfält räknas inte som textfält. Mellan två fält blinkar menyn inte fram.
+  - Medan menyn är undanglidd är den `inert`, så den går inte att trycka på eller nå med tangentbord och skärmläsare.
+  - På en dator med mus finns inget skärmtangentbord, så där står menyn kvar.
+- **Test:** `e2e/v69-meny-tangentbord.test.mjs`.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v68: träningsloggen lika mjuk, lägre vattenmål och sökfältet ovanför tangentbordet
 
 - **Övningarna fälls ut och ihop mjukt** (`CollapsePanel` i `src/components/motion.tsx`).

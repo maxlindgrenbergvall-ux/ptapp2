@@ -18,6 +18,7 @@ import { useAppData } from "@/lib/data/store"
 import { PT_ONBOARDING_PATH } from "@/lib/supabase/config"
 import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
+import { useKeyboardOpen } from "@/lib/use-keyboard-open"
 import { cn } from "@/lib/utils"
 
 /** `tab` = kort etikett i mobilens bottenmeny (v52). Min profil nås via menyn uppe till vänster. */
@@ -50,11 +51,18 @@ function BottomNav() {
   const pathname = usePathname()
   const { unread, pendingRequests } = useNavBadges()
   const tabs = NAV.filter((n) => n.tab)
+  const keyboardOpen = useKeyboardOpen()
   return (
     <nav
       aria-label="Bottenmeny"
       data-testid="pt-bottom-nav"
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border/60 bg-background/80 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 lg:hidden"
+      data-hidden={keyboardOpen || undefined}
+      // v69: menyn glider undan medan tangentbordet är uppe.
+      inert={keyboardOpen}
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border/60 bg-background/80 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 lg:hidden transition-[translate,opacity] duration-200 ease-[var(--ease-out-soft)]",
+        keyboardOpen && "pointer-events-none translate-y-full opacity-0"
+      )}
     >
       {tabs.map(({ href, label, tab, icon: Icon, exact, also }) => {
         const active = exact ? pathname === href || Boolean(also?.some((p) => pathname.startsWith(p))) : pathname.startsWith(href)

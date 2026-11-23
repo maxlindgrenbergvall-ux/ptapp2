@@ -17,6 +17,7 @@ import { useAppData } from "@/lib/data/store"
 import { PreferenceSync } from "@/components/settings/app-settings"
 import { useT } from "@/lib/i18n/provider"
 import type { MessageKey } from "@/lib/i18n/translate"
+import { useKeyboardOpen } from "@/lib/use-keyboard-open"
 import { cn } from "@/lib/utils"
 import { MarketingPrompt } from "@/components/settings/marketing-prompt"
 import { useOnboardingGuard } from "@/components/onboarding/use-onboarding-guard"
@@ -43,6 +44,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const pendingCount = data.events.filter((e) => e.clientId === me.id && e.status === "pending" && e.end > nowIso).length
   // Intro-flödet inte klart enligt databasen (äldre token utan flaggan): dit först (v31).
   const blocked = useOnboardingGuard()
+  const keyboardOpen = useKeyboardOpen()
   // Under ett pågående pass (och i intro-flödet) tar vyn hela skärmen – inga distraktioner.
   // v42: en öppen konversation är en ren chattvy i helskärm (tillbaka-pilen leder till inkorgen).
   const focusMode = pathname.startsWith("/klient/pass/") || pathname.startsWith("/klient/chatt/") || pathname === "/klient/intro" || blocked
@@ -97,7 +99,14 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       {!focusMode && (
         <nav
           aria-label={t("nav.mainMenu")}
-          className="fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t border-border/60 bg-background/75 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 md:border-x"
+          data-testid="client-bottom-nav"
+          data-hidden={keyboardOpen || undefined}
+          // v69: menyn glider undan medan tangentbordet är uppe, annars lägger den sig ovanpå det.
+          inert={keyboardOpen}
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-20 mx-auto grid max-w-lg grid-cols-5 border-t border-border/60 bg-background/75 pb-[var(--safe-bottom)] backdrop-blur-xl backdrop-saturate-150 md:border-x transition-[translate,opacity] duration-200 ease-[var(--ease-out-soft)]",
+            keyboardOpen && "pointer-events-none translate-y-full opacity-0"
+          )}
         >
           {NAV.map(({ href, label, icon: Icon, exact, also }) => {
             const active = exact ? pathname === href : pathname.startsWith(href) || Boolean(also?.some((p) => pathname.startsWith(p)))
