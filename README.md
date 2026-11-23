@@ -578,6 +578,25 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v64: säkerhetshärdning efter penetrationstest
+
+Penetrationstestet gjordes bara mot källkoden och en lokal kopia av databasen (alla 48 migrationer, `npm run test:db`), aldrig mot produktionen. Det omfattade:
+- 996 automatiska försök att läsa, ändra och radera andras rader i alla 59 tabeller, som ny klient, som PT utan koppling och som anonym besökare
+- riktade försök att eskalera egna rader, kapa relationer och förfalska recensioner
+- granskning av 106 funktioner med förhöjda rättigheter, alla API-routes och webhooks samt lagringsreglerna
+
+Resultat: RLS, triggervakterna och webhooks höll. Tre hål lagades:
+
+1. **Medel – bildfiltret i chatten gick att kringgå.**
+   - Så gick det till: en part i chatten kunde ladda upp en bild direkt till Storage med en annan filändelse och sedan skicka den som en bildbilaga, som visades ogranskad.
+   - Lagning: en ny trigger (`guard_message_attachments`) kräver att varje bildbilaga är en fil i samma chatt som servern laddat upp efter granskningen.
+2. **Låg till medel – `exercise-videos` tog emot uppladdningar** från alla inloggade, även klienter, upp till 200 MB per fil, trots att funktionen togs bort i v61. Uppladdning är nu stängd. Läsning och radering finns kvar.
+3. **Låg – wearables-routerna litade på `user_metadata.role`**, som användaren kan ändra själv. De använder nu `roleFromClaims`, som läser rollen från `app_metadata`.
+
+Tester: `supabase/tests/rls_v64.test.sql` (9 kontroller, sviten ger 1 128 godkända).
+
+**Migration att köra i Supabase:** `supabase/migrations/20261130000000_v64_chat_media_guard.sql`.
+
 ## Nytt i v63: automatisk viktökning och direkt viktinmatning (hotfix)
 
 - **+1,25 kg automatiskt:**

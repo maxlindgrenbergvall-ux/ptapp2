@@ -3,7 +3,7 @@ import "server-only"
 import { NextResponse } from "next/server"
 
 import { hasServiceRole } from "@/lib/supabase/admin"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
+import { isSupabaseEnabled, roleFromClaims } from "@/lib/supabase/config"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { SleepProvider } from "@/types/domain"
 
@@ -21,7 +21,8 @@ export async function requireClient(): Promise<{ userId: string } | { error: Nex
   const sb = await createSupabaseServerClient()
   const { data } = await sb.auth.getUser()
   if (!data.user) return { error: NextResponse.json({ error: "Inte inloggad" }, { status: 401 }) }
-  if (data.user.user_metadata?.role === "trainer") {
+  // v64: rollen ur app_metadata (sätts av databasen) – user_metadata kan användaren ändra själv.
+  if (roleFromClaims(data.user) !== "client") {
     return { error: NextResponse.json({ error: "Bara klienter kan koppla wearables" }, { status: 403 }) }
   }
   return { userId: data.user.id }
