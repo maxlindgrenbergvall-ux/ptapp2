@@ -70,7 +70,7 @@ await w.waitForTimeout(100)
 check(!(await shown(w, "start")), "på webben: ingen startskärm över inloggningen")
 await web.close()
 
-// ------------------------------------- 2. inloggning → överlämning till appen ---
+// ------------------------- 2. inloggning → övergång in i appen (v72) ---
 if (supabaseMode) {
   const rest = []
   p.on("request", (r) => {
@@ -81,25 +81,41 @@ if (supabaseMode) {
   await p.fill("#password", "hemligt123")
   const clicked = Date.now()
   await p.click("button[type=submit]")
-  await splash(p, "handoff").waitFor({ state: "attached", timeout: 5000 })
-  ok("laddningsskärmen tonas in direkt när man loggar in")
+  await p.locator("button[type=submit] svg.animate-spin").waitFor({ timeout: 3000 })
+  ok("knappen visar att inloggningen pågår (medan datan hämtas)")
+  // Inloggningen tonas ut innan appen laddas.
+  await p.waitForFunction(() => Number(getComputedStyle(document.querySelector("main")).opacity) < 0.9, null, { timeout: 15000 })
+  ok("inloggningen tonas ut")
+  const anySplash = await p.evaluate(() => [...document.querySelectorAll("[data-testid=boot-splash]")].some((el) => getComputedStyle(el).display !== "none"))
+  check(!anySplash, "ingen laddningsskärm vid inloggningen")
   await p.waitForURL(`${base}/klient`, { timeout: 20000 })
   const arrived = Date.now()
   const before = rest.filter((r) => r.at < arrived).length
-  check(before > 0, `appens data hämtades bakom laddningsskärmen, före sidbytet (${before} anrop)`)
-  await p.waitForSelector("[data-testid=client-bottom-nav] a")
-  await splash(p, "app").waitFor({ state: "detached", timeout: 5000 })
+  check(before > 0, `appens data hämtades före sidbytet (${before} anrop)`)
+  check(await p.evaluate(() => document.documentElement.classList.contains("app-enter")), "appen vet att datan redan finns (html.app-enter)")
+  const splashShown = await p.evaluate(() => {
+    const el = document.querySelector("[data-testid=boot-splash]")
+    return el ? getComputedStyle(el).display !== "none" : false
+  })
+  check(!splashShown, "ingen laddningsskärm när appen öppnas efter inloggningen")
+  await p.waitForSelector("[data-testid=client-bottom-nav] a", { state: "attached" })
+  const anim = await p.evaluate(() => ({ main: getComputedStyle(document.querySelector("main")).animationName, nav: getComputedStyle(document.querySelector("[data-testid=client-bottom-nav]")).animationName }))
+  check(anim.main === "app-enter-rise" && anim.nav === "app-enter-nav", `appen tonas in: innehållet glider upp och menyn glider in (${anim.main}, ${anim.nav})`)
   const ready = Date.now() - arrived
-  const afterHandoff = rest.filter((r) => r.at >= arrived).map((r) => new URL(r.url).pathname.replace("/rest/v1/", ""))
+  await p.waitForFunction(() => !document.documentElement.classList.contains("app-enter"), null, { timeout: 4000 })
+  ok("ingången spelas en gång (klassen tas bort efteråt)")
+  const afterHandoff = rest.filter((r) => r.at >= arrived).length
   check(await p.evaluate(() => sessionStorage.getItem("coavira:handoff") === null), "överlämningen förbrukas (gäller en gång)")
+  await p.screenshot({ path: `${process.argv[2] ?? "/tmp"}/v72-efter-inloggning.png` }).catch(() => {})
 
-  // Jämförelse: samma sida utan överlämning hämtar allt på nytt.
+  // Jämförelse: samma sida utan överlämning hämtar allt på nytt – och visar laddningsskärmen.
   const reloadStart = Date.now()
-  await p.reload()
+  await p.reload({ waitUntil: "commit" })
+  check(!(await p.evaluate(() => document.documentElement.classList.contains("app-enter"))), "vid vanlig laddning: ingen ingångsövergång")
   await p.waitForSelector("[data-testid=client-bottom-nav] a")
   const control = rest.filter((r) => r.at >= reloadStart).length
-  check(afterHandoff.length < control / 2, `appen visar överlämnad data direkt: ${afterHandoff.length} databasanrop efter sidbytet mot ${control} vid vanlig laddning`)
-  console.log(`     (från klick till app: ${Date.now() - clicked > 0 ? arrived - clicked : "?"} ms inloggning + ${ready} ms till appen syns)`)
+  check(afterHandoff < control / 2, `appen visar överlämnad data direkt: ${afterHandoff} databasanrop efter sidbytet mot ${control} vid vanlig laddning`)
+  console.log(`     (${arrived - clicked} ms från klick till appens sida, ${ready} ms till appen syns)`)
 }
 
 await app.close()

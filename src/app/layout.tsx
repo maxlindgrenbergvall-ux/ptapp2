@@ -42,9 +42,11 @@ export const viewport: Viewport = {
  *  - native-app: sidan visas i Coavira-appen (iOS/Android) – startskärmen visas bara där.
  *  - app-started: startskärmen har redan visats under den här appstarten.
  *  - --boot-spin-delay: laddningsskärmens snurr följer klockan, så att den fortsätter
- *    i samma vinkel när sidan byts (inloggning → appen).
+ *    i samma vinkel när sidan byts.
+ *  - app-enter (v72): man har just loggat in och datan är redan hämtad – appen tonas in
+ *    direkt i stället för att visa laddningsskärmen.
  */
-const BOOT_SCRIPT = `(function(){try{var d=document.documentElement;d.style.setProperty("--boot-spin-delay",-(Date.now()%1100)+"ms");if(/CoaviraApp/.test(navigator.userAgent))d.classList.add("native-app");if(sessionStorage.getItem("coavira:started"))d.classList.add("app-started")}catch(e){}})()`
+const BOOT_SCRIPT = `(function(){try{var d=document.documentElement;d.style.setProperty("--boot-spin-delay",-(Date.now()%1100)+"ms");if(/CoaviraApp/.test(navigator.userAgent))d.classList.add("native-app");if(sessionStorage.getItem("coavira:started"))d.classList.add("app-started");var h=JSON.parse(sessionStorage.getItem("coavira:handoff")||"null");if(h&&Date.now()-h.at<30000)d.classList.add("app-enter")}catch(e){}})()`
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

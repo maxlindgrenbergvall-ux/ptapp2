@@ -578,6 +578,21 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v72: övergång in i appen när man loggar in
+
+- **Ingen laddningsskärm vid inloggningen.** Laddningen sker före inloggningen (startskärmen från v71, som förladdar appens kod).
+- **När man loggar in:**
+  - Knappen visar "Loggar in…" med en liten snurra medan datan hämtas.
+  - Inloggningen tonas ut med lätt krympning och oskärpa (`src/lib/login-transition.ts`).
+  - Appen tonas in: sidhuvudet tonas in, innehållet glider upp och bottenmenyn glider in underifrån, lite förskjutet (`html.app-enter` i `globals.css`).
+  - Mot mocken syntes appen 132 ms efter sidbytet.
+- **Hur det fungerar:** skriptet i `<head>` känner igen en färsk överlämning från inloggningen och sätter `html.app-enter`. Då döljs laddningsskärmen, datan visas direkt och ingången spelas en gång. Klassen tas bort efter 1,2 s.
+- **Om överlämningen inte går att använda** visas laddningsskärmen som vanligt efter 0,5 s, i stället för en tom sida.
+- **Med "minska rörelse"** sker bytet direkt.
+- **Test:** inloggningsdelen av `e2e/v71-start-inloggning.test.mjs` kontrollerar att det inte syns någon laddningsskärm, att inloggningen tonas ut och appen tonas in, och att överlämnad data används.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v71: laddningsskärmen före inloggningen, och appen klar direkt
 
 - **Startskärmen i mobilappen** (`src/components/start-splash.tsx`): vid appstart snurrar Coavira-loggan över inloggningen (`/kom-igang`, `/logga-in`, `/logga-in/pt`, `/registrera`).

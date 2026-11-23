@@ -612,3 +612,37 @@
   backdrop-filter: blur(14px);
   contain: layout paint;
 }
+
+/*
+ * v72: in i appen efter inloggningen. Datan är redan hämtad, så ingen
+ * laddningsskärm – sidhuvudet tonas in, innehållet glider upp och menyn glider
+ * in underifrån, lite förskjutet. html.app-enter sätts i <head> och tas bort när
+ * ingången har spelats. "Minska rörelse" stänger av animationerna (regeln i @layer base).
+ */
+@keyframes app-enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes app-enter-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.985);
+  }
+}
+@keyframes app-enter-nav {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+}
+html.app-enter header {
+  animation: app-enter-fade 420ms var(--ease-out-soft) both;
+}
+html.app-enter main {
+  animation: app-enter-rise 640ms var(--ease-out-soft) 60ms both;
+}
+html.app-enter [data-testid="client-bottom-nav"],
+html.app-enter [data-testid="pt-bottom-nav"] {
+  animation: app-enter-nav 560ms var(--ease-out-soft) 180ms both;
+}

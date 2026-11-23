@@ -19,9 +19,10 @@
  *  - "app": medan appens data hämtas (klient- och PT-appen).
  *  - "start": i mobilappen över inloggningen vid appstart, medan appens kod
  *    förladdas. En gång per appstart (html.app-started).
- *  - "handoff": tonas in när man loggar in och snurrar medan datan hämtas.
- * Snurren följer klockan (Date.now), inte sidan: vid sidbytet från inloggningen
- * till appen fortsätter loggan i samma vinkel i stället för att börja om.
+ * Snurren följer klockan (Date.now), inte sidan, så den fortsätter i samma vinkel
+ * om sidan byts medan den snurrar.
+ * v72: direkt efter inloggningen visas ingen laddningsskärm – datan är redan
+ * hämtad och appen tonas in (html.app-enter).
  */
 import * as React from "react"
 
@@ -38,7 +39,7 @@ const SPIN_MS = 1100
 /** Vinkeln just nu enligt klockan – samma i alla laddningsskärmar, över sidbyten. */
 const clockAngle = () => ((Date.now() % SPIN_MS) / SPIN_MS) * 360
 
-export type BootSplashMode = "app" | "start" | "handoff"
+export type BootSplashMode = "app" | "start"
 
 export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: BootSplashMode }) {
   const root = React.useRef<HTMLDivElement>(null)
@@ -69,6 +70,10 @@ export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: Boo
 
     let frame = 0
     let timer = 0
+    // v72: man har just loggat in (html.app-enter) – skärmen är dold och appen tonas in i stället.
+    const entering = mode === "app" && html.classList.contains("app-enter")
+    const enteredAt = performance.now()
+    const endEnter = () => window.setTimeout(() => html.classList.remove("app-enter"), 1200)
     let settling: { from: number; distance: number; start: number; duration: number } | null = null
     const finish = () => {
       el.dataset.done = "true"
@@ -81,6 +86,19 @@ export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: Boo
       timer = window.setTimeout(() => setGone(true), 480)
     }
     const tick = (now: number) => {
+      if (entering && html.classList.contains("app-enter")) {
+        if (readyRef.current) {
+          // Datan fanns redan: ingen laddningsskärm alls. Klassen tas bort när ingången har spelats.
+          el.dataset.ready = "true"
+          timer = endEnter()
+          setGone(true)
+          return
+        }
+        // Överlämningen gick inte att använda: visa laddningsskärmen som vanligt i stället för en tom sida.
+        if (now - enteredAt > 500) html.classList.remove("app-enter")
+        frame = requestAnimationFrame(tick)
+        return
+      }
       if (readyRef.current && !settling) {
         // Appen är klar: släpp igenom tryck direkt, medan loggan landar.
         el.style.pointerEvents = "none"
@@ -115,7 +133,7 @@ export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: Boo
     frame = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(frame)
-      window.clearTimeout(timer)
+      if (!entering) window.clearTimeout(timer)
     }
   }, [mode])
 
@@ -151,16 +169,14 @@ export function BootSplash({ ready, mode = "app" }: { ready: boolean; mode?: Boo
         @keyframes boot-splash-spin { to { transform: rotate(360deg); } }
         .boot-splash { transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1) 80ms; }
         .boot-splash[data-done] { opacity: 0; }
+        /* v72: just inloggad – appen tonas in i stället (html.app-enter i globals.css). */
+        html.app-enter .boot-splash[data-mode="app"] { display: none; }
         /* Startskärmen: bara i mobilappen, en gång per appstart. */
         html:not(.native-app) .boot-splash[data-mode="start"], html.app-started .boot-splash[data-mode="start"] { display: none; }
-        /* Vid inloggningen tonas skärmen in över formuläret. */
-        .boot-splash[data-mode="handoff"] { animation: boot-splash-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-        @keyframes boot-splash-in { from { opacity: 0; } }
         .boot-splash[data-done] .boot-splash-glyph { transform: scale(1.08); }
         @media (prefers-reduced-motion: reduce) {
           .boot-splash-spin { animation: none; }
           .boot-splash, .boot-splash-glyph { transition: none; }
-          .boot-splash[data-mode="handoff"] { animation: none; }
         }
       `}</style>
     </div>
