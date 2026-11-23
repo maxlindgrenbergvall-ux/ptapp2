@@ -1,11 +1,14 @@
 "use client"
 
-import { ExternalLink, FileText, LifeBuoy, ShieldCheck } from "lucide-react"
+import { ExternalLink, FileText, LifeBuoy, ShieldCheck, Users } from "lucide-react"
 import Link from "next/link"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  COMMUNITY_URL,
+  CONSENT_TEXT_AND,
+  CONSENT_TEXT_COMMUNITY,
   CONSENT_TEXT_MIDDLE,
   CONSENT_TEXT_PRIVACY,
   CONSENT_TEXT_START,
@@ -21,6 +24,7 @@ export function LegalLinksCard() {
   const links = [
     { href: PRIVACY_URL, label: "Integritetspolicy", icon: ShieldCheck },
     { href: TERMS_URL, label: "Användarvillkor", icon: FileText },
+    { href: COMMUNITY_URL, label: "Communityregler", icon: Users },
     { href: SUPPORT_URL, label: "Support och kontakt", icon: LifeBuoy },
   ]
   return (
@@ -70,6 +74,10 @@ export function ConsentCheckbox({
         {CONSENT_TEXT_START}
         <Link href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
           {CONSENT_TEXT_TERMS}
+        </Link>
+        {CONSENT_TEXT_AND}
+        <Link href={COMMUNITY_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+          {CONSENT_TEXT_COMMUNITY}
         </Link>
         {CONSENT_TEXT_MIDDLE}
         <Link href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">

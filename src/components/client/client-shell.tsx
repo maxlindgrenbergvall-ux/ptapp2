@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type * as React from "react"
 
+import { AccountGate } from "@/components/account/account-gate"
 import { AppMenu } from "@/components/app-menu"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { CartButton } from "@/components/cart/cart"
@@ -88,7 +89,11 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       <SyncIndicator />
       <PreferenceSync />
       {/* Luft under innehållet för bottenmenyn (4rem) + hemindikatorn. */}
-      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>{blocked ? null : children}</main>
+      <main className={cn("flex-1", !focusMode && "px-4 pt-4 pb-[calc(6rem+var(--safe-bottom))]")}>
+        {/* v65: uppdaterat avtal (communityreglerna) och avstängning. */}
+        {!blocked && <AccountGate />}
+        {blocked ? null : children}
+      </main>
       {!focusMode && (
         <nav
           aria-label={t("nav.mainMenu")}

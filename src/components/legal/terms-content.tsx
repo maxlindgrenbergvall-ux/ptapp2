@@ -25,6 +25,14 @@ export function TermsContent() {
         eller har ett bokat pass med PT:n.
       </p>
       <p>
+        <strong className="text-foreground">Regler och avstängning:</strong> du följer{" "}
+        <Link href="/communityregler" className="font-medium text-foreground underline underline-offset-4">
+          communityreglerna
+        </Link>
+        . Bryter du mot dem kan {BRAND.name} ta bort innehåll, varna, stänga av kontot tillfälligt eller tills vidare, eller
+        avsluta det – med motivering och rätt att överklaga.
+      </p>
+      <p>
         <strong className="text-foreground">Ditt konto:</strong> du kan när som helst avsluta samarbetet med en PT, ladda ner
         din data och radera ditt konto. Läs mer under{" "}
         <Link href="/integritet" className="font-medium text-foreground underline underline-offset-4">

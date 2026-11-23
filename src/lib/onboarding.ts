@@ -19,9 +19,9 @@ export const ONBOARDING_PATH_FOR: Record<UserRole, string> = {
 }
 
 /** Sidor som går att öppna mitt i intro-flödet (avtalen, återställning, Stripe-retur). */
-export const ALLOWED_DURING_ONBOARDING = ["/avtal", "/villkor", "/integritet", "/nytt-losenord", "/konto-raderat", "/app-retur", "/auth/", "/api/"]
+export const ALLOWED_DURING_ONBOARDING = ["/avtal", "/villkor", "/communityregler", "/integritet", "/nytt-losenord", "/konto-raderat", "/app-retur", "/auth/", "/api/"]
 
-export type LegalDocument = "terms" | "privacy" | "pt_agreement" | "gdpr_dpa"
+export type LegalDocument = "terms" | "privacy" | "community" | "pt_agreement" | "gdpr_dpa"
 
 export const LEGAL_DOCUMENTS: Record<LegalDocument, { title: string; accept: string; read: string; summary: string; href: string }> = {
   terms: {
@@ -37,6 +37,13 @@ export const LEGAL_DOCUMENTS: Record<LegalDocument, { title: string; accept: str
     read: "Läs integritetspolicyn",
     summary: "Vilka personuppgifter vi behandlar, varför, hur länge och dina rättigheter.",
     href: "/integritet",
+  },
+  community: {
+    title: "Communityregler",
+    accept: "Jag godkänner Coaviras communityregler",
+    read: "Läs communityreglerna",
+    summary: "Vad som inte är tillåtet i chatten och appen, hur du rapporterar, och att konton kan varnas eller stängas av – med rätt att överklaga.",
+    href: "/communityregler",
   },
   pt_agreement: {
     title: "PT-avtal",
@@ -62,8 +69,8 @@ export const LEGAL_DOCUMENTS: Record<LegalDocument, { title: string; accept: str
  * Hela avtalet finns på /avtal (/avtal/pt för PT:er).
  */
 export const AGREEMENT_PARTS: Record<"client" | "trainer", LegalDocument[]> = {
-  client: ["terms", "privacy"],
-  trainer: ["terms", "privacy", "pt_agreement", "gdpr_dpa"],
+  client: ["terms", "privacy", "community"],
+  trainer: ["terms", "privacy", "community", "pt_agreement", "gdpr_dpa"],
 }
 export const AGREEMENT_TITLE = "Coaviras användaravtal"
 

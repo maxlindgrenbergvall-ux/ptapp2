@@ -1,9 +1,10 @@
 "use client"
 
-import { CheckCheck, Dumbbell, FileText, Loader2, Paperclip, PhoneCall, PhoneMissed, SendHorizontal, Video, VideoOff, X } from "lucide-react"
+import { CheckCheck, Dumbbell, FileText, Flag, Loader2, Paperclip, PhoneCall, PhoneMissed, SendHorizontal, Video, VideoOff, X } from "lucide-react"
 import { toast } from "sonner"
 import * as React from "react"
 
+import { ReportDialog } from "@/components/account/report-dialog"
 import { useCall } from "@/components/calls/call-provider"
 import { AttachmentView } from "@/components/chat/attachment-view"
 import { Button } from "@/components/ui/button"
@@ -47,6 +48,8 @@ export function ChatThread({
     [data.messages, threadId, trainerId]
   )
   const lastMine = [...messages].reverse().find((m) => m.senderId === meId)
+  // v65: meddelandet som rapporteras just nu (dialogen).
+  const [reporting, setReporting] = React.useState<{ messageId: ID; userId: ID } | null>(null)
 
   React.useEffect(() => {
     actions.markThreadRead(threadId, trainerId)
@@ -144,6 +147,18 @@ export function ChatThread({
                     )}
                     {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                      {/* v65: rapportera den andras meddelanden (granskas manuellt). */}
+                      {!mine && (
+                        <button
+                          type="button"
+                          onClick={() => setReporting({ messageId: m.id, userId: m.senderId })}
+                          className="-my-1 mr-auto inline-flex size-6 items-center justify-center rounded-full hover:bg-foreground/10"
+                          aria-label="Rapportera meddelandet"
+                          data-testid="report-message"
+                        >
+                          <Flag className="size-3" />
+                        </button>
+                      )}
                       {formatTime(m.sentAt)}
                       {mine && m.id === lastMine?.id && m.readAt && (
                         <span className="inline-flex items-center gap-0.5" aria-label="Läst">
@@ -158,6 +173,15 @@ export function ChatThread({
           )
         })}
         <div ref={endRef} />
+        {reporting && (
+          <ReportDialog
+            open
+            onOpenChange={(o) => !o && setReporting(null)}
+            reportedUserId={reporting.userId}
+            messageId={reporting.messageId}
+            name={peer?.name}
+          />
+        )}
       </div>
       <form
         className="border-t p-3"

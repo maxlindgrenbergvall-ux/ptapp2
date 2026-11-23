@@ -151,9 +151,10 @@ function resetV22() {
 resetV22()
 
 // v31: intro-flödets tillstånd per konto (som profiles + client_goals + legal_acceptances).
-const PT_DOCS = ["terms", "privacy", "pt_agreement", "gdpr_dpa"]
+const PT_DOCS = ["terms", "privacy", "community", "pt_agreement", "gdpr_dpa"]
 // v34: klienter godkänner också avtalet (användarvillkor + integritetspolicy) i intro-flödet.
-const CLIENT_DOCS = ["terms", "privacy"]
+// v65: communityreglerna ingår i avtalet för båda rollerna.
+const CLIENT_DOCS = ["terms", "privacy", "community"]
 const onboarding = {}
 function resetV31() {
   for (const k of Object.keys(onboarding)) delete onboarding[k]
@@ -176,7 +177,7 @@ function onboardingStatus(uid) {
     goals_done: o.goals_done,
     pt_profile_done: trainer ? Boolean(o.avatar_url) : null,
     payouts_done: trainer ? Boolean(payouts[uid]?.complete) : null,
-    terms_version: "2026-11",
+    terms_version: "2026-12",
     required_documents: trainer ? PT_DOCS : CLIENT_DOCS,
     accepted_documents: o.accepted,
     terms_done: (trainer ? PT_DOCS : CLIENT_DOCS).every((d) => o.accepted.includes(d)),
@@ -282,6 +283,16 @@ http.createServer(async (req, res) => {
   if (url.pathname === "/__reset_v31") { resetV31(); return send(200, {}) }
   if (url.pathname === "/__onboarding") return send(200, onboarding)
   // v36: kontot har aldrig valt om nyhetsbrev (registrerat före frågan fanns).
+  // v65: kontot godkände en äldre version av avtalet (före communityreglerna).
+  if (url.pathname === "/__agreement_outdated") {
+    const u = users[url.searchParams.get("email")]
+    if (!u) return send(404, {})
+    const trainer = u.app_metadata.role === "trainer"
+    const o = onboarding[u.id] ?? (onboarding[u.id] = { first_name: null, last_name: null, avatar_url: null, goals_done: true, accepted: [], completed: true, marketing: false, consentLog: [] })
+    o.completed = true
+    o.accepted = (trainer ? PT_DOCS : CLIENT_DOCS).filter((d) => d !== "community")
+    return send(200, { ok: true })
+  }
   if (url.pathname === "/__marketing_unasked") {
     const u = users[url.searchParams.get("email")]
     if (!u) return send(404, {})
@@ -412,6 +423,10 @@ http.createServer(async (req, res) => {
   }
 
   // ---- kalenderlänk (v10): calendar_feed anropas av servern utan inloggning, med token som nyckel.
+  // v65: kontostatus (fixturkontona är inte avstängda).
+  if (url.pathname === "/rest/v1/rpc/my_account_status") {
+    return send(200, { suspended: false, suspended_until: null, suspension_reason: null, actions: [] })
+  }
   if (url.pathname === "/rest/v1/rpc/calendar_feed") {
     const p = JSON.parse(body || "{}")
     log.push({ method: "RPC", table: "calendar_feed", body: p })
@@ -529,8 +544,10 @@ http.createServer(async (req, res) => {
     if (m[1] && ["my_onboarding_status", "save_profile_step", "accept_legal_documents", "accept_user_agreement", "set_marketing_consent", "finish_onboarding"].includes(table)) {
       const p = JSON.parse(body || "{}")
       log.push({ method: "RPC", table, body: p })
-      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: [], completed: byId[uid].app_metadata.onboarding_completed !== false, marketing: false, consentLog: [] })
       const trainer = byId[uid].app_metadata.role === "trainer"
+      // Fixturkonton som redan gjort intro-flödet har godkänt nuvarande avtal (v65: inkl. communityreglerna).
+      const done = byId[uid].app_metadata.onboarding_completed !== false
+      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: done ? [...(trainer ? PT_DOCS : CLIENT_DOCS)] : [], completed: done, marketing: false, consentLog: [] })
       const err = (message, code = "23514") => send(400, { code, message, details: null, hint: null })
       if (table === "save_profile_step") {
         const first = String(p.p_first_name ?? "").trim()
@@ -549,9 +566,9 @@ http.createServer(async (req, res) => {
         }
       }
       if (table === "accept_legal_documents") {
-        if (!trainer) return err("Inga avtal att godkänna för kontotypen")
-        if (!PT_DOCS.every((d) => (p.p_documents ?? []).includes(d))) return err("Godkänn alla villkor och avtal för att fortsätta")
-        o.accepted = [...PT_DOCS]
+        const docs = trainer ? PT_DOCS : CLIENT_DOCS
+        if (!docs.every((d) => (p.p_documents ?? []).includes(d))) return err("Godkänn alla villkor och avtal för att fortsätta")
+        o.accepted = [...docs]
       }
       // v34: ett godkännande för hela användaravtalet + valfritt nyhetsbrev.
       if (table === "accept_user_agreement") {

@@ -10,8 +10,14 @@ export const TERMS_URL = `${SITE_URL}/terms`
 export const SUPPORT_URL = `${SITE_URL}/support`
 
 /** Texten på den obligatoriska bockrutan vid registreringen. */
+/** Användaravtalets version – samma som legal_version() i databasen (v65: communityreglerna). */
+export const LEGAL_VERSION = "2026-12"
+
 export const CONSENT_TEXT_START = "Jag godkänner "
 export const CONSENT_TEXT_TERMS = "användarvillkoren"
+export const CONSENT_TEXT_AND = ", "
+export const CONSENT_TEXT_COMMUNITY = "communityreglerna"
+export const COMMUNITY_URL = "/communityregler"
 export const CONSENT_TEXT_MIDDLE = " och behandlingen av mina hälsouppgifter för träningsuppföljning i enlighet med "
 export const CONSENT_TEXT_PRIVACY = "Integritetspolicyn"
-export const CONSENT_TEXT = `${CONSENT_TEXT_START}${CONSENT_TEXT_TERMS}${CONSENT_TEXT_MIDDLE}${CONSENT_TEXT_PRIVACY}.`
+export const CONSENT_TEXT = `${CONSENT_TEXT_START}${CONSENT_TEXT_TERMS}${CONSENT_TEXT_AND}${CONSENT_TEXT_COMMUNITY}${CONSENT_TEXT_MIDDLE}${CONSENT_TEXT_PRIVACY}.`

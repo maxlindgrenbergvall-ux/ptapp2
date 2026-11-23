@@ -70,7 +70,7 @@ export function SignupForm() {
     setError(null)
     if (!consent) {
       setConsentMissing(true)
-      return setError("Du behöver godkänna användarvillkoren och behandlingen av dina hälsouppgifter för att skapa ett konto.")
+      return setError("Du behöver godkänna användarvillkoren, communityreglerna och behandlingen av dina hälsouppgifter för att skapa ett konto.")
     }
     const normalized = normalizePhone(phone)
     if (!normalized) return setError("Ange ett giltigt telefonnummer, t.ex. 070-123 45 67.")

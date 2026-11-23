@@ -1,14 +1,16 @@
 import Link from "next/link"
 
 import { AuthCard } from "@/components/auth/auth-card"
+import { CommunityContent } from "@/components/legal/community-content"
 import { PrivacyContent } from "@/components/legal/privacy-content"
 import { PtAgreementContent } from "@/components/legal/pt-agreement-content"
 import { TermsContent } from "@/components/legal/terms-content"
+import { LEGAL_VERSION } from "@/lib/legal"
 
 /**
  * Coaviras användaravtal (v34): ETT avtal som godkänns med en bock i intro-flödet.
- *   Del 1 Användarvillkor · Del 2 Integritetspolicy och hälsodata
- *   (PT:er, /avtal/pt) Del 3 PT-avtal och GDPR-åtagande.
+ *   Del 1 Användarvillkor · Del 2 Integritetspolicy och hälsodata · Del 3 Communityregler (v65)
+ *   (PT:er, /avtal/pt) Del 4 PT-avtal och GDPR-åtagande.
  * Delarna finns också var för sig på /villkor, /integritet och /villkor/pt.
  * OBS: Utkast – ska granskas juridiskt innan lansering.
  */
@@ -16,10 +18,11 @@ export function AgreementDocument({ pt }: { pt: boolean }) {
   const parts = [
     { id: "villkor", title: "Del 1: Användarvillkor", content: <TermsContent /> },
     { id: "integritet", title: "Del 2: Integritetspolicy och hälsodata", content: <PrivacyContent /> },
-    ...(pt ? [{ id: "pt", title: "Del 3: PT-avtal och GDPR-åtagande", content: <PtAgreementContent /> }] : []),
+    { id: "community", title: "Del 3: Communityregler", content: <CommunityContent /> },
+    ...(pt ? [{ id: "pt", title: "Del 4: PT-avtal och GDPR-åtagande", content: <PtAgreementContent /> }] : []),
   ]
   return (
-    <AuthCard title="Coaviras användaravtal" description={`Version 2026-11 · ${pt ? "för PT:er" : "för klienter"} · utkast inför lansering. Godkänns med en bock i intro-flödet.`}>
+    <AuthCard title="Coaviras användaravtal" description={`Version ${LEGAL_VERSION} · ${pt ? "för PT:er" : "för klienter"} · utkast inför lansering. Godkänns med en bock i intro-flödet.`}>
       <nav aria-label="Avtalets delar" className="rounded-xl bg-muted/60 p-3 text-sm">
         <ol className="space-y-1">
           {parts.map((p) => (

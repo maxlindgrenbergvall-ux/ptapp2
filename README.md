@@ -578,6 +578,31 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v65: communityregler, rapportering och avstängning av konton
+
+- **Communityregler** (`/communityregler`, `src/components/legal/community-content.tsx`) är en ny del av användaravtalet för klienter och PT:er, del 3 i `/avtal` och `/avtal/pt`.
+  - De beskriver vad som är förbjudet, till exempel sexuellt innehåll, trakasserier, hat, självskada och ätstörningar, olagligt innehåll, bedrägeri och betalning utanför appen, andras bilder utan samtycke och medicinska löften.
+  - De beskriver också hur man rapporterar, vilka åtgärder som finns (borttagning, varning, tillfällig avstängning, avstängning tills vidare eller avslutat konto) och att den som drabbas har rätt till en motivering och kan överklaga inom sex månader, i linje med DSA.
+- **Godkänns vid registreringen:** samtycket lyder nu "Jag godkänner användarvillkoren, communityreglerna och behandlingen av mina hälsouppgifter …". Avtalets version höjs till 2026-12 (`legal_version()`, `LEGAL_VERSION`).
+  - **Befintliga användare** som godkänt en äldre version får en dialog (`AccountGate`) som inte går att stänga och som de godkänner innan de fortsätter. Först då gäller reglerna för dem.
+  - **PT:er:** spärren för publicering kräver godkänt avtal. En PT som inte godkänt den nya versionen kan därför dölja sig från Hitta PT när spärren räknas om, tills PT:n godkänt.
+- **Rapportera:** en flagga vid den andra partens meddelanden i chatten öppnar en dialog med åtta kategorier och en valfri beskrivning (`content_reports`).
+  - Man kan bara rapportera någon man har en relation med, och bara meddelanden i sin egen chatt.
+  - Den rapporterade ser aldrig vem som rapporterade.
+  - Högst 20 rapporter per dygn och användare.
+- **Avstängning:**
+  - Administratörer varnar, stänger av (7 dagar, 30 dagar eller tills vidare) och häver avstängningar på `/admin/moderering`.
+  - Varje åtgärd kräver ett skäl, loggas i `account_actions` och syns för användaren. En banner visar skälet, slutdatumet och hur man överklagar.
+  - Under en avstängning blockerar databasen meddelanden, uppladdningar, bokningar, kundvagn, köp, recensioner och förfrågningar. En avstängd PT avpubliceras och PT:ns tjänster pausas.
+  - Administratörer ser bara det rapporterade meddelandet, aldrig resten av chatten.
+- **Videor i chatten finns kvar**, med en gräns på högst 30 bilagor och 10 videor per avsändare och dygn.
+- **Tester:**
+  - `supabase/tests/rls_v65.test.sql` (33 kontroller, databassviten ger 1 161 godkända)
+  - `e2e/v65-communityregler.test.mjs` (demo)
+  - `e2e/v65-supabase.test.mjs` (dialogen mot mocken)
+
+**Migration att köra i Supabase:** `supabase/migrations/20261201000000_v65_community_rules_suspension.sql`.
+
 ## Nytt i v64: säkerhetshärdning efter penetrationstest
 
 Penetrationstestet gjordes bara mot källkoden och en lokal kopia av databasen (alla 48 migrationer, `npm run test:db`), aldrig mot produktionen. Det omfattade:

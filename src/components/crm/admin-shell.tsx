@@ -1,7 +1,8 @@
 "use client"
 
-import { LogOut, ShieldX, Users } from "lucide-react"
+import { Flag, LogOut, ShieldX, Users } from "lucide-react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
@@ -22,6 +23,7 @@ export function useAdminDark() {
 
 export function AdminShell({ demo, children }: { demo: boolean; children: React.ReactNode }) {
   useAdminDark()
+  const pathname = usePathname()
   return (
     <div className="admin-dark min-h-svh bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-[var(--safe-top)]">
@@ -32,9 +34,22 @@ export function AdminShell({ demo, children }: { demo: boolean; children: React.
             <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Admin</span>
           </Link>
           <nav aria-label="Admin" className="ml-2 flex items-center gap-1 text-sm">
-            <span aria-current="page" className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-2.5 py-1.5 font-medium text-primary">
-              <Users className="size-4" /> Leads
-            </span>
+            {[
+              { href: "/admin/leads", label: "Leads", Icon: Users },
+              { href: "/admin/moderering", label: "Moderering", Icon: Flag },
+            ].map(({ href, label, Icon }) => {
+              const on = pathname.startsWith(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={on ? "page" : undefined}
+                  className={on ? "flex items-center gap-1.5 rounded-lg bg-primary/10 px-2.5 py-1.5 font-medium text-primary" : "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-muted-foreground hover:text-foreground"}
+                >
+                  <Icon className="size-4" /> {label}
+                </Link>
+              )
+            })}
           </nav>
           {demo && (
             <span className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning" data-testid="crm-demo">

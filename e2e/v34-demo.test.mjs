@@ -61,7 +61,7 @@ await p.click("[data-testid=intro-next]")
 await p.waitForSelector("[data-testid=agreement-step]")
 check((await p.locator("[data-testid=goal-intro] h1").innerText()).includes("avtalet"), "sista steget i intro-flödet är avtalet")
 const parts = await p.locator('[aria-label="Avtalet består av"] li').allInnerTexts()
-check(parts.length === 2 && /Användarvillkor/.test(parts[0]) && /Integritetspolicy/.test(parts[1]), "ett avtal: användarvillkor + integritetspolicy")
+check(parts.length === 3 && /Användarvillkor/.test(parts[0]) && /Integritetspolicy/.test(parts[1]) && /Communityregler/.test(parts[2]), "ett avtal: användarvillkor + integritetspolicy + communityregler (v65)")
 check((await p.locator("[data-testid=agreement-step] [role=checkbox]").count()) === 2, "en bock för avtalet, en för nyhetsbrevet")
 check((await p.getAttribute("[data-testid=marketing-consent]", "aria-checked")) === "false", "nyhetsbrevet är inte förkryssat")
 await p.click("[data-testid=intro-next]")
@@ -187,9 +187,9 @@ check(created?.exercises.every((e) => !("_key" in e) && !("id" in e)), "inga int
 
 // ----------------------------------------------------------- 5. /avtal ---
 await p.goto(base + "/avtal")
-check((await p.locator("[data-testid^=agreement-part-]").count()) === 2, "/avtal: klientens avtal i två delar")
+check((await p.locator("[data-testid^=agreement-part-]").count()) === 3, "/avtal: klientens avtal i tre delar (v65: communityreglerna)")
 await p.goto(base + "/avtal/pt")
-check((await p.locator("[data-testid^=agreement-part-]").count()) === 3, "/avtal/pt: PT-avtalet och GDPR som del 3")
+check((await p.locator("[data-testid^=agreement-part-]").count()) === 4, "/avtal/pt: PT-avtalet och GDPR som del 4")
 check(await noOverflow(), "/avtal: ingen horisontell overflow")
 
 check(errors.length === 0, `inga sidfel${errors.length ? `: ${errors.join(" | ")}` : ""}`)

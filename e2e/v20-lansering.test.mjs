@@ -20,7 +20,7 @@ const fail = (m) => {
 const check = (c, m) => (c ? ok(m) : fail(m))
 const PRIVACY = "https://coavira.fit/privacy"
 const TERMS = "https://coavira.fit/terms"
-const CONSENT = "Jag godkänner användarvillkoren och behandlingen av mina hälsouppgifter för träningsuppföljning i enlighet med Integritetspolicyn."
+const CONSENT = "Jag godkänner användarvillkoren, communityreglerna och behandlingen av mina hälsouppgifter för träningsuppföljning i enlighet med Integritetspolicyn."
 
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
 const p = await ctx.newPage()
@@ -74,6 +74,8 @@ await legal.waitFor()
 check((await legal.locator(`a[href='${PRIVACY}']`).count()) === 1 && (await legal.locator(`a[href='${TERMS}']`).count()) === 1, "Inställningar länkar till integritetspolicy och villkor")
 check(await p.locator("[data-testid=delete-account-card] button:has-text('Radera mitt konto')").isVisible(), "Inställningar: Radera mitt konto (klient)")
 await p.goto(base + "/klient/profil")
+// Profilsidan laddar sina kort efter inläsningen – vänta in kortet i stället för att mäta direkt.
+await p.locator("[data-testid=delete-account-card] button:has-text('Radera mitt konto')").first().waitFor({ timeout: 5000 }).catch(() => {})
 check(await p.locator("[data-testid=delete-account-card] button:has-text('Radera mitt konto')").first().isVisible(), "Profilinställningar: Radera mitt konto (klient)")
 await p.goto(base + "/klient/sekretess")
 await p.locator("[data-testid=delete-account-card]").waitFor({ timeout: 10_000 }).catch(() => {})

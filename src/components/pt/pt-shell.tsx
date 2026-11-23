@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
 
+import { AccountGate } from "@/components/account/account-gate"
 import { AppMenu } from "@/components/app-menu"
 import { useUnreadCount } from "@/components/chat/chat-thread"
 import { PersonAvatar } from "@/components/common"
@@ -144,6 +145,8 @@ export function PtShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 pt-6 pb-[calc(var(--safe-bottom)+5.5rem)] sm:px-6 lg:px-8 lg:pb-[calc(var(--safe-bottom)+1.5rem)]">
           <SyncIndicator />
           <PreferenceSync />
+          {/* v65: uppdaterat avtal (communityreglerna) och avstängning. */}
+          <AccountGate />
           {children}
         </main>
       </div>

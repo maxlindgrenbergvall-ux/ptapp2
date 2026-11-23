@@ -82,7 +82,7 @@ export function OnboardingForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!consent) return setError("Du behöver godkänna användarvillkoren och behandlingen av dina hälsouppgifter för att använda Coavira.")
+    if (!consent) return setError("Du behöver godkänna användarvillkoren, communityreglerna och behandlingen av dina hälsouppgifter för att använda Coavira.")
     const code = normalizeReferralCode(referral)
     if (code && !REFERRAL_CODE.test(code)) return setError("Vänkoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
     const pt = ptCode.trim() ? normalizePtInviteCode(ptCode) : ""
