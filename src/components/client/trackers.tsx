@@ -17,13 +17,15 @@ import { confirmDialog } from "@/components/ui/confirm"
 import { useAppData } from "@/lib/data/store"
 import { addDays, formatShort, todayISO } from "@/lib/date"
 import { kcalFromMacros } from "@/lib/foods"
+import { useSpring } from "@/lib/spring"
 import { getSupabase } from "@/lib/supabase/client"
+import { prefersReducedMotion } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
 import { mockSleepRange } from "@/lib/wearables/mock"
 import { PROVIDER_LABEL } from "@/lib/wearables/types"
 import { groupByMeal, mealForTime, type NewFoodEntry, quickEntry, recentFoods } from "@/lib/nutrition/quick-log"
 import { MEAL_LABEL, MEAL_TYPES } from "@/lib/recipes/goals"
-import type { ISODate, MealType, SleepLog, WearableProvider } from "@/types/domain"
+import type { FoodEntry, ISODate, MealType, SleepLog, WearableProvider } from "@/types/domain"
 
 // ================================================================ extra mat ===
 
@@ -34,6 +36,10 @@ import type { ISODate, MealType, SleepLog, WearableProvider } from "@/types/doma
  *   3. Sök eller skanna: träffarna visas direkt i sidan (ingen svävande meny).
  *   4. "Bara kalorier" när du bara vet ungefär hur mycket.
  * Dagens poster står under, grupperade per måltid, med ångra/ta bort.
+ *
+ * v67: måltidsväljaren glider med fjädern, ett snabbval bekräftas med en bock
+ * i knappen, och en borttagen rad fälls ihop mjukt (med Ångra) i stället för
+ * att sidan hoppar.
  */
 export function ExtraFood({ date }: { date: ISODate }) {
   const { data, me, actions } = useAppData()
@@ -44,6 +50,45 @@ export function ExtraFood({ date }: { date: ISODate }) {
   const [meal, setMeal] = React.useState<MealType>(() => mealForTime(new Date()))
   const [manual, setManual] = React.useState(false)
   const recent = React.useMemo(() => recentFoods(data.foodEntries, me.id, 8), [data.foodEntries, me.id])
+
+  // Snabbvalet som just loggades visar en bock en kort stund.
+  const [done, setDone] = React.useState<{ id: string; n: number } | null>(null)
+  const doneTimer = React.useRef<number | undefined>(undefined)
+  React.useEffect(() => () => window.clearTimeout(doneTimer.current), [])
+  const flashDone = (productId: string) => {
+    setDone((d) => ({ id: productId, n: (d?.n ?? 0) + 1 }))
+    window.clearTimeout(doneTimer.current)
+    doneTimer.current = window.setTimeout(() => setDone(null), 1100)
+  }
+
+  // Raden fälls ihop innan posten tas bort, så att resten glider upp i stället för att hoppa.
+  const [leaving, setLeaving] = React.useState<Set<string>>(() => new Set())
+  const remove = (e: FoodEntry, row: HTMLElement | null) => {
+    if (leaving.has(e.id)) return
+    const finish = () => {
+      actions.deleteFoodEntry(e.id)
+      setLeaving((s) => {
+        const next = new Set(s)
+        next.delete(e.id)
+        return next
+      })
+      // Ångra lägger tillbaka samma post (ny id; butiken sätter klient och datum).
+      toast(`${e.name} borttagen`, { action: { label: "Ångra", onClick: () => actions.addFoodEntry(e.date, e) } })
+    }
+    if (!row || prefersReducedMotion() || typeof row.animate !== "function") return finish()
+    setLeaving((s) => new Set(s).add(e.id))
+    const h = row.getBoundingClientRect().height
+    row
+      .animate(
+        [
+          { height: `${h}px`, opacity: 1, transform: "translateX(0)" },
+          { height: `${h}px`, opacity: 0, transform: "translateX(24px)", offset: 0.55 },
+          { height: "0px", opacity: 0, transform: "translateX(24px)", paddingTop: "0px", paddingBottom: "0px" },
+        ],
+        { duration: 340, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "forwards" }
+      )
+      .finished.then(finish, finish)
+  }
 
   const add = (entry: NewFoodEntry, label = entry.name) => {
     const id = actions.addFoodEntry(date, { ...entry, meal: entry.meal ?? meal })
@@ -73,23 +118,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Logga mat</h3>
         {/* Måltiden – förvald efter klockan, ett tryck för att byta. */}
-        <div className="grid grid-cols-4 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Måltid" data-testid="meal-chips">
-          {MEAL_TYPES.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={meal === m}
-              onClick={() => setMeal(m)}
-              className={cn(
-                "min-h-9 rounded-lg px-1 text-xs font-medium transition-colors",
-                meal === m ? "bg-background text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {MEAL_LABEL[m]}
-            </button>
-          ))}
-        </div>
+        <MealChips value={meal} onChange={setMeal} />
       </div>
 
       {manual ? (
@@ -139,9 +168,12 @@ export function ExtraFood({ date }: { date: ISODate }) {
                     className="size-10 shrink-0 rounded-full"
                     aria-label={`Lägg till ${product.name}, ${grams} ${product.unit ?? "g"}`}
                     data-testid="quick-add"
-                    onClick={() => add(quickEntry(product, grams, meal))}
+                    onClick={() => {
+                      add(quickEntry(product, grams, meal))
+                      flashDone(product.id)
+                    }}
                   >
-                    <Plus />
+                    {done?.id === product.id ? <DrawnCheck key={done.n} play={done.n} className="size-4 text-primary" /> : <Plus />}
                   </Button>
                 </li>
               )
@@ -172,7 +204,10 @@ export function ExtraFood({ date }: { date: ISODate }) {
               </h4>
               <ul className="divide-y rounded-xl bg-muted/50">
                 {g.entries.map((e) => (
-                  <li key={e.id} className={cn("flex items-center gap-3 rounded-xl px-3 py-2 text-sm", !seen.has(e.id) && "row-flash rise-in")}>
+                  <li
+                    key={e.id}
+                    className={cn("flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2 text-sm", !seen.has(e.id) && "row-flash rise-in", leaving.has(e.id) && "pointer-events-none")}
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-baseline gap-1">
                         <span className="truncate">{e.name}</span>
@@ -181,7 +216,7 @@ export function ExtraFood({ date }: { date: ISODate }) {
                       <MacroInline value={e} />
                     </div>
                     <span className="shrink-0 tabular">{e.kcal} kcal</span>
-                    <button className="touch-target shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={() => actions.deleteFoodEntry(e.id)}>
+                    <button className="touch-target shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-background" aria-label={`Ta bort ${e.name}`} onClick={(ev) => remove(e, ev.currentTarget.closest("li"))}>
                       <X className="size-3.5" />
                     </button>
                   </li>
@@ -191,6 +226,45 @@ export function ExtraFood({ date }: { date: ISODate }) {
           ))}
         </section>
       )}
+    </div>
+  )
+}
+
+/**
+ * Måltidsväljaren (v67): markeringen glider till vald måltid med fjädern i
+ * stället för att hoppa. Knapparna är vanliga radioknappar för skärmläsare.
+ */
+function MealChips({ value, onChange }: { value: MealType; onChange: (m: MealType) => void }) {
+  const index = MEAL_TYPES.indexOf(value)
+  const pill = React.useRef<HTMLSpanElement>(null)
+  const [initial] = React.useState(index)
+  const place = (x: number) => `translate3d(calc(${(x * 100).toFixed(3)}% + ${(x * 0.25).toFixed(4)}rem), 0, 0)`
+  useSpring(index, (x) => {
+    if (pill.current) pill.current.style.transform = place(x)
+  })
+  return (
+    <div className="relative grid grid-cols-4 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Måltid" data-testid="meal-chips">
+      <span
+        ref={pill}
+        aria-hidden
+        className="absolute top-1 bottom-1 left-1 w-[calc((100%-1.25rem)/4)] rounded-lg bg-background shadow-xs will-change-transform"
+        style={{ transform: place(initial) }}
+      />
+      {MEAL_TYPES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          role="radio"
+          aria-checked={value === m}
+          onClick={() => onChange(m)}
+          className={cn(
+            "relative min-h-9 rounded-lg px-1 text-xs font-medium transition-colors duration-200 active:scale-95",
+            value === m ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {MEAL_LABEL[m]}
+        </button>
+      ))}
     </div>
   )
 }

@@ -96,8 +96,9 @@ const during = await kcal()
 await p.waitForTimeout(1200)
 const after = await kcal()
 check(after > before && during > before && during < after, `kalorierna räknar mjukt upp när en måltid bockas av (${before} → ${during} → ${after})`)
-const bar = await meter.locator("[role=progressbar]").evaluate((el) => ({ fill: Number(el.dataset.fill), transition: getComputedStyle(el.firstElementChild).transitionProperty }))
-check(bar.fill > 0 && /transform/.test(bar.transition) && !/width/.test(bar.transition), `stapeln fylls med transform, inte width (${bar.fill} %, ${bar.transition})`)
+// v67: stapeln drivs av fjädern (transform via requestAnimationFrame), aldrig av width.
+const bar = await meter.locator("[role=progressbar]").evaluate((el) => ({ fill: Number(el.dataset.fill), transform: el.firstElementChild.style.transform, transition: getComputedStyle(el.firstElementChild).transitionProperty }))
+check(bar.fill > 0 && /translate3d/.test(bar.transform) && !/width/.test(bar.transition), `stapeln fylls med transform, inte width (${bar.fill} %, ${bar.transform})`)
 // En dag utan loggat: tomt läge som pekar på hur man loggar.
 await p.click("button[aria-label='Föregående dag']")
 await p.click("button[aria-label='Föregående dag']")

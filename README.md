@@ -578,6 +578,33 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v67: kostloggen lika mjuk som vattenglaset
+
+- **En gemensam fjäder** (`src/lib/spring.ts`, `useSpring`/`createSpring`) med samma inställningar som vattenglaset: damping 20, stiffness 140, mass 0.8.
+  - Den skriver direkt i DOM:en med `requestAnimationFrame`, så det blir ingen React-rendering per bildruta.
+  - Den går att avbryta mitt i en rörelse, stannar när den står still och hoppar direkt till målet med "minska rörelse".
+- **Staplarna:**
+  - `FillBar` (kcal-mätaren och makromålen) glider nu med fjädern i stället för en CSS-övergång.
+  - Måltidsbrickornas makrostaplar glider på samma sätt.
+- **Måltidsbrickorna:**
+  - Brickan studsar till lite när något loggas till den och lägger sig sedan.
+  - Gram för protein, kolhydrater och fett räknar mjukt.
+  - Höjden är fortfarande fast.
+- **Logga mat:**
+  - Markeringen i måltidsväljaren glider till vald måltid i stället för att hoppa.
+  - Ett snabbval bekräftas med en bock i knappen.
+  - Portionsformuläret glider in, och dess kcal räknar mjukt när mängden ändras.
+  - Sökträffarna tonar in.
+- **Ta bort:** raden fälls ihop mjukt så att resten glider upp. Toasten har nu **Ångra**, som lägger tillbaka posten.
+- **Buggfixar:**
+  - En vara från sökningen gav två toaster. Nu blir det en, med Ångra.
+  - Vid byte av dag lyste alla poster till som "nya". Nu nollställs loggaren per dag.
+- **Tester:**
+  - Nytt test: `e2e/v67-kost-smooth.test.mjs`.
+  - v46 kontrollerar nu att kcal-stapeln drivs av transform från fjädern.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v66: vattenglaset från reklamfilmen
 
 - **Ett interaktivt glas** (`src/components/client/water-glass.tsx`) ersätter raden med små glas på Idag. Det fylls när man trycker på `+ 250 ml` eller `+ 500 ml` och töms med `−`.

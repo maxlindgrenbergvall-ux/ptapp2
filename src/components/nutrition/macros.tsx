@@ -106,7 +106,7 @@ export function KcalMeter({ value, target, className }: { value: number; target:
       <FillBar
         value={pct}
         className="bg-primary/15"
-        barClassName={cn("transition-[transform,background-color]", over && "bg-warning")}
+        barClassName={cn(over && "bg-warning")}
         role="progressbar"
         aria-label="Kalorier"
         aria-valuenow={Math.round(value)}

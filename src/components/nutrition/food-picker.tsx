@@ -5,6 +5,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { BarcodeScanner } from "@/components/nutrition/barcode-scanner"
+import { AnimatedNumber } from "@/components/motion"
 import { MacroInline } from "@/components/nutrition/macros"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -94,9 +95,9 @@ export function FoodPicker({
         product={selected}
         onBack={() => setSelected(null)}
         onAdd={(entry) => {
+          // Toasten med Ångra visas av den som tar emot posten (snabbloggningen).
           onAdd(entry)
           setSelected(null)
-          toast.success(`${selected.name} tillagd`)
         }}
       />
     )
@@ -164,7 +165,7 @@ export function FoodPicker({
           id="food-picker-results"
           role="listbox"
           className={cn(
-            "rounded-xl border bg-popover p-1",
+            "rise-in rounded-xl border bg-popover p-1",
             inline ? "mt-2" : "absolute inset-x-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto overscroll-contain shadow-xl"
           )}
           data-inline={inline || undefined}
@@ -398,7 +399,7 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
 
   return (
     <form
-      className="space-y-3 rounded-2xl border border-border/70 bg-card shadow-card p-3"
+      className="rise-in space-y-3 rounded-2xl border border-border/70 bg-card shadow-card p-3"
       onSubmit={(e) => {
         e.preventDefault()
         if (g <= 0 || g > 5000) return toast.error(`Ange en mängd mellan 1 och 5000 ${base}`)
@@ -431,7 +432,7 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
             onClick={() => setAmount(String(c.value).replace(".", ","))}
             aria-pressed={a === c.value}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs transition-colors",
+              "rounded-full border px-3 py-1 text-xs transition-[color,background-color,border-color,transform] duration-200 active:scale-95",
               a === c.value ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
             )}
           >
@@ -470,7 +471,9 @@ function PortionForm({ product, onAdd, onBack }: { product: FoodProduct; onAdd: 
         </div>
         {unit !== base && <span className="text-xs text-muted-foreground tabular">≈{g} {base}</span>}
         <div className="min-w-0 flex-1 text-right">
-          <div className="text-lg font-semibold tabular">{macros.kcal} kcal</div>
+          <div className="text-lg font-semibold tabular">
+            <AnimatedNumber value={macros.kcal} duration={300} /> kcal
+          </div>
           <MacroInline value={macros} className="justify-end" />
         </div>
       </div>

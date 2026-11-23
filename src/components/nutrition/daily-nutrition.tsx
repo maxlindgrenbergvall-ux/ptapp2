@@ -238,7 +238,7 @@ export function DailyNutrition({ clientId, viewer = "client" }: { clientId: ID; 
           )}
         </div>
       ) : (
-        <ExtraFood date={date} />
+        <ExtraFood key={date} date={date} />
       )}
       {locked && <CoachingHint clientId={clientId} trainers={trainers} />}
     </div>

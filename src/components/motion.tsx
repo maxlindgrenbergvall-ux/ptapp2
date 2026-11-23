@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { Check } from "lucide-react"
 
+import { useSpring } from "@/lib/spring"
 import { prefersReducedMotion, useInView } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
 
@@ -97,16 +98,23 @@ export function DrawnCheck({ play, className, strokeWidth = 3 }: { play: number;
 
 /**
  * En stapel som fylls med transform (GPU) i stället för width. Värdet 0–100.
- * Växer fram när den syns och följer sedan värdet mjukt.
+ * Växer fram när den syns och följer sedan värdet med fjädern (v67) – samma
+ * rörelse som vattenglaset, och den kan avbrytas mitt i om man loggar igen.
  */
 export function FillBar({ value, className, barClassName, ...rest }: { value: number; className?: string; barClassName?: string } & React.HTMLAttributes<HTMLSpanElement>) {
   const [ref, shown] = useGrowOnView<HTMLSpanElement>(Math.max(0, Math.min(100, value)))
+  const barRef = React.useRef<HTMLSpanElement>(null)
+  const [initial] = React.useState(shown)
+  useSpring(shown, (x) => {
+    if (barRef.current) barRef.current.style.transform = `translate3d(${(Math.min(100, x) - 100).toFixed(2)}%, 0, 0)`
+  })
   // span (inte div): stapeln används även inne i länkar och knappar.
   return (
     <span ref={ref} data-fill={Math.round(shown)} className={cn("block h-2 overflow-hidden rounded-full bg-muted", className)} {...rest}>
       <span
-        className={cn("block h-full w-full rounded-full bg-primary transition-transform duration-700 ease-[var(--ease-out-soft)] will-change-transform motion-reduce:transition-none", barClassName)}
-        style={{ transform: `translate3d(-${100 - shown}%, 0, 0)` }}
+        ref={barRef}
+        className={cn("block h-full w-full rounded-full bg-primary transition-colors duration-300 will-change-transform", barClassName)}
+        style={{ transform: `translate3d(${initial - 100}%, 0, 0)` }}
       />
     </span>
   )
