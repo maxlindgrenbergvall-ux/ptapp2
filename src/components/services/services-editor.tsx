@@ -1,6 +1,8 @@
 "use client"
 
-import { Dumbbell, Pencil, Plus, Salad, Trash2 } from "lucide-react"
+import { Dumbbell, HeartPulse, Pencil, Plus, Salad, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -18,6 +20,10 @@ import { formatSek } from "@/lib/money"
 import { activeServices, serviceSummary } from "@/lib/services/balance"
 import { cn } from "@/lib/utils"
 import { SERVICE_KIND_LABEL, type ServiceKind, type TrainerService } from "@/types/domain"
+import { WellnessPackageBadge } from "@/components/wellness/wellness-badges"
+import { WellnessCalcBox, WellnessPriceChips } from "@/components/wellness/wellness-calc"
+import { fetchMyBusiness, isBusinessComplete } from "@/lib/wellness/api"
+import { WELLNESS_TEMPLATE } from "@/lib/wellness/pricing"
 
 const KINDS: { kind: ServiceKind; hint: string; sessions: number }[] = [
   { kind: "single", hint: "Ett pass i taget", sessions: 1 },
@@ -31,7 +37,7 @@ export function ServicesEditor() {
   const { data, me, actions } = useAppData()
   const mine = data.services.filter((x) => x.trainerId === me.id)
   const active = new Set(activeServices(data, me.id).map((x) => x.id))
-  const [editing, setEditing] = React.useState<TrainerService | "new" | null>(null)
+  const [editing, setEditing] = React.useState<TrainerService | "new" | "wellness" | null>(null)
 
   return (
     <div className="space-y-3">
@@ -47,6 +53,7 @@ export function ServicesEditor() {
                 <p className="font-medium break-words">{x.title}</p>
                 <p className="font-semibold tabular">{formatSek(x.priceSek)}</p>
               </div>
+              <WellnessPackageBadge service={x} className="mt-0.5" />
               <p className="text-xs text-muted-foreground">
                 {SERVICE_KIND_LABEL[x.kind]} · {serviceSummary(x)}
                 {!x.active && " · Pausad"}
@@ -72,14 +79,30 @@ export function ServicesEditor() {
           </li>
         ))}
       </ul>
-      <Button variant="outline" onClick={() => setEditing("new")}>
-        <Plus /> Ny tjänst
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setEditing("new")}>
+          <Plus /> Ny tjänst
+        </Button>
+        {/* v75: 1-klicksmall – ett färdigt friskvårdspaket att justera. */}
+        <Button
+          variant="outline"
+          className="border-[#84cc16]/60 text-[#3f6212] hover:bg-[#84cc16]/10 dark:text-[#a3e635]"
+          onClick={() => setEditing("wellness")}
+          data-testid="create-wellness-package"
+        >
+          <HeartPulse /> Skapa Friskvårdspaket
+        </Button>
+      </div>
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="sm:max-w-md">
           {editing !== null && (
-            <ServiceForm key={editing === "new" ? "new" : editing.id} service={editing === "new" ? undefined : editing} onDone={() => setEditing(null)} />
+            <ServiceForm
+              key={typeof editing === "string" ? editing : editing.id}
+              service={typeof editing === "string" ? undefined : editing}
+              template={editing === "wellness"}
+              onDone={() => setEditing(null)}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -87,7 +110,8 @@ export function ServicesEditor() {
   )
 }
 
-function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: () => void }) {
+function ServiceForm({ service, template = false, onDone }: { service?: TrainerService; template?: boolean; onDone: () => void }) {
+  const router = useRouter()
   const { data, me, actions } = useAppData()
   const self = data.trainers.find((t) => t.id === me.id)
   const basePrice = self?.pricePerSession || 0
@@ -95,13 +119,26 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
   const kinds = KINDS.filter(
     (k) => (k.sessions === 0 || self?.offersTraining !== false) && ((k.kind !== "nutrition" && k.kind !== "full") || self?.offersNutrition !== false)
   )
-  const [kind, setKind] = React.useState<ServiceKind>(service?.kind ?? kinds.find((k) => k.kind === "package")?.kind ?? kinds[0]?.kind ?? "single")
-  const [title, setTitle] = React.useState(service?.title ?? "")
-  const [description, setDescription] = React.useState(service?.description ?? "")
-  const [sessions, setSessions] = React.useState<number | undefined>(service?.sessions ?? 5)
-  const [weeks, setWeeks] = React.useState<number | undefined>(service?.durationWeeks)
-  const [price, setPrice] = React.useState<number | undefined>(service?.priceSek ?? (basePrice ? basePrice * 5 : undefined))
+  // v75: friskvårdsmallen – helhetspaket med kost om PT:n erbjuder kost, annars ett träningsprogram.
+  const tpl = template
+    ? kinds.some((k) => k.kind === "full")
+      ? WELLNESS_TEMPLATE
+      : {
+          ...WELLNESS_TEMPLATE,
+          kind: "package" as const,
+          title: "Friskvårdsupplägg 3 månader – Personlig träning",
+          description: "Individanpassat träningsprogram samt full tillgång till Coavira+ (receptbibliotek & verktyg). Kan betalas med friskvårdsbidrag.",
+        }
+    : null
+  const [kind, setKind] = React.useState<ServiceKind>(service?.kind ?? tpl?.kind ?? kinds.find((k) => k.kind === "package")?.kind ?? kinds[0]?.kind ?? "single")
+  const [title, setTitle] = React.useState(service?.title ?? tpl?.title ?? "")
+  const [description, setDescription] = React.useState(service?.description ?? tpl?.description ?? "")
+  const [sessions, setSessions] = React.useState<number | undefined>(service?.sessions ?? tpl?.sessions ?? 5)
+  const [weeks, setWeeks] = React.useState<number | undefined>(service?.durationWeeks ?? tpl?.durationWeeks)
+  const [price, setPrice] = React.useState<number | undefined>(service?.priceSek ?? tpl?.priceSek ?? (basePrice ? basePrice * 5 : undefined))
   const [active, setActive] = React.useState(service?.active ?? true)
+  const [wellness, setWellness] = React.useState(service?.isWellnessPackage ?? Boolean(tpl))
+  const [saving, setSaving] = React.useState(false)
 
   const fixedSessions = kind === "single" ? 1 : kind === "nutrition" ? 0 : null
   const count = fixedSessions ?? sessions ?? 0
@@ -113,13 +150,26 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
     if (!service && basePrice) setPrice(k === "nutrition" ? 1190 : Math.max(1, preset.sessions) * basePrice + (k === "full" ? 900 : 0))
   }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
     const t = title.trim() || defaultTitle(kind, count)
     if (t.length < 3) return toast.error("Skriv ett namn (minst 3 tecken)")
     if (kind === "package" && !(count >= 2 && count <= 100)) return toast.error("Ett träningsprogram ska ha 2–100 pass")
     if (kind === "full" && !(count >= 1 && count <= 100)) return toast.error("Helhetspaketet ska ha 1–100 pass")
     if (!price || price < 1) return toast.error("Priset måste vara minst 1 kr – Coavira har inga gratispass")
+    // v75: friskvårdspaket kräver företagsuppgifter – de står på klientens kvitto (databasen kontrollerar samma sak).
+    if (wellness && active) {
+      setSaving(true)
+      const business = await fetchMyBusiness(me).catch(() => null)
+      setSaving(false)
+      if (!isBusinessComplete(business)) {
+        return toast.error("Fyll i företagsuppgifterna först", {
+          description: "Företagsnamn, organisationsnummer och adress står på klientens friskvårdskvitto. Du hittar dem i Profil → Friskvård.",
+          action: { label: "Till profilen", onClick: () => router.push("/pt/profil#friskvard") },
+        })
+      }
+    }
     actions.saveService({
       id: service?.id ?? actions.newId(),
       kind,
@@ -130,6 +180,7 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
       durationWeeks: weeks && weeks >= 1 && weeks <= 52 ? weeks : undefined,
       priceSek: Math.round(price),
       active,
+      isWellnessPackage: wellness,
     })
     toast.success(service ? "Tjänsten är uppdaterad" : "Tjänsten är tillagd")
     onDone()
@@ -138,8 +189,12 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       <DialogHeader>
-        <DialogTitle>{service ? "Ändra tjänst" : "Ny tjänst"}</DialogTitle>
-        <DialogDescription>Klienten betalar i appen. Antalet pass styr hur många pass du kan schemalägga.</DialogDescription>
+        <DialogTitle>{service ? "Ändra tjänst" : template ? "Nytt friskvårdspaket" : "Ny tjänst"}</DialogTitle>
+        <DialogDescription>
+          {template
+            ? "Ett färdigt upplägg att justera. Klienten betalar i appen och får ett friskvårdskvitto (PDF) direkt."
+            : "Klienten betalar i appen. Antalet pass styr hur många pass du kan schemalägga."}
+        </DialogDescription>
       </DialogHeader>
 
       <div role="radiogroup" aria-label="Typ av tjänst" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -183,6 +238,9 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
           <NumberInput id="svc-weeks" min={1} max={52} value={weeks} onValueChange={setWeeks} />
         </div>
       </div>
+      {/* v75: friskvårdstak och live-kalkyl. */}
+      {wellness && <WellnessPriceChips value={price} onPick={setPrice} />}
+      <WellnessCalcBox price={price} includesNutrition={kind === "nutrition" || kind === "full"} />
       {count > 1 && price ? (
         <p className="text-xs text-muted-foreground">
           {formatSek(Math.round(price / count))} per pass{kind === "full" ? " inklusive kost" : ""}
@@ -195,6 +253,18 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
       <label className="flex items-center gap-2 text-sm">
         <Checkbox checked={active} onCheckedChange={(v) => setActive(v === true)} /> Aktiv (kan köpas)
       </label>
+      <label className="flex items-start gap-2 text-sm">
+        <Checkbox checked={wellness} onCheckedChange={(v) => setWellness(v === true)} data-testid="service-wellness" className="mt-0.5" />
+        <span>
+          Friskvårdspaket
+          <span className="block text-xs text-muted-foreground">
+            Badgen &quot;Godkänt för friskvård&quot;, friskvårdskvitto till klienten och Coavira+ under paketets längd. Kräver företagsuppgifter i profilen.{" "}
+            <Link href="/pt/profil#friskvard" className="text-primary underline-offset-4 hover:underline">
+              Fyll i
+            </Link>
+          </span>
+        </span>
+      </label>
       {(kind === "nutrition" || kind === "full") && (
         <Badge variant="secondary" className="gap-1">
           <Salad /> Ger klienten tillgång till kostschemat
@@ -204,7 +274,7 @@ function ServiceForm({ service, onDone }: { service?: TrainerService; onDone: ()
         <Button type="button" variant="ghost" onClick={onDone}>
           Avbryt
         </Button>
-        <Button type="submit">{service ? "Spara" : "Lägg till"}</Button>
+        <Button type="submit" disabled={saving}>{service ? "Spara" : "Lägg till"}</Button>
       </DialogFooter>
     </form>
   )

@@ -5,16 +5,19 @@ import Link from "next/link"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
+import { ReceiptButton } from "@/components/wellness/receipt-button"
 
 type Status = "checking" | "paid" | "pending" | "failed"
 
 /**
  * Hit kommer klienten tillbaka från Stripe. Vi frågar servern (som frågar
- * Stripe) tills betalningen är bekräftad och laddar sedan om appen så att de
- * nya passen och kostcoachingen syns.
+ * Stripe) tills betalningen är bekräftad. v75: sidan stannar kvar så att
+ * klienten kan ladda ner friskvårdskvittot; "Till appen" laddar om appen så att
+ * de nya passen och kostcoachingen syns.
  */
 export function PurchaseReturn() {
   const [status, setStatus] = React.useState<Status>("checking")
+  const [checkoutId, setCheckoutId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     const sessionId = new URLSearchParams(window.location.search).get("session_id")
@@ -27,12 +30,11 @@ export function PurchaseReturn() {
     const check = async () => {
       tries++
       const res = await fetch(`/api/checkout/verify?session_id=${encodeURIComponent(sessionId)}`).catch(() => null)
-      const body = (await res?.json().catch(() => null)) as { status?: string } | null
+      const body = (await res?.json().catch(() => null)) as { status?: string; checkout_id?: string } | null
       if (cancelled) return
       if (body?.status === "paid") {
         setStatus("paid")
-        // Hel omladdning: datalagret hämtar köpen, passen och den nya relationen.
-        window.setTimeout(() => window.location.replace("/klient"), 1500)
+        setCheckoutId(body.checkout_id ?? null)
       } else if (body?.status === "expired" || body?.status === "unknown") {
         setStatus("failed")
       } else if (tries < 15) {
@@ -60,6 +62,17 @@ export function PurchaseReturn() {
           <CheckCircle2 className="size-12 text-primary" />
           <h1 className="text-xl font-semibold">Tack! Betalningen är klar</h1>
           <p className="text-sm text-muted-foreground">Dina pass är upplåsta och din PT ser dig nu i sin klientöversikt.</p>
+          {checkoutId && (
+            <div className="w-full space-y-1.5 rounded-xl border border-primary/30 bg-primary/5 p-3 text-left">
+              <p className="text-sm font-medium">Friskvårdsbidrag?</p>
+              <p className="text-xs text-muted-foreground">Ladda ner kvittot och skicka det till din arbetsgivare eller friskvårdsportal. Det finns också under Profil → Betalningar & kvitton.</p>
+              <ReceiptButton checkoutId={checkoutId} className="w-full" />
+            </div>
+          )}
+          {/* Hel omladdning: datalagret hämtar köpen, passen och den nya relationen. */}
+          <Button className="w-full" onClick={() => window.location.replace("/klient")} data-testid="purchase-done">
+            Till appen
+          </Button>
         </>
       )}
       {status === "pending" && (

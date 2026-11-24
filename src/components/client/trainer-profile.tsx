@@ -11,6 +11,7 @@ import { BoostedBadge } from "@/components/boost/boost"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { OfferCard } from "@/components/offers/offer-card"
 import { TrainerLinks } from "@/components/trainer-links"
+import { WellnessBadge } from "@/components/wellness/wellness-badges"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -92,6 +93,7 @@ export function TrainerProfile({ trainerId }: { trainerId: string }) {
           ))}
         </div>
         <OfferingBadges trainer={trainer} />
+        <WellnessBadge trainer={trainer} data={data} />
         <TrainerLinks trainer={trainer} />
         {isMyTrainer && (
           <Badge variant="secondary" className="gap-1">

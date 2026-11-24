@@ -1,10 +1,11 @@
 "use client"
 
-import { MapPin, Search, SlidersHorizontal, Wifi } from "lucide-react"
+import { HeartPulse, MapPin, Search, SlidersHorizontal, Wifi } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
 import { BoostedBadge } from "@/components/boost/boost"
+import { offersWellness, WellnessBadge } from "@/components/wellness/wellness-badges"
 import { EmptyState, PersonAvatar, Rating, SpecialtyBadge } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -39,6 +40,8 @@ export default function DiscoverPage() {
   const [sort, setSort] = React.useState<SortKey>("match")
   // PT-utbud: vissa PT:er erbjuder bara träning, andra bara kost.
   const [offering, setOffering] = React.useState<"all" | "training" | "nutrition">("all")
+  // v75: bara PT:er som tar friskvårdsbidrag (portalavtal eller friskvårdspaket).
+  const [wellnessOnly, setWellnessOnly] = React.useState(false)
   // Länk från kostlåset: /klient/hitta?inriktning=kost.
   React.useEffect(() => {
     if (new URLSearchParams(window.location.search).get("inriktning") !== "kost") return
@@ -66,6 +69,7 @@ export default function DiscoverPage() {
         PRICE[price].test(t.pricePerSession) &&
         (city === "all" || t.city === city) &&
         (!remoteOnly || offersRemote(t.coachingMode)) &&
+        (!wellnessOnly || offersWellness(data, t)) &&
         (offering === "all" || (offering === "training" ? t.offersTraining : nutrition)) &&
         (!text ||
           t.name.toLowerCase().includes(text) ||
@@ -182,6 +186,17 @@ export default function DiscoverPage() {
         >
           <Wifi className="size-3.5" /> Distans
         </button>
+        <button
+          onClick={() => setWellnessOnly((w) => !w)}
+          aria-pressed={wellnessOnly}
+          data-testid="filter-wellness"
+          className={cn(
+            "flex h-8 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors",
+            wellnessOnly ? "border-[#84cc16] bg-[#84cc16] text-[#131916]" : "hover:bg-muted"
+          )}
+        >
+          <HeartPulse className="size-3.5" /> Friskvård
+        </button>
         <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
           <SelectTrigger size="sm" className="ml-auto" aria-label="Sortering">
             <SelectValue />
@@ -237,6 +252,7 @@ export default function DiscoverPage() {
               </div>
               <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{t.bio}</p>
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <WellnessBadge trainer={t} data={data} />
                 {nutrition && <NutritionTag />}
                 {t.specialties.map((s) => (
                   <SpecialtyBadge key={s} specialty={s} />

@@ -43,7 +43,8 @@ import {
 import { findConflict } from "@/lib/calendar/slots"
 import { diffNotifications } from "@/lib/notifications/rules"
 import { forgetInterests } from "@/lib/offers/interests"
-import { hasNutritionAccess, noCreditMessage, sessionBalance } from "@/lib/services/balance"
+import { forgetWorkoutTimers } from "@/lib/workout-timer"
+import { hasNutritionAccess, isExternalWellness, noCreditMessage, sessionBalance } from "@/lib/services/balance"
 import { todayISO } from "@/lib/date"
 import { getSupabase } from "@/lib/supabase/client"
 import { completeBlocker, verifyBlocker } from "@/lib/workout-rules"
@@ -54,6 +55,7 @@ import { HOME_FOR_ROLE, isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabas
 import type {
   AppData,
   Attachment,
+  PaymentSource,
   AvailabilityRule,
   CalendarEvent,
   EventStatus,
@@ -196,7 +198,8 @@ function createActions(ctx: {
      */
     scheduleWorkout: (clientId: ID, template: WorkoutTemplate, date: ISODate): string | null => {
       const balance = sessionBalance(getData(), me.id, clientId)
-      if (balance.remaining < 1) return noCreditMessage(balance)
+      // v75: externa friskvårdskunder betalar utanför appen – inget passsaldo.
+      if (balance.remaining < 1 && !isExternalWellness(getData(), me.id, clientId)) return noCreditMessage(balance)
       const id = newId()
       commit({
         type: "addWorkout",
@@ -712,6 +715,27 @@ function createActions(ctx: {
       })
       return { error: null, trainerName: r.trainer_name }
     },
+    /**
+     * v75, PT: klienten betalar via eget friskvårdsavtal ("external_wellness", 0 % avgift)
+     * eller i appen. PT:ns egna klienter (inbjudningslänk) direkt; klienter som hittat PT:n
+     * i Coavira först efter ett köp i appen. Samma regel som set_client_payment_source().
+     */
+    setClientPaymentSource: async (clientId: ID, source: PaymentSource): Promise<string | null> => {
+      const data = getData()
+      const rel = data.relationships.find((r) => r.clientId === clientId && r.trainerId === me.id)
+      if (!rel) return "Klienten är inte din"
+      if (ctx.mode === "demo") {
+        const paid = data.purchases.some((p) => p.clientId === clientId && p.trainerId === me.id && p.status === "paid")
+        if (source === "external_wellness" && rel.acquisition !== "EXISTING_CLIENT" && !paid) {
+          return "Klienten hittade dig i Coavira – första köpet görs i appen. Därefter kan klienten betala via friskvård."
+        }
+      } else {
+        const { error } = await getSupabase().rpc("set_client_payment_source", { p_client: clientId, p_source: source })
+        if (error) return error.message
+      }
+      ctx.dispatch({ type: "linkTrainer", relationship: { ...rel, paymentSource: source } })
+      return null
+    },
     toggleMeal: (clientId: ID, date: ISODate, mealId: ID) => {
       const checked = !getData().mealChecks.some((m) => m.clientId === clientId && m.date === date && m.mealId === mealId)
       commit({ type: "setMealCheck", clientId, date, mealId, checked })
@@ -921,7 +945,7 @@ function createActions(ctx: {
       // Ett pass med klient (utan kopplat träningspass) tar ett betalt pass.
       if (input.kind === "session" && input.clientId && !input.workoutId && input.status !== "cancelled") {
         const balance = sessionBalance(getData(), me.id, input.clientId)
-        if (balance.remaining < 1) return noCreditMessage(balance)
+        if (balance.remaining < 1 && !isExternalWellness(getData(), me.id, input.clientId)) return noCreditMessage(balance)
       }
       // Ett preliminärt pass med klient väntar på att klienten bekräftar.
       const awaiting = input.status === "pending" ? ("client" as const) : undefined
@@ -1229,6 +1253,8 @@ class SyncEngine extends LocalEngine {
       clearCache(this.me.id)
       forgetInterests(this.me.id)
     }
+    // v73: passtimerns tider hör till kontot.
+    forgetWorkoutTimers()
   }
 }
 

@@ -85,6 +85,10 @@ export interface Trainer {
   /** v51: PT:ns hemsida (https://…) och Instagramnamn (utan @). */
   websiteUrl?: string
   instagram?: string
+  /** v75: PT:n tar emot betalning via egna portalavtal (friskvårdsbidrag). */
+  acceptsEpassi?: boolean
+  acceptsBenifex?: boolean
+  acceptsEdenred?: boolean
 }
 
 export type ClientStatus = "active" | "paused" | "pending"
@@ -98,7 +102,12 @@ export interface CoachingRelationship {
   startDate: ISODate
   /** Hur klienten kom till PT:n – styr serviceavgiften (saknas = PLATFORM_CLIENT). */
   acquisition?: AcquisitionType
+  /** v75: klienten betalar i appen eller via eget friskvårdsavtal (saknas = "coavira"). */
+  paymentSource?: PaymentSource
 }
+
+/** v75: "external_wellness" = klienten betalar PT:n via ePassi, Benifex m.fl. – ingen avgift till Coavira. */
+export type PaymentSource = "coavira" | "external_wellness"
 
 /** EXISTING_CLIENT: kopplad med PT:ns kod (5 % avgift). PLATFORM_CLIENT: hittade PT:n i appen (10 %). */
 export type AcquisitionType = "EXISTING_CLIENT" | "PLATFORM_CLIENT"
@@ -856,6 +865,8 @@ export interface TrainerService {
   durationWeeks?: number
   priceSek: number
   active: boolean
+  /** v75: friskvårdspaket – badge "Godkänt för friskvård", kvitto och Coavira+ under paketets längd. */
+  isWellnessPackage?: boolean
 }
 
 export type PurchaseStatus = "pending" | "paid" | "cancelled" | "refunded"

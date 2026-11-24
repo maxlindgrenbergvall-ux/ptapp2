@@ -16,6 +16,9 @@ import { cn } from "@/lib/utils"
 import { hasCallAccess } from "@/lib/calls/access"
 import { callThread, parseCallLog, parseCallThread, type CallLog } from "@/lib/calls/thread"
 import type { Attachment, ID } from "@/types/domain"
+import { ChatWellnessCard } from "@/components/wellness/chat-wellness-card"
+import { isOffplatformUnlocked } from "@/lib/wellness/api"
+import { mentionsOffplatformPayment, OFFPLATFORM_MESSAGE } from "@/lib/wellness/off-platform"
 
 /**
  * Chattråd mellan en PT och en klient. Tråd-id = klient-id och trainerId
@@ -48,6 +51,9 @@ export function ChatThread({
     [data.messages, threadId, trainerId]
   )
   const lastMine = [...messages].reverse().find((m) => m.senderId === meId)
+  // v75: före första köpet stoppas telefon-/Swish-nummer och betalning utanför appen (databasen gör samma sak).
+  const unlocked = isOffplatformUnlocked(data, threadId, trainerId)
+  const offplatform = !unlocked && mentionsOffplatformPayment(draft)
   // v65: meddelandet som rapporteras just nu (dialogen).
   const [reporting, setReporting] = React.useState<{ messageId: ID; userId: ID } | null>(null)
 
@@ -73,7 +79,7 @@ export function ChatThread({
   }
 
   const send = async () => {
-    if ((!draft.trim() && files.length === 0) || sending) return
+    if ((!draft.trim() && files.length === 0) || sending || offplatform) return
     if (files.length === 0) {
       actions.sendMessage(threadId, draft, undefined, { trainerId })
       setDraft("")
@@ -102,6 +108,8 @@ export function ChatThread({
   return (
     <div className={cn("flex min-h-0 flex-col", className)}>
       <div className="flex-1 overflow-y-auto overscroll-contain p-4" aria-live="polite">
+        {/* v75: klienten ser PT:ns länkar och friskvårdsinstruktioner först efter första köpet. */}
+        {meId === threadId && unlocked && <ChatWellnessCard trainerId={trainerId} />}
         {messages.length === 0 && (
           <p className="py-8 text-center text-sm text-muted-foreground">Inga meddelanden än. Säg hej!</p>
         )}
@@ -209,6 +217,11 @@ export function ChatThread({
             ))}
           </ul>
         )}
+        {offplatform && (
+          <p className="mb-2 rounded-xl border border-warning/50 bg-warning/10 px-3 py-2 text-xs" role="alert" data-testid="offplatform-warning">
+            {OFFPLATFORM_MESSAGE}
+          </p>
+        )}
         <div className="flex items-end gap-2">
           <input ref={fileRef} type="file" multiple accept={ACCEPT["chat-attachments"]} className="sr-only" onChange={(e) => addFiles(e.target.files)} />
           <Button type="button" variant="ghost" size="icon" aria-label="Bifoga bild, video eller PDF" onClick={() => fileRef.current?.click()} disabled={sending}>
@@ -230,7 +243,7 @@ export function ChatThread({
             maxLength={2000}
             className="max-h-32 min-h-10 resize-none"
           />
-          <Button type="submit" size="icon" aria-label="Skicka" disabled={(!draft.trim() && files.length === 0) || sending}>
+          <Button type="submit" size="icon" aria-label="Skicka" disabled={(!draft.trim() && files.length === 0) || sending || offplatform}>
             {sending ? <Loader2 className="animate-spin" /> : <SendHorizontal />}
           </Button>
         </div>

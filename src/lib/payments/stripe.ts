@@ -3,6 +3,7 @@ import "server-only"
 import Stripe from "stripe"
 
 import { EXISTING_CLIENT_FEE_PERCENT, MAX_QUANTITY, PLATFORM_FEE_PERCENT, serviceFeeSek } from "@/lib/payments/fees"
+import { WELLNESS_CHECKOUT_TEXT } from "@/lib/wellness/pricing"
 
 /**
  * Stripe via det officiella SDK:t. Hemliga nycklar finns bara på servern:
@@ -128,6 +129,8 @@ export function checkoutSessionParams(input: {
           }
         : {}),
     },
+    // v75: friskvårdsrutan även på Stripes betalsida (kvittot skapas efter köpet).
+    custom_text: { submit: { message: WELLNESS_CHECKOUT_TEXT } },
     success_url: `${input.origin}/klient/kop?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${input.origin}/klient/hitta/${input.trainerId}?kop=avbrutet`,
   }

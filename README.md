@@ -578,6 +578,82 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v75: friskvårdsbidrag, friskvårdspaket och anti-leakage
+
+**Migration att köra:** `supabase/migrations/20261202000000_v75_wellness.sql` (efter v65).
+
+### 1. Paketbyggaren
+- **"Skapa Friskvårdspaket"** fyller i ett färdigt paket:
+  - Titeln "Friskvårdsupplägg 3 månader – Personlig träning & skräddarsytt kostschema".
+  - En beskrivning med Coavira+.
+  - Upplägget är ett helhetspaket med 36 pass på 12 veckor (tre programmerade pass i veckan) för 3 495 kr.
+  - Erbjuder PT:n inte kost blir det ett träningsprogram.
+- **Friskvårdspaket** (`trainer_services.is_wellness_package`):
+  - Paketet får badgen "Godkänt för friskvård".
+  - Klienten får ett friskvårdskvitto.
+  - Klienten får Coavira+ under paketets längd (standard 12 veckor), förlängt automatiskt när betalningen markeras som betald.
+  - Paketet kräver ifyllda företagsuppgifter. Både appen och databasen kontrollerar det.
+- **Snabbval** 1 995 / 2 995 / 3 995 / 4 995 kr, med hjälptexten om friskvårdstaken.
+- **Live-kalkylatorn** räknar på Coaviras faktiska modell (PT-avtalet, Stripe Connect med destination charge):
+  - **Via Coavira:** PT:n får hela priset. Klienten betalar pris plus serviceavgift (10 %, eller 5 % för PT:ns egna klienter). Stripes kortavgift betalas av Coavira.
+  - **Via eget ePassi-avtal:** PT:ns netto efter 5–10 % portalavgift, och vilket pris som krävs där för samma netto.
+  - **Tips:** om serviceavgiften tar klientens totalbelopp strax över ett tusental föreslås ett pris som ryms under det (3 995 kr → 3 595 kr). Utan kost föreslås att kost inkluderas.
+
+### 2. PT-profilen
+Profil → **Friskvård** (`#friskvard`) innehåller:
+- Reglagen "Tar emot ePassi / Benifex / Edenred" (`trainers.accepts_*`, publika).
+- Företagsnamn, organisationsnummer (Luhn-kontroll, normaliseras till NNNNNN-NNNN), företagsadress, momsregistrering och sökinstruktioner i portalerna.
+- Företagsuppgifterna ligger i den privata tabellen `trainer_business`, som bara PT:n och admin läser. Organisationsnumret i en enskild firma är ett personnummer.
+
+### 3. Hitta PT
+- Badgen "Friskvård / ePassi, Benifex …" på profilkortet och den publika profilen.
+- Filtret **Friskvård** visar PT:er med portalavtal eller ett aktivt friskvårdspaket.
+
+### 4. Källspårning och extern friskvård
+- **Kundursprunget fanns redan sedan v19:** `coaching_relationships.acquisition_type` per PT och klient. `EXISTING_CLIENT` motsvarar "pt_invite" (PT:ns personliga länk `/ref/EX-…`) och `PLATFORM_CLIENT` motsvarar "marketplace". Bara databasen sätter det, så det dupliceras inte.
+- **`coaching_relationships.payment_source`** är `coavira` eller `external_wellness`. Det sätts av PT:n på klientsidan ("Extern friskvårdskund") via `set_client_payment_source()`:
+  - PT:ns egna klienter kan aktiveras direkt, med 0 % avgift.
+  - Klienter från marknadsplatsen kan aktiveras först efter ett första köp i appen.
+  - Extern friskvård ger tillgång till kostschema och samtal och kräver inget passsaldo.
+
+### 5. Anti-leakage i chatten
+Före första köpet hos PT:n gäller följande, om klienten inte är PT:ns egen eller extern friskvårdskund:
+- Meddelanden med telefon- eller Swish-nummer, "swisha", "betala via ePassi/Benifex/Edenred", bankgiro, kontant eller "utanför appen" stoppas.
+- Appen varnar och skickar inte. Databasen stoppar samma meddelanden (`mentions_offplatform_payment`, triggern `messages_offplatform`) med samma regler som `src/lib/wellness/off-platform.ts`.
+- PT:ns hemsida, Instagram och portalinstruktioner visas i chatten och under "Mina PT:er" först efter första köpet.
+
+### 6. Friskvårdskvittot (PDF)
+- **Friskvårdsrutan i kassan:** i snabbköpet, i varukorgen och på Stripes betalsida (`custom_text`).
+- **"Ladda ner friskvårdskvitto (PDF)":**
+  - Finns på orderbekräftelsen, som nu stannar kvar i stället för att skicka vidare automatiskt, och under Profil → Betalningar & kvitton.
+  - PDF:en skapas i appen med `pdf-lib`. Personnumret är valfritt, skickas aldrig till servern och sparas inte.
+  - I mobilappen öppnas delningsmenyn (Spara i Filer, mejl).
+- **Innehåll:**
+  - Säljare: PT:ns företagsnamn, organisationsnummer och adress.
+  - Köparens namn och, valfritt, personnummer.
+  - Tjänstebeskrivningen "Personlig träning & individanpassat träningsupplägg (Friskvårdsaktivitet)".
+  - Betalningsdatum, kvittonummer `CV-ÅÅÅÅ-000123` och raderna.
+  - Summan med 6 % moms specificerad, eller "inte momsregistrerad".
+  - Coaviras serviceavgift på en egen rad (den ingår inte i friskvårdsaktiviteten) och totalt betalt.
+- **Databasen:**
+  - `checkout_receipts`: ett kvittonummer per betald kassa. Befintliga betalningar får nummer i betalningsordning.
+  - `get_wellness_receipt()`: bara köparen, PT:n och admin får kvittot. Återbetalda köp ger inget kvitto.
+
+### Medvetna avvikelser från specen
+- **Kalkylatorn:** specen utgick från att PT:n betalar plattforms- och kortavgift. I Coavira får PT:n hela priset, så kalkylatorn visar klientens totalbelopp och jämför med ePassi i stället.
+- **Ordval:**
+  - "Skatteverket-godkänt" har blivit "med det underlag Skatteverket kräver". Skatteverket godkänner inga kvitton.
+  - Mallens "Godkänt som friskvård" har blivit "Kan betalas med friskvårdsbidrag". Det är arbetsgivaren som avgör enligt Skatteverkets regler.
+  - Paketbadgen heter som i specen.
+- **Kundursprunget** återanvänder `acquisition_type` (per PT och klient) i stället för en ny kolumn `acquisition_source` på användaren.
+
+### Tester
+- `supabase/tests/rls_v75.test.sql`
+- `e2e/wellness.unit.ts`
+- `e2e/v75-friskvard.test.mjs`
+- `supabase-mode` klickar nu "Till appen" efter betalningen.
+- Demolägets köp behåller nu kundursprunget. Förut tappades det, så nästa köp fick 10 % i stället för 5 %.
+
 ## Nytt i v74: passtimern mäter hela passet
 
 - **Timern mäter hela passet, inte seten.**

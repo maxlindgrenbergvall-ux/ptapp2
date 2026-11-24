@@ -36,8 +36,16 @@ export function sessionBalance(data: AppData, trainerId: ID, clientId: ID): Sess
   return { paid, used, remaining: Math.max(0, paid - used) }
 }
 
+/** v75: klienten betalar PT:n via eget friskvårdsavtal (ePassi m.fl.) – passen och kosten betalas utanför appen. */
+export function isExternalWellness(data: AppData, trainerId: ID, clientId: ID): boolean {
+  return data.relationships.some((r) => r.trainerId === trainerId && r.clientId === clientId && r.paymentSource === "external_wellness" && r.status === "active")
+}
+
 export function hasNutritionAccess(data: AppData, trainerId: ID, clientId: ID): boolean {
-  return data.purchases.some((p) => p.trainerId === trainerId && p.clientId === clientId && p.status === "paid" && p.includesNutrition)
+  return (
+    data.purchases.some((p) => p.trainerId === trainerId && p.clientId === clientId && p.status === "paid" && p.includesNutrition) ||
+    isExternalWellness(data, trainerId, clientId)
+  )
 }
 
 export const noCreditMessage = (b: SessionBalance) =>

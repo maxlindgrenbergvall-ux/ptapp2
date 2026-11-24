@@ -12,6 +12,7 @@ import type { Action, PersistableAction } from "@/lib/data/state"
 import { addDays, todayISO } from "@/lib/date"
 import type {
   AcquisitionType,
+  PaymentSource,
   PtInvite,
   WeightUnit,
   Account,
@@ -97,6 +98,9 @@ interface TrainerRow {
   boosted_until?: string | null
   website_url?: string | null
   instagram?: string | null
+  accepts_epassi?: boolean
+  accepts_benifex?: boolean
+  accepts_edenred?: boolean
   reviews?: ReviewRow[]
 }
 interface CartRow {
@@ -122,6 +126,8 @@ interface RelationshipRow {
   created_at: string
   /** v19 – saknas i äldre databaser. */
   acquisition_type?: AcquisitionType | null
+  /** v75 – saknas i äldre databaser. */
+  payment_source?: PaymentSource | null
   client?: { full_name: string; interests?: string[] | null; focus?: string | null; avatar_url?: string | null } | null
 }
 interface WorkoutRow {
@@ -369,6 +375,7 @@ interface ServiceRow {
   duration_weeks: number | null
   price_sek: number
   active: boolean
+  is_wellness_package?: boolean
 }
 export interface PurchaseRow {
   id: string
@@ -490,6 +497,9 @@ export const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   boostedUntil: r.boosted_until ?? undefined,
   websiteUrl: r.website_url ?? undefined,
   instagram: r.instagram ?? undefined,
+  acceptsEpassi: r.accepts_epassi ?? false,
+  acceptsBenifex: r.accepts_benifex ?? false,
+  acceptsEdenred: r.accepts_edenred ?? false,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
@@ -833,6 +843,7 @@ const toService = (r: ServiceRow): TrainerService => ({
   durationWeeks: r.duration_weeks ?? undefined,
   priceSek: r.price_sek,
   active: r.active,
+  isWellnessPackage: r.is_wellness_package ?? false,
 })
 
 export const toPurchase = (r: PurchaseRow): Purchase => ({
@@ -1044,6 +1055,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
           goal: c.goal,
           startDate: c.startDate,
           acquisition: relRowsPt.find((r) => r.client_id === c.id)?.acquisition_type ?? "PLATFORM_CLIENT",
+          paymentSource: relRowsPt.find((r) => r.client_id === c.id)?.payment_source ?? "coavira",
         })),
         ptInvites: invites.error ? [] : ((invites.data ?? []) as PtInviteRow[]).map((r) => toPtInvite(r, uid)),
         mealChecks: must<{ client_id: string; date: string; meal_id: string }[]>(ptMeals, "måltider").map((m) => ({
@@ -1105,6 +1117,7 @@ export async function loadRemote(sb: SupabaseClient): Promise<{ me: Me; data: Ap
     goal: r.goal,
     startDate: r.started_at ?? r.created_at.slice(0, 10),
     acquisition: r.acquisition_type ?? "PLATFORM_CLIENT",
+    paymentSource: r.payment_source ?? "coavira",
   }))
   return {
     me,
@@ -1389,6 +1402,9 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
       if (p.offersNutrition !== undefined) row.offers_nutrition = p.offersNutrition
       if (p.websiteUrl !== undefined) row.website_url = p.websiteUrl || null
       if (p.instagram !== undefined) row.instagram = p.instagram || null
+      if (p.acceptsEpassi !== undefined) row.accepts_epassi = p.acceptsEpassi
+      if (p.acceptsBenifex !== undefined) row.accepts_benifex = p.acceptsBenifex
+      if (p.acceptsEdenred !== undefined) row.accepts_edenred = p.acceptsEdenred
       // Namnet ligger i profiles (samma för alla roller).
       if (p.name === undefined) return result(sb.from("trainers").update(row).eq("id", action.trainerId))
       const name = p.name
@@ -1480,6 +1496,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
           duration_weeks: x.durationWeeks ?? null,
           price_sek: x.priceSek,
           active: x.active,
+          is_wellness_package: x.isWellnessPackage ?? false,
         })
       )
     }

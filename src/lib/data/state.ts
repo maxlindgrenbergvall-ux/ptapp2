@@ -148,6 +148,9 @@ export type TrainerProfilePatch = Partial<
     | "offersNutrition"
     | "websiteUrl"
     | "instagram"
+    | "acceptsEpassi"
+    | "acceptsBenifex"
+    | "acceptsEdenred"
   >
 >
 
@@ -609,6 +612,8 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         const existing = relationships.find((r) => r.clientId === p.clientId && r.trainerId === p.trainerId)
         const fresh = !existing || existing.status === "ended" || existing.status === "pending"
         const rel: CoachingRelationship = {
+          // Som databasen: kundursprunget och betalningssättet följer med (v75) – ett köp ändrar dem inte.
+          ...existing,
           trainerId: p.trainerId,
           clientId: p.clientId,
           status: "active",

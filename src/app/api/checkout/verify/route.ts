@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     (r) => r.stripe_session_id === sessionId
   )
   if (!own.length) return NextResponse.json({ status: "unknown" }, { status: 404 })
-  if (own.every((r) => r.status === "paid")) return NextResponse.json({ status: "paid" })
+  // v75: kassans id (klientens eget köp) – orderbekräftelsen visar friskvårdskvittot.
+  if (own.every((r) => r.status === "paid")) return NextResponse.json({ status: "paid", checkout_id: own[0].checkout_id })
   if (!isStripeEnabled()) return NextResponse.json({ status: "pending" })
 
   const session = await getStripe().checkout.sessions.retrieve(sessionId).catch(() => null)
@@ -45,5 +46,5 @@ export async function GET(request: NextRequest) {
     })
     if (error) return NextResponse.json({ status: "pending" })
   }
-  return NextResponse.json({ status: hasServiceRole() ? "paid" : "pending" })
+  return NextResponse.json(hasServiceRole() ? { status: "paid", checkout_id: own[0].checkout_id } : { status: "pending" })
 }

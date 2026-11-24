@@ -132,3 +132,15 @@ export function formatElapsed(ms: number): string {
   const s = String(total % 60).padStart(2, "0")
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`
 }
+
+/** Utloggning / radering: inga passtider kvar på enheten. */
+export function forgetWorkoutTimers() {
+  cache.clear()
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(PREFIX)) localStorage.removeItem(key)
+    }
+  } catch {}
+  listeners.forEach((l) => l())
+}

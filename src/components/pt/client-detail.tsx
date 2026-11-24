@@ -39,7 +39,8 @@ import { useAppData } from "@/lib/data/store"
 import { addDays, formatDay, formatShort, parseISODate, toISODate, todayISO } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import { hasWorkoutStarted } from "@/lib/workout-rules"
-import { hasNutritionAccess, sessionBalance } from "@/lib/services/balance"
+import { hasNutritionAccess, isExternalWellness, sessionBalance } from "@/lib/services/balance"
+import { ClientPaymentSource } from "@/components/pt/client-payment-source"
 import { setsDone, setsTotal, workoutVolume } from "@/lib/training"
 import type { ScheduledWorkout } from "@/types/domain"
 
@@ -121,7 +122,7 @@ export function ClientDetail({ clientId }: { clientId: string }) {
           label="Betalda pass kvar"
           icon={Ticket}
           value={balance.remaining}
-          sub={balance.paid ? `${balance.used} av ${balance.paid} använda` : "Inga köpta pass"}
+          sub={isExternalWellness(data, me.id, client.id) ? "Betalar via friskvård" : balance.paid ? `${balance.used} av ${balance.paid} använda` : "Inga köpta pass"}
         />
         <StatTile
           label="Vikt"
@@ -133,6 +134,9 @@ export function ClientDetail({ clientId }: { clientId: string }) {
         <StatTile label="Genomförda pass" value={completed} />
         <StatTile label="Följsamhet, 4 v" value={adh === null ? "–" : `${adh} %`} />
       </div>
+
+      {/* v75: kundkälla och betalningssätt (extern friskvård). */}
+      <ClientPaymentSource clientId={client.id} />
 
       <Tabs defaultValue="progress">
         <TabsList>

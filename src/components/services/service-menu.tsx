@@ -1,11 +1,13 @@
 "use client"
 
 import { Check, CreditCard, Dumbbell, Loader2, Salad, ShoppingBag, Sparkles } from "lucide-react"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { CheckoutSummary, openCart } from "@/components/cart/cart"
 import { Button } from "@/components/ui/button"
+import { WellnessCheckoutNudge, WellnessPackageBadge } from "@/components/wellness/wellness-badges"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { isInCart } from "@/lib/cart"
 import { useAppData } from "@/lib/data/store"
@@ -62,6 +64,7 @@ export function ServiceMenu({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-medium break-words">{s.title}</p>
+                <WellnessPackageBadge service={s} className="mt-1" />
                 <p className="text-xs text-muted-foreground">
                   {SERVICE_KIND_LABEL[s.kind]} · {serviceSummary(s)}
                 </p>
@@ -105,6 +108,7 @@ function CheckoutDialog({
   onClose: () => void
   onPurchased?: () => void
 }) {
+  const router = useRouter()
   const { data, me, mode, actions } = useAppData()
   const name = firstName(trainer.name)
   const nutrition = activeServices(data, trainer.id).find((s) => s.kind === "nutrition")
@@ -138,6 +142,8 @@ function CheckoutDialog({
     if (mode === "demo") {
       toast.success("Betalningen är klar", {
         description: `${name} har fått dig som klient${lines.some((s) => s.includesNutrition) ? " och kostcoachingen är upplåst" : ""}.`,
+        // v75: friskvårdskvittot finns under Profil → Betalningar & kvitton.
+        action: { label: "Kvitto", onClick: () => router.push("/klient/profil#betalningar") },
       })
       onClose()
       onPurchased?.()
@@ -195,6 +201,7 @@ function CheckoutDialog({
               ))}
               <li className="p-3">
                 <CheckoutSummary subtotalSek={subtotalSek} feePercent={feePercent} serviceFeeSek={serviceFeeSek} totalSek={total} testId="checkout-total" />
+                <WellnessCheckoutNudge />
               </li>
             </ul>
             {offerNutrition && nutrition && !addNutrition && (

@@ -373,6 +373,9 @@ await v.waitForSelector("text=Tack! Betalningen är klar")
 log = await getLog()
 const paid = log.find((e) => e.table === "mark_checkout_paid")
 check(paid?.body.p_checkout === "aaaaaaaa-0000-4000-8000-000000000002" && paid.body.p_amount_sek === 880, "servern bekräftar betalningen hos Stripe och markerar kassan betald (800 kr + 10 % serviceavgift)")
+// v75: orderbekräftelsen stannar kvar (friskvårdskvittot) – "Till appen" laddar om appen.
+check((await v.locator("[data-testid=receipt-download]").count()) === 1, "orderbekräftelsen har \"Ladda ner friskvårdskvitto (PDF)\"")
+await v.click("[data-testid=purchase-done]")
 await v.waitForURL(`${base}/klient`)
 
 // 16. v12: Framsteg (v35: bara mål) och Lämna PT

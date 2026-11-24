@@ -7,11 +7,13 @@
  */
 import { BadgePercent, CreditCard, Loader2, Minus, Plus, Salad, ShoppingBag, Trash2, X } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
 import { PersonAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
+import { WellnessCheckoutNudge } from "@/components/wellness/wellness-badges"
 import { CLOSE_BUTTON } from "@/components/ui/close-button"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cartCount, cartGroups, MAX_CHECKOUT_LINES, type CartGroup } from "@/lib/cart"
@@ -114,6 +116,7 @@ function CartContents({ onNavigate }: { onNavigate: () => void }) {
 }
 
 function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: () => void }) {
+  const router = useRouter()
   const { data, me, mode, actions } = useAppData()
   const [pending, setPending] = React.useState(false)
   const { trainer, lines, subtotalSek, feePercent, serviceFeeSek, totalSek } = group
@@ -135,7 +138,11 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
     }
     if (mode === "demo") {
       setPending(false)
-      toast.success("Betalningen är klar", { description: `${name} har fått dig som klient.` })
+      toast.success("Betalningen är klar", {
+        description: `${name} har fått dig som klient.`,
+        // v75: friskvårdskvittot finns under Profil → Betalningar & kvitton.
+        action: { label: "Kvitto", onClick: () => router.push("/klient/profil#betalningar") },
+      })
     }
     // Appen: betalningen sker i webbläsarvyn – när den stängs (Klar eller efter betalningen) slutar knappen snurra.
     if (mode !== "demo" && isNativeApp()) setPending(false)
@@ -195,6 +202,7 @@ function CartGroupCard({ group, onNavigate }: { group: CartGroup; onNavigate: ()
       </ul>
       <div className="space-y-2 border-t p-3">
         <CheckoutSummary subtotalSek={subtotalSek} feePercent={feePercent} serviceFeeSek={serviceFeeSek} totalSek={totalSek} testId="cart-total" />
+        <WellnessCheckoutNudge />
         {tooMany && <p className="text-xs text-destructive">Högst {MAX_CHECKOUT_LINES} tjänster per köp – ta bort några.</p>}
         <Button className="w-full" onClick={() => void pay()} disabled={pending || tooMany}>
           {pending ? <Loader2 className="animate-spin" /> : <CreditCard />} Till kassan · {formatSek(totalSek)}
