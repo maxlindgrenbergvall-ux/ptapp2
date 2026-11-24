@@ -20,7 +20,7 @@ const users = {
   "elin@test.se": { id: T1, email: "elin@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Elin Test" }, app_metadata: { role: "trainer", pt_ready: true } },
   // v22: PT vars token saknar pt_ready (databasen före v22) – ska släppas in som förut.
   "gammalpt@test.se": { id: "11111111-0000-4000-8000-000000000003", email: "gammalpt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Greta Gammal" }, app_metadata: { role: "trainer" } },
-  "nypt@test.se": { id: T2, email: "nypt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Nils Ny" }, app_metadata: { role: "trainer", pt_ready: false } },
+  "nypt@test.se": { id: T2, email: "nypt@test.se", password: "hemligt123", user_metadata: { role: "trainer", full_name: "Nils Ny" }, app_metadata: { role: "trainer", pt_ready: false, onboarding_completed: false } },
   // v6: nytt konto (t.ex. via Google) som inte valt kontotyp än.
   "ny@test.se": { id: N1, email: "ny@test.se", password: "hemligt123", user_metadata: { name: "Nova Ny" }, app_metadata: {} },
   // v8: PT-konto vars session (simulerat) kommer från Google – ska loggas ut.
@@ -147,6 +147,8 @@ function resetV22() {
   t2 = t2Row()
   byId[T2].user_metadata.full_name = "Nils Ny"
   byId[T2].app_metadata.pt_ready = false
+  byId[T2].app_metadata.onboarding_completed = false
+  delete onboarding[T2]
   for (const k of Object.keys(payouts)) delete payouts[k]
   for (const k of Object.keys(ptFlow)) delete ptFlow[k]
   payouts[T1] = { trainer_id: T1, stripe_account_id: "acct_1ElinTest", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
