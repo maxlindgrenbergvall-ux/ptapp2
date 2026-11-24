@@ -578,11 +578,22 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v74: passtimern mäter hela passet
+
+- **Timern mäter hela passet, inte seten.**
+  - Den startar när passet öppnas på passdagen, inte vid första avbockade setet.
+  - Avbockade set påverkar den inte. En pausad timer förblir pausad tills man trycker på den.
+  - Ett pass som inte har börjat än (tidsspärren) visar fortfarande "Starta tid", och kommande pass i förhandsvisning har ingen timer.
+- **Vilotimern mellan seten** är oförändrad.
+- **Test:** `e2e/v73-passtimer-ljud.test.mjs` är uppdaterat (timern går innan något set är avbockat, och ett set startar inte en pausad timer).
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v73: passtimer och en högre vilosignal
 
 - **Passtimern** (`src/lib/workout-timer.ts`, `WorkoutTimerChip` i passvyn) visar hur länge passet har pågått, i sidhuvudet bredvid datumet.
-  - Före första setet står det "Starta tid". Timern startar av sig själv när första setet bockas av, eller med ett tryck.
-  - Ett tryck pausar och återupptar. En pausad timer visas i varningsfärg med en pausikon. Ett avbockat set startar en pausad timer igen.
+  - Startar när passet öppnas (ändrat i v74; i v73 startade den vid första setet).
+  - Ett tryck pausar och återupptar. En pausad timer visas i varningsfärg med en pausikon.
   - Den stannar när passet sparas, och passets tid visas som en egen ruta, "Tid", i sammanfattningen. Ett avslutat pass visar sin tid i sidhuvudet.
   - Tiden sparas på enheten per pass (localStorage) och överlever att appen stängs eller laddas om mitt i passet. Tider äldre än 60 dagar rensas.
   - Bara den lilla timern ritas om varje sekund, inte hela passvyn.

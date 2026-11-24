@@ -3,8 +3,9 @@
 /**
  * Passtimern (v73): hur länge passet har pågått.
  *
- * Startar av sig själv när första setet bockas av (eller med ett tryck på
- * timern), kan pausas och återupptas, och stannar när passet avslutas. Tiden
+ * v74: mäter hela passet – inte seten. Startar när passet öppnas (på passdagen),
+ * kan pausas och återupptas med ett tryck, och stannar när passet avslutas.
+ * Avbockade set påverkar inte timern. Tiden
  * sparas på enheten per pass (localStorage) – den överlever att appen stängs
  * eller laddas om mitt i passet. Tider äldre än 60 dagar rensas bort.
  */
@@ -84,6 +85,11 @@ export function startWorkoutTimer(id: string, now = Date.now()) {
   }
   if (s.endedAt) return
   if (s.pausedAt) write(id, { startedAt: s.startedAt, pausedMs: s.pausedMs + (now - s.pausedAt) })
+}
+
+/** Starta timern om passet inte redan har en (en pausad timer förblir pausad). */
+export function ensureWorkoutTimer(id: string, now = Date.now()) {
+  if (!read(id)) startWorkoutTimer(id, now)
 }
 
 /** Pausa eller återuppta. */

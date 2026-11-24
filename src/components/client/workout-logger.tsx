@@ -35,7 +35,7 @@ import { exercisesFromWorkout } from "@/lib/templates"
 import { cleanDecimal, parseDecimal } from "@/lib/decimal-input"
 import { AUTO_INCREMENT_KG, nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, primeAlertSound, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
-import { elapsedMs, endWorkoutTimer, formatElapsed, isRunning, startWorkoutTimer, toggleWorkoutTimer, useWorkoutTimer } from "@/lib/workout-timer"
+import { elapsedMs, endWorkoutTimer, ensureWorkoutTimer, formatElapsed, isRunning, toggleWorkoutTimer, useWorkoutTimer } from "@/lib/workout-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { useBounce } from "@/lib/spring"
@@ -121,12 +121,9 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const canEdit = !trainerMode && workout.status === "completed" && !workout.verifiedAt
 
   const onSetDone = (exercise: WorkoutExercise) => {
-    // v73: passtimern startar (eller fortsätter) när ett set bockas av – och ljudet låses upp
-    // medan användaren trycker, så att vilosignalen hörs även på iPhone.
-    if (!trainerMode) {
-      startWorkoutTimer(workout.id)
-      primeAlertSound()
-    }
+    // Ljudet låses upp medan användaren trycker, så att vilosignalen hörs även på iPhone.
+    // (v74: passtimern påverkas inte av seten – den mäter hela passet.)
+    if (!trainerMode) primeAlertSound()
     // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
     // Vilotid (v32): passets eller min egen (inställning före/under passet).
     const seconds = restSecondsFor(exercise.restSec, getRestPreference())
@@ -175,7 +172,7 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
                 {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
               </p>
               {/* v73: passtimern – hur länge passet har pågått. */}
-              {!trainerMode && !preview && <WorkoutTimerChip workoutId={workout.id} interactive={!readOnly && workout.status !== "completed"} />}
+              {!trainerMode && !preview && <WorkoutTimerChip workoutId={workout.id} interactive={!readOnly && workout.status !== "completed"} autoStart={started} />}
             </div>
           </div>
           {!trainerMode && !readOnly && <RestSettingsButton />}
@@ -1141,12 +1138,17 @@ export function Stepper({
 }
 
 /**
- * Passtimern i sidhuvudet (v73). Före första setet: "Starta tid". Sedan räknar den
- * upp varje sekund; ett tryck pausar och återupptar. Ett avslutat pass visar sin
- * tid. Bara den här lilla komponenten ritas om varje sekund – inte hela passvyn.
+ * Passtimern i sidhuvudet (v73). v74: mäter hela passet – startar när passet
+ * öppnas på passdagen (inte vid första setet) och räknar upp varje sekund; ett
+ * tryck pausar och återupptar. Ett pass som inte har börjat än (tidsspärren)
+ * visar "Starta tid". Ett avslutat pass visar sin tid. Bara den här lilla
+ * komponenten ritas om varje sekund – inte hela passvyn.
  */
-function WorkoutTimerChip({ workoutId, interactive }: { workoutId: string; interactive: boolean }) {
+function WorkoutTimerChip({ workoutId, interactive, autoStart }: { workoutId: string; interactive: boolean; autoStart: boolean }) {
   const state = useWorkoutTimer(workoutId)
+  React.useEffect(() => {
+    if (interactive && autoStart) ensureWorkoutTimer(workoutId)
+  }, [interactive, autoStart, workoutId])
   const running = isRunning(state)
   const [now, setNow] = React.useState(() => Date.now())
   React.useEffect(() => {

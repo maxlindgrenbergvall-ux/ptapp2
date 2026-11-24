@@ -75,7 +75,10 @@ await p.waitForTimeout(500)
 // ------------------------------------------------------------ passtimern ---
 const timer = p.locator("[data-testid=workout-timer]")
 const time = p.locator("[data-testid=workout-timer-time]")
-check((await timer.getAttribute("data-state")) === "idle" && (await time.innerText()) === "Starta tid", "före första setet: \"Starta tid\" i sidhuvudet")
+// v74: timern mäter hela passet – den går så fort passet öppnas, inte från första setet.
+check((await timer.getAttribute("data-state")) === "running", "timern startar när passet öppnas (före första setet)")
+await p.waitForTimeout(1200)
+check(/^0:0[1-2]$/.test(await time.innerText()), `den räknar redan innan något set är avbockat (${await time.innerText()})`)
 const fill = async (i) => {
   if (!(await ex.locator(`input[aria-label='Vikt set ${i} (kg)']`).inputValue())) await ex.locator(`input[aria-label='Vikt set ${i} (kg)']`).fill("60")
   if (!(await ex.locator(`input[aria-label='Reps set ${i} (reps)']`).inputValue())) await ex.locator(`input[aria-label='Reps set ${i} (reps)']`).fill("5")
@@ -83,11 +86,11 @@ const fill = async (i) => {
 await fill(1)
 await ex.locator("button[aria-label='Bocka av set 1']").click()
 await p.waitForTimeout(150)
-check((await timer.getAttribute("data-state")) === "running", "timern startar när första setet bockas av")
+check((await timer.getAttribute("data-state")) === "running", "timern fortsätter när setet bockas av")
 check((await audio()).contexts === 1, "ljudet låses upp i samma tryck (en delad ljudmotor)")
 await p.waitForTimeout(2300)
 const t1 = await time.innerText()
-check(/^0:0[2-3]$/.test(t1), `timern räknar upp (${t1})`)
+check(/^0:0[3-5]$/.test(t1), `timern räknar upp (${t1})`)
 
 // Vilosignalen (2 s vila): tre toner med övertoner, nära full volym.
 await p.waitForSelector("text=Vilan är slut", { timeout: 5000 })
@@ -104,6 +107,11 @@ check((await timer.getAttribute("data-state")) === "paused", "ett tryck pausar t
 const paused = await time.innerText()
 await p.waitForTimeout(1600)
 check((await time.innerText()) === paused, `pausad tid står still (${paused})`)
+// Seten styr inte timern: att bocka av och ångra ett set medan den är pausad låter den vara pausad.
+await ex.locator("button[aria-label='Ångra set 1']").click()
+await ex.locator("button[aria-label='Bocka av set 1']").click()
+await p.locator("button:has-text('Hoppa över')").click().catch(() => {})
+check((await timer.getAttribute("data-state")) === "paused", "ett avbockat set startar inte en pausad timer")
 await timer.click()
 check((await timer.getAttribute("data-state")) === "running", "ett tryck till fortsätter")
 await p.waitForTimeout(1200)
