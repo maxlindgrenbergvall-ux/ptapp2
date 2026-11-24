@@ -135,28 +135,98 @@ export function requestWebNotificationPermission() {
   void Notification.requestPermission().catch(() => {})
 }
 
-/** Vilan är slut: vibration, ljudsignal och (i bakgrunden på webben) en notis. */
-export function restFinishedAlert() {
-  navigator.vibrate?.([200, 100, 200])
+// ----------------------------------------------------------------- ljud ---
+/*
+ * v73: tydligare och högre signal.
+ *  - En enda ljudmotor (AudioContext) som låses upp när användaren trycker
+ *    (primeAlertSound, t.ex. när ett set bockas av). iOS håller annars en
+ *    ljudmotor som skapas utan tryck tyst – därför hördes signalen ibland inte.
+ *  - Tre toner (stigande, den sista längre) med övertoner, nära full volym,
+ *    genom en kompressor så att signalen blir hög utan att spricka.
+ *  - På iPhone (iOS 17+) spelas den som ett kort "transient"-ljud: musik som
+ *    spelas samtidigt sänks en stund i stället för att stoppas.
+ */
+type AudioSessionNavigator = Navigator & { audioSession?: { type: string } }
+let audio: AudioContext | null = null
+
+function audioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null
+  if (audio && audio.state !== "closed") return audio
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  audio = Ctx ? new Ctx() : null
+  return audio
+}
+
+/** Lås upp ljudet medan användaren trycker (anropas från en klickhändelse). */
+export function primeAlertSound() {
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (Ctx) {
-      const ctx = new Ctx()
-      const beep = (at: number, freq: number) => {
+    const ctx = audioContext()
+    if (!ctx) return
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {})
+    // En tyst, kort buffert "väcker" ljudet på äldre iOS.
+    const silent = ctx.createBufferSource()
+    silent.buffer = ctx.createBuffer(1, 1, 22050)
+    silent.connect(ctx.destination)
+    silent.start(0)
+  } catch {}
+}
+
+/** Själva signalen. Används också av "Testa ljudet" i inställningen. */
+export function playRestSound() {
+  const ctx = audioContext()
+  if (!ctx) return
+  const session = (navigator as AudioSessionNavigator).audioSession
+  try {
+    if (session) session.type = "transient"
+  } catch {}
+  const play = () => {
+    const t0 = ctx.currentTime + 0.02
+    const comp = ctx.createDynamicsCompressor()
+    comp.threshold.value = -12
+    comp.knee.value = 6
+    comp.ratio.value = 6
+    comp.attack.value = 0.002
+    comp.release.value = 0.12
+    const master = ctx.createGain()
+    master.gain.value = 1
+    comp.connect(master).connect(ctx.destination)
+    const tone = (at: number, freq: number, length: number) => {
+      // Grundton + oktav: hörs tydligare i en bullrig gymlokal än en ren sinuston.
+      for (const [mult, type, level] of [
+        [1, "triangle", 0.9],
+        [2, "sine", 0.35],
+      ] as const) {
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
-        osc.frequency.value = freq
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime + at)
-        gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + at + 0.02)
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.18)
-        osc.connect(gain).connect(ctx.destination)
-        osc.start(ctx.currentTime + at)
-        osc.stop(ctx.currentTime + at + 0.2)
+        osc.type = type
+        osc.frequency.value = freq * mult
+        gain.gain.setValueAtTime(0.0001, t0 + at)
+        gain.gain.exponentialRampToValueAtTime(level, t0 + at + 0.012)
+        gain.gain.setValueAtTime(level, t0 + at + length * 0.6)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + length)
+        osc.connect(gain).connect(comp)
+        osc.start(t0 + at)
+        osc.stop(t0 + at + length + 0.02)
       }
-      beep(0, 880)
-      beep(0.25, 1175)
-      setTimeout(() => void ctx.close(), 800)
     }
+    tone(0, 988, 0.16)
+    tone(0.2, 1319, 0.16)
+    tone(0.4, 1568, 0.42)
+    window.setTimeout(() => {
+      try {
+        if (session) session.type = "auto"
+      } catch {}
+    }, 1200)
+  }
+  if (ctx.state === "suspended") void ctx.resume().then(play, () => {})
+  else play()
+}
+
+/** Vilan är slut: vibration, ljudsignal och (i bakgrunden på webben) en notis. */
+export function restFinishedAlert() {
+  navigator.vibrate?.([250, 120, 250, 120, 400])
+  try {
+    playRestSound()
   } catch {
     // ljud är ett tillägg – vibrationen och timern räcker
   }

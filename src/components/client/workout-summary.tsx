@@ -23,11 +23,14 @@ export function WorkoutSummaryView({
   workout,
   hour,
   commentSent,
+  durationSec,
   onDone,
 }: {
   workout: ScheduledWorkout
   hour: number
   commentSent: boolean
+  /** v73: passtimerns tid (saknas om timern aldrig startade). */
+  durationSec?: number | null
   onDone: () => void
 }) {
   const { data } = useAppData()
@@ -51,6 +54,8 @@ export function WorkoutSummaryView({
     { label: "Set", value: s.setsDone, suffix: `/${s.setsTotal}` },
     { label: "Volym", value: s.volumeKg, suffix: " kg" },
     { label: "Rekord", value: s.records.length, suffix: "" },
+    // v73: passets tid från passtimern, i hela minuter (minst 1).
+    ...(durationSec ? [{ label: "Tid", value: Math.max(1, Math.round(durationSec / 60)), suffix: " min" }] : []),
   ]
 
   return (
@@ -79,7 +84,7 @@ export function WorkoutSummaryView({
         </ul>
       )}
 
-      <dl className="grid w-full grid-cols-3 gap-2" aria-label="Passet i siffror">
+      <dl className={cn("grid w-full gap-2", tiles.length === 4 ? "grid-cols-2" : "grid-cols-3")} aria-label="Passet i siffror" data-testid="summary-tiles">
         {tiles.map((t, i) => (
           <div
             key={t.label}

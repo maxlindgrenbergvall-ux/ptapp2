@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, Pause, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -34,7 +34,8 @@ import { workoutExerciseFor } from "@/lib/exercises/custom"
 import { exercisesFromWorkout } from "@/lib/templates"
 import { cleanDecimal, parseDecimal } from "@/lib/decimal-input"
 import { AUTO_INCREMENT_KG, nextTarget, type ProgressionTarget } from "@/lib/progression"
-import { cancelRestNotification, getRestPreference, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
+import { cancelRestNotification, getRestPreference, primeAlertSound, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
+import { elapsedMs, endWorkoutTimer, formatElapsed, isRunning, startWorkoutTimer, toggleWorkoutTimer, useWorkoutTimer } from "@/lib/workout-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
 import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { useBounce } from "@/lib/spring"
@@ -120,6 +121,12 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
   const canEdit = !trainerMode && workout.status === "completed" && !workout.verifiedAt
 
   const onSetDone = (exercise: WorkoutExercise) => {
+    // v73: passtimern startar (eller fortsätter) när ett set bockas av – och ljudet låses upp
+    // medan användaren trycker, så att vilosignalen hörs även på iPhone.
+    if (!trainerMode) {
+      startWorkoutTimer(workout.id)
+      primeAlertSound()
+    }
     // Vilotimern behövs bara när klienten tränar, inte när PT:n kontrollerar i efterhand.
     // Vilotid (v32): passets eller min egen (inställning före/under passet).
     const seconds = restSecondsFor(exercise.restSec, getRestPreference())
@@ -162,10 +169,14 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           </Button>
           <div className="min-w-0 flex-1">
             <h1 className="truncate font-semibold">{workout.name}</h1>
-            <p className="truncate text-xs text-muted-foreground">
-              {formatDay(workout.date)}
-              {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
-            </p>
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <p className="min-w-0 truncate">
+                {formatDay(workout.date)}
+                {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
+              </p>
+              {/* v73: passtimern – hur länge passet har pågått. */}
+              {!trainerMode && !preview && <WorkoutTimerChip workoutId={workout.id} interactive={!readOnly && workout.status !== "completed"} />}
+            </div>
           </div>
           {!trainerMode && !readOnly && <RestSettingsButton />}
           {canEdit && (
@@ -373,10 +384,11 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
               toast.error(error)
               return null
             }
+            const durationSec = endWorkoutTimer(workout.id)
             // Kommentaren går till passets PT (egna pass har ingen PT).
             const pt = workout.trainerId ?? (workout.byClient ? undefined : data.clients.find((c) => c.id === me.id)?.trainerId ?? undefined)
             if (comment && pt) actions.sendMessage(me.id, comment, workout.id, { trainerId: pt })
-            return { commentSent: Boolean(comment && pt) }
+            return { commentSent: Boolean(comment && pt), durationSec }
           }}
           onDone={() => router.push(home)}
         />
@@ -1128,6 +1140,59 @@ export function Stepper({
   )
 }
 
+/**
+ * Passtimern i sidhuvudet (v73). Före första setet: "Starta tid". Sedan räknar den
+ * upp varje sekund; ett tryck pausar och återupptar. Ett avslutat pass visar sin
+ * tid. Bara den här lilla komponenten ritas om varje sekund – inte hela passvyn.
+ */
+function WorkoutTimerChip({ workoutId, interactive }: { workoutId: string; interactive: boolean }) {
+  const state = useWorkoutTimer(workoutId)
+  const running = isRunning(state)
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    if (!running) return
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [running])
+  if (!state && !interactive) return null
+  const text = state ? formatElapsed(elapsedMs(state, now)) : null
+  const label = !state ? "Starta passets tid" : running ? `Passets tid ${text}. Tryck för att pausa` : state.endedAt ? `Passet tog ${text}` : `Passets tid ${text}, pausad. Tryck för att fortsätta`
+  const content = (
+    <>
+      <span aria-hidden className="text-muted-foreground/60">·</span>
+      {state?.pausedAt && !state.endedAt ? <Pause className="size-3" aria-hidden /> : <Timer className={cn("size-3", running && "text-primary")} aria-hidden />}
+      <span className={cn("tabular", running && "font-medium text-foreground")} data-testid="workout-timer-time">
+        {text ?? "Starta tid"}
+      </span>
+    </>
+  )
+  if (!interactive || state?.endedAt) {
+    return (
+      <span className="flex shrink-0 items-center gap-1" aria-label={label} data-testid="workout-timer" data-state="ended">
+        {content}
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        toggleWorkoutTimer(workoutId)
+        setNow(Date.now())
+      }}
+      aria-label={label}
+      data-testid="workout-timer"
+      data-state={!state ? "idle" : running ? "running" : "paused"}
+      className={cn(
+        "-my-1 flex shrink-0 items-center gap-1 rounded-full px-1 py-1 transition-[color,scale] duration-150 active:scale-95",
+        state?.pausedAt && "text-warning"
+      )}
+    >
+      {content}
+    </button>
+  )
+}
+
 /** Notisen "Vilan är slut" följer timern: schemaläggs, flyttas vid ±15 s och tas bort vid hoppa över. */
 function RestNotification({ rest }: { rest: { endsAt: number } | null }) {
   const endsAt = rest?.endsAt ?? null
@@ -1234,12 +1299,12 @@ function FinishDialog({
   onOpenChange: (o: boolean) => void
   workout: ScheduledWorkout
   /** Sparar passet. Returnerar null om det inte gick (felet har då visats). */
-  onFinish: (comment: string) => { commentSent: boolean } | null
+  onFinish: (comment: string) => { commentSent: boolean; durationSec: number | null } | null
   /** Efter kvittot: vidare till startsidan. */
   onDone: () => void
 }) {
   const [comment, setComment] = React.useState("")
-  const [saved, setSaved] = React.useState<{ commentSent: boolean; hour: number } | null>(null)
+  const [saved, setSaved] = React.useState<{ commentSent: boolean; durationSec: number | null; hour: number } | null>(null)
   const done = setsDone(workout)
   const total = setsTotal(workout)
   const quick = ["Kändes lätt 💪", "Lagom tungt", "Tungt idag", "Ont någonstans – vill prata"]
@@ -1259,7 +1324,7 @@ function FinishDialog({
     <Dialog open={open} onOpenChange={(o) => (saved ? onDone() : onOpenChange(o))}>
       <DialogContent showCloseButton={!saved} className={cn(saved && "sm:max-w-sm")}>
         {saved ? (
-          <WorkoutSummaryView workout={workout} hour={saved.hour} commentSent={saved.commentSent} onDone={onDone} />
+          <WorkoutSummaryView workout={workout} hour={saved.hour} commentSent={saved.commentSent} durationSec={saved.durationSec} onDone={onDone} />
         ) : (
           <>
             <DialogHeader>

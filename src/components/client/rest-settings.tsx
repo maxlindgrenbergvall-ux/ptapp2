@@ -1,6 +1,6 @@
 "use client"
 
-import { BellRing, Timer } from "lucide-react"
+import { BellRing, Timer, Volume2 } from "lucide-react"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { NumberInput } from "@/components/ui/number-input"
-import { formatRest, REST_MAX, REST_MIN, REST_PRESETS, requestWebNotificationPermission, useRestPreference } from "@/lib/rest-timer"
+import { formatRest, playRestSound, primeAlertSound, REST_MAX, REST_MIN, REST_PRESETS, requestWebNotificationPermission, useRestPreference } from "@/lib/rest-timer"
 import { cn } from "@/lib/utils"
 
 /** 45 s, 1 min, 1,5 min, 2 min, 3 min. */
@@ -90,6 +90,22 @@ export function RestSettingsFields() {
         />
         <BellRing className="size-4 text-muted-foreground" /> Ljud, vibration och notis när vilan är slut
       </label>
+      {/* v73: hör hur signalen låter (och att ljudet är på) innan passet. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full"
+        data-testid="test-rest-sound"
+        onClick={() => {
+          primeAlertSound()
+          playRestSound()
+          navigator.vibrate?.([250, 120, 250])
+        }}
+      >
+        <Volume2 /> Testa ljudet
+      </Button>
+      <p className="text-xs text-muted-foreground">Hörs inget? Kontrollera telefonens volym och att ljudet inte är avstängt.</p>
     </div>
   )
 }

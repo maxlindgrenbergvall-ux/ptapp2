@@ -578,6 +578,26 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v73: passtimer och en högre vilosignal
+
+- **Passtimern** (`src/lib/workout-timer.ts`, `WorkoutTimerChip` i passvyn) visar hur länge passet har pågått, i sidhuvudet bredvid datumet.
+  - Före första setet står det "Starta tid". Timern startar av sig själv när första setet bockas av, eller med ett tryck.
+  - Ett tryck pausar och återupptar. En pausad timer visas i varningsfärg med en pausikon. Ett avbockat set startar en pausad timer igen.
+  - Den stannar när passet sparas, och passets tid visas som en egen ruta, "Tid", i sammanfattningen. Ett avslutat pass visar sin tid i sidhuvudet.
+  - Tiden sparas på enheten per pass (localStorage) och överlever att appen stängs eller laddas om mitt i passet. Tider äldre än 60 dagar rensas.
+  - Bara den lilla timern ritas om varje sekund, inte hela passvyn.
+  - Timern finns inte i PT:ns kontrollvy.
+- **Högre och tydligare vilosignal** (`src/lib/rest-timer.ts`):
+  - Tre stigande toner (den sista längre) med en oktav ovanpå, nära full volym (0,9 mot 0,25 förut), genom en kompressor. Vibrationen är också längre.
+  - **iPhone:** ljudmotorn skapas och låses upp när man bockar av ett set (`primeAlertSound`), och samma motor återanvänds. Förut skapades den när vilan tog slut, utan tryck, och då kan iOS hålla den tyst.
+  - På iOS 17+ spelas signalen som ett kort ljud (`audioSession.type = "transient"`), så att musik som spelas samtidigt sänks en stund i stället för att stoppas.
+  - **"Testa ljudet"** i vilo-inställningen (knappen Vila i passvyn).
+- **Tester:**
+  - Nytt test: `e2e/v73-passtimer-ljud.test.mjs`. Det spionerar på ljudmotorn: antal toner, volym och att en enda motor återanvänds.
+  - v51 tillåter rutan "Tid" i sammanfattningen.
+
+Inga databasändringar och inga migrationer.
+
 ## Nytt i v72: övergång in i appen när man loggar in
 
 - **Ingen laddningsskärm vid inloggningen.** Laddningen sker före inloggningen (startskärmen från v71, som förladdar appens kod).
