@@ -162,7 +162,7 @@ export function TrainerProfileEditor() {
 
           <Section
             title="Vad erbjuder du?"
-            description="Erbjuder du bara kost säljer du inga pass, och erbjuder du bara träning kan klienter inte köpa kostcoaching av dig."
+            description="Styr vilka tjänster du kan sälja."
           >
             <div role="group" aria-label="Utbud" className="grid gap-2 sm:grid-cols-2">
               {(
@@ -282,7 +282,7 @@ export function TrainerProfileEditor() {
 
           <Section
             title="Hemsida och Instagram"
-            description="Visas som länkar på din profil, för klienter som letar PT och för dina egna klienter. Lämna tomt om du inte vill visa något."
+            description="Visas som länkar på din profil."
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Hemsida" htmlFor="website">
@@ -334,16 +334,13 @@ export function TrainerProfileEditor() {
             </div>
           </Section>
 
-          <Section
-            title="Tjänster och priser"
-            description="Det klienter kan köpa av dig. Klienten betalar i appen, och du kan bara schemalägga så många pass som klienten har betalat för."
-          >
+          <Section id="tjanster" title="Tjänster och priser" description="Det klienter kan köpa och betala i appen.">
             <ServicesEditor />
           </Section>
 
           <Section
             title="Erbjudanden"
-            description="Paket och kampanjer per inriktning. De visas i aviseringsmenyn hos klienter som tittat på inriktningen – aldrig för den som stängt av personliga erbjudanden."
+            description="Kampanjer till klienter som visat intresse för inriktningen."
           >
             <OffersEditor />
           </Section>
@@ -416,9 +413,9 @@ const MODES: { value: CoachingMode; icon: React.ComponentType<{ className?: stri
   { value: "both", icon: Repeat, hint: "Kombinera efter behov" },
 ]
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+function Section({ id, title, description, children }: { id?: string; title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border bg-card p-5">
+    <section id={id} className="scroll-mt-20 space-y-3 rounded-2xl border bg-card p-5">
       <div>
         <h2 className="font-semibold">{title}</h2>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}

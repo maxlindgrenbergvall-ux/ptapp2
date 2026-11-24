@@ -21,8 +21,8 @@ export const LINKS = {
   terms: "/villkor",
   supportEmail: `mailto:${BRAND.supportEmail}`,
   contact: `mailto:${BRAND.contactEmail}`,
-  /** PT-konton skapas av Coavira efter manuell verifiering av certifikat. */
-  ptApply: `mailto:${BRAND.certificationEmail}?subject=${encodeURIComponent("Jag vill bli PT på Coavira")}`,
+  /** v76: PT:er skapar konto själva (introt /bli-pt) – profilen syns efter granskning av certifikaten. */
+  ptApply: "/bli-pt",
   /** Ankaret för nedladdningssektionen längst ner. */
   download: "#ladda-ned",
 } as const

@@ -14,7 +14,7 @@ const FAQ = [
   { q: "Hur skapar jag ett konto?", a: "I appen, med Apple, Google eller e-post. Du väljer dina mål och intressen i välkomststeget." },
   {
     q: "Hur blir jag PT på Coavira?",
-    a: `PT-konton skapas av ${BRAND.name} efter att dina certifikat granskats manuellt. Skicka en ansökan till ${BRAND.certificationEmail}.`,
+    a: `Skapa ett PT-konto under "Bli PT på ${BRAND.name}". Din profil syns i Hitta PT när vi granskat dina certifikat – skicka dem till ${BRAND.certificationEmail}.`,
   },
   { q: "Hur betalar jag?", a: "Med kort via Stripe, direkt i appen. Priset du ser är priset du betalar, och ett avbokat pass ger tillbaka passet." },
   {

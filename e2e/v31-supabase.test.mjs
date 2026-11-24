@@ -20,7 +20,6 @@ const getLog = async () => (await fetch(`${mock}/__log`)).json()
 await fetch(`${mock}/__reset`)
 await fetch(`${mock}/__reset_v31`)
 const C_INTRO = "22222222-0000-4000-8000-00000000a001"
-const T_INTRO = "11111111-0000-4000-8000-00000000a002"
 
 const noise = Buffer.alloc(96 * 96 * 3)
 for (let i = 0; i < noise.length; i++) noise[i] = (i * 73 + (i >> 5) * 31) % 256
@@ -97,39 +96,30 @@ async function login(email, path = "/logga-in") {
   const { ctx, p } = await login("intropt@test.se", "/logga-in/pt")
   await p.waitForURL(/\/pt\/onboarding$/)
   ok("befintlig PT skickas till PT:ns intro-flöde vid inloggning")
-  await p.waitForSelector("[data-testid=onboarding-profile]")
-  await p.waitForFunction(() => document.querySelector("#profile-firstName")?.value === "Per")
-  await p.getByTestId("onboarding-save-profile").click()
-  check(await p.locator("text=Lägg till en profilbild").first().isVisible(), "PT måste ha en profilbild")
-  await p.setInputFiles("[data-testid=profile-step] input[type=file]", { name: "per.png", mimeType: "image/png", buffer: png })
-  await p.waitForSelector("[data-testid=profile-step] button:has-text(\"Byt bild\")") // uppladdad och godkänd av bildfiltret
-  await p.fill("#onb-bio", "Licensierad PT med fokus på styrka, rörlighet och hållbara vanor för vardagen.")
-  if ((await p.locator('button[aria-pressed=true]:has-text("Styrkelyft")').count()) === 0) await p.locator('button:has-text("Styrkelyft")').click()
-  await fetch(`${mock}/__reset`)
-  await p.getByTestId("onboarding-save-profile").click()
-  // Stripe är redan klart sedan tidigare → rollroutern hoppar till steg 3.
-  await p.waitForSelector("[data-testid=onboarding-terms]")
-  ok("PT med klart Stripe-konto går direkt till villkoren (steg 3)")
-  await p.getByTestId("activate-account").click()
-  check(await p.locator("#accept-agreement-error").isVisible(), "kontot aktiveras inte utan godkänt avtal")
-  const parts = await p.locator('[aria-label="Avtalet består av"] li').count()
-  // v65: communityreglerna är en egen del av avtalet (PT-avtalet blev del 4).
-  check(parts === 5, `ett avtal i fem delar – användarvillkor, integritetspolicy, communityregler, PT-avtal, GDPR (${parts})`)
-  check((await p.locator('[data-testid=onboarding-terms] [role=checkbox]').count()) === 2, "v34: en bock för avtalet + en valfri för nyhetsbrev")
+  // v76: PT-introt i tre steg – steg 1 är namn, företag, portaler och avtalet.
+  await p.waitForSelector("[data-testid=pt-onboarding-account]")
+  await p.waitForFunction(() => document.querySelector("#pt-first")?.value === "Per")
+  ok("namnet är förifyllt")
+  await p.getByTestId("pt-flow-next").click()
+  check(await p.locator("text=Godkänn avtalet för att fortsätta").isVisible(), "kontot aktiveras inte utan godkänt avtal")
   check((await p.locator('a[href="/avtal/pt"]').count()) === 1, "hela avtalet går att läsa")
-  await p.getByTestId("accept-agreement").click()
-  await p.getByTestId("marketing-consent").click()
-  await p.getByTestId("activate-account").click()
+  await fetch(`${mock}/__reset`)
+  await p.click("[data-testid=pt-terms]")
+  await p.getByTestId("pt-flow-next").click()
+  await p.waitForSelector("[data-testid=pt-onboarding-payouts]")
+  ok("steg 2: utbetalningar")
+  // Stripe klart sedan tidigare eller inte – PT:n kan gå vidare (Stripe kan kopplas senare).
+  await (await p.locator("[data-testid=skip-payouts]").count() ? p.getByTestId("skip-payouts") : p.getByTestId("pt-flow-next")).click()
+  await p.waitForSelector("[data-testid=pt-onboarding-package]")
+  await p.getByTestId("package-later").click()
   await p.waitForURL(/\/pt(\?valkommen=1)?$/)
   await p.waitForLoadState("networkidle")
   const log = await getLog()
-  const step1 = log.find((e) => e.table === "save_profile_step")
-  check(step1?.body.p_avatar_url?.includes(`/avatars/${T_INTRO}/`), "PT:ns steg 1 sparas (bild från bildfiltret)")
-  const acc = log.find((e) => e.table === "accept_user_agreement")
-  check(acc?.body.p_marketing === true, "v34: ett godkännande (accept_user_agreement) med valt nyhetsbrev")
-  const st = (await (await fetch(`${mock}/__onboarding`)).json())[T_INTRO]
-  check(["terms", "privacy", "pt_agreement", "gdpr_dpa"].every((d) => st.accepted.includes(d)) && st.marketing === true, "alla fyra delarna godkända och samtycket sparat")
-  check(log.some((e) => e.table === "finish_onboarding"), "finish_onboarding aktiverar kontot")
+  check(log.some((e) => e.table === "save_pt_account_step" && e.body.p_first_name === "Per"), "PT:ns steg 1 sparas (save_pt_account_step)")
+  const acc = log.find((e) => e.table === "accept_legal_documents")
+  // v65: communityreglerna är en egen del av avtalet.
+  check(["terms", "privacy", "community", "pt_agreement", "gdpr_dpa"].every((d) => acc?.body.p_documents?.includes(d)), "ett godkännande av alla fem delarna")
+  check(log.some((e) => e.table === "finish_pt_onboarding"), "finish_pt_onboarding avslutar introt")
   check(new URL(p.url()).pathname === "/pt", "PT-portalen öppnas")
   await ctx.close()
 }

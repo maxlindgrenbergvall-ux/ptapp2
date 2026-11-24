@@ -303,8 +303,7 @@ function HeroCopy() {
           className="group/pt inline-flex h-11 items-center justify-center gap-2 self-center rounded-full px-2 text-sm font-semibold text-foreground transition-[background-color,border-color,translate] duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none sm:h-14 sm:self-auto ease-[var(--landing-ease)] sm:border sm:border-white/15 sm:bg-white/[0.03] sm:px-6 sm:text-base sm:hover:-translate-y-0.5 sm:hover:border-white/25 sm:hover:bg-white/[0.07]"
         >
           <BadgeCheck aria-hidden className="size-5 text-brand" />
-          <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover/pt:decoration-brand sm:no-underline">Är du PT? Ansök</span>
-          <span className="sr-only"> (via e-post)</span>
+          <span className="underline decoration-white/25 underline-offset-4 transition-colors group-hover/pt:decoration-brand sm:no-underline">Är du PT? Skapa PT-konto</span>
         </a>
       </div>
 
@@ -314,7 +313,7 @@ function HeroCopy() {
           Gratis att ladda ned · iPhone &amp; Android
         </p>
         {/* En rad om PT-kontona – bara från sm, på mobil räcker raden ovan. */}
-        <p className="hidden text-sm text-muted-foreground sm:block">PT-konton skapas av Coavira efter manuell granskning av certifikat.</p>
+        <p className="hidden text-sm text-muted-foreground sm:block">PT:er syns i appen efter manuell granskning av certifikat.</p>
         {/* På mobil är telefonen som sticker upp under texten själva scroll-signalen. */}
         <a
           href="#funktioner"

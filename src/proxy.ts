@@ -6,13 +6,10 @@ import { CRM_HOME, CRM_LOGIN_PATH, crmAllows, crmUrl, isAdminPath, isCrmDeployme
 import { allowedDuringOnboarding, ONBOARDING_PATH_FOR, onboardingRequired } from "@/lib/onboarding"
 import { hostRoute, START_PATH } from "@/lib/site"
 import {
-  HOME_FOR_ROLE,
   homeFor,
   isSupabaseEnabled,
   ONBOARDING_PATH,
   PT_LOGIN_PATH,
-  PT_ONBOARDING_PATH,
-  ptOnboardingRequired,
   roleFromClaims,
   SUPABASE_KEY,
   SUPABASE_URL,
@@ -24,7 +21,7 @@ const PROTECTED = ["/pt", "/klient", ONBOARDING_PATH, DASHBOARD_PATH]
  * (/kom-igang) är appens inloggning/registrering; på appens domän och i
  * mobilappen leder "/" dit (hostRoute).
  */
-const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera"]
+const AUTH_PAGES = [START_PATH, "/logga-in", PT_LOGIN_PATH, "/registrera", "/bli-pt", "/bli-pt/konto"]
 /** Sidor som ett konto utan vald kontotyp får besöka (allt annat → välkomststeget). */
 const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-losenord", "/konto-raderat", "/auth/"]
 
@@ -169,14 +166,9 @@ export async function proxy(request: NextRequest) {
   }
   if (AUTH_PAGES.includes(path) || path === ONBOARDING_PATH || path === DASHBOARD_PATH) return redirect(home)
   if (isProtected && !path.startsWith(home)) return redirect(home)
-  // PT-onboarding (v22): färdig profil och utbetalningar via Stripe innan resten
-  // av PT-portalen öppnas. Spärren står i JWT:n (app_metadata.pt_ready), som
-  // databasen håller aktuell – inget extra databasanrop här.
-  if (role === "trainer" && path.startsWith(HOME_FOR_ROLE.trainer)) {
-    const required = ptOnboardingRequired(claims as { app_metadata?: Record<string, unknown> })
-    const onOnboarding = path === PT_ONBOARDING_PATH || path.startsWith(`${PT_ONBOARDING_PATH}/`)
-    if (required && !onOnboarding) return redirect(PT_ONBOARDING_PATH)
-  }
+  // v76: Stripe kan kopplas senare – PT-portalen öppnas när introt är klart
+  // (onboarding_completed ovan). Utan utbetalningar går tjänsterna inte att köpa
+  // och profilen syns inte i Hitta PT (databasen), och dashboarden visar en statusrad.
 
   return response
 }

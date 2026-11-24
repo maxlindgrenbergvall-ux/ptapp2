@@ -89,6 +89,8 @@ export interface Trainer {
   acceptsEpassi?: boolean
   acceptsBenifex?: boolean
   acceptsEdenred?: boolean
+  /** v76: Stripe-utbetalningarna är klara (trainers.stripe_onboarding_complete). Saknas i demoläget. */
+  payoutsReady?: boolean
 }
 
 export type ClientStatus = "active" | "paused" | "pending"

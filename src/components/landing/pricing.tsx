@@ -34,7 +34,6 @@ import {
   Dumbbell,
   FileBadge,
   Layers,
-  Mail,
   Minus,
   Plus,
   RotateCcw,
@@ -470,8 +469,7 @@ function PtCard() {
       <CheckList items={PT_FEATURES} label="Det här får du som PT" />
       <div className="mt-5 sm:mt-8">
         <a href={LINKS.ptApply} className={cn(PRIMARY_BTN, "w-full", FOCUS)}>
-          <Mail aria-hidden className="size-4" />
-          Ansök som PT
+          Bli PT på Coavira
           <span className="sr-only"> (öppnar e-post)</span>
           <ArrowRight aria-hidden className="size-4 transition-transform group-hover/btn:translate-x-1 motion-reduce:transition-none" />
         </a>

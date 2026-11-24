@@ -19,6 +19,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
+import { useT } from "@/lib/i18n/provider"
+import { PtStatusRow } from "@/components/pt-onboarding/status-row"
 import { greeting } from "@/lib/greeting"
 import { firstName } from "@/lib/names"
 import { useDayPart } from "@/hooks/use-day-part"
@@ -29,17 +31,16 @@ type Filter = "all" | ClientStatus
 
 export default function PtOverviewPage() {
   const { data, me } = useAppData()
+  const t = useT()
   // v35: samma tidsbaserade hälsning som klientens hemskärm.
   const part = useDayPart()
   // Direkt efter onboardingen (v22): /pt?valkommen=1.
   React.useEffect(() => {
     if (new URLSearchParams(window.location.search).get("valkommen") !== "1") return
-    toast.success(`Välkommen till Coavira, ${firstName(me.name)}!`, {
-      description: "Profilen och utbetalningarna är klara. Publicera profilen under Min profil när du lagt in dina tjänster.",
-      duration: 8000,
-    })
+    // v76: bara en hälsning – det som återstår visas i statusraden.
+    toast.success(t("ptOnboarding.welcome", { name: firstName(me.name) }))
     window.history.replaceState(null, "", window.location.pathname)
-  }, [me.name])
+  }, [me.name, t])
   const [query, setQuery] = React.useState("")
   const [filter, setFilter] = React.useState<Filter>("all")
   const today = todayISO()
@@ -91,6 +92,8 @@ export default function PtOverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* v76: det som återstår efter introt – en kompakt rad i stället för långa texter. */}
+      <PtStatusRow />
       <PageHeader
         title="Översikt"
         description={`${greeting(part, firstName(me.name))}${part === "day" ? "" : "!"} Så här ser det ut idag, ${formatShort(today)}`}

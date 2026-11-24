@@ -214,11 +214,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
       <div className="mt-auto space-y-2">
-        {trainer && !trainer.isPublished && (
-          <Link href="/pt/profil" onClick={onNavigate} className="block rounded-lg border border-dashed p-3 text-xs text-muted-foreground hover:bg-sidebar-accent/60">
-            Din profil syns inte i sökningen än. <span className="font-medium text-foreground underline">Publicera den</span>
-          </Link>
-        )}
         <div className="flex items-center gap-1">
           {mode === "demo" ? (
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={actions.resetDemo}>

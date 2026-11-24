@@ -101,6 +101,7 @@ interface TrainerRow {
   accepts_epassi?: boolean
   accepts_benifex?: boolean
   accepts_edenred?: boolean
+  stripe_onboarding_complete?: boolean
   reviews?: ReviewRow[]
 }
 interface CartRow {
@@ -500,6 +501,7 @@ export const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   acceptsEpassi: r.accepts_epassi ?? false,
   acceptsBenifex: r.accepts_benifex ?? false,
   acceptsEdenred: r.accepts_edenred ?? false,
+  payoutsReady: r.stripe_onboarding_complete ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })

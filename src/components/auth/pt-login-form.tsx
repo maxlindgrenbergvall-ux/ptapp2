@@ -79,13 +79,16 @@ export function PtLoginForm() {
         <div className="flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm">
           <KeyRound className="mt-0.5 size-4 shrink-0 text-primary" />
           <div>
-            <p className="font-medium">Första gången?</p>
-            <p className="text-muted-foreground">
-              Coavira har registrerat ditt konto med din e-post. Välj ditt eget lösenord innan du loggar in.
-            </p>
-            <Link href="/glomt-losenord?pt=1" className="mt-1 inline-block font-medium text-primary underline underline-offset-4">
-              Välj lösenord
+            <p className="font-medium">Ny som PT på Coavira?</p>
+            <Link href="/bli-pt" className="mt-1 inline-block font-medium text-primary underline underline-offset-4" data-testid="pt-create-account-link">
+              Skapa PT-konto
             </Link>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Har Coavira skapat ditt konto?{" "}
+              <Link href="/glomt-losenord?pt=1" className="underline underline-offset-4">
+                Välj lösenord
+              </Link>
+            </p>
           </div>
         </div>
         <div className="space-y-2">
@@ -108,7 +111,7 @@ export function PtLoginForm() {
         <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 size-4 shrink-0" />
           {isSupabaseEnabled
-            ? "PT-konton skapas av Coavira efter granskning och loggar bara in med e-post och lösenord. Vill du bli PT på Coavira? Kontakta oss."
+            ? "PT-konton loggar bara in med e-post och lösenord. Din profil syns i Hitta PT när vi granskat dina certifikat."
             : "Demoläge: du loggas in som en demo-PT med påhittad data."}
         </p>
       </form>

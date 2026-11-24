@@ -8,8 +8,8 @@ export function TermsContent() {
     <>
     <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
       <p>
-        <strong className="text-foreground">PT:er:</strong> alla PT-konton skapas av {BRAND.name} efter att certifikaten
-        granskats manuellt ({BRAND.certificationEmail}). PT:n sätter själv sina priser och ansvarar för sin coachning.
+        <strong className="text-foreground">PT:er:</strong> PT:er skapar sitt konto själva. Profilen visas i Hitta PT först när {BRAND.name}
+        granskat certifikaten manuellt ({BRAND.certificationEmail}). PT:n sätter själv sina priser och ansvarar för sin coachning.
       </p>
       <p>
         <strong className="text-foreground">Köp och betalning:</strong> du betalar PT:ns tjänster med kort via Stripe. Priset

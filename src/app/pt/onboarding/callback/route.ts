@@ -61,6 +61,10 @@ export async function GET(request: NextRequest) {
 
   // Ny token med app_metadata.pt_ready (proxy.ts läser spärren därifrån).
   await supabase.auth.refreshSession()
+  // v76: tillbaka från Stripe → steg 3 (första paketet) i introt, eller dashboarden om introt redan är klart.
+  const { data: t } = await admin.from("trainers").select("pt_onboarding_completed").eq("id", auth.user.id).maybeSingle()
+  if ((t as { pt_onboarding_completed?: boolean } | null)?.pt_onboarding_completed) return to("/pt?stripe=klar")
+  await admin.from("trainers").update({ pt_onboarding_step: 3 }).eq("id", auth.user.id)
   // Stripe klart: villkoren (steg 3) – onboarding-sidan väljer rätt steg (eller portalen om allt är klart).
   if (result?.complete || result?.pt_ready) return to("/pt/onboarding")
   return to("/pt/onboarding?stripe=ofullstandig")

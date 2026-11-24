@@ -381,12 +381,11 @@ const ROW_LABEL = "font-semibold text-foreground underline decoration-white/25 u
 function SecondaryLinks() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-x-4">
-      {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
+      {/* v76: PT:er skapar konto via /bli-pt – profilen syns efter manuell granskning av certifikat. */}
       <a href={LINKS.ptApply} className={ROW_LINK}>
         <BadgeCheck aria-hidden className="size-4 text-brand" />
         Är du PT?
-        <span className={ROW_LABEL}>Ansök om att coacha</span>
-        <span className="sr-only"> (öppnar e-post)</span>
+        <span className={ROW_LABEL}>Bli PT på Coavira</span>
         <ArrowUpRight aria-hidden className="size-3.5 opacity-60 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
       </a>
       <Link href={LINKS.support} className={ROW_LINK}>
@@ -485,7 +484,7 @@ const PRODUCT_LINKS: readonly FooterLink[] = NAV.map((item) => ({ label: item.la
 
 const APP_LINKS: readonly FooterLink[] = [
   { label: "Ladda ned appen", href: LINKS.download, kind: "anchor" },
-  { label: "Ansök som PT", href: LINKS.ptApply, kind: "mail" },
+  { label: "Bli PT", href: LINKS.ptApply, kind: "route" },
   { label: "Support", href: LINKS.support, kind: "route" },
 ]
 

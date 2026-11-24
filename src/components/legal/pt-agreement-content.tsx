@@ -22,7 +22,7 @@ export function PtAgreementContent() {
 
       <H>2. Konto och granskning</H>
       <p>
-        PT-konton skapas av {BRAND.name} efter att dina certifikat granskats ({BRAND.certificationEmail}). Uppgifterna i din profil ska vara sanna. Profilbilden granskas
+        Du skapar ditt PT-konto själv. Din profil syns i Hitta PT, och du kan bjuda in klienter, först när {BRAND.name} granskat dina certifikat ({BRAND.certificationEmail}). Uppgifterna i din profil ska vara sanna. Profilbilden granskas
         automatiskt av vårt bildfilter. Vi kan stänga av ett konto vid brott mot avtalet, användarvillkoren eller lag.
       </p>
 

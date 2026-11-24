@@ -578,6 +578,43 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v76: PT-intro i tre steg och självregistrering
+
+**Migration att köra:** `supabase/migrations/20261203000000_v76_pt_self_signup.sql` (efter v75).
+
+### Flödet
+- **Steg 0, `/bli-pt`:** tre korta kort (Fyll ditt schema, Smidiga betalningar & friskvård, Full kontroll på din marginal). Knapparna är "Skapa PT-konto" och "Har du redan ett konto? Logga in".
+- **Steg 1, `/bli-pt/konto`:**
+  - Formuläret har namn, e-post, lösenord, företagsnamn, organisationsnummer (kontrollsiffran valideras) och företagsadress.
+  - ePassi, Benifex och Edenred väljs med toggle-chips, och PT-avtalet godkänns med en kryssruta.
+  - En PT som Coavira har skapat ser samma steg i `/pt/onboarding`, utan e-post och lösenord.
+- **Steg 2, "Aktivera utbetalningar":**
+  - Steget har tre punkter och knappen "Koppla Stripe-konto".
+  - Stripe skickar tillbaka till steg 3 (`return_url`) eller till steg 2 (`refresh_url`).
+  - Steget kan hoppas över med "Hoppa över så länge".
+- **Steg 3, första paketet:**
+  - Steget har en genväg till friskvårdsmallen, snabbval för priset (1 995–4 995 kr) och en kompakt kalkyl.
+  - Knappen är "Spara paket & gå till dashboard", med alternativet "Skapa paket senare".
+- **Varje vy:** en rubrik, högst en kort hjälpmening, "Steg X av 3", en progress bar, en tillbakaknapp och "Fortsätt" längst ned.
+- **Stegen sparas** i `trainers.pt_onboarding_step`, så att PT:n kommer tillbaka till rätt steg. Introt är klart när steg 3 är sparat eller överhoppat (`pt_onboarding_completed`).
+- **Dashboarden** visar det som återstår som EN kompakt statusrad, i ordningen Stripe → företag → paket → profil → granskning → publicering. De långa onboardingtexterna i menyn och profilen är borttagna.
+
+### Självregistrering med granskning
+- **Vem som helst kan skapa ett PT-konto.** `handle_new_user` ger rollen trainer bara när `user_metadata.pt_signup = true`. En roll som skickas på annat sätt ignoreras som tidigare.
+- **Före godkänd granskning** är profilen dold i Hitta PT, och PT:n kan inte sälja eller bjuda in klienter:
+  - Triggern `guard_trainer_certified` hindrar publicering utan certifikat.
+  - `create_pt_invite` kräver redan godkännande.
+- **Stripe krävs inte** för att komma in i portalen, men tjänster kan inte säljas utan utbetalningar.
+- **PT-avtalet och hjälptexterna** beskriver självregistreringen och granskningen.
+- **Nyhetsbrevsvalet** för PT:er har flyttat från onboardingen till frågan i portalen (v36).
+- **I Supabase:** aktivera e-postbekräftelse och lägg till `/auth/callback` bland Redirect URLs.
+
+### Databas (v76)
+- `trainers.pt_onboarding_step` (1–3, standard 1) och `trainers.pt_onboarding_completed`.
+- Befintliga PT:er med klar onboarding markeras som klara.
+- RPC: `set_pt_onboarding_step`, `save_pt_account_step` och `finish_pt_onboarding`.
+- Tester: `supabase/tests/rls_v76.test.sql`.
+
 ## Nytt i v75: friskvårdsbidrag, friskvårdspaket och anti-leakage
 
 **Migration att köra:** `supabase/migrations/20261202000000_v75_wellness.sql` (efter v65).

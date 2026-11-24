@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: "Kom igång" }
 
 /**
  * Kom igång: inloggning och registrering för klienter (Apple, Google, e-post).
- * Landningssidan (/) och appen (iOS/Android) leder hit. PT-konton skapas av
+ * Landningssidan (/) och appen (iOS/Android) leder hit. PT:er skapar konto via /bli-pt (v76); tidigare skapades PT-konton av
  * Coavira och loggar in via PT-inloggningen. Inloggade skickas vidare av proxy.ts.
  */
 export default function GetStarted() {
@@ -63,6 +63,10 @@ export default function GetStarted() {
           </p>
           <p className="text-center text-xs text-muted-foreground">
             Är du PT?{" "}
+            <Link href="/bli-pt" className="underline underline-offset-4">
+              Bli PT på Coavira
+            </Link>{" "}
+            ·{" "}
             <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
               PT-inloggning
             </Link>

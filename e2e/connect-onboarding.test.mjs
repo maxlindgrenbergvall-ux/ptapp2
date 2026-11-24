@@ -1,6 +1,6 @@
-// E2E (Supabase-läge) för v22: obligatorisk PT-onboarding med Stripe Connect.
-//  - spärren: en ny PT kommer bara åt /pt/onboarding tills profil + Stripe är klart
-//  - steg 1 (profil) och steg 2 (Stripe Connect Express), retur via /pt/onboarding/callback
+// E2E (Supabase-läge) för v22/v76: PT-introt i tre steg med Stripe Connect.
+//  - spärren: en ny PT kommer bara åt /pt/onboarding tills introt är klart
+//  - steg 1 (namn, företag, avtal), steg 2 (Stripe Connect Express, retur via /pt/onboarding/callback), steg 3
 //  - "Stripe granskar" (uppgifter inskickade men kort inte aktiverade)
 //  - välkomstmeddelandet i PT-portalen
 //  - kassan delas: application_fee_amount (serviceavgiften) + transfer_data.destination (PT:ns konto)
@@ -63,54 +63,43 @@ for (const path of ["/pt", "/pt/klienter", "/pt/kalender", "/pt/profil", "/pt/me
 }
 const boost = await p.request.post(`${base}/api/stripe/boost-checkout`)
 check(!boost.ok(), "PT Boost går inte att köpa före onboardingen")
-await p.waitForSelector("[data-testid=onboarding-profile]")
-check((await p.locator('nav[aria-label="Huvudmeny"]').count()) === 0, "onboardingen visas utan portalens meny")
-check(await p.locator("text=Välkommen till Coavira, Nils!").isVisible(), "personlig välkomstrubrik")
+// v76: PT-introt i tre steg, ett i taget. Nils skapades av Coavira (v7), så steg 1
+// är namn, företag, portaler och PT-avtalet (självregistrerade har gjort det i /bli-pt/konto).
+await p.waitForSelector("[data-testid=pt-onboarding-account]")
+check((await p.locator('nav[aria-label="Huvudmeny"]').count()) === 0, "introt visas utan portalens meny")
+check((await p.locator("[data-testid=pt-flow-step]").innerText()) === "Steg 1 av 3", "Steg 1 av 3")
 
-// --------------------------------------------------------- steg 1: profil ---
-const save = p.getByTestId("onboarding-save-profile")
-const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==", "base64")
-// v31: steg 1 = förnamn, efternamn och profilbild (via bildfiltret) + PT:ns presentation.
-await save.click()
-check(/profilbild/.test(await p.locator("[data-testid=onboarding-missing]").innerText()), "steg 1: visar vad som saknas")
-check(await p.locator("[data-testid=onboarding-profile]").isVisible(), "steg 1: ofärdig profil sparas inte")
-await p.setInputFiles("[data-testid=profile-step] input[type=file]", { name: "nils.png", mimeType: "image/png", buffer: png })
-await p.waitForSelector('[data-testid=profile-step] button:has-text("Byt bild")')
-await p.getByRole("button", { name: "Hyrox" }).click()
-await p.fill("#onb-bio", "Kort")
-await save.click()
-check(await p.locator("[data-testid=onboarding-profile]").isVisible(), "steg 1: presentationen måste vara minst 40 tecken")
-await p.fill("#onb-bio", "Jag coachar Hyrox-atleter och nybörjare med fokus på teknik och hållbar progression.")
-await p.fill("#profile-firstName", "Nils")
-await p.fill("#profile-lastName", "Nyström")
-await p.route("**/rest/v1/rpc/my_payout_status", (r) =>
-  r.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST202", message: "Could not find the function public.my_payout_status without parameters in the schema cache" }) })
-)
-await save.click()
-await p.waitForSelector("text=Databasen är inte uppdaterad")
-ok("databas utan v22: tydligt besked om migrationen (inte \"kontrollera uppkopplingen\")")
-await p.unroute("**/rest/v1/rpc/my_payout_status")
+// ------------------------------------------------- steg 1: namn och företag ---
+await p.fill("#pt-first", "Nils")
+await p.fill("#pt-last", "Nyström")
+await p.fill("#pt-company", "Nils Nyström Coaching")
+await p.fill("#pt-org", "5591234561")
+await p.fill("#pt-address", "Hamngatan 3, 211 22 Malmö")
+await p.click("[data-testid=pt-portal-benifex]")
+await p.getByTestId("pt-flow-next").click()
+check(await p.locator("text=Godkänn avtalet för att fortsätta").isVisible(), "steg 1: PT-avtalet krävs")
+await p.click("[data-testid=pt-terms]")
 await p.screenshot({ path: `${out}/v22-onboarding-steg1.png`, fullPage: true })
-await save.click()
-await p.waitForSelector("[data-testid=onboarding-payouts]")
+await p.getByTestId("pt-flow-next").click()
+await p.waitForSelector("[data-testid=pt-onboarding-payouts]")
 const writes = await mockLog()
-const step1 = writes.filter((e) => e.table === "save_profile_step").at(-1)?.body
-check(step1?.p_first_name === "Nils" && step1.p_last_name === "Nyström", "förnamn och efternamn sparas (save_profile_step)")
-check(step1?.p_avatar_url?.includes("/storage/v1/object/public/avatars/11111111-0000-4000-8000-000000000002/avatar.webp"), "profilbilden kommer från bildfiltret (egen mapp i Storage)")
-check(writes.some((e) => e.table === "trainers" && e.method === "PATCH" && e.body?.specialties?.includes("hyrox") && e.body?.bio?.length >= 40), "inriktning och presentation sparas i trainers")
+const step1 = writes.filter((e) => e.table === "save_pt_account_step").at(-1)?.body
+check(step1?.p_first_name === "Nils" && step1.p_last_name === "Nyström" && step1.p_benifex === true, "namn och portalavtal sparas (save_pt_account_step)")
+check(writes.some((e) => e.table === "trainer_business" && e.method === "POST" && e.body?.org_number === "559123-4561"), "företagsuppgifterna sparas (trainer_business)")
+check(writes.some((e) => e.table === "accept_legal_documents"), "PT-avtalet godkänns i steg 1")
 
 // ---------------------------------------------------- steg 2: utbetalningar ---
-const payoutsText = await p.locator("[data-testid=onboarding-payouts]").innerText()
-check(/5 %/.test(payoutsText) && /10 %/.test(payoutsText) && /dras automatiskt i kassan/.test(payoutsText), "steg 2: serviceavgiften (5/10 %) förklaras")
+check((await p.locator("[data-testid=pt-flow-step]").innerText()) === "Steg 2 av 3", "Steg 2 av 3")
+check(/Aktivera utbetalningar/.test(await p.locator("h1").innerText()), "steg 2: Aktivera utbetalningar")
 await p.screenshot({ path: `${out}/v22-onboarding-steg2.png`, fullPage: true })
 await p.goto(base + "/pt")
-check(new URL(p.url()).pathname === "/pt/onboarding", "profil klar men ingen Stripe: portalen fortfarande stängd")
-await p.waitForSelector("[data-testid=onboarding-payouts]")
-ok("tillbaka i onboardingen hoppar sidan direkt till steg 2")
+check(new URL(p.url()).pathname === "/pt/onboarding", "introt inte klart: portalen fortfarande stängd")
+await p.waitForSelector("[data-testid=pt-onboarding-payouts]")
+ok("tillbaka i introt: steg 2 igen")
 
 await p.getByTestId("connect-payouts").click()
 await p.waitForURL(/localhost:54500\/connect\/onboard\/acct_/)
-ok("\"Koppla bankkonto\" skickar PT:n till Stripes onboarding")
+ok("\"Koppla Stripe-konto\" skickar PT:n till Stripes onboarding")
 const acct = new URL(p.url()).pathname.split("/").pop()
 const slog = await stripeLog()
 const created = slog.filter((e) => e.path === "/v1/accounts" && e.method === "POST").at(-1)
@@ -121,47 +110,38 @@ check(created?.form["metadata[trainer_id]"] === "11111111-0000-4000-8000-0000000
   "Stripe-konto: kopplat till PT:n och idempotent (inga dubbletter)")
 const link = slog.filter((e) => e.path === "/v1/account_links").at(-1)
 check(link?.form.type === "account_onboarding" && link.form.return_url === `${base}/pt/onboarding/callback` && link.form.refresh_url === `${base}/pt/onboarding?stripe=forny`,
-  "onboardinglänk: tillbaka till /pt/onboarding/callback (och ny länk om den gått ut)")
+  "onboardinglänk: tillbaka till introt (/pt/onboarding/callback → steg 3, ny länk → steg 2)")
 check((await mockLog()).some((e) => e.table === "attach_stripe_account" && e.body.p_account === acct), "kontot sparas i databasen (attach_stripe_account)")
 
 // Stripe har tagit emot uppgifterna men inte aktiverat kort än.
 await fetch(`${stripe}/__connect/${acct}/submitted`)
 await p.click("#tillbaka")
 await p.waitForURL(/\/pt\/onboarding/)
-await p.waitForSelector("[data-testid=onboarding-waiting]")
+await p.waitForSelector("[data-testid=pt-onboarding-payouts] >> text=Stripe granskar dina uppgifter")
 ok("uppgifter inskickade men inte godkända: \"Stripe granskar dina uppgifter\"")
-await p.goto(base + "/pt/kalender")
-check(new URL(p.url()).pathname === "/pt/onboarding", "under granskningen är portalen stängd")
-await p.waitForSelector("[data-testid=onboarding-waiting]")
 await p.screenshot({ path: `${out}/v22-onboarding-granskas.png`, fullPage: true })
 
-// Stripe godkänner kontot – PT:n kontrollerar igen.
+// Stripe godkänner kontot – PT:n kontrollerar igen → steg 3.
 await fetch(`${stripe}/__connect/${acct}/active`)
-await p.waitForSelector("[data-testid=onboarding-waiting]")
 await p.getByRole("button", { name: "Kontrollera igen" }).click()
-// v31: Stripe klart → steg 3, villkor och avtal, innan portalen öppnas.
-await p.waitForSelector("[data-testid=onboarding-terms]")
+await p.waitForSelector("[data-testid=pt-onboarding-package]")
 const applied = (await mockLog()).filter((e) => e.table === "apply_stripe_account").at(-1)?.body
 check(applied?.p_account === acct && applied.p_details === true && applied.p_charges === true, "callback: statusen hämtas från Stripe (inte från länken)")
-await p.goto(base + "/pt/kalender")
-check(new URL(p.url()).pathname === "/pt/onboarding", "Stripe klart men avtalen inte godkända: portalen fortfarande stängd")
-await p.waitForSelector("[data-testid=onboarding-terms]")
-await p.getByTestId("activate-account").click()
-check(await p.locator("#accept-agreement-error").isVisible(), "steg 3: kontot aktiveras inte utan godkänt användaravtal")
-await p.screenshot({ path: `${out}/v34-onboarding-avtal.png`, fullPage: true })
-await p.getByTestId("accept-agreement").click()
-await p.getByTestId("activate-account").click()
+ok("tillbaka från Stripe: introt återupptas på steg 3")
+
+// ---------------------------------------------------- steg 3: första paketet ---
+await p.getByTestId("package-later").click()
 await p.waitForURL(/\/pt$/)
-check((await mockLog()).some((e) => e.table === "finish_onboarding"), "finish_onboarding aktiverar kontot")
+check((await mockLog()).some((e) => e.table === "finish_pt_onboarding"), "finish_pt_onboarding avslutar introt")
 await p.waitForSelector("text=Välkommen till Coavira, Nils!")
-ok("klart: in i PT-portalen med ett välkomstmeddelande")
+ok("klart: in i PT-portalen med en kort hälsning")
 check(new URL(p.url()).search === "", "välkomstparametern tas bort ur adressen")
 await p.screenshot({ path: `${out}/v22-onboarding-valkommen.png` })
 await p.goto(base + "/pt/kalender")
-check(new URL(p.url()).pathname === "/pt/kalender", "portalen är öppen (ny JWT med pt_ready)")
+check(new URL(p.url()).pathname === "/pt/kalender", "portalen är öppen (ny JWT)")
 await p.goto(base + "/pt/onboarding")
 await p.waitForURL(/\/pt$/)
-ok("klar PT som går tillbaka till onboardingen skickas till portalen")
+ok("klar PT som går tillbaka till introt skickas till portalen")
 
 // Från appen: Stripe skickar tillbaka via /app-retur (lämnar över till appen).
 const native = await p.request.post(`${base}/api/stripe/connect/onboard`, { headers: { "user-agent": APP_UA } })

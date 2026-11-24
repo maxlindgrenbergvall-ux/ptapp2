@@ -138,14 +138,17 @@ const rpc = {
 const SERVICE_KEY = "service-test"
 
 // v22: Stripe Connect. Elin har ett godkänt konto; Nils (T2) börjar från noll.
-const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [] })
+const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [], pt_onboarding_step: 1, pt_onboarding_completed: false, accepts_epassi: false, accepts_benifex: false, accepts_edenred: false })
 const payouts = {}
+// v76: introts steg för PT:er utan egen fixturrad (Nils har sitt på t2).
+const ptFlow = {}
 let t2 = t2Row()
 function resetV22() {
   t2 = t2Row()
   byId[T2].user_metadata.full_name = "Nils Ny"
   byId[T2].app_metadata.pt_ready = false
   for (const k of Object.keys(payouts)) delete payouts[k]
+  for (const k of Object.keys(ptFlow)) delete ptFlow[k]
   payouts[T1] = { trainer_id: T1, stripe_account_id: "acct_1ElinTest", details_submitted: true, charges_enabled: true, payouts_enabled: true, requirements_due: [], exempt: false, complete: true }
 }
 resetV22()
@@ -224,7 +227,7 @@ function fixtures(uid, table) {
     case "trainer_offers": return offerRows
     case "availability_rules": return client ? [] : [{ id: "r1", trainer_id: T1, weekday: 1, date: null, start_local: "08:00:00", end_local: "10:00:00", slot_minutes: 60 }]
     case "nutrition_plans": return []
-    case "trainers": return uid === T2 ? [t2] : [trainerRow]
+    case "trainers": return uid === T2 ? [t2] : [{ ...trainerRow, ...(ptFlow[uid] ?? {}) }]
     case "coaching_relationships":
       return [{ trainer_id: T1, client_id: C1, status: "active", goal: "Bli stark", started_at: TODAY, created_at: `${TODAY}T08:00:00Z`, acquisition_type: acquisition[C1], client: { full_name: "Sara Test" } }]
     case "weight_entries": return client ? [] : []
@@ -539,6 +542,39 @@ http.createServer(async (req, res) => {
       Object.assign(byId[uid].user_metadata, { role: p.p_role, full_name: p.p_full_name ?? byId[uid].user_metadata.full_name ?? byId[uid].user_metadata.name, phone: p.p_phone })
       byId[uid].app_metadata.role = p.p_role
       return send(200, null)
+    }
+    // v76: PT-introt i tre steg (samma regler som databasen, förenklat).
+    if (m[1] && ["set_pt_onboarding_step", "save_pt_account_step", "finish_pt_onboarding"].includes(table)) {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      const err = (message, code = "23514") => send(400, { code, message, details: null, hint: null })
+      if (byId[uid].app_metadata.role !== "trainer") return err("Bara PT:er", "42501")
+      const row = uid === T2 ? t2 : (ptFlow[uid] ??= { pt_onboarding_step: 1, pt_onboarding_completed: false })
+      const done = byId[uid].app_metadata.onboarding_completed !== false
+      const o = onboarding[uid] ?? (onboarding[uid] = { first_name: null, last_name: null, avatar_url: null, goals_done: false, accepted: done ? [...PT_DOCS] : [], completed: done, marketing: false, consentLog: [] })
+      if (table === "set_pt_onboarding_step") {
+        if (!(p.p_step >= 1 && p.p_step <= 3)) return err("Okänt steg", "22023")
+        if (!row.pt_onboarding_completed) row.pt_onboarding_step = p.p_step
+        return send(200, p.p_step)
+      }
+      if (table === "save_pt_account_step") {
+        const first = String(p.p_first_name ?? "").trim()
+        const last = String(p.p_last_name ?? "").trim()
+        if (!first || !last) return err("Fyll i förnamn och efternamn")
+        Object.assign(o, { first_name: first, last_name: last })
+        byId[uid].user_metadata.full_name = `${first} ${last}`
+        Object.assign(row, { accepts_epassi: Boolean(p.p_epassi), accepts_benifex: Boolean(p.p_benifex), accepts_edenred: Boolean(p.p_edenred), pt_onboarding_step: Math.max(row.pt_onboarding_step ?? 1, 2) })
+        if (uid === T2) t2.profile = { full_name: `${first} ${last}` }
+        return send(200, 2)
+      }
+      // finish_pt_onboarding: namn och godkänt PT-avtal – Stripe och profilbild kan vänta.
+      const st = onboardingStatus(uid)
+      if (!st.first_name || !st.last_name) return err("Fyll i förnamn och efternamn")
+      if (!st.terms_done) return err("Godkänn PT-avtalet för att fortsätta")
+      o.completed = true
+      Object.assign(row, { pt_onboarding_completed: true, pt_onboarding_step: 3 })
+      byId[uid].app_metadata.onboarding_completed = true
+      return send(200, onboardingStatus(uid))
     }
     // v31: intro-flödet (samma regler som databasen, förenklat).
     if (m[1] && ["my_onboarding_status", "save_profile_step", "accept_legal_documents", "accept_user_agreement", "set_marketing_consent", "finish_onboarding"].includes(table)) {

@@ -245,9 +245,13 @@ export function OnboardingForm() {
           {pending ? "Sparar…" : "Kom igång"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Är du PT? PT-konton skapas av Coavira efter granskning.{" "}
+          Är du PT?{" "}
+          <Link href="/bli-pt" className="underline underline-offset-4">
+            Skapa PT-konto
+          </Link>{" "}
+          eller{" "}
           <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
-            Logga in med dina uppgifter
+            logga in
           </Link>
         </p>
       </form>

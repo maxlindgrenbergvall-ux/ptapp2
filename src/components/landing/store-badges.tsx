@@ -113,7 +113,7 @@ function ComingSoonDialog({ store, onClose }: { store: Store | null; onClose: ()
                 FOCUS
               )}
             >
-              Är du PT? Ansök redan nu
+              Är du PT? Skapa konto
             </a>
             <a
               href={LINKS.supportEmail}

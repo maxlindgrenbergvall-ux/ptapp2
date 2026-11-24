@@ -497,7 +497,7 @@ export function LandingNav() {
                   </motion.p>
 
                   <motion.div variants={itemVariants} className="relative mt-3 space-y-2">
-                    {/* PT-konton skapas av Coavira efter manuell granskning av certifikat – ansökan sker via e-post. */}
+                    {/* v76: PT:er skapar konto via /bli-pt – profilen syns efter manuell granskning av certifikat. */}
                     <a
                       href={LINKS.ptApply}
                       onClick={close}
@@ -511,10 +511,10 @@ export function LandingNav() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold">
-                          Ansök som PT<span className="sr-only"> (öppnar e-post)</span>
+                          Bli PT på Coavira
                         </span>
                         <span className="block text-xs break-words text-muted-foreground">
-                          Skicka ditt certifikat till {BRAND.certificationEmail} – vi granskar manuellt.
+                          Skapa konto – du syns när vi granskat ditt certifikat.
                         </span>
                       </span>
                       <ArrowUpRight

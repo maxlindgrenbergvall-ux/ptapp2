@@ -101,7 +101,7 @@ const androidBadges = await p.locator("[data-store=android]").count()
 check(iosBadges >= 4 && androidBadges >= 4, `butiksbrickor överallt (App Store ${iosBadges}, Google Play ${androidBadges})`)
 check(await p.locator("[data-store=ios]").first().innerText().then((t) => /Hämta i\s*App Store/.test(t)), "App Store-brickan: Hämta i App Store")
 check(await p.locator("[data-store=android]").first().innerText().then((t) => /Ladda ned på\s*Google Play/i.test(t)), "Google Play-brickan: Ladda ned på Google Play")
-check(hrefs.some((h) => h?.startsWith("mailto:certifiering@coavira.fit")), "PT-ansökan via certifiering@coavira.fit")
+check(hrefs.some((h) => h === "/bli-pt"), "v76: PT:er skapar konto via introt /bli-pt")
 check(hrefs.some((h) => h?.startsWith("mailto:kontakt@coavira.fit")), "kontaktlänk i sidfoten (coavira.fit)")
 
 // "Släpps snart" när apparna inte är publicerade än.
@@ -164,7 +164,7 @@ ok("samtalet kan avslutas")
 // Priser: PT-fliken och mersälj av kostcoaching.
 await p.locator("#priser").scrollIntoViewIfNeeded()
 await p.locator('#priser [role=tab]', { hasText: "För PT:er" }).click()
-await p.waitForSelector("#priser a[href^='mailto:certifiering@coavira.fit']")
+await p.waitForSelector("#priser a[href='/bli-pt']")
 ok("PT-fliken visar ansökan")
 const upsell = p.locator("#priser button", { hasText: "Lägg till kostcoaching" }).first()
 await upsell.scrollIntoViewIfNeeded()

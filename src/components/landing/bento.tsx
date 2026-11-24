@@ -48,7 +48,6 @@ import {
 import * as React from "react"
 
 import { BrandGlyph } from "@/components/brand"
-import { LINKS } from "@/components/landing/links"
 import { StoreBadges } from "@/components/landing/store-badges"
 import { EASE, GlassCard, GradientText, PhoneFrame, Reveal, Section, SpotlightCard } from "@/components/landing/primitives"
 import { MACROS, MacroDot, sumMacros } from "@/components/nutrition/macros"
@@ -1161,7 +1160,7 @@ function SecurityDemo() {
         ))}
       </ul>
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-        <a href={LINKS.ptApply} className={cn("inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}>
+        <a href={`mailto:${BRAND.certificationEmail}`} className={cn("inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-semibold text-brand underline-offset-4 hover:underline", FOCUS)}>
           <Mail aria-hidden className="size-4" />
           Är du PT? Skicka in ditt certifikat
           <span className="sr-only"> (öppnar e-post till {BRAND.certificationEmail})</span>

@@ -740,8 +740,7 @@ function GoalCta({ role }: { role: Role }) {
               )}
             >
               <BadgeCheck aria-hidden className="size-5 text-brand" />
-              Ansök som PT
-              <span className="sr-only"> (via e-post)</span>
+              Bli PT på Coavira
               <ArrowRight aria-hidden className="size-5 transition-transform duration-300 group-hover:translate-x-1" />
             </a>
           ) : (
