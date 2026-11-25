@@ -26,7 +26,9 @@ export function PrivacyContent() {
       </p>
       <p>
         <strong className="text-foreground">Var:</strong> i en databas inom EU. På din enhet sparas en kopia så att appen
-        fungerar utan uppkoppling; den rensas när du loggar ut.
+        fungerar utan uppkoppling; den rensas när du loggar ut. Enheten minns också ditt förnamn, din e-post och hur
+        du loggade in, så att du möts av &quot;Välkommen tillbaka&quot; nästa gång (inga lösenord eller nycklar). Det tas bort
+        med &quot;Byt konto&quot; eller när du raderar kontot.
       </p>
       <p>
         <strong className="text-foreground">Dina rättigheter:</strong> du kan ladda ner all din data och radera ditt konto

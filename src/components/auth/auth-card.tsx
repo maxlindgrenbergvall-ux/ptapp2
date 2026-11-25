@@ -1,34 +1,58 @@
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import type * as React from "react"
 
-import { BrandLogo } from "@/components/brand"
+import { BrandLogo, BrandMark } from "@/components/brand"
 import { Button } from "@/components/ui/button"
 
+/** Fälten på inloggningssidorna – samma luftiga stil som introna (v80). */
+export const AUTH_INPUT = "h-12 rounded-xl bg-muted/40 px-4 text-base"
+export const AUTH_LABEL = "text-sm font-normal text-muted-foreground"
+
+/**
+ * Skalet för inloggning, registrering och lösenord (v80: renare): en
+ * tillbakapil och loggan överst, EN rubrik och en kort mening, formuläret och
+ * högst en rad länkar längst ned.
+ */
 export function AuthCard({
   title,
   description,
   children,
   footer,
+  back,
 }: {
   title: string
   description?: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
+  /** Tillbakapilen (t.ex. till Kom igång). Utan den visas loggan som länk. */
+  back?: string
 }) {
   return (
-    <main className="mx-auto flex min-h-svh max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+1.5rem)] pb-[calc(var(--safe-bottom)+1.5rem)]">
+    <main className="mx-auto flex min-h-svh max-w-sm flex-col px-5 pt-[calc(var(--safe-top)+1rem)] pb-[calc(var(--safe-bottom)+1.5rem)]">
       <div className="app-backdrop" aria-hidden />
-      <header className="flex items-center justify-between">
-        <BrandLogo />
+      <header className="flex h-10 items-center justify-between">
+        {back ? (
+          <>
+            <Button asChild variant="ghost" size="icon" className="-ml-2 rounded-full">
+              <Link href={back} aria-label="Tillbaka">
+                <ArrowLeft />
+              </Link>
+            </Button>
+            <BrandMark size="sm" />
+          </>
+        ) : (
+          <BrandLogo />
+        )}
       </header>
-      <div className="page-enter flex flex-1 flex-col justify-center gap-6 py-10">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      <div className="page-enter flex flex-1 flex-col justify-center gap-6 py-8">
+        <div className="space-y-1.5">
+          <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{title}</h1>
+          {description && <p className="text-[0.95rem] text-muted-foreground">{description}</p>}
         </div>
         {children}
-        {footer && <div className="text-center text-sm text-muted-foreground">{footer}</div>}
       </div>
+      {footer && <div className="pt-2 text-center text-sm text-muted-foreground">{footer}</div>}
     </main>
   )
 }
@@ -36,7 +60,7 @@ export function AuthCard({
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <p role="alert" className="animate-in rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive fade-in-0 slide-in-from-top-1">
+    <p role="alert" className="animate-in rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive fade-in-0 slide-in-from-top-1">
       {message}
     </p>
   )

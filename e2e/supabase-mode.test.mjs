@@ -167,6 +167,11 @@ await p.waitForURL(/\/logga-in/)
 check(!(await p.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("coavira:")))), "utloggning rensar cache och kö")
 await p.goto(`${base}/klient`)
 check(p.url().includes("/logga-in"), "efter utloggning är /klient skyddad igen")
+// v80: enheten minns kontot – "Välkommen tillbaka" med e-posten ifylld. En annan person trycker "Byt konto".
+await p.locator("[data-testid=welcome-back]").waitFor({ state: "attached" })
+check((await p.inputValue("#email")) === "sara@test.se", "efter utloggning: \"Välkommen tillbaka\" med e-posten ifylld")
+await p.click("[data-testid=switch-account]")
+await p.waitForSelector("#email:not([readonly])")
 
 // 10. PT
 await p.fill("#email", "elin@test.se"); await p.fill("#password", "hemligt123"); await p.click('button[type=submit]')
@@ -216,8 +221,8 @@ for (const provider of ["google", "apple"]) {
 // Registrering: e-post + telefon + lösenord skickas till Supabase Auth.
 await q.goto(`${base}/registrera`)
 await q.fill("#email", "ny.kund@test.se"); await q.fill("#phone", "123"); await q.fill("#password", "hemligt123")
-// v20: obligatorisk bockruta för villkor och hälsouppgifter (Apple/Google är låsta tills den är ikryssad).
-check(await q.locator("button:has-text('Fortsätt med Apple')").isDisabled(), "Apple/Google kräver att villkoren godkänts först")
+// v20: obligatorisk bockruta för villkor och hälsouppgifter. v80: bara e-post här – Apple/Google på Kom igång.
+check((await q.locator("button:has-text('Fortsätt med Apple') >> visible=true").count()) === 0, "registreringen med e-post har inga Apple/Google-knappar (de finns på Kom igång)")
 await q.click('button[type=submit]')
 await q.waitForSelector("text=godkänna användarvillkoren, communityreglerna och behandlingen av dina hälsouppgifter")
 ok("registreringen kräver den obligatoriska bockrutan")

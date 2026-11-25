@@ -31,11 +31,14 @@ export function SocialButtons({
   next,
   onError,
   disabled = false,
+  only,
 }: {
   next?: string
   onError?: (message: string) => void
   /** T.ex. tills villkoren godkänts vid registreringen. */
   disabled?: boolean
+  /** v80: bara kontots egna inloggningssätt ("Välkommen tillbaka"). */
+  only?: SocialProvider
 }) {
   const router = useRouter()
   const [pending, setPending] = React.useState<SocialProvider | null>(null)
@@ -82,6 +85,7 @@ export function SocialButtons({
 
   return (
     <div className="grid gap-2.5">
+      {only !== "google" && (
       <Button
         type="button"
         size="lg"
@@ -93,6 +97,8 @@ export function SocialButtons({
         {pending === "apple" ? <Loader2 className="animate-spin" /> : <AppleLogo />}
         Fortsätt med Apple
       </Button>
+      )}
+      {only !== "apple" && (
       <Button
         type="button"
         size="lg"
@@ -104,6 +110,7 @@ export function SocialButtons({
         {pending === "google" ? <Loader2 className="animate-spin" /> : <GoogleLogo />}
         Fortsätt med Google
       </Button>
+      )}
     </div>
   )
 }

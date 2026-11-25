@@ -10,6 +10,7 @@
  * - **Demo**: mockdata i webbläsaren, för utveckling och visningar.
  */
 
+import { forgetAccount, methodFromProvider, rememberAccount } from "@/lib/known-account"
 import { isTrainingInterest } from "@/lib/training-modes"
 import { moveBlock, MOVE_BLOCK_TEXT } from "@/lib/workout-move"
 import { useRouter } from "next/navigation"
@@ -1279,6 +1280,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
         engine.apply({ type: "hydrate", data: replay(handoff.data, engine.outbox!.actions) })
         setMe(handoff.me)
         void engine.flush()
+        void rememberMe(sb, handoff.me)
         return
       }
       const { loadRemote, OfflineError, OnboardingRequired } = await import("@/lib/data/supabase-source")
@@ -1293,6 +1295,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
         engine.apply({ type: "hydrate", data: replay(loaded.data, engine.outbox!.actions) })
         setMe(loaded.me)
         void engine.flush()
+        void rememberMe(sb, loaded.me)
       } catch (e) {
         if (cancelled) return
         if (e instanceof OfflineError) {
@@ -1407,6 +1410,7 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
     // Appen: enheten ska inte få fler push-notiser (token raderades med kontot).
     await forgetPushToken().catch(() => {})
     await getSupabase().auth.signOut({ scope: "local" }).catch(() => {})
+    forgetAccount()
     window.location.replace("/konto-raderat")
   }, [engine])
 
@@ -1457,4 +1461,19 @@ export function useAppData() {
 
 function ErrorScreen({ message }: { message: string }) {
   return <ErrorFallback message={message} fullScreen />
+}
+
+/**
+ * v80: enheten minns kontot ("Välkommen tillbaka" på Kom igång och Logga in).
+ * Bara förnamn, e-post och inloggningssätt – se src/lib/known-account.ts.
+ */
+async function rememberMe(sb: ReturnType<typeof getSupabase>, me: Me) {
+  if (!me.email || (me.role !== "client" && me.role !== "trainer")) return
+  const { data } = await sb.auth.getSession().catch(() => ({ data: { session: null } }))
+  rememberAccount({
+    name: me.name,
+    email: me.email,
+    method: methodFromProvider(data.session?.user.app_metadata?.provider),
+    role: me.role,
+  })
 }

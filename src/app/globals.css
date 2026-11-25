@@ -646,3 +646,8 @@ html.app-enter [data-testid="client-bottom-nav"],
 html.app-enter [data-testid="pt-bottom-nav"] {
   animation: app-enter-nav 560ms var(--ease-out-soft) 180ms both;
 }
+
+/* v80: känd enhet på Kom igång – startsidan döljs tills "Välkommen tillbaka" tagit över. */
+html.known-account [data-start-default] {
+  visibility: hidden;
+}

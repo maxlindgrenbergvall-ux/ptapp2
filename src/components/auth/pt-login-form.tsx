@@ -1,11 +1,11 @@
 "use client"
 
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import * as React from "react"
 
-import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
+import { AUTH_INPUT, AUTH_LABEL, AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -64,55 +64,50 @@ export function PtLoginForm() {
     <>
     <AuthCard
       title="PT-inloggning"
-      description="Logga in med din e-post och ditt eget lösenord."
+      description="Logga in med din e-post och ditt lösenord."
+      back="/bli-pt"
       footer={
         <>
-          Tränar du?{" "}
-          <Link href={START_PATH} className="font-medium text-foreground underline underline-offset-4">
-            Till klientinloggningen
+          Ny som PT?{" "}
+          <Link href="/bli-pt" className="font-medium text-foreground underline underline-offset-4" data-testid="pt-create-account-link">
+            Skapa PT-konto
+          </Link>
+          <span className="mx-2 text-muted-foreground/50">·</span>
+          <Link href={START_PATH} className="underline-offset-4 hover:underline">
+            Klientinloggning
           </Link>
         </>
       }
     >
       <form onSubmit={submit} className="space-y-4">
         <FormError message={error} />
-        <div className="flex items-start gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-sm">
-          <KeyRound className="mt-0.5 size-4 shrink-0 text-primary" />
-          <div>
-            <p className="font-medium">Ny som PT på Coavira?</p>
-            <Link href="/bli-pt" className="mt-1 inline-block font-medium text-primary underline underline-offset-4" data-testid="pt-create-account-link">
-              Skapa PT-konto
-            </Link>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Har Coavira skapat ditt konto?{" "}
-              <Link href="/glomt-losenord?pt=1" className="underline underline-offset-4">
-                Välj lösenord
-              </Link>
-            </p>
-          </div>
+        {!isSupabaseEnabled && <p className="rounded-xl bg-muted/50 px-4 py-3 text-xs text-muted-foreground">Demoläge: du loggas in som en demo-PT med påhittad data.</p>}
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className={AUTH_LABEL}>
+            E-post
+          </Label>
+          <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className={AUTH_INPUT} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="email">E-post</Label>
-          <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
-        </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor="password">Lösenord</Label>
+            <Label htmlFor="password" className={AUTH_LABEL}>
+              Lösenord
+            </Label>
             <Link href="/glomt-losenord?pt=1" className="text-xs text-muted-foreground underline-offset-4 hover:underline">
               Glömt lösenordet?
             </Link>
           </div>
-          <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-11" />
+          <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className={AUTH_INPUT} />
         </div>
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
+        <Button type="submit" size="lg" className="h-12 w-full rounded-xl text-base font-semibold" disabled={pending}>
           {pending && <Loader2 className="animate-spin" aria-hidden />}
           {pending ? "Loggar in…" : "Logga in"}
         </Button>
-        <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-          <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-          {isSupabaseEnabled
-            ? "PT-konton loggar bara in med e-post och lösenord. Din profil syns i Hitta PT när vi granskat dina certifikat."
-            : "Demoläge: du loggas in som en demo-PT med påhittad data."}
+        <p className="text-center text-xs text-muted-foreground">
+          Har Coavira skapat ditt konto?{" "}
+          <Link href="/glomt-losenord?pt=1" className="underline underline-offset-4">
+            Välj lösenord
+          </Link>
         </p>
       </form>
     </AuthCard>

@@ -6,20 +6,17 @@ import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { AUTH_INPUT, AUTH_LABEL, AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
 import { ConsentCheckbox } from "@/components/legal-links"
-import { PRIVACY_URL, TERMS_URL } from "@/lib/legal"
 import { ReferralBanner } from "@/components/plus/referral-banner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authCallbackUrl, DASHBOARD_PATH } from "@/lib/auth-redirect"
 import { normalizePhone } from "@/lib/phone"
-import { LanguageChips } from "@/components/settings/app-settings"
-import { setAppLocale } from "@/lib/i18n/provider"
 import { getSupabase } from "@/lib/supabase/client"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
+import { START_PATH } from "@/lib/site"
 
 export const MIN_PASSWORD = 8
 
@@ -28,6 +25,7 @@ export const MIN_PASSWORD = 8
  *
  * - signUp() skapar användaren i auth.users. Telefonnumret skickas som metadata
  *   och sparas av triggern handle_new_user() på profilen (E.164).
+ * - Bara e-post här (v80); Apple och Google finns på Kom igång och Logga in.
  * - Registreringen skapar bara klientkonton. PT-konton skapas av Coavira.
  *   Namn och samtycke lämnas i välkomststeget efteråt, så att samma flöde
  *   fungerar för Apple och Google.
@@ -104,8 +102,9 @@ export function SignupForm() {
 
   return (
     <AuthCard
-      title="Registrera dig"
-      description="Skapa ditt Coavira-konto för att hitta en PT, boka pass och följa din träning."
+      title="Skapa konto"
+      description="Hitta en PT, boka pass och följ din träning."
+      back={START_PATH}
       footer={
         <>
           Har du redan ett konto?{" "}
@@ -115,28 +114,20 @@ export function SignupForm() {
         </>
       }
     >
-      {/* v58: språket väljs redan här (förvalt efter enheten) – sparas i profilen vid första inloggningen. */}
-      <LanguageChips onPick={setAppLocale} />
+      {/* v80: språket väljs i introts första steg (förvalt efter enheten). */}
       <ReferralBanner />
-      <ConsentCheckbox
-        id="signup-consent"
-        checked={consent}
-        invalid={consentMissing && !consent}
-        onCheckedChange={(v) => {
-          setConsent(v)
-          setConsentMissing(false)
-        }}
-      />
-      <SocialButtons onError={setError} disabled={!consent} />
-      <OrDivider />
       <form onSubmit={submit} className="space-y-4" noValidate>
         <FormError message={error} />
-        <div className="space-y-2">
-          <Label htmlFor="email">E-post</Label>
-          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className={AUTH_LABEL}>
+            E-post
+          </Label>
+          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={AUTH_INPUT} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="phone">Telefonnummer</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="phone" className={AUTH_LABEL}>
+            Telefonnummer
+          </Label>
           <Input
             id="phone"
             type="tel"
@@ -150,15 +141,17 @@ export function SignupForm() {
               const n = normalizePhone(phone)
               if (n) setPhone(n)
             }}
-            className="h-11"
+            className={AUTH_INPUT}
             aria-describedby="phone-hint"
           />
-          <p id="phone-hint" className="text-xs text-muted-foreground">
+          <p id="phone-hint" className="sr-only">
             Används för påminnelser om pass och när din PT behöver nå dig.
           </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Lösenord</Label>
+        <div className="space-y-1.5">
+          <Label htmlFor="password" className={AUTH_LABEL}>
+            Lösenord
+          </Label>
           <div className="relative">
             <Input
               id="password"
@@ -168,7 +161,8 @@ export function SignupForm() {
               minLength={MIN_PASSWORD}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 pr-11"
+              className={`${AUTH_INPUT} pr-11`}
+              placeholder={`Minst ${MIN_PASSWORD} tecken`}
               aria-describedby="password-hint"
             />
             <Button
@@ -183,22 +177,23 @@ export function SignupForm() {
               {showPassword ? <EyeOff /> : <Eye />}
             </Button>
           </div>
-          <p id="password-hint" className="text-xs text-muted-foreground">
+          <p id="password-hint" className="sr-only">
             Minst {MIN_PASSWORD} tecken.
           </p>
         </div>
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
+        {/* v80: bara e-post här – Apple och Google finns på Kom igång och Logga in. */}
+        <ConsentCheckbox
+          id="signup-consent"
+          checked={consent}
+          invalid={consentMissing && !consent}
+          onCheckedChange={(v) => {
+            setConsent(v)
+            setConsentMissing(false)
+          }}
+        />
+        <Button type="submit" size="lg" className="h-12 w-full rounded-xl text-base font-semibold" disabled={pending}>
           {pending ? "Skapar konto…" : "Registrera dig"}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
-            Integritetspolicy
-          </a>{" "}
-          ·{" "}
-          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
-            Användarvillkor
-          </a>
-        </p>
       </form>
     </AuthCard>
   )

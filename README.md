@@ -578,6 +578,30 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v80: renare inloggning och "Välkommen tillbaka"
+
+### Renare inloggningssidor
+- **Gemensamt skal (AuthCard):** tillbakapil och logga överst, en rubrik och en mening, större fält (`AUTH_INPUT`) och högst en rad länkar längst ned.
+- **Kom igång:** Apple, Google och "Registrera dig med e-post", sedan "Har du redan ett konto? Logga in". PT, Integritet och Villkor ligger på en enda diskret rad.
+- **Registrera:** bara e-post, telefon och lösenord. Villkorsrutan ligger vid knappen, och hjälptexterna är platshållare i stället för egna rader.
+  - **Bort:** Apple/Google (de finns på Kom igång och Logga in) och språkvalet (det görs i introts första steg).
+- **PT-inloggning:** en rad länkar längst ned (Skapa PT-konto · Klientinloggning) och "Har Coavira skapat ditt konto? Välj lösenord" under knappen.
+
+### "Välkommen tillbaka"
+- **Vad som sparas:** efter inloggningen minns enheten förnamn, e-post och inloggningssätt i cookien `coavira_known` (400 dagar). Inga tokens eller lösenord sparas. Se `src/lib/known-account.ts`.
+- **Kom igång och Logga in** visar då "Välkommen tillbaka, Sara" med e-posten, lösenordsfältet direkt och kontots egen Apple- eller Google-knapp.
+- **Byt konto:** "Inte du? Byt konto" glömmer kontot. Det glöms också när kontot raderas.
+- **Ingen blinkning:** cookien läses i webbläsaren, så sidorna förblir statiska. Ett litet skript döljer startsidan innan den målas när enheten är känd.
+- Integritetspolicyn beskriver vad som sparas.
+
+### Färre utloggningar i appen
+- När appen kommer tillbaka från bakgrunden förnyas inloggningen direkt, och förnyelsen pausas i bakgrunden (`startAutoRefresh`/`stopAutoRefresh` i NativeBridge).
+- Kolla även i Supabase under **Authentication → Sessions**:
+  - Time-box user sessions och Inactivity timeout bör vara avstängda.
+  - Refresh token reuse interval bör stå kvar på 10 sekunder.
+
+Tester: `e2e/v80-valkommen-tillbaka.test.mjs` (Supabase-läge). Ingen databasändring.
+
 ## Nytt i v79: bildspel med animerade kort för både PT och klienter
 
 - **Gemensamt bildspel** (`src/components/flow/slideshow.tsx`): korten byter själva var 3,5:e sekund och börjar om efter det sista. Punkten för kortet som visas fylls medan det visas.

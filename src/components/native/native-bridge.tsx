@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { appUrlToPath, isNativeApp } from "@/lib/native/app"
+import { isSupabaseEnabled } from "@/lib/supabase/config"
 
 const LAUNCH_KEY = "coavira:launch-url-handled"
 
@@ -13,6 +14,7 @@ const LAUNCH_KEY = "coavira:launch-url-handled"
  *    Inloggning med Apple/Google kommer tillbaka hit med en engångskod som
  *    växlas mot en session på /auth/callback, i appens egen WebView.
  *  - Tryck på en push-notis öppnar sidan notisen gäller.
+ *  - Inloggningen förnyas när appen kommer tillbaka från bakgrunden (v80).
  *  - Externa länkar (integritetspolicy, villkor, support, videor, Stripe …)
  *    öppnas i appens inbyggda webbläsare (SFSafariViewController / Custom Tabs),
  *    så att appen och inloggningen ligger kvar under. Stripe Checkout öppnas där
@@ -42,6 +44,23 @@ export function NativeBridge() {
       }
       const sub = await App.addListener("appUrlOpen", ({ url }) => void open(url))
       removers.push(() => void sub.remove())
+
+      // v80: håll inloggningen vid liv. I bakgrunden pausas JavaScript, så tokenen
+      // hinner gå ut; när appen kommer tillbaka förnyas den direkt (i stället för
+      // att första anropet misslyckas), och förnyelsen pausas i bakgrunden.
+      if (isSupabaseEnabled) {
+        const { getSupabase } = await import("@/lib/supabase/client")
+        const sb = getSupabase()
+        const state = await App.addListener("appStateChange", ({ isActive }) => {
+          if (isActive) {
+            void sb.auth.startAutoRefresh()
+            void sb.auth.getSession().catch(() => {})
+          } else {
+            void sb.auth.stopAutoRefresh()
+          }
+        })
+        removers.push(() => void state.remove())
+      }
 
       const onClick = (e: MouseEvent) => {
         const url = externalLink(e)

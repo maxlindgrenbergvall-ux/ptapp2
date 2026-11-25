@@ -11,8 +11,10 @@ export default function LoginPage() {
     <>
       <StartSplash />
       <Suspense>
+        {/* v80: "Välkommen tillbaka" med e-posten ifylld när enheten minns kontot. */}
         <LoginForm />
       </Suspense>
     </>
   )
 }
+
