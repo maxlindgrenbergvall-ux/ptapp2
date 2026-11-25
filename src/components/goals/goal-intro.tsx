@@ -1,30 +1,30 @@
 "use client"
 
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react"
+import { Check } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { FlowShell } from "@/components/flow/flow-shell"
+import { Reveal } from "@/components/flow/motion"
 import { ActivityPicker, BodyFields, GoalDisclaimer, GoalPicker, GoalResults } from "@/components/goals/goal-editor"
 import { AgreementFields } from "@/components/onboarding/agreement-step"
 import { profileDraft, type ProfileDraft, profileErrors, ProfileStepFields } from "@/components/onboarding/profile-step"
 import { InterestPills, LanguageChips, useChangeLanguage } from "@/components/settings/app-settings"
 import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 import { useAppData } from "@/lib/data/store"
 import { useT } from "@/lib/i18n/provider"
 import { type DraftField, draftErrors, draftFromProfile, type GoalDraft, profileFromDraft } from "@/lib/goals/draft"
 import { acceptUserAgreement, agreementAccepted, fetchOnboardingStatus, finishOnboarding, OnboardingError, saveGoalsNow, saveProfileStep } from "@/lib/onboarding-client"
-import { cn } from "@/lib/utils"
 
 type Step = { key: "profile" | "body" | "activity" | "goals" | "plan" | "agreement"; title: string; lead: string; fields: DraftField[] }
 const ALL_STEPS: Step[] = [
   // Steg 1 för alla (v31): namn och profilbild. Valideras separat (profileErrors).
-  { key: "profile", title: "Välkommen! Vem är du?", lead: "Ditt namn och en profilbild – dina PT:er ser dem. Bilden granskas automatiskt.", fields: [] },
-  { key: "body", title: "Dina mått", lead: "Vi räknar ut din ämnesomsättning med Mifflin-St Jeor-formeln.", fields: ["weightKg", "heightCm", "age", "sex"] },
+  { key: "profile", title: "Välkommen! Vem är du?", lead: "Ditt namn och en profilbild – dina PT:er ser dem.", fields: [] },
+  { key: "body", title: "Dina mått", lead: "Vi räknar ut din ämnesomsättning utifrån dem.", fields: ["weightKg", "heightCm", "age", "sex"] },
   { key: "activity", title: "Hur aktiv är du?", lead: "Välj det som stämmer bäst för en vanlig vecka – träning inräknad.", fields: ["activity"] },
-  { key: "goals", title: "Vad vill du uppnå?", lead: "Välj ett eller flera mål. Fettförbränning och muskler samtidigt? Välj båda.", fields: ["goals"] },
+  { key: "goals", title: "Vad vill du uppnå?", lead: "Välj ett eller flera mål.", fields: ["goals"] },
   { key: "plan", title: "Din plan", lead: "Dra i reglaget – kalorimålet och grafen räknas om direkt.", fields: ["targetWeightKg"] },
   // v34: sista steget – ett obligatoriskt användaravtal och valfritt nyhetsbrev.
   { key: "agreement", title: "Sista steget: avtalet", lead: "Ett avtal, ett godkännande – sedan är du igång.", fields: [] },
@@ -45,7 +45,13 @@ export function GoalIntro() {
   const existing = data.goalProfiles.find((g) => g.clientId === me.id)
   const [draft, setDraft] = React.useState<GoalDraft>(() => draftFromProfile(existing, client?.weightLog.at(-1)?.kg))
   const [profile, setProfile] = React.useState<ProfileDraft>(() => profileDraft(client?.name ?? me.name, client?.avatarUrl))
-  const [step, setStep] = React.useState(0)
+  const [step, setStepState] = React.useState(0)
+  // v78: steg 1 är två korta sidor – namn och bild, sedan träningsintressen.
+  const [sub, setSub] = React.useState<0 | 1>(0)
+  const setStep = (n: number) => {
+    setSub(n === 0 ? 1 : 0)
+    setStepState(n)
+  }
   // v34: avtalssteget visas tills avtalets nuvarande version är godkänd.
   const [agreed, setAgreed] = React.useState<boolean | null>(null)
   const [accepted, setAccepted] = React.useState(false)
@@ -56,10 +62,9 @@ export function GoalIntro() {
   const mandatory = me.onboardingCompleted === false
   const [showErrors, setShowErrors] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-  const headingRef = React.useRef<HTMLHeadingElement>(null)
   const current = STEPS[step]
   const errors = showErrors ? draftErrors(draft, current.fields) : {}
-  const profileErrs = showErrors && step === 0 ? profileErrors(profile, false) : {}
+  const profileErrs = showErrors && step === 0 && sub === 0 ? profileErrors(profile, false) : {}
   const patch = (p: Partial<GoalDraft>) => setDraft((d) => ({ ...d, ...p }))
   // v58: språk och träningsintressen i första steget – sparas direkt (optimistiskt).
   const t = useT()
@@ -91,11 +96,10 @@ export function GoalIntro() {
     }
   }, [])
 
-  // Nytt steg: överst och fokus på rubriken (skärmläsare och tangentbord).
+  // Ny sida: överst (fokus på rubriken sköts av FlowShell).
   React.useEffect(() => {
     window.scrollTo({ top: 0 })
-    headingRef.current?.focus({ preventScroll: true })
-  }, [step])
+  }, [step, sub])
 
   /** Steg 1: spara namn och bild direkt (databasen kontrollerar dem igen). */
   const saveProfile = async (): Promise<boolean> => {
@@ -117,10 +121,15 @@ export function GoalIntro() {
   }
 
   const next = async () => {
-    if (step === 0) {
+    if (step === 0 && sub === 0) {
       if (!(await saveProfile())) return
       setShowErrors(false)
-      setStep(1)
+      setSub(1)
+      return
+    }
+    if (step === 0) {
+      setStepState(1)
+      setSub(0)
       return
     }
     if (Object.keys(draftErrors(draft, current.fields)).length) {
@@ -163,99 +172,102 @@ export function GoalIntro() {
     router.push("/klient")
   }
 
+  const interestsPage = step === 0 && sub === 1
+  const title = interestsPage ? t("interests.title") : current.title
+  const lead = interestsPage ? t("interests.lead") : current.lead
+  const label =
+    current.key === "agreement" ? "Godkänn och kom igång" : step === STEPS.length - 1 ? "Spara min plan" : "Fortsätt"
+  const finalIcon = current.key === "agreement" || step === STEPS.length - 1 ? <Check /> : undefined
+
   return (
-    <div className="flex min-h-svh flex-col pt-[var(--safe-top)]" data-testid="goal-intro">
-      <header className="sticky top-0 z-10 space-y-3 border-b border-border/60 bg-background/85 px-4 pt-3 pb-3 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" size="icon" aria-label="Föregående steg" disabled={step === 0} onClick={() => setStep(step - 1)} className={cn(step === 0 && "invisible")}>
-            <ArrowLeft />
+    <FlowShell
+      rootTestId="goal-intro"
+      testId={`intro-${interestsPage ? "interests" : current.key}`}
+      step={step + 1}
+      total={STEPS.length}
+      page={step * 10 + sub}
+      progress={step === 0 ? (sub + 1) / 2 : 1}
+      stepLabel={`Steg ${step + 1} av ${STEPS.length}`}
+      backLabel="Föregående steg"
+      onBack={interestsPage ? () => setSub(0) : step > 0 ? () => setStep(step - 1) : undefined}
+      right={
+        mandatory ? undefined : (
+          <Button asChild variant="ghost" size="sm" className="-mr-2 text-muted-foreground">
+            <Link href="/klient">Gör senare</Link>
           </Button>
-          <p className="text-xs font-medium text-muted-foreground tabular" aria-live="polite">
-            Steg {step + 1} av {STEPS.length}
-          </p>
-          {mandatory ? (
-            <span className="w-16" aria-hidden />
-          ) : (
-            <Button asChild variant="ghost" size="sm" className="text-muted-foreground">
-              <Link href="/klient">Gör senare</Link>
-            </Button>
-          )}
-        </div>
-        <Progress value={((step + 1) / STEPS.length) * 100} className="h-1.5" aria-label={`Steg ${step + 1} av ${STEPS.length}`} />
-      </header>
-
-      <main className="flex-1 space-y-5 px-4 pt-5 pb-[calc(7rem+var(--safe-bottom))]">
-        <div key={step} className="animate-in fade-in-0 slide-in-from-right-4 space-y-5 duration-300 motion-reduce:animate-none">
-          <div className="space-y-1">
-            <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight outline-none">
-              {current.title}
-            </h1>
-            <p className="text-sm text-muted-foreground">{current.lead}</p>
-          </div>
-          {step === 0 && (
-            <>
-              <section className="space-y-2" aria-labelledby="intro-lang">
-                <h2 id="intro-lang" className="text-sm font-semibold">
-                  {t("lang.choose")}
-                </h2>
-                <LanguageChips onPick={(l) => changeLanguage(l)} />
-              </section>
-              <ProfileStepFields value={profile} onChange={(p) => setProfile((d) => ({ ...d, ...p }))} userId={me.id} errors={profileErrs} requireAvatar={false} />
-              <section className="space-y-2" aria-labelledby="intro-interests">
-                <div>
-                  <h2 id="intro-interests" className="text-sm font-semibold">
-                    {t("interests.title")}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">{t("interests.lead")}</p>
-                </div>
-                <InterestPills value={interests} onChange={(next) => actions.setPreferences({ trainingInterests: next })} />
-              </section>
-            </>
-          )}
-          {step === 1 && <BodyFields draft={draft} onChange={patch} errors={errors} />}
-          {step === 2 && <ActivityPicker value={draft.activity} onChange={(activity) => patch({ activity })} error={errors.activity} />}
-          {step === 3 && <GoalPicker value={draft.goals} onChange={(goals) => patch({ goals })} error={errors.goals} />}
-          {step === 4 && <GoalResults draft={draft} onChange={patch} errors={draftErrors(draft, ["targetWeightKg"])} />}
-          {current.key === "agreement" && (
-            <AgreementFields
-              role="client"
-              accepted={accepted}
-              onAcceptedChange={setAccepted}
-              marketing={marketing}
-              onMarketingChange={setMarketing}
-              invalid={showErrors}
-              version={version}
-            />
-          )}
-        </div>
-        {step > 0 && current.key !== "agreement" && <GoalDisclaimer />}
-      </main>
-
-      <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-lg border-t border-border/60 bg-background/90 px-4 pt-3 pb-[calc(0.75rem+var(--safe-bottom))] backdrop-blur-xl">
-        <Button
-          size="lg"
-          className="h-12 w-full text-base"
-          onClick={() => void next()}
-          disabled={saving || (current.key === "plan" && agreed === null && mandatory)}
-          data-testid="intro-next"
-        >
-          {saving ? (
-            <Loader2 className="animate-spin" />
-          ) : current.key === "agreement" ? (
-            <>
-              <Check /> Godkänn och kom igång
-            </>
-          ) : step === STEPS.length - 1 ? (
-            <>
-              <Check /> Spara min plan
-            </>
-          ) : (
-            <>
-              Fortsätt <ArrowRight />
-            </>
-          )}
-        </Button>
-      </footer>
-    </div>
+        )
+      }
+      title={title}
+      lead={lead}
+      primary={{
+        label,
+        icon: finalIcon,
+        onClick: () => void next(),
+        busy: saving,
+        disabled: current.key === "plan" && agreed === null && mandatory,
+        testId: "intro-next",
+      }}
+    >
+      {step === 0 && sub === 0 && (
+        <>
+          <Reveal>
+            <section className="space-y-2" aria-labelledby="intro-lang">
+              <h2 id="intro-lang" className="text-sm text-muted-foreground">
+                {t("lang.choose")}
+              </h2>
+              <LanguageChips onPick={(l) => changeLanguage(l)} />
+            </section>
+          </Reveal>
+          <Reveal>
+            <ProfileStepFields value={profile} onChange={(p) => setProfile((d) => ({ ...d, ...p }))} userId={me.id} errors={profileErrs} requireAvatar={false} />
+          </Reveal>
+        </>
+      )}
+      {interestsPage && (
+        <Reveal>
+          <section aria-label={t("interests.title")}>
+            <InterestPills value={interests} onChange={(next) => actions.setPreferences({ trainingInterests: next })} />
+          </section>
+        </Reveal>
+      )}
+      {step === 1 && (
+        <Reveal>
+          <BodyFields draft={draft} onChange={patch} errors={errors} />
+        </Reveal>
+      )}
+      {step === 2 && (
+        <Reveal>
+          <ActivityPicker value={draft.activity} onChange={(activity) => patch({ activity })} error={errors.activity} />
+        </Reveal>
+      )}
+      {step === 3 && (
+        <Reveal>
+          <GoalPicker value={draft.goals} onChange={(goals) => patch({ goals })} error={errors.goals} />
+        </Reveal>
+      )}
+      {step === 4 && (
+        <Reveal>
+          <GoalResults draft={draft} onChange={patch} errors={draftErrors(draft, ["targetWeightKg"])} />
+        </Reveal>
+      )}
+      {current.key === "agreement" && (
+        <Reveal>
+          <AgreementFields
+            role="client"
+            accepted={accepted}
+            onAcceptedChange={setAccepted}
+            marketing={marketing}
+            onMarketingChange={setMarketing}
+            invalid={showErrors}
+            version={version}
+          />
+        </Reveal>
+      )}
+      {step > 0 && current.key !== "agreement" && (
+        <Reveal>
+          <GoalDisclaimer />
+        </Reveal>
+      )}
+    </FlowShell>
   )
 }

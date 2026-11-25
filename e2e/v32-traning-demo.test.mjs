@@ -135,6 +135,8 @@ check((await p.locator("#profile-focus").count()) === 0 && (await p.locator("tex
 check((await p.locator("text=/intressen och mål/i").count()) === 0 && (await p.locator("[data-testid=choose-interests]").count()) === 0, "den gamla intro-delen är borta")
 await p.goto(base + "/klient/intro")
 await p.click("[data-testid=intro-next]") // steg 1 (namn) förifyllt
+await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+await p.click("[data-testid=intro-next]")
 await p.fill("#goal-weightKg", "")
 await p.fill("#goal-weightKg", "75")
 await p.fill("#goal-heightCm", "175")

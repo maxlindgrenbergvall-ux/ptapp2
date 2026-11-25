@@ -38,6 +38,8 @@ await p.waitForURL(/\/klient\/intro$/)
 await p.waitForSelector("[data-testid=profile-step]")
 await p.waitForFunction(() => document.querySelector("#profile-firstName")?.value)
 await p.click("[data-testid=intro-next]")
+await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+await p.click("[data-testid=intro-next]")
 await p.waitForSelector("text=Dina mått")
 await p.fill("#goal-weightKg", "")
 await p.fill("#goal-weightKg", "64")

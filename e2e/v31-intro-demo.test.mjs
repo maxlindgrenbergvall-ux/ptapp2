@@ -57,6 +57,8 @@ await p.fill("#profile-lastName", "Lind Berg")
 check(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "steg 1: ingen horisontell overflow på mobilen")
 await p.screenshot({ path: `${out}/v31-steg1.png` })
 await p.click("[data-testid=intro-next]")
+await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+await p.click("[data-testid=intro-next]")
 await p.waitForSelector("text=Dina mått")
 const c1 = (await demo()).clients.find((c) => c.id === "c1")
 check(c1.name === "Sara Lind Berg" && c1.avatarUrl?.startsWith("data:image"), "namn och profilbild sparas i profilen")

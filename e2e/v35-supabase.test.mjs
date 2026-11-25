@@ -63,6 +63,8 @@ check((await state()).log.length === 0, "inget anrop till Resend utan inloggning
   await p.setInputFiles("[data-testid=profile-step] input[type=file]", { name: "ida.png", mimeType: "image/png", buffer: png })
   await p.waitForSelector('[data-testid=profile-step] button:has-text("Byt bild")')
   await p.click("[data-testid=intro-next]")
+  await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+  await p.click("[data-testid=intro-next]")
   await p.waitForSelector("text=Dina mått")
   await p.fill("#goal-weightKg", "")
   await p.fill("#goal-weightKg", "70")

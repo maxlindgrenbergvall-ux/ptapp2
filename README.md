@@ -578,6 +578,19 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v78: klienternas välkomst och intro med samma skal som PT-introt
+
+- **Delat flödesskal:** `src/components/flow/flow-shell.tsx` (FlowShell) och `src/components/flow/motion.tsx` används nu av både PT-introt och klienterna. Det ger samma sidbyten, segmenterade progress bar, inglidande innehåll och primärknapp längst ned.
+- **Välkomststeget (`/valkommen`)** är tre korta sidor:
+  1. **Välkommen till Coavira:** telefonnumret.
+  2. **Har du en kod?:** PT:ns kod och vänkoden, båda valfria och förifyllda från länkar.
+  3. **Godkänn villkoren:** samtycket.
+
+  I demoläget visas bara villkoren.
+- **Intro-flödet (`/klient/intro`):** steg 1 är två sidor – först namn, profilbild och språk, sedan träningsintressen ("Vad tränar du?"). Övriga steg (mått, aktivitet, mål, plan, avtal) är oförändrade i innehåll men tonar in med kortare hjälptexter.
+- **Tester:** e2e uppdaterade för de nya sidorna, med testid `welcome-next` och `intro-interests`.
+- Ingen databasändring.
+
 ## Nytt i v77: förfinat PT-intro med sidbyten och animationer
 
 - **Steg 1 i tre korta sidor:** Ditt PT-konto → Ditt företag → Friskvård & avtal. Fortfarande "Steg 1 av 3", men segmentet i progress-baren fylls för varje sida.

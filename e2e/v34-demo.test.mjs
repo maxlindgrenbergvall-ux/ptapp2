@@ -45,6 +45,8 @@ async function drag(handle, target) {
 await p.goto(base + "/klient/intro")
 await p.waitForSelector("[data-testid=profile-step]")
 await p.click("[data-testid=intro-next]")
+await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+await p.click("[data-testid=intro-next]")
 await p.fill("#goal-weightKg", "")
 await p.fill("#goal-weightKg", "84")
 await p.fill("#goal-heightCm", "180")

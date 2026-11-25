@@ -4,9 +4,12 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
-import { AuthCard, FormError } from "@/components/auth/auth-card"
-import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Loader2 } from "lucide-react"
+
+import { FormError } from "@/components/auth/auth-card"
+import { FlowShell } from "@/components/flow/flow-shell"
+import { Reveal } from "@/components/flow/motion"
+import { BrandMark } from "@/components/brand"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { normalizePhone } from "@/lib/phone"
@@ -24,7 +27,9 @@ const GOAL_INTRO_PATH = "/klient/intro"
 
 /**
  * Välkomststeget efter registrering (e-post, Apple eller Google): bekräfta
- * telefon och lämna samtycke till hälsodata. Namn och profilbild anges i steg 1
+ * telefon och lämna samtycke till hälsodata. Sedan v78 tre korta sidor med
+ * samma skal som intro-flödet: telefon → koder (valfria) → villkoren. I
+ * demoläget bara villkoren. Namn och profilbild anges i steg 1
  * i intro-flödet som följer (v31). Självregistrerade konton blir
  * alltid klientkonton – PT-konton skapas av Coavira och loggar in via
  * PT-inloggningen.
@@ -45,6 +50,13 @@ export function OnboardingForm() {
   const [loading, setLoading] = React.useState(isSupabaseEnabled)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const pages = isSupabaseEnabled ? (["phone", "codes", "consent"] as const) : (["consent"] as const)
+  const [pageIndex, setPageIndex] = React.useState(0)
+  const page = pages[pageIndex]
+  const goPage = (i: number) => {
+    setError(null)
+    setPageIndex(i)
+  }
 
   // Förifyll namn och telefon från registreringen eller från Apple/Google.
   React.useEffect(() => {
@@ -82,6 +94,17 @@ export function OnboardingForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (page === "phone") {
+      if (!normalizePhone(phone)) return setError("Ange ett giltigt telefonnummer, t.ex. 070-123 45 67.")
+      return goPage(pageIndex + 1)
+    }
+    if (page === "codes") {
+      const c = normalizeReferralCode(referral)
+      if (c && !REFERRAL_CODE.test(c)) return setError("Vänkoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
+      const ptc = ptCode.trim() ? normalizePtInviteCode(ptCode) : ""
+      if (ptc && !PT_INVITE_CODE.test(ptc)) return setError("PT:ns kod ser ut så här: EX-8FK29A. Lämna fältet tomt om du saknar kod.")
+      return goPage(pageIndex + 1)
+    }
     if (!consent) return setError("Du behöver godkänna användarvillkoren, communityreglerna och behandlingen av dina hälsouppgifter för att använda Coavira.")
     const code = normalizeReferralCode(referral)
     if (code && !REFERRAL_CODE.test(code)) return setError("Vänkoden består av 8 tecken, t.ex. SARA7KQ2. Lämna fältet tomt om du saknar kod.")
@@ -142,119 +165,141 @@ export function OnboardingForm() {
 
   if (loading) {
     return (
-      <AuthCard title="Välkommen till Coavira">
-        <div className="space-y-4" aria-busy="true">
-          <span className="sr-only">Laddar…</span>
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-10 w-full rounded-lg" />
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <Skeleton className="h-11 w-full rounded-xl" />
-        </div>
-      </AuthCard>
+      <div className="flex min-h-svh items-center justify-center" aria-busy="true">
+        <span className="sr-only">Laddar…</span>
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
     )
   }
 
+  const copy = {
+    phone: { title: "Välkommen till Coavira", lead: "Börja med att bekräfta ditt telefonnummer." },
+    codes: { title: "Har du en kod?", lead: "Från din PT eller en vän – annars går du bara vidare." },
+    consent: isSupabaseEnabled
+      ? { title: "Godkänn villkoren", lead: "Ett godkännande – sedan är du igång." }
+      : { title: "Välkommen till Coavira", lead: "Godkänn villkoren – sedan är du igång." },
+  }[page]
+  const last = pageIndex === pages.length - 1
+  const fieldClass = "h-12 rounded-xl bg-muted/40 px-4 text-base"
+
   return (
-    <AuthCard
-      title="Välkommen till Coavira"
-      description="Bekräfta ditt telefonnummer och godkänn villkoren. Sedan får du ange namn, profilbild och dina mål."
-      footer={
-        isSupabaseEnabled ? (
-          <button
-            type="button"
-            className="underline underline-offset-4"
-            onClick={async () => {
-              await getSupabase().auth.signOut()
-              window.location.replace(START_PATH)
-            }}
-          >
-            Fel konto? Logga ut
-          </button>
-        ) : (
-          <Link href={START_PATH} className="underline underline-offset-4">
-            Tillbaka
-          </Link>
-        )
-      }
+    <FlowShell
+      rootTestId="welcome-flow"
+      step={pageIndex + 1}
+      total={pages.length}
+      page={pageIndex}
+      stepLabel={pages.length > 1 ? `Välkommen · ${pageIndex + 1} av ${pages.length}` : "Välkommen"}
+      backLabel="Tillbaka"
+      onBack={pageIndex > 0 ? () => goPage(pageIndex - 1) : undefined}
+      right={<BrandMark size="sm" />}
+      title={copy.title}
+      lead={copy.lead}
+      primary={{ label: pending ? "Sparar…" : last ? "Kom igång" : "Fortsätt", form: "welcome-form", busy: pending, testId: "welcome-next" }}
     >
-      <form onSubmit={submit} className="space-y-4" noValidate>
+      <form id="welcome-form" onSubmit={submit} className="space-y-5" noValidate data-page={page}>
         <FormError message={error} />
-        {!isSupabaseEnabled && (
-          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Demoläge: du loggas in som en demoklient med påhittad data.</p>
+
+        {page === "phone" && (
+          <Reveal className="space-y-1.5">
+            <Label htmlFor="phone" className="text-sm text-muted-foreground">
+              Telefonnummer
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
+              placeholder="070-123 45 67"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={fieldClass}
+            />
+          </Reveal>
         )}
 
-        {isSupabaseEnabled && (
+        {page === "codes" && (
           <>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefonnummer</Label>
+            <Reveal className="space-y-1.5">
+              <Label htmlFor="pt-code" className="text-sm text-muted-foreground">
+                Har du en inbjudningskod från din PT?
+              </Label>
               <Input
-                id="phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                required
-                placeholder="070-123 45 67"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="h-11"
+                id="pt-code"
+                value={ptCode}
+                onChange={(e) => setPtCode(formatPtInviteInput(e.target.value))}
+                placeholder="EX-8FK29A (valfritt)"
+                autoComplete="off"
+                autoCapitalize="characters"
+                className={`${fieldClass} font-mono tracking-widest uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case`}
               />
-            </div>
+              <p className="text-xs text-muted-foreground">Ni kopplas ihop direkt och du betalar {EXISTING_CLIENT_FEE_PERCENT} % serviceavgift.</p>
+            </Reveal>
+            <Reveal className="space-y-1.5">
+              <Label htmlFor="referral" className="text-sm text-muted-foreground">
+                Kod från en vän (valfritt)
+              </Label>
+              <Input
+                id="referral"
+                value={referral}
+                onChange={(e) => setReferral(normalizeReferralCode(e.target.value).slice(0, 8))}
+                placeholder="T.ex. SARA7KQ2"
+                autoComplete="off"
+                autoCapitalize="characters"
+                className={`${fieldClass} font-mono tracking-widest uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case`}
+              />
+              <p className="text-xs text-muted-foreground">Ni får båda {REFERRAL_PLUS_DAYS} dagar Coavira Plus.</p>
+            </Reveal>
           </>
         )}
 
-        {isSupabaseEnabled && (
-          <div className="space-y-2">
-            <Label htmlFor="pt-code">Har du en inbjudningskod från din PT?</Label>
-            <Input
-              id="pt-code"
-              value={ptCode}
-              onChange={(e) => setPtCode(formatPtInviteInput(e.target.value))}
-              placeholder="EX-8FK29A (valfritt)"
-              autoComplete="off"
-              autoCapitalize="characters"
-              className="h-11 font-mono tracking-widest uppercase"
-            />
-            <p className="text-xs text-muted-foreground">
-              Tränar du redan med en PT? Med PT:ns kod kopplas ni ihop direkt och du betalar {EXISTING_CLIENT_FEE_PERCENT} % serviceavgift.
+        {page === "consent" && (
+          <>
+            {!isSupabaseEnabled && (
+              <Reveal>
+                <p className="rounded-xl bg-muted/50 px-4 py-3 text-xs text-muted-foreground">Demoläge: du loggas in som en demoklient med påhittad data.</p>
+              </Reveal>
+            )}
+            <Reveal className="space-y-2">
+              <ConsentCheckbox id="consent" checked={consent} onCheckedChange={setConsent} />
+              <p className="px-1 text-xs text-muted-foreground">Du kan när som helst ladda ner eller radera ditt konto och all data under Inställningar.</p>
+            </Reveal>
+          </>
+        )}
+
+        {pageIndex === 0 && (
+          <Reveal className="space-y-2 pt-4 text-center text-xs text-muted-foreground">
+            <p>
+              Är du PT?{" "}
+              <Link href="/bli-pt" className="underline underline-offset-4">
+                Skapa PT-konto
+              </Link>{" "}
+              eller{" "}
+              <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
+                logga in
+              </Link>
             </p>
-          </div>
+            <p>
+              {isSupabaseEnabled ? (
+                <button
+                  type="button"
+                  className="underline underline-offset-4"
+                  onClick={async () => {
+                    await getSupabase().auth.signOut()
+                    window.location.replace(START_PATH)
+                  }}
+                >
+                  Fel konto? Logga ut
+                </button>
+              ) : (
+                <Link href={START_PATH} className="underline underline-offset-4">
+                  Tillbaka
+                </Link>
+              )}
+            </p>
+          </Reveal>
         )}
-
-        {isSupabaseEnabled && (
-          <div className="space-y-2">
-            <Label htmlFor="referral">Kod från en vän (valfritt)</Label>
-            <Input
-              id="referral"
-              value={referral}
-              onChange={(e) => setReferral(normalizeReferralCode(e.target.value).slice(0, 8))}
-              placeholder="T.ex. SARA7KQ2"
-              autoComplete="off"
-              autoCapitalize="characters"
-              className="h-11 font-mono tracking-widest uppercase"
-            />
-            <p className="text-xs text-muted-foreground">Fått en kod av en vän? Ni får båda {REFERRAL_PLUS_DAYS} dagar Coavira Plus.</p>
-          </div>
-        )}
-
-        <div className="space-y-1.5">
-          <ConsentCheckbox id="consent" checked={consent} onCheckedChange={setConsent} />
-          <p className="text-xs text-muted-foreground">Du kan när som helst ladda ner eller radera ditt konto och all data under Inställningar.</p>
-        </div>
-
-        <Button type="submit" size="lg" className="h-11 w-full" disabled={pending}>
-          {pending ? "Sparar…" : "Kom igång"}
-        </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          Är du PT?{" "}
-          <Link href="/bli-pt" className="underline underline-offset-4">
-            Skapa PT-konto
-          </Link>{" "}
-          eller{" "}
-          <Link href={PT_LOGIN_PATH} className="underline underline-offset-4">
-            logga in
-          </Link>
-        </p>
       </form>
-    </AuthCard>
+    </FlowShell>
   )
 }

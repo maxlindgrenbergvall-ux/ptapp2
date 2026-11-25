@@ -53,6 +53,8 @@ async function login(email, path = "/logga-in") {
   await p.fill("#profile-lastName", "Introsson")
   await fetch(`${mock}/__reset`)
   await p.click("[data-testid=intro-next]")
+  await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+  await p.click("[data-testid=intro-next]")
   await p.waitForSelector("text=Dina mått")
   let log = await getLog()
   const step1 = log.find((e) => e.table === "save_profile_step")

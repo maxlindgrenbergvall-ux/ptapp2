@@ -39,6 +39,8 @@ check((await p.locator("nav[aria-label=Huvudmeny]").count()) === 0, "intro-flöd
 // v31: steg 1 (namn och profilbild) först – förifyllt från profilen.
 await p.waitForSelector("[data-testid=profile-step]")
 await p.click("[data-testid=intro-next]")
+await p.waitForSelector("[data-testid=intro-interests]") // v78: träningsintressen på en egen sida
+await p.click("[data-testid=intro-next]")
 await p.waitForSelector("text=Dina mått")
 check((await p.locator("[data-testid=goal-disclaimer]").innerText()).includes(DISCLAIMER), "friskrivningen syns längst ned i intro-flödet")
 

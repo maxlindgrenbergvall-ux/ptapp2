@@ -16,7 +16,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { PtFlowShell } from "@/components/pt-onboarding/flow-shell"
-import { EASE, Reveal } from "@/components/pt-onboarding/motion"
+import { EASE, Reveal } from "@/components/flow/motion"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

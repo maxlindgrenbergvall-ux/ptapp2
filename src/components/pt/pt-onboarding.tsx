@@ -16,7 +16,7 @@ import { toast } from "sonner"
 
 import { AccountStep, emptyDraft } from "@/components/pt-onboarding/account-step"
 import { PtFlowShell } from "@/components/pt-onboarding/flow-shell"
-import { CountUp, EASE, Reveal } from "@/components/pt-onboarding/motion"
+import { CountUp, EASE, Reveal } from "@/components/flow/motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

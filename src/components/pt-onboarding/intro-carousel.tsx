@@ -12,7 +12,7 @@ import Link from "next/link"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
-import { CountUp, EASE } from "@/components/pt-onboarding/motion"
+import { CountUp, EASE } from "@/components/flow/motion"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/lib/i18n/provider"
 import { formatSek } from "@/lib/money"

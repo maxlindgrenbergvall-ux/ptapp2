@@ -110,10 +110,14 @@ async function login(email) {
   await p.fill("#password", "hemligt123")
   await p.click("button[type=submit]")
   await p.waitForURL(`${base}/valkommen`)
+  // v78: välkomststeget är tre korta sidor – telefon → koder → villkoren.
+  await p.fill("#phone", "0701234567")
+  await p.click("button[type=submit]")
   await p.waitForSelector("#pt-code")
   check((await p.locator("label[for=pt-code]").innerText()).trim() === "Har du en inbjudningskod från din PT?", "fältet heter Har du en inbjudningskod från din PT?")
   check((await p.inputValue("#pt-code")) === "EX-NYKD23", "koden från PT:ns länk är förifylld")
-  await p.fill("#phone", "0701234567")
+  await p.click("button[type=submit]")
+  await p.waitForSelector('form[data-page="consent"]')
   await p.click("#consent")
   await p.click("button[type=submit]")
   await p.waitForURL(`${base}/klient/intro`) // v30: intro-flödet efter välkomststeget

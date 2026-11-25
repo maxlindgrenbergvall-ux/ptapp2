@@ -100,9 +100,13 @@ check((await fetch(`${base}/api/stripe/plus-checkout`, { method: "POST" })).stat
   await p.fill("#password", "hemligt123")
   await p.click("button[type=submit]")
   await p.waitForURL(`${base}/valkommen`)
+  // v78: välkomststeget är tre korta sidor – telefon → koder → villkoren.
+  await p.fill("#phone", "0701234567")
+  await p.click("button[type=submit]")
   await p.waitForSelector("#referral")
   check((await p.inputValue("#referral")) === "SARA7KQ2", "koden från länken är förifylld i välkomststeget")
-  await p.fill("#phone", "0701234567")
+  await p.click("button[type=submit]")
+  await p.waitForSelector('form[data-page="consent"]')
   await p.click("#consent")
   await p.click("button[type=submit]")
   await p.waitForURL(`${base}/klient/intro`) // v30: intro-flödet efter välkomststeget

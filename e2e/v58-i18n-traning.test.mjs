@@ -47,8 +47,11 @@ check((await p.evaluate(() => document.documentElement.lang)) === "sv", "demolä
 await p.goto(base + "/klient/intro")
 await p.waitForSelector("[data-testid=language-chips]")
 check((await p.locator("[data-testid=language-chips] [role=radio]").count()) === 5, "första steget: fem språk (sv, en, es, fr, de)")
-check((await p.locator("[data-testid=interest-pills] [data-interest]").count()) === 5, "första steget: fem intressen som pills")
 await p.click("[data-testid=language-chips] [data-locale=en]")
+// v78: träningsintressen på en egen sida i steg 1.
+await p.click("[data-testid=intro-next]")
+await p.waitForSelector("[data-testid=intro-interests]")
+check((await p.locator("[data-testid=interest-pills] [data-interest]").count()) === 5, "steg 1: fem intressen som pills")
 await p.waitForSelector("[data-testid=interest-pills] >> text=Running")
 check((await p.evaluate(() => document.documentElement.lang)) === "en", "ett tryck på EN: hela vyn på engelska direkt")
 check(await p.locator("text=What do you train?").isVisible(), "rubriken på engelska")

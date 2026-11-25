@@ -250,6 +250,11 @@ check((await q.locator("#name").count()) === 0, "välkomststeget frågar inte ef
 await q.screenshot({ path: `${out}/sb-valkommen.png` })
 check((await q.locator("text=Jag är PT").count()) === 0, "välkomststeget har inget val för PT-konto")
 await q.fill("#phone", "0709876543")
+// v78: välkomststeget är tre korta sidor – telefon → koder (valfria) → villkoren.
+await q.click('button[type=submit]')
+await q.waitForSelector('form[data-page="codes"]')
+await q.click('button[type=submit]')
+await q.waitForSelector('form[data-page="consent"]')
 await q.click('button[type=submit]')
 await q.waitForSelector("text=godkänna användarvillkoren, communityreglerna och behandlingen av dina hälsouppgifter")
 ok("klientkonto kräver samtycke till hälsodata")
