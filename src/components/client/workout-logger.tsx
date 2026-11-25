@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Check, ChevronDown, Pause, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ClipboardCheck, Clock, Eye, History, Info, Minus, Pencil, PlayCircle, Plus, Repeat, ShieldCheck, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -35,9 +35,9 @@ import { exercisesFromWorkout } from "@/lib/templates"
 import { cleanDecimal, parseDecimal } from "@/lib/decimal-input"
 import { AUTO_INCREMENT_KG, nextTarget, type ProgressionTarget } from "@/lib/progression"
 import { cancelRestNotification, getRestPreference, primeAlertSound, restFinishedAlert, restSecondsFor, scheduleRestNotification } from "@/lib/rest-timer"
-import { elapsedMs, endWorkoutTimer, ensureWorkoutTimer, formatElapsed, isRunning, toggleWorkoutTimer, useWorkoutTimer } from "@/lib/workout-timer"
+import { endWorkoutTimer, ensureWorkoutTimer } from "@/lib/workout-timer"
 import { findLog, lastPerformance, lastSessionSets, setsDone, setsTotal, suggestSet } from "@/lib/training"
-import { exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
+import { completeBlocker, exercisesMissingWeights, groupBySection, hasWorkoutStarted, startsAtLabel, usesWeights, verifyBlocker } from "@/lib/workout-rules"
 import { useBounce } from "@/lib/spring"
 import { prefersReducedMotion } from "@/lib/use-in-view"
 import { cn } from "@/lib/utils"
@@ -171,8 +171,8 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
                 {formatDay(workout.date)}
                 {trainerMode && clientName ? ` · ${clientName}` : workout.byClient ? " · Eget pass" : trainer ? ` · ${trainer.name}` : ""}
               </p>
-              {/* v73: passtimern – hur länge passet har pågått. */}
-              {!trainerMode && !preview && <WorkoutTimerChip workoutId={workout.id} interactive={!readOnly && workout.status !== "completed"} autoStart={started} />}
+              {/* v81: tyst passtimer – mäter passet i bakgrunden, längden visas i summeringen. */}
+              {!trainerMode && !preview && !readOnly && workout.status !== "completed" && started && <SilentWorkoutTimer workoutId={workout.id} />}
             </div>
           </div>
           {!trainerMode && !readOnly && <RestSettingsButton />}
@@ -376,12 +376,18 @@ export function WorkoutLogger({ workoutId, mode = "client", backHref }: { workou
           onOpenChange={setFinishOpen}
           workout={workout}
           onFinish={(comment) => {
-            const error = actions.setWorkoutStatus(workout.id, "completed", comment || undefined)
+            const blocked = workout.status === "completed" ? null : completeBlocker(data, workout)
+            if (blocked) {
+              toast.error(blocked)
+              return null
+            }
+            // v81: passets längd från den tysta passtimern sparas i historiken.
+            const durationSec = endWorkoutTimer(workout.id)
+            const error = actions.setWorkoutStatus(workout.id, "completed", comment || undefined, durationSec)
             if (error) {
               toast.error(error)
               return null
             }
-            const durationSec = endWorkoutTimer(workout.id)
             // Kommentaren går till passets PT (egna pass har ingen PT).
             const pt = workout.trainerId ?? (workout.byClient ? undefined : data.clients.find((c) => c.id === me.id)?.trainerId ?? undefined)
             if (comment && pt) actions.sendMessage(me.id, comment, workout.id, { trainerId: pt })
@@ -1138,61 +1144,15 @@ export function Stepper({
 }
 
 /**
- * Passtimern i sidhuvudet (v73). v74: mäter hela passet – startar när passet
- * öppnas på passdagen (inte vid första setet) och räknar upp varje sekund; ett
- * tryck pausar och återupptar. Ett pass som inte har börjat än (tidsspärren)
- * visar "Starta tid". Ett avslutat pass visar sin tid. Bara den här lilla
- * komponenten ritas om varje sekund – inte hela passvyn.
+ * Den tysta passtimern (v81): startar när passet öppnas på passdagen och syns
+ * inte under passet – ingen klocka, inga omritningar. Starttiden sparas på
+ * enheten och längden visas i summeringen när passet avslutas.
  */
-function WorkoutTimerChip({ workoutId, interactive, autoStart }: { workoutId: string; interactive: boolean; autoStart: boolean }) {
-  const state = useWorkoutTimer(workoutId)
+function SilentWorkoutTimer({ workoutId }: { workoutId: string }) {
   React.useEffect(() => {
-    if (interactive && autoStart) ensureWorkoutTimer(workoutId)
-  }, [interactive, autoStart, workoutId])
-  const running = isRunning(state)
-  const [now, setNow] = React.useState(() => Date.now())
-  React.useEffect(() => {
-    if (!running) return
-    const t = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(t)
-  }, [running])
-  if (!state && !interactive) return null
-  const text = state ? formatElapsed(elapsedMs(state, now)) : null
-  const label = !state ? "Starta passets tid" : running ? `Passets tid ${text}. Tryck för att pausa` : state.endedAt ? `Passet tog ${text}` : `Passets tid ${text}, pausad. Tryck för att fortsätta`
-  const content = (
-    <>
-      <span aria-hidden className="text-muted-foreground/60">·</span>
-      {state?.pausedAt && !state.endedAt ? <Pause className="size-3" aria-hidden /> : <Timer className={cn("size-3", running && "text-primary")} aria-hidden />}
-      <span className={cn("tabular", running && "font-medium text-foreground")} data-testid="workout-timer-time">
-        {text ?? "Starta tid"}
-      </span>
-    </>
-  )
-  if (!interactive || state?.endedAt) {
-    return (
-      <span className="flex shrink-0 items-center gap-1" aria-label={label} data-testid="workout-timer" data-state="ended">
-        {content}
-      </span>
-    )
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        toggleWorkoutTimer(workoutId)
-        setNow(Date.now())
-      }}
-      aria-label={label}
-      data-testid="workout-timer"
-      data-state={!state ? "idle" : running ? "running" : "paused"}
-      className={cn(
-        "-my-1 flex shrink-0 items-center gap-1 rounded-full px-1 py-1 transition-[color,scale] duration-150 active:scale-95",
-        state?.pausedAt && "text-warning"
-      )}
-    >
-      {content}
-    </button>
-  )
+    ensureWorkoutTimer(workoutId)
+  }, [workoutId])
+  return null
 }
 
 /** Notisen "Vilan är slut" följer timern: schemaläggs, flyttas vid ±15 s och tas bort vid hoppa över. */

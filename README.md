@@ -578,6 +578,39 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v81: aktiveringsspärr, verifierade friskvårdsportaler och tyst passtimer
+
+**Migration att köra:** `supabase/migrations/20261204000000_v81_activation_wellness_verification.sql` (efter v76).
+
+### 1. Aktiveringsspärr
+- **Aktiverad PT (`trainers.is_pt_activated`):** Stripe tar emot kort (`trainer_payouts_ready`) **och** PT:n har minst ett aktivt coachingpaket. Databasen håller flaggan i synk via triggers på `trainer_services` och `trainer_payout_accounts`.
+- **Hitta PT:** en PT som inte är aktiverad kan inte vara publicerad. Vakten `guard_pt_activation` stoppar PT:n med ett tydligt fel.
+  - **Systemet** (t.ex. Stripe-webhooken) håller i stället profilen dold.
+  - **Tappar en publicerad PT aktiveringen** döljs profilen och visas igen automatiskt när båda kraven är uppfyllda.
+  - **Läsreglerna** för `trainers` och `profiles` kräver dessutom `is_pt_activated`.
+  - **Vyn `marketplace_trainers`** (security_invoker) listar bara aktiverade, publicerade PT:er.
+  - **Appen** filtrerar på samma sätt: Hitta PT, rekommendationer och boost.
+- **Inbjudningar:** `create_pt_invite` kräver aktivering, och en kod från en PT som inte är aktiverad kan inte lösas in (vakt på `pt_invites`).
+- **PT-vyn:** en checklista överst med två steg och direktknappar ("Koppla Stripe Connect för utbetalningar", "Skapa minst ett coachingpaket"). "Bjud in existerande klient" visar checklistan tills båda är gröna. `my_activation_status()` ger statusen.
+
+### 2. Verifiering av ePassi, Benifex och Edenred
+- **Verifieringskortet** (Profil → Friskvård och introts steg 1 för inloggade PT:er) har tre obligatoriska delar:
+  - leverantörs-ID eller namn i portalen,
+  - bevis (bild eller PDF, högst 10 MB) i den privata bucketen `wellness-verifications/{uid}/…`,
+  - intygandet ("Jag intygar att mitt företag har ett aktivt samarbetsavtal …").
+- **Självregistreringen** (`/bli-pt/konto`) har inget konto än när portalerna väljs. Där visas en kort hänvisning, och statusraden påminner tills PT:n har skickat in.
+- **Status (`trainers.wellness_verification_status`):** none → pending ("Granskas") → verified eller rejected (med skäl). Bara databasen sätter statusen.
+  - **Ny portal:** slår PT:n på en portal efter granskningen gäller verifieringen inte längre.
+- **Privata uppgifter:** leverantörs-ID, bevisets sökväg och intygandets tidpunkt ligger i `trainer_wellness_verifications` (läsbar för PT:n själv och admin), inte på `trainers`, som alla inloggade kan läsa.
+- **Publika badges och filtret "Friskvård"** i Hitta PT kräver status verified.
+- **Admin `/admin/friskvard`:** visa beviset (kortlivad länk), godkänn med ett klick eller neka med ett kort skäl.
+
+### 3. Tyst passtimer
+- **Under passet:** ingen klocka. Starttiden sparas tyst på enheten (localStorage) när passet öppnas och överlever att appen läggs i bakgrunden.
+- **När passet avslutas:** längden sparas i `scheduled_workouts.duration_seconds`. Den visas som en egen bricka i summeringen ("48 min" eller "1 tim 15 min").
+
+Tester: `supabase/tests/rls_v81.test.sql` (51 kontroller), `e2e/v81-aktivering.test.mjs` (demo), `e2e/v81-supabase.test.mjs` och uppdaterade v73, v75 och v76.
+
 ## Nytt i v80: renare inloggning och "Välkommen tillbaka"
 
 ### Renare inloggningssidor

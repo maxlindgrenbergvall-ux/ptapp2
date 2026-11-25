@@ -4,11 +4,11 @@
  * PT:ns koder till befintliga klienter (v19).
  *
  * "Bjud in existerande klient" skapar en engångskod (EX-8FK29A) i databasen
- * (create_pt_invite – bara verifierade PT:er). PT:n skickar koden eller länken
+ * (create_pt_invite – bara verifierade och aktiverade PT:er, v81). PT:n skickar koden eller länken
  * i sin egen kanal. När klienten löser in koden kopplas hen direkt till PT:n
  * som befintlig klient och betalar 5 % serviceavgift i stället för 10 %.
  */
-import { Check, Copy, KeyRound, Loader2, Share2, Trash2, UserPlus } from "lucide-react"
+import { Check, Copy, KeyRound, Loader2, Lock, Share2, Trash2, UserPlus } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -22,6 +22,8 @@ import { BRAND } from "@/lib/brand"
 import { useAppData } from "@/lib/data/store"
 import { EXISTING_CLIENT_FEE_PERCENT, PLATFORM_FEE_PERCENT } from "@/lib/payments/fees"
 import { isInviteExpired, PT_INVITE_DAYS, ptInviteLink } from "@/lib/pt-invites"
+import { ActivationChecklist } from "@/components/pt/activation-checklist"
+import { useActivation } from "@/lib/pt-activation"
 import type { PtInvite } from "@/types/domain"
 
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })
@@ -29,12 +31,27 @@ const formatDate = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { 
 /** Knappen i klientöversikten. */
 export function InviteExistingClientButton({ className }: { className?: string }) {
   const [open, setOpen] = React.useState(false)
+  const activation = useActivation()
+  // v81: låst tills kontot är aktiverat (Stripe + minst ett paket) – då visas checklistan.
+  const locked = activation.ready && !activation.activated
   return (
     <>
-      <Button className={className} onClick={() => setOpen(true)}>
-        <UserPlus /> Bjud in existerande klient
+      <Button className={className} variant={locked ? "outline" : "default"} onClick={() => setOpen(true)} data-testid="invite-client" data-locked={locked}>
+        {locked ? <Lock /> : <UserPlus />} Bjud in existerande klient
       </Button>
-      <InviteDialog open={open} onOpenChange={setOpen} />
+      {locked ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-md" data-testid="invite-locked">
+            <DialogHeader>
+              <DialogTitle>Aktivera kontot först</DialogTitle>
+              <DialogDescription>Inbjudningar låses upp när båda stegen är klara.</DialogDescription>
+            </DialogHeader>
+            <ActivationChecklist activation={activation} compact />
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <InviteDialog open={open} onOpenChange={setOpen} />
+      )}
     </>
   )
 }

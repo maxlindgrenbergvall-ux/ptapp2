@@ -389,6 +389,7 @@ const es: Dictionary = {
     statusStripe: "Termina de conectar Stripe para cobrar",
     statusCompany: "Añade los datos de la empresa para los recibos",
     statusPackage: "Crea tu primer paquete",
+    statusWellness: "Verifica tus portales de bienestar",
     statusProfile: "Añade una foto y una presentación",
     statusReview: "Envía tus certificados para revisión y aparecerás en Buscar PT",
     statusPublish: "Publica tu perfil en Buscar PT",

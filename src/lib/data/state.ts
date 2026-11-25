@@ -46,6 +46,7 @@ import type { Preferences,
   GoalProfile,
   ActivityDay,
   ActivityLog,
+  WellnessVerificationStatus,
 } from "@/types/domain"
 import { isFreeOffer } from "@/lib/offers/policy"
 import exerciseLibrary from "@/lib/exercise-library.json"
@@ -53,7 +54,7 @@ import exerciseLibrary from "@/lib/exercise-library.json"
 /** Ändringar som användaren gör och som ska sparas i backend. */
 export type PersistableAction =
   | { type: "upsertSetLog"; workoutId: ID; log: SetLog }
-  | { type: "setWorkoutStatus"; workoutId: ID; status: WorkoutStatus; comment?: string; completedAt?: string }
+  | { type: "setWorkoutStatus"; workoutId: ID; status: WorkoutStatus; comment?: string; completedAt?: string; durationSec?: number }
   | { type: "addWorkout"; workout: ScheduledWorkout }
   | { type: "upsertTemplate"; template: WorkoutTemplate }
   | { type: "deleteTemplate"; templateId: ID }
@@ -168,6 +169,8 @@ export type LocalAction =
   | { type: "upsertPurchases"; purchases: Purchase[]; today?: ISODate }
   /** PT: en ny klient (t.ex. efter ett köp) som inte fanns när datan laddades. */
   | { type: "addClient"; client: Client }
+  /** v81: friskvårdsportalernas verifiering (efter inskick eller omladdning). Sätts av databasen. */
+  | { type: "setTrainerWellnessStatus"; trainerId: ID; status: WellnessVerificationStatus }
   /** PT Boost betald (servern eller demoläget): PT:n är utvald till och med `boostedUntil`. */
   | { type: "setTrainerBoost"; trainerId: ID; boostedUntil: string | null }
   /** Varukorgen ändrad på servern (t.ex. betald på en annan enhet). */
@@ -212,6 +215,7 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
         status: action.status,
         clientComment: action.comment ?? w.clientComment,
         completedAt: action.status === "completed" ? action.completedAt : undefined,
+        durationSec: action.status === "completed" ? (action.durationSec ?? w.durationSec) : w.durationSec,
       }))
 
     case "addWorkout":
@@ -468,7 +472,15 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
       }
 
     case "updateTrainerProfile": {
-      const trainers = data.trainers.map((t) => (t.id === action.trainerId ? { ...t, ...action.patch } : t))
+      const trainers = data.trainers.map((t) => {
+        if (t.id !== action.trainerId) return t
+        const next = { ...t, ...action.patch }
+        // v81 (som databasen): en ny portal efter granskningen måste verifieras igen.
+        const added =
+          (next.acceptsEpassi && !t.acceptsEpassi) || (next.acceptsBenifex && !t.acceptsBenifex) || (next.acceptsEdenred && !t.acceptsEdenred)
+        if (added && (t.wellnessVerificationStatus === "verified" || t.wellnessVerificationStatus === "pending")) next.wellnessVerificationStatus = "none"
+        return next
+      })
       const t = trainers.find((x) => x.id === action.trainerId)
       // Som databasen: tjänster utanför PT:ns utbud pausas.
       const services = t
@@ -674,6 +686,9 @@ export function reducer(data: AppData | null, action: Action): AppData | null {
     }
     case "setReferrals":
       return { ...data, referrals: action.referrals }
+    case "setTrainerWellnessStatus":
+      return { ...data, trainers: data.trainers.map((t) => (t.id === action.trainerId ? { ...t, wellnessVerificationStatus: action.status } : t)) }
+
     case "setTrainerBoost":
       return {
         ...data,

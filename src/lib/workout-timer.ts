@@ -3,8 +3,10 @@
 /**
  * Passtimern (v73): hur länge passet har pågått.
  *
- * v74: mäter hela passet – inte seten. Startar när passet öppnas (på passdagen),
- * kan pausas och återupptas med ett tryck, och stannar när passet avslutas.
+ * v74: mäter hela passet – inte seten. Startar när passet öppnas (på passdagen)
+ * och stannar när passet avslutas.
+ * v81: tyst – ingen klocka under passet. Starttiden ligger kvar på enheten (även
+ * när appen ligger i bakgrunden) och längden visas först i summeringen.
  * Avbockade set påverkar inte timern. Tiden
  * sparas på enheten per pass (localStorage) – den överlever att appen stängs
  * eller laddas om mitt i passet. Tider äldre än 60 dagar rensas bort.
@@ -143,4 +145,13 @@ export function forgetWorkoutTimers() {
     }
   } catch {}
   listeners.forEach((l) => l())
+}
+
+/** v81: passets längd i summeringen – "48 min" eller "1 tim 15 min" (minst 1 min). */
+export function formatDuration(sec: number): string {
+  const total = Math.max(1, Math.round(sec / 60))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  if (!h) return `${m} min`
+  return m ? `${h} tim ${m} min` : `${h} tim`
 }

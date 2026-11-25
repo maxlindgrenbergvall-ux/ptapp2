@@ -2,8 +2,8 @@
  * Friskvård i Hitta PT och på profiler (v75).
  *
  * Diskret limegrön badge: "Friskvård" plus de portaler PT:n tar emot (ePassi,
- * Benifex, Edenred). Visas när PT:n har ett portalavtal eller ett aktivt
- * friskvårdspaket. Paketets egen badge: "Godkänt för friskvård".
+ * Benifex, Edenred). v81: bara för PT:er vars portalavtal Coavira har verifierat.
+ * Paketets egen badge: "Godkänt för friskvård".
  */
 import { HeartPulse } from "lucide-react"
 
@@ -11,14 +11,21 @@ import { cn } from "@/lib/utils"
 import { WELLNESS_CHECKOUT_TEXT } from "@/lib/wellness/pricing"
 import type { AppData, Trainer, TrainerService } from "@/types/domain"
 
-export const portalsOf = (t: Pick<Trainer, "acceptsEpassi" | "acceptsBenifex" | "acceptsEdenred">) =>
-  [t.acceptsEpassi && "ePassi", t.acceptsBenifex && "Benifex", t.acceptsEdenred && "Edenred"].filter(Boolean) as string[]
+/** v81: portalerna syns publikt först när Coavira har verifierat avtalet. */
+export const isWellnessVerified = (t: Pick<Trainer, "wellnessVerificationStatus">) => t.wellnessVerificationStatus === "verified"
+
+export const portalsOf = (t: Pick<Trainer, "acceptsEpassi" | "acceptsBenifex" | "acceptsEdenred" | "wellnessVerificationStatus">) =>
+  isWellnessVerified(t) ? ([t.acceptsEpassi && "ePassi", t.acceptsBenifex && "Benifex", t.acceptsEdenred && "Edenred"].filter(Boolean) as string[]) : []
 
 export const hasWellnessPackage = (data: Pick<AppData, "services">, trainerId: string) =>
   data.services.some((s) => s.trainerId === trainerId && s.active && s.isWellnessPackage)
 
-/** Tar PT:n friskvårdsbidrag (portalavtal eller friskvårdspaket i appen)? Filtret i Hitta PT. */
-export const offersWellness = (data: Pick<AppData, "services">, t: Trainer) => portalsOf(t).length > 0 || hasWellnessPackage(data, t.id)
+/**
+ * Tar PT:n friskvårdsbidrag? Filtret "Tar emot ePassi / Friskvård" i Hitta PT och
+ * badgen. v81: kräver verifierade portalavtal (wellness_verification_status = verified).
+ */
+export const offersWellness = (data: Pick<AppData, "services">, t: Trainer) =>
+  isWellnessVerified(t) && (portalsOf(t).length > 0 || hasWellnessPackage(data, t.id))
 
 const LIME = "border-[#84cc16]/40 bg-[#84cc16]/12 text-[#3f6212] dark:text-[#a3e635]"
 

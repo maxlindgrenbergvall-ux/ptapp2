@@ -39,6 +39,19 @@ await settings.locator("[data-testid=portal-acceptsEdenred]").click()
 await p.waitForTimeout(200)
 check((await demo()).trainers.find((t) => t.id === "t1").acceptsEdenred === true, "\"Tar emot Edenred\" sparas på profilen")
 
+// v81: en ny portal efter granskningen måste verifieras – leverantörs-ID, bevis och intygande.
+const verify = settings.locator("[data-testid=wellness-verification]")
+await verify.waitFor()
+check((await verify.getAttribute("data-status")) === "none", "v81: ny portal efter granskningen kräver en ny verifiering")
+await verify.locator("[data-testid=wellness-submit]").click()
+check(await verify.locator("text=Ladda upp en skärmdump eller avtalsbekräftelse").isVisible(), "v81: beviset är obligatoriskt")
+await verify.locator("#wellness-merchant-id").fill("Elin Söderberg Träning (ePassi 4711)")
+await verify.locator("[data-testid=wellness-proof]").setInputFiles({ name: "avtal.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64") })
+await verify.locator("[data-testid=wellness-attest]").click()
+await verify.locator("[data-testid=wellness-submit]").click()
+await settings.locator("[data-testid=wellness-verification][data-status=pending]").waitFor()
+ok("v81: inskickat – diskret \"Granskas\"")
+
 await settings.locator("#biz-name").fill("Elin Söderberg Träning AB")
 await settings.locator("#biz-org").fill("559123-4562")
 check(await settings.locator("text=Kontrollsiffran stämmer inte").isVisible(), "ogiltigt organisationsnummer underkänns direkt")
@@ -104,6 +117,16 @@ check(/Hittade dig i Coavira/.test(await p.locator("[data-testid=client-payment-
 check(await p.locator("[data-testid=toggle-external-wellness]").isDisabled(), "kan inte bli extern friskvårdskund före första köpet i appen")
 
 // =========================================================== Hitta PT ===
+// v81: före granskningen syns inga portalbadges. Coavira godkänner sedan (i demoläget direkt i datan).
+await p.goto(base + "/klient/hitta")
+await p.waitForSelector("h1:has-text('Hitta din PT')")
+check((await p.locator("li", { hasText: "Elin Söderberg" }).first().locator("[data-testid=wellness-badge]").count()) === 0, "v81: ingen friskvårdsbadge medan avtalet granskas")
+await p.evaluate(() => {
+  const key = "coavira:demo:v5"
+  const state = JSON.parse(localStorage[key])
+  state.data.trainers.find((t) => t.id === "t1").wellnessVerificationStatus = "verified"
+  localStorage[key] = JSON.stringify(state)
+})
 await p.goto(base + "/klient/hitta")
 await p.waitForSelector("h1:has-text('Hitta din PT')")
 const elin = p.locator("li", { hasText: "Elin Söderberg" }).first()

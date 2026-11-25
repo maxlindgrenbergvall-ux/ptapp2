@@ -88,6 +88,7 @@ import type {
   GoalProfile,
   ActiveSplit,
   Preferences,
+  WellnessVerificationStatus,
 } from "@/types/domain"
 import { START_PATH } from "@/lib/site"
 import { DELETE_CONFIRM_WORD } from "@/lib/account"
@@ -184,13 +185,15 @@ function createActions(ctx: {
       commit({ type: "upsertSetLog", workoutId, log })
     },
     /** Returnerar ett felmeddelande om passet inte har ägt rum än (databasen spärrar samma sak). */
-    setWorkoutStatus: (workoutId: ID, status: WorkoutStatus, comment?: string): string | null => {
+    setWorkoutStatus: (workoutId: ID, status: WorkoutStatus, comment?: string, durationSec?: number | null): string | null => {
       const w = getData().workouts.find((x) => x.id === workoutId)
       if (w && status === "completed" && w.status !== "completed") {
         const blocked = completeBlocker(getData(), w)
         if (blocked) return blocked
       }
-      commit({ type: "setWorkoutStatus", workoutId, status, comment, completedAt: status === "completed" ? now() : undefined })
+      // v81: passets längd (tyst passtimer) sparas i historiken när passet avslutas.
+      const duration = status === "completed" && durationSec != null && durationSec >= 0 ? Math.min(86400, Math.round(durationSec)) : undefined
+      commit({ type: "setWorkoutStatus", workoutId, status, comment, completedAt: status === "completed" ? now() : undefined, durationSec: duration })
       return null
     },
     /**
@@ -1003,6 +1006,8 @@ function createActions(ctx: {
       })
     },
     updateTrainerProfile: (patch: TrainerProfilePatch) => commit({ type: "updateTrainerProfile", trainerId: me.id, patch }),
+    /** v81: statusen för portalverifieringen (sätts av databasen – här bara vyn). */
+    setWellnessVerificationStatus: (status: WellnessVerificationStatus) => ctx.dispatch({ type: "setTrainerWellnessStatus", trainerId: me.id, status }),
 
     // ----- klientens trackers
     /** Loggar mat och returnerar postens id (v42: för "Ångra" i snabbloggningen). */

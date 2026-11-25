@@ -389,6 +389,7 @@ const en: Dictionary = {
     statusStripe: "Finish connecting Stripe to get paid",
     statusCompany: "Add business details for wellness receipts",
     statusPackage: "Create your first package",
+    statusWellness: "Verify your wellness portals",
     statusProfile: "Add a photo and bio",
     statusReview: "Send your certificates for review – then you appear in Find a PT",
     statusPublish: "Publish your profile in Find a PT",

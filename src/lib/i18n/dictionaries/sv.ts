@@ -393,6 +393,7 @@ const sv = {
     statusStripe: "Slutför din Stripe-koppling för att ta emot betalningar",
     statusCompany: "Fyll i företagsuppgifter för friskvårdskvitton",
     statusPackage: "Skapa ditt första paket",
+    statusWellness: "Verifiera dina friskvårdsportaler",
     statusProfile: "Lägg till bild och presentation",
     statusReview: "Skicka dina certifikat för granskning – sedan syns du i Hitta PT",
     statusPublish: "Publicera din profil i Hitta PT",

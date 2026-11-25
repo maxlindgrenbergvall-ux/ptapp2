@@ -37,6 +37,7 @@ import { normalizeInstagram, normalizeWebsite } from "@/lib/trainer-links"
 import { TrainerLinks } from "@/components/trainer-links"
 import type { TrainerProfilePatch } from "@/lib/data/state"
 import { useAppData } from "@/lib/data/store"
+import { useActivation } from "@/lib/pt-activation"
 import { cn } from "@/lib/utils"
 import { COACHING_MODE_LABEL, SPECIALTIES, SPECIALTY_LABEL, type CoachingMode, type Specialty, type Trainer } from "@/types/domain"
 
@@ -61,6 +62,7 @@ export function TrainerProfileEditor() {
   const insta = normalizeInstagram(form.instagram)
   const [showLinkErrors, setShowLinkErrors] = React.useState(false)
   const hasServices = data.services.some((x) => x.trainerId === me.id && x.active)
+  const activation = useActivation()
 
   if (!trainer) return null
 
@@ -70,6 +72,8 @@ export function TrainerProfileEditor() {
     form.bio.trim().length < 40 && "en presentation (minst 40 tecken)",
     form.pricePerSession <= 0 && "pris",
     !hasServices && "minst en tjänst",
+    // v81: aktiveringen – Stripe måste vara kopplat för att synas i Hitta PT.
+    activation.ready && !activation.stripe && "Stripe-utbetalningar",
   ].filter(Boolean) as string[]
 
   const dirty = (Object.keys(form) as (keyof typeof form)[]).some(

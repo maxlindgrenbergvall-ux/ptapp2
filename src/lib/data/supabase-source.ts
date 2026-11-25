@@ -102,6 +102,8 @@ interface TrainerRow {
   accepts_benifex?: boolean
   accepts_edenred?: boolean
   stripe_onboarding_complete?: boolean
+  is_pt_activated?: boolean
+  wellness_verification_status?: Trainer["wellnessVerificationStatus"]
   reviews?: ReviewRow[]
 }
 interface CartRow {
@@ -146,6 +148,7 @@ interface WorkoutRow {
   exercises: WorkoutExercise[]
   status: ScheduledWorkout["status"]
   completed_at: string | null
+  duration_seconds?: number | null
   client_comment: string | null
   set_logs?: SetLogRow[]
 }
@@ -502,6 +505,9 @@ export const toTrainer = (r: TrainerRow, nameFallback = "PT"): Trainer => ({
   acceptsBenifex: r.accepts_benifex ?? false,
   acceptsEdenred: r.accepts_edenred ?? false,
   payoutsReady: r.stripe_onboarding_complete ?? undefined,
+  // v81: saknas kolumnen (databasen före v81) gäller den gamla regeln (publicerad = synlig).
+  isPtActivated: r.is_pt_activated ?? undefined,
+  wellnessVerificationStatus: r.wellness_verification_status ?? undefined,
   reviews: (r.reviews ?? []).map(toReview),
   rating: r.reviews?.length ? r.reviews.reduce((s, x) => s + x.rating, 0) / r.reviews.length : 0,
 })
@@ -588,6 +594,7 @@ export const toWorkout = (r: WorkoutRow): ScheduledWorkout => ({
   status: r.status,
   logs: (r.set_logs ?? []).map(toSetLog),
   completedAt: r.completed_at ?? undefined,
+  ...(r.duration_seconds != null ? { durationSec: r.duration_seconds } : {}),
   clientComment: r.client_comment ?? undefined,
 })
 
@@ -1210,6 +1217,7 @@ export function persistAction(sb: SupabaseClient, me: Me, action: PersistableAct
             status: action.status,
             completed_at: action.status === "completed" ? action.completedAt ?? new Date().toISOString() : null,
             ...(action.comment !== undefined ? { client_comment: action.comment } : {}),
+            ...(action.durationSec !== undefined ? { duration_seconds: action.durationSec } : {}),
           })
           .eq("id", action.workoutId)
       )

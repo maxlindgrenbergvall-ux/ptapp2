@@ -56,6 +56,8 @@ const workout = {
 const trainerRow = {
   id: T1, city: "Stockholm", specialties: ["styrkelyft"], bio: "Testbio", years_experience: 5, price_per_session: 800,
   offers_remote: true, is_published: true, profile: { full_name: "Elin Test" },
+  // v81: aktiverad (Stripe + paket); portalavtalen ej inskickade.
+  is_pt_activated: true, wellness_verification_status: "none",
   reviews: [],
 }
 // Kalender: ett bekräftat pass om två dagar kl. 07 och lediga tider från RPC:n.
@@ -138,8 +140,11 @@ const rpc = {
 const SERVICE_KEY = "service-test"
 
 // v22: Stripe Connect. Elin har ett godkänt konto; Nils (T2) börjar från noll.
-const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [], pt_onboarding_step: 1, pt_onboarding_completed: false, accepts_epassi: false, accepts_benifex: false, accepts_edenred: false })
+const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [], pt_onboarding_step: 1, pt_onboarding_completed: false, accepts_epassi: false, accepts_benifex: false, accepts_edenred: false, is_pt_activated: false, wellness_verification_status: "none" })
 const payouts = {}
+// v81: portalverifieringar och uppladdade bevis (wellness-verifications).
+const wellnessRows = {}
+const wellnessObjects = new Set()
 // v76: introts steg för PT:er utan egen fixturrad (Nils har sitt på t2).
 const ptFlow = {}
 const onboarding = {}
@@ -239,6 +244,7 @@ function fixtures(uid, table) {
     case "activity_days": return []
     case "wearable_connections": return svc.wearable_connections.filter((c) => c.user_id === uid).map(({ provider, status, connected_at, last_synced_at, last_error }) => ({ provider, status: status ?? "active", connected_at: connected_at ?? new Date().toISOString(), last_synced_at: last_synced_at ?? null, last_error: last_error ?? null }))
     case "trainer_services": return serviceRows
+    case "trainer_wellness_verifications": return wellnessRows[uid] ? [wellnessRows[uid]] : []
     case "purchases": return purchaseRows
     case "recipes": return []
     case "cart_items": return client ? cartRows : []
@@ -343,7 +349,10 @@ http.createServer(async (req, res) => {
     const [bucket, ...rest] = url.pathname.slice("/storage/v1/object/".length).split("/")
     const service = req.headers.authorization === `Bearer ${SERVICE_KEY}`
     log.push({ method: req.method, table: `storage.upload.${bucket}`, body: { path: rest.join("/"), service, contentType: req.headers["content-type"], upsert: req.headers["x-upsert"] } })
-    if (!service) return send(403, { statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" })
+    // v81: PT:n laddar upp beviset för portalavtalet i sin egen mapp (privat bucket).
+    const ownProof = bucket === "wellness-verifications" && uid && rest[0] === uid && byId[uid]?.app_metadata.role === "trainer"
+    if (!service && !ownProof) return send(403, { statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" })
+    if (ownProof) wellnessObjects.add(rest.join("/"))
     return send(200, { Key: `${bucket}/${rest.join("/")}`, Id: "obj-1" })
   }
   if (url.pathname === "/rest/v1/rpc/can_access_client") {
@@ -685,6 +694,26 @@ http.createServer(async (req, res) => {
       return send(200, { ok: true, trainer_id: T1, trainer_name: "Elin Test", acquisition_type: "EXISTING_CLIENT" })
     }
     if (m[1] && table === "my_payout_status") return send(200, byId[uid].app_metadata.role === "trainer" ? payoutStatus(uid) : null)
+    // v81: aktiveringen (Stripe + minst ett aktivt paket) och portalverifieringen.
+    if (m[1] && table === "my_activation_status") {
+      if (byId[uid]?.app_metadata.role !== "trainer") return send(200, null)
+      const stripe = uid === T1 || Boolean(payouts[uid]?.charges_enabled)
+      const count = serviceRows.filter((x) => x.trainer_id === uid && x.active !== false).length
+      return send(200, { stripe_charges_enabled: stripe, active_packages_count: count, is_pt_activated: stripe && count > 0 })
+    }
+    if (m[1] && table === "submit_wellness_verification") {
+      const p = JSON.parse(body || "{}")
+      log.push({ method: "RPC", table, body: p })
+      const t = uid === T2 ? t2 : uid === T1 ? trainerRow : null
+      if (!t) return send(403, { code: "42501", message: "Bara PT:er kan verifiera friskvårdsportaler" })
+      if (!p.p_attested) return send(400, { code: "23514", message: "Intyga att ditt företag har ett aktivt samarbetsavtal med portalen" })
+      if (!wellnessObjects.has(p.p_proof_path) || !String(p.p_proof_path).startsWith(`${uid}/`)) return send(400, { code: "23514", message: "Ladda upp en skärmdump eller avtalsbekräftelse" })
+      const portals = ["epassi", "benifex", "edenred"].filter((k) => t[`accepts_${k}`])
+      if (!portals.length) return send(400, { code: "23514", message: "Välj minst en portal" })
+      wellnessRows[uid] = { wellness_merchant_id: p.p_merchant_id, status: "pending", review_note: null, portals, submitted_at: new Date().toISOString() }
+      t.wellness_verification_status = "pending"
+      return send(200, "pending")
+    }
     if (m[1] && table === "my_account") { log.push({ method: "RPC", table, body: null }); return send(200, account(uid)) }
     if (m[1] && table === "redeem_referral") {
       const p = JSON.parse(body || "{}")
@@ -727,6 +756,10 @@ http.createServer(async (req, res) => {
     if (table === "client_goals" && req.method === "POST" && onboarding[uid]) onboarding[uid].goals_done = true
     // v22: Nils profil (onboardingens steg 1) – som databasens triggrar.
     if (uid === T2 && req.method === "PATCH" && table === "trainers") { Object.assign(t2, entry.body); syncReady(T2) }
+    if (uid === T1 && req.method === "PATCH" && table === "trainers") {
+      const b = entry.body ?? {}
+      for (const k of ["accepts_epassi", "accepts_benifex", "accepts_edenred"]) if (k in b) trainerRow[k] = b[k]
+    }
     if (uid === T2 && req.method === "PATCH" && table === "profiles" && entry.body?.full_name !== undefined) {
       byId[T2].user_metadata.full_name = entry.body.full_name
       t2.profile = { full_name: entry.body.full_name }

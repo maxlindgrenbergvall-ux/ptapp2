@@ -389,6 +389,7 @@ const fr: Dictionary = {
     statusStripe: "Terminez la connexion Stripe pour être payé",
     statusCompany: "Ajoutez les informations de l'entreprise pour les reçus",
     statusPackage: "Créez votre première offre",
+    statusWellness: "Vérifie tes portails bien-être",
     statusProfile: "Ajoutez une photo et une présentation",
     statusReview: "Envoyez vos certificats pour vérification – ensuite vous apparaissez dans Trouver un coach",
     statusPublish: "Publiez votre profil dans Trouver un coach",

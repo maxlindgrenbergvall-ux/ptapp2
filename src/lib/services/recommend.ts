@@ -40,7 +40,8 @@ export function nutritionRecommendations(data: AppData, clientId: ID): { mine: N
     t.specialties.filter((s) => interests.has(s)).length +
     t.rating / 5
   const others = data.trainers
-    .filter((t) => t.isPublished && !mineIds.has(t.id))
+    // v81: bara aktiverade PT:er (Stripe + minst ett paket) rekommenderas.
+    .filter((t) => t.isPublished && t.isPtActivated !== false && !mineIds.has(t.id))
     .sort((a, b) => score(b) - score(a))
     .flatMap(pick)
   return { mine, others }

@@ -15,11 +15,13 @@ import { useAppData } from "@/lib/data/store"
 import { BRAND } from "@/lib/brand"
 import { useT } from "@/lib/i18n/provider"
 import { openCheckout } from "@/lib/native/checkout"
+import { useActivation } from "@/lib/pt-activation"
+import { needsVerification } from "@/lib/wellness/verification"
 import { demoPayoutsDone } from "@/lib/pt-onboarding-flow"
 import { missingProfileParts } from "@/lib/pt-onboarding"
 import { fetchMyBusiness, isBusinessComplete } from "@/lib/wellness/api"
 
-type Key = "statusStripe" | "statusCompany" | "statusPackage" | "statusProfile" | "statusReview" | "statusPublish"
+type Key = "statusStripe" | "statusCompany" | "statusPackage" | "statusWellness" | "statusProfile" | "statusReview" | "statusPublish"
 
 export function PtStatusRow() {
   const t = useT()
@@ -28,6 +30,7 @@ export function PtStatusRow() {
   const [business, setBusiness] = React.useState<boolean | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [payoutsDemo] = React.useState(() => (mode === "demo" ? demoPayoutsDone() : true))
+  const activation = useActivation()
 
   React.useEffect(() => {
     let alive = true
@@ -47,9 +50,12 @@ export function PtStatusRow() {
   const certified = trainer.certifications.length > 0
 
   const items: { key: Key; href?: string; onClick?: () => void }[] = [
-    !payouts && { key: "statusStripe" as const, onClick: () => void connect() },
+    // v81: Stripe och första paketet ligger i aktiveringschecklistan (ActivationGate).
+    activation.activated && !payouts && { key: "statusStripe" as const, onClick: () => void connect() },
     business === false && { key: "statusCompany" as const, href: "/pt/profil#friskvard" },
-    !hasService && { key: "statusPackage" as const, href: "/pt/profil#tjanster" },
+    // v81: portalavtal som inte är verifierade än (eller nekades).
+    needsVerification(trainer) && { key: "statusWellness" as const, href: "/pt/profil#friskvard" },
+    activation.activated && !hasService && { key: "statusPackage" as const, href: "/pt/profil#tjanster" },
     profileMissing && { key: "statusProfile" as const, href: "/pt/profil" },
     !certified && { key: "statusReview" as const, href: `mailto:${BRAND.certificationEmail}?subject=${encodeURIComponent("Certifikat för granskning")}` },
     certified && !profileMissing && !trainer.isPublished && { key: "statusPublish" as const, href: "/pt/profil" },

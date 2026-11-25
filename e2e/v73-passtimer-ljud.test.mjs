@@ -1,4 +1,5 @@
-// E2E för v73 i demoläge: passtimern i passvyn och en högre vilosignal.
+// E2E för v73 i demoläge: passtimern och en högre vilosignal. v81: timern är tyst –
+// ingen klocka under passet, längden visas i summeringen och sparas i historiken.
 //   npm run build && npm start   (utan Supabase-variabler)
 //   BASE_URL=http://localhost:3000 node e2e/v73-passtimer-ljud.test.mjs [skärmbildsmapp]
 import { chromium } from "playwright"
@@ -72,13 +73,13 @@ const ex = p.locator("#exercise-a")
 await ex.locator("input[aria-label='Vikt set 1 (kg)']").waitFor()
 await p.waitForTimeout(500)
 
-// ------------------------------------------------------------ passtimern ---
-const timer = p.locator("[data-testid=workout-timer]")
-const time = p.locator("[data-testid=workout-timer-time]")
-// v74: timern mäter hela passet – den går så fort passet öppnas, inte från första setet.
-check((await timer.getAttribute("data-state")) === "running", "timern startar när passet öppnas (före första setet)")
-await p.waitForTimeout(1200)
-check(/^0:0[1-2]$/.test(await time.innerText()), `den räknar redan innan något set är avbockat (${await time.innerText()})`)
+// ------------------------------------------------ passtimern (v81: tyst) ---
+const timerKey = "coavira:workout-timer:v1:w-v73"
+const stored = () => p.evaluate((k) => JSON.parse(localStorage[k] ?? "null"), timerKey)
+// v81: ingen klocka under passet – skärmen hålls lugn. Tiden mäts tyst i bakgrunden.
+check((await p.locator("[data-testid=workout-timer]").count()) === 0, "v81: ingen tickande klocka under passet")
+const started = await stored()
+check(Number.isFinite(started?.startedAt) && !started.endedAt, "passets starttid sparas tyst när passet öppnas (localStorage)")
 const fill = async (i) => {
   if (!(await ex.locator(`input[aria-label='Vikt set ${i} (kg)']`).inputValue())) await ex.locator(`input[aria-label='Vikt set ${i} (kg)']`).fill("60")
   if (!(await ex.locator(`input[aria-label='Reps set ${i} (reps)']`).inputValue())) await ex.locator(`input[aria-label='Reps set ${i} (reps)']`).fill("5")
@@ -86,11 +87,8 @@ const fill = async (i) => {
 await fill(1)
 await ex.locator("button[aria-label='Bocka av set 1']").click()
 await p.waitForTimeout(150)
-check((await timer.getAttribute("data-state")) === "running", "timern fortsätter när setet bockas av")
+check((await stored()).startedAt === started.startedAt, "seten påverkar inte passets starttid")
 check((await audio()).contexts === 1, "ljudet låses upp i samma tryck (en delad ljudmotor)")
-await p.waitForTimeout(2300)
-const t1 = await time.innerText()
-check(/^0:0[3-5]$/.test(t1), `timern räknar upp (${t1})`)
 
 // Vilosignalen (2 s vila): tre toner med övertoner, nära full volym.
 await p.waitForSelector("text=Vilan är slut", { timeout: 5000 })
@@ -100,50 +98,35 @@ check(a1.tones === 6, `vilosignalen: tre toner med övertoner (${a1.tones} oscil
 check(a1.peak >= 0.9, `signalen är högre än förut (topp ${a1.peak}, förut 0,25)`)
 check(a1.contexts === 1, "samma ljudmotor återanvänds (ingen ny utan tryck)")
 await p.locator("button:has-text('Kör!')").click().catch(() => {})
-
-// Paus och fortsätt.
-await timer.click()
-check((await timer.getAttribute("data-state")) === "paused", "ett tryck pausar timern")
-const paused = await time.innerText()
-await p.waitForTimeout(1600)
-check((await time.innerText()) === paused, `pausad tid står still (${paused})`)
-// Seten styr inte timern: att bocka av och ångra ett set medan den är pausad låter den vara pausad.
-await ex.locator("button[aria-label='Ångra set 1']").click()
-await ex.locator("button[aria-label='Bocka av set 1']").click()
-await p.locator("button:has-text('Hoppa över')").click().catch(() => {})
-check((await timer.getAttribute("data-state")) === "paused", "ett avbockat set startar inte en pausad timer")
-await timer.click()
-check((await timer.getAttribute("data-state")) === "running", "ett tryck till fortsätter")
-await p.waitForTimeout(1200)
 await p.screenshot({ path: `${out}/v73-passtimer.png` })
 
-// Tiden överlever att appen laddas om mitt i passet.
-const beforeReload = await time.innerText()
+// Tiden överlever att appen laddas om (eller läggs i bakgrunden) mitt i passet.
 await p.reload()
-await p.locator("[data-testid=workout-timer][data-state=running]").waitFor()
-await p.waitForTimeout(300)
-const afterReload = await time.innerText()
-const sec = (t) => t.split(":").reduce((a, b) => a * 60 + Number(b), 0)
-check(sec(afterReload) >= sec(beforeReload), `tiden finns kvar efter omladdning (${beforeReload} → ${afterReload})`)
+await ex.locator("input[aria-label='Vikt set 1 (kg)']").waitFor()
+check((await stored()).startedAt === started.startedAt, "starttiden finns kvar efter omladdning")
+check((await p.locator("[data-testid=workout-timer]").count()) === 0, "fortfarande ingen klocka efter omladdning")
 
 // --------------------------------------------- avsluta: tiden i sammanfattningen ---
+await p.waitForTimeout(1200)
 await fill(2)
 await ex.locator("button[aria-label='Bocka av set 2']").click()
 await p.locator("button:has-text('Hoppa över')").click().catch(() => {})
 await p.locator("header button:has-text('Avsluta')").click()
 await p.locator("button:has-text('Spara pass')").click()
 await p.locator("[data-testid=workout-saved]").waitFor()
-const tiles = await p.locator("[data-testid=summary-tiles]").innerText()
-check(/Tid/i.test(tiles) && /min/.test(tiles), "sammanfattningen visar passets tid", tiles.replace(/\n/g, " "))
+const duration = p.locator("[data-testid=summary-duration]")
+check((await duration.count()) === 1 && /Passets tid\s*1 min/.test((await duration.innerText()).replace(/\s+/g, " ")), "summeringen visar passets tid som egen bricka (\"1 min\")", await duration.innerText().catch(() => ""))
 await p.screenshot({ path: `${out}/v73-sammanfattning.png` })
-const ended = await p.evaluate(() => JSON.parse(localStorage["coavira:workout-timer:v1:w-v73"]))
+const ended = await stored()
 check(Number.isFinite(ended.endedAt), "timern stannar när passet sparas")
+const saved = await p.evaluate((k) => JSON.parse(localStorage[k]).data.workouts.find((w) => w.id === "w-v73"), KEY)
+check(Number.isInteger(saved?.durationSec) && saved.durationSec >= 2 && saved.durationSec < 600, `passets längd sparas i historiken (duration ${saved?.durationSec} s)`)
 
-// ---------------------------------------------------- testa ljudet ---
+// Ett avslutat pass visar ingen klocka heller.
 const q = await ctx.newPage()
 await q.goto(base + "/klient/pass/w-v73")
-await q.locator("[data-testid=workout-timer][data-state=ended]").waitFor()
-ok(`ett avslutat pass visar sin tid (${await q.locator("[data-testid=workout-timer-time]").innerText()})`)
+await q.waitForSelector("h1:has-text('Timer-pass')")
+check((await q.locator("[data-testid=workout-timer]").count()) === 0, "avslutat pass: ingen klocka i passvyn")
 await q.close()
 
 await p.goto(base + "/klient")

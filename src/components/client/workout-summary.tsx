@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowRight, Layers, Trophy } from "lucide-react"
+import { ArrowRight, Layers, Timer, Trophy } from "lucide-react"
 
 import { AnimatedNumber, DrawnCheck, FillBar } from "@/components/motion"
 import { RewardBadge, type RewardKind } from "@/components/rewards"
@@ -10,6 +10,7 @@ import { nextSplitAction } from "@/lib/active-split"
 import { exerciseName } from "@/lib/data/selectors"
 import { useAppData } from "@/lib/data/store"
 import { summarizeWorkout, workoutFeedback } from "@/lib/workout-summary"
+import { formatDuration } from "@/lib/workout-timer"
 import { cn } from "@/lib/utils"
 import type { ScheduledWorkout } from "@/types/domain"
 
@@ -54,9 +55,9 @@ export function WorkoutSummaryView({
     { label: "Set", value: s.setsDone, suffix: `/${s.setsTotal}` },
     { label: "Volym", value: s.volumeKg, suffix: " kg" },
     { label: "Rekord", value: s.records.length, suffix: "" },
-    // v73: passets tid från passtimern, i hela minuter (minst 1).
-    ...(durationSec ? [{ label: "Tid", value: Math.max(1, Math.round(durationSec / 60)), suffix: " min" }] : []),
   ]
+  // v81: passets längd (tyst passtimer) som egen bricka – "48 min" eller "1 tim 15 min".
+  const duration = durationSec ? formatDuration(durationSec) : null
 
   return (
     <div className="flex flex-col items-center gap-4 pt-2 text-center" data-testid="workout-saved" data-feedback={fb.kind} role="status">
@@ -84,7 +85,19 @@ export function WorkoutSummaryView({
         </ul>
       )}
 
-      <dl className={cn("grid w-full gap-2", tiles.length === 4 ? "grid-cols-2" : "grid-cols-3")} aria-label="Passet i siffror" data-testid="summary-tiles">
+      {duration && (
+        <div
+          className="rise-in flex w-full items-center justify-between rounded-2xl border border-[#84cc16]/35 bg-[#84cc16]/10 px-4 py-3 [animation-delay:260ms]"
+          data-testid="summary-duration"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Timer className="size-4 text-[#84cc16]" aria-hidden /> Passets tid
+          </span>
+          <span className="text-lg font-bold tracking-tight tabular">{duration}</span>
+        </div>
+      )}
+
+      <dl className="grid w-full grid-cols-3 gap-2" aria-label="Passet i siffror" data-testid="summary-tiles">
         {tiles.map((t, i) => (
           <div
             key={t.label}

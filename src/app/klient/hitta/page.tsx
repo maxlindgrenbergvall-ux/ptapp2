@@ -49,8 +49,10 @@ export default function DiscoverPage() {
     return () => cancelAnimationFrame(id)
   }, [])
 
-  const cities = [...new Set(data.trainers.filter((t) => t.isPublished && t.city).map((t) => t.city))].sort()
-  const published = data.trainers.filter((t) => t.isPublished)
+  // v81: bara aktiverade PT:er (Stripe + minst ett paket) syns i Hitta PT.
+  const visible = (t: (typeof data.trainers)[number]) => t.isPublished && t.isPtActivated !== false
+  const cities = [...new Set(data.trainers.filter((t) => visible(t) && t.city).map((t) => t.city))].sort()
+  const published = data.trainers.filter(visible)
   // Nästa lediga tid per PT, räknad från tillgänglighet minus bokad tid.
   const nextSlots = useNextSlots(published.map((t) => t.id))
 

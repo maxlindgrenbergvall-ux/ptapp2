@@ -21,6 +21,7 @@ import { adherence, lastCompleted, nextPlanned, workoutsFor } from "@/lib/data/s
 import { useAppData } from "@/lib/data/store"
 import { useT } from "@/lib/i18n/provider"
 import { PtStatusRow } from "@/components/pt-onboarding/status-row"
+import { ActivationGate } from "@/components/pt/activation-checklist"
 import { greeting } from "@/lib/greeting"
 import { firstName } from "@/lib/names"
 import { useDayPart } from "@/hooks/use-day-part"
@@ -92,6 +93,8 @@ export default function PtOverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* v81: aktiveringen (Stripe + minst ett paket) som checklista tills båda är klara. */}
+      <ActivationGate />
       {/* v76: det som återstår efter introt – en kompakt rad i stället för långa texter. */}
       <PtStatusRow />
       <PageHeader

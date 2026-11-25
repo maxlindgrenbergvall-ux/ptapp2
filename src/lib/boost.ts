@@ -40,7 +40,7 @@ export function matchBoostedTrainers(
   const dismissed = new Set(opts.dismissed ?? [])
   const excluded = new Set(opts.excludeTrainerIds ?? [])
   return trainers
-    .filter((t) => t.isPublished && isBoosted(t, now) && !excluded.has(t.id))
+    .filter((t) => t.isPublished && t.isPtActivated !== false && isBoosted(t, now) && !excluded.has(t.id))
     .map((t) => {
       const best = scores.find((s) => t.specialties.includes(s.category))
       return { id: `boost:${t.id}:${t.boostedUntil}`, trainer: t, category: best?.category, score: best?.score ?? 0 }

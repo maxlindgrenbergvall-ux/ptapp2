@@ -16,6 +16,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { PtFlowShell } from "@/components/pt-onboarding/flow-shell"
+import { WellnessVerificationCard } from "@/components/wellness/verification-card"
 import { EASE, Reveal } from "@/components/flow/motion"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -213,6 +214,17 @@ export function AccountPage({
             )
           })}
         </div>
+        {/* v81: portalavtalen verifieras (leverantörs-ID, bevis, intygande). Vid
+            självregistreringen finns inget konto än – då görs det under Profil → Friskvård. */}
+        {signup ? (
+          (draft.portals.epassi || draft.portals.benifex || draft.portals.edenred) && (
+            <p className="text-xs text-muted-foreground" data-testid="wellness-verify-later">
+              Du verifierar avtalet med en skärmdump när kontot är skapat – sedan syns badgen.
+            </p>
+          )
+        ) : (
+          <WellnessVerificationCard portals={draft.portals} />
+        )}
       </Reveal>
       {needsTerms && (
         <Reveal className="space-y-1.5">

@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { WellnessVerificationCard } from "@/components/wellness/verification-card"
 import { useAppData } from "@/lib/data/store"
 import { EMPTY_BUSINESS, fetchMyBusiness, isBusinessComplete, saveMyBusiness, type TrainerBusiness } from "@/lib/wellness/api"
 import { isValidOrgNumber, normalizeOrgNumber } from "@/lib/wellness/identity"
@@ -79,7 +80,7 @@ export function WellnessSettings() {
       <CardContent className="space-y-5">
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">Egna portalavtal</legend>
-          <p className="text-xs text-muted-foreground">Visas som en badge på din profil och i filtret &quot;Friskvård&quot; i Hitta PT.</p>
+          <p className="text-xs text-muted-foreground">Badge och filter i Hitta PT när Coavira har verifierat avtalet.</p>
           <div className="grid gap-2 sm:grid-cols-3">
             {PORTALS.map((p) => (
               <label key={p.key} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
@@ -92,6 +93,11 @@ export function WellnessSettings() {
               </label>
             ))}
           </div>
+          {/* v81: verifiering av portalavtalen (leverantörs-ID, bevis och intygande). */}
+          <WellnessVerificationCard
+            className="mt-3"
+            portals={{ epassi: Boolean(trainer.acceptsEpassi), benifex: Boolean(trainer.acceptsBenifex), edenred: Boolean(trainer.acceptsEdenred) }}
+          />
         </fieldset>
 
         {!b ? (

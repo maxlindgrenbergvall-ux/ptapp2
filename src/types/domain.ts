@@ -91,7 +91,16 @@ export interface Trainer {
   acceptsEdenred?: boolean
   /** v76: Stripe-utbetalningarna är klara (trainers.stripe_onboarding_complete). Saknas i demoläget. */
   payoutsReady?: boolean
+  /**
+   * v81: aktiverad PT – Stripe tar emot kort och minst ett aktivt paket. Bara
+   * aktiverade PT:er syns i Hitta PT och kan bjuda in klienter. Saknas = aktiverad (demodata).
+   */
+  isPtActivated?: boolean
+  /** v81: portalavtalen (ePassi/Benifex/Edenred) granskade av Coavira. Publika badges kräver "verified". */
+  wellnessVerificationStatus?: WellnessVerificationStatus
 }
+
+export type WellnessVerificationStatus = "none" | "pending" | "verified" | "rejected"
 
 export type ClientStatus = "active" | "paused" | "pending"
 
@@ -349,6 +358,8 @@ export interface ScheduledWorkout {
   status: WorkoutStatus
   logs: SetLog[]
   completedAt?: ISODateTime
+  /** v81: passets längd i sekunder (tyst passtimer, sparas när passet avslutas). */
+  durationSec?: number
   clientComment?: string
 }
 

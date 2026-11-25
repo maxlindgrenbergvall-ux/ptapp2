@@ -131,6 +131,8 @@ function makeTrainers(today: string): Trainer[] {
       // v75: tar emot friskvårdsbidrag via egna portalavtal (badge och filter i Hitta PT).
       acceptsEpassi: true,
       acceptsBenifex: true,
+      // v81: portalavtalen är granskade av Coavira (badgen och filtret kräver det).
+      wellnessVerificationStatus: "verified",
       reviews: [
         { id: "r1", author: "Sara L.", rating: 5, text: "Gick från 60 till 95 kg i knäböj på ett halvår. Tydliga program och snabb feedback.", date: addDays(today, -20) },
         { id: "r2", author: "Jonas P.", rating: 5, text: "Perfekt inför min första Hyrox. Visste exakt vad jag skulle göra varje dag.", date: addDays(today, -64) },

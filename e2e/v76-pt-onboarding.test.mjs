@@ -161,13 +161,26 @@ check(svc && svc.priceSek === 3495 && svc.kind === "full", "friskvårdspaketet s
 const state = await p.evaluate(() => JSON.parse(localStorage["coavira:demo:pt-onboarding:v1"]))
 check(state.completed === true, "introt markeras som klart")
 
-// ------------------------------------------------- dashboarden: statusraden ---
-const row = p.locator("[data-testid=pt-status-row]")
-await row.waitFor()
-check((await row.getAttribute("data-status")) === "statusStripe" && /Slutför din Stripe-koppling/.test(await row.innerText()), "överhoppat Stripe-steg: en kompakt statusrad högst upp")
+// ------------------------------- dashboarden: aktiveringschecklistan (v81) ---
+const list = p.locator("[data-testid=activation-checklist]")
+await list.waitFor()
+check(
+  (await list.locator("[data-testid=activation-stripe]").getAttribute("data-done")) === "false" &&
+    (await list.locator("[data-testid=activation-package]").getAttribute("data-done")) === "true",
+  "överhoppat Stripe-steg: checklistan högst upp – Stripe kvar, paketet klart"
+)
 check((await p.locator("aside >> text=Publicera den").count()) === 0, "inga långa onboardingtexter i menyn")
+const invite = p.locator("[data-testid=invite-client]").first()
+check((await invite.getAttribute("data-locked")) === "true", "v81: inbjudan av klienter är låst tills kontot är aktiverat")
+await invite.click()
+await p.locator("[data-testid=invite-locked] [data-testid=activation-checklist]").waitFor()
+ok("v81: låst inbjudan visar checklistan i stället för en kod")
+await p.keyboard.press("Escape")
 await settled()
 await p.screenshot({ path: `${out}/v76-dashboard.png` })
+await list.locator("[data-testid=activation-connect]").click()
+await list.waitFor({ state: "detached" })
+check((await invite.getAttribute("data-locked")) === "false", "v81: Stripe kopplat + ett paket = aktiverad – inbjudan och synlighet låses upp")
 await p.goto(base + "/pt/onboarding")
 await p.waitForURL(/\/pt(\?|$)/)
 ok("ett klart intro skickar vidare till dashboarden")

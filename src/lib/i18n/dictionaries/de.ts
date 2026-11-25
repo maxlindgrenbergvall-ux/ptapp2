@@ -389,6 +389,7 @@ const de: Dictionary = {
     statusStripe: "Schließe die Stripe-Verbindung ab, um bezahlt zu werden",
     statusCompany: "Firmendaten für Belege ergänzen",
     statusPackage: "Erstelle dein erstes Paket",
+    statusWellness: "Bestätige deine Gesundheitsportale",
     statusProfile: "Füge ein Foto und eine Vorstellung hinzu",
     statusReview: "Schick deine Zertifikate zur Prüfung – dann erscheinst du in PT finden",
     statusPublish: "Veröffentliche dein Profil in PT finden",

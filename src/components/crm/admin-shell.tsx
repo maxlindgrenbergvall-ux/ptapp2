@@ -1,6 +1,6 @@
 "use client"
 
-import { Flag, LogOut, ShieldX, Users } from "lucide-react"
+import { Flag, HeartPulse, LogOut, ShieldX, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
@@ -37,6 +37,7 @@ export function AdminShell({ demo, children }: { demo: boolean; children: React.
             {[
               { href: "/admin/leads", label: "Leads", Icon: Users },
               { href: "/admin/moderering", label: "Moderering", Icon: Flag },
+              { href: "/admin/friskvard", label: "Friskvård", Icon: HeartPulse },
             ].map(({ href, label, Icon }) => {
               const on = pathname.startsWith(href)
               return (
