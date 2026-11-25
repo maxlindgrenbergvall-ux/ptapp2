@@ -47,7 +47,8 @@ export function StartSlideshow() {
         ariaLabel="Det här är Coavira"
         slideLabel={(n, total) => `Kort ${n} av ${total}`}
         titleAs="h2"
-        visualClassName="h-44"
+        // Korta skärmar (t.ex. iPhone SE): lägre bildyta och lite mindre kort, så att knapparna ryms.
+        visualClassName="h-60 [@media(max-height:720px)]:h-44 [@media(max-height:720px)]:[&>*]:scale-[0.78]"
         titleClassName="text-2xl leading-tight"
         textClassName="text-[0.95rem]"
         testIdPrefix="start"
