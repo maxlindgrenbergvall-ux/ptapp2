@@ -578,6 +578,19 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v77: förfinat PT-intro med sidbyten och animationer
+
+- **Steg 1 i tre korta sidor:** Ditt PT-konto → Ditt företag → Friskvård & avtal. Fortfarande "Steg 1 av 3", men segmentet i progress-baren fylls för varje sida.
+- **Sidbyten:** varje sida glider in från rätt håll (framåt eller tillbaka), och rubrik, fält och knappar tonar in i tur och ordning.
+- **Animationer:** progress-baren är segmenterad och fjädrar.
+  - **Karusellen:** varje kort har en animerad bild – schemat fylls, betalningen går igenom och blir ett friskvårdskvitto, och marginalringen fylls medan nettot räknas upp.
+  - **Steg 2:** en utbetalning räknas upp.
+  - **Steg 3:** friskvårdspaketet är ett kort, och kalkylen räknar upp.
+- **Enklare formulär:** färre ramar, större fält, portaler som valbara rader med bock och avtalet i ett eget kort.
+- **Mindre rörelse:** respekterar `prefers-reduced-motion`.
+- **Tillbaka från steg 2** öppnar sista sidan i steg 1, inte den första.
+- Ingen databasändring.
+
 ## Nytt i v76: PT-intro i tre steg och självregistrering
 
 **Migration att köra:** `supabase/migrations/20261203000000_v76_pt_self_signup.sql` (efter v75).

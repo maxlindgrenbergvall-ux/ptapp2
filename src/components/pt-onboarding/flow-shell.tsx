@@ -1,14 +1,21 @@
 "use client"
 
 /**
- * Skalet för PT-introt (v76) – samma form som klientens intro: tillbakaknapp,
- * "Steg 1 av 3" och en tunn progress bar överst, EN rubrik och EN kort mening,
- * innehållet och en tydlig primärknapp längst ner. En sak i taget.
+ * Skalet för PT-introt (v76, förfinat i v77) – samma form som klientens intro:
+ * tillbakaknapp, "Steg 1 av 3" och en segmenterad progress bar överst, EN rubrik
+ * och EN kort mening, innehållet och en tydlig primärknapp längst ner.
+ *
+ * Varje sida har en egen nyckel (`page`): byts den glider den gamla sidan ut och
+ * den nya in från rätt håll, och innehållet tonar in i tur och ordning (Reveal).
+ * Ett steg kan ha flera korta sidor (t.ex. steg 1: konto → företag → avtal);
+ * `progress` (0–1) fyller då segmentet för steget gradvis.
  */
+import { AnimatePresence, motion, MotionConfig } from "framer-motion"
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
 import * as React from "react"
 
 import { BrandMark } from "@/components/brand"
+import { EASE, pageVariants, Reveal, useDirection } from "@/components/pt-onboarding/motion"
 import { Button } from "@/components/ui/button"
 import { useT } from "@/lib/i18n/provider"
 import { cn } from "@/lib/utils"
@@ -16,6 +23,8 @@ import { cn } from "@/lib/utils"
 export function PtFlowShell({
   step,
   total = 3,
+  page,
+  progress = 1,
   onBack,
   title,
   lead,
@@ -26,6 +35,10 @@ export function PtFlowShell({
 }: {
   step: number
   total?: number
+  /** Unik per sida – styr sidbytet. Standard: steget. */
+  page?: number
+  /** Hur långt PT:n kommit inom steget (0–1). */
+  progress?: number
   onBack?: () => void
   title: string
   lead: string
@@ -35,77 +48,110 @@ export function PtFlowShell({
   testId?: string
 }) {
   const t = useT()
+  const key = page ?? step
+  const dir = useDirection(key)
   const headingRef = React.useRef<HTMLHeadingElement>(null)
-  // Skärmläsare och tangentbord: fokus till rubriken när steget byts.
-  React.useEffect(() => {
-    headingRef.current?.focus({ preventScroll: true })
-  }, [step])
+
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-lg flex-col pt-[var(--safe-top)]" data-testid={testId}>
-      <header className="sticky top-0 z-10 space-y-3 bg-background/85 px-4 pt-3 pb-3 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("ptOnboarding.back")}
-            onClick={onBack}
-            disabled={!onBack}
-            className={cn(!onBack && "invisible")}
-            data-testid="pt-flow-back"
-          >
-            <ArrowLeft />
-          </Button>
-          <p className="text-xs font-medium text-muted-foreground tabular" aria-live="polite" data-testid="pt-flow-step">
-            {t("ptOnboarding.stepOf", { n: step, total })}
-          </p>
-          <BrandMark size="sm" />
-        </div>
-        <div
-          className="h-1 overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-valuemin={1}
-          aria-valuemax={total}
-          aria-valuenow={step}
-          aria-label={t("ptOnboarding.stepOf", { n: step, total })}
-        >
-          <div className="h-full rounded-full bg-[#84cc16] transition-[width] duration-500 ease-[var(--ease-out-soft)]" style={{ width: `${(step / total) * 100}%` }} />
-        </div>
-      </header>
+    <MotionConfig reducedMotion="user">
+      <div className="relative mx-auto flex min-h-svh w-full max-w-lg flex-col pt-[var(--safe-top)]">
+        {/* Ett mjukt sken överst som vandrar med stegen. */}
+        <motion.div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 -z-10 mx-auto h-72 max-w-lg"
+          animate={{ background: `radial-gradient(60% 70% at ${15 + ((step - 1) / Math.max(1, total - 1)) * 70}% 0%, rgba(132,204,22,0.16), transparent 70%)` }}
+          transition={{ duration: 0.8, ease: EASE }}
+        />
 
-      <main className="flex-1 px-4 pt-5 pb-[calc(9rem+var(--safe-bottom))]">
-        <div key={step} className="animate-in fade-in-0 slide-in-from-right-4 space-y-5 duration-300 motion-reduce:animate-none">
-          <div className="space-y-1">
-            <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight outline-none">
-              {title}
-            </h1>
-            <p className="text-sm text-muted-foreground">{lead}</p>
+        <header className="sticky top-0 z-10 bg-background/80 px-4 pt-3 pb-3 backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("ptOnboarding.back")}
+              onClick={onBack}
+              disabled={!onBack}
+              className={cn("-ml-2 rounded-full transition-opacity", !onBack && "invisible")}
+              data-testid="pt-flow-back"
+            >
+              <ArrowLeft />
+            </Button>
+            <p className="text-xs font-medium tracking-wide text-muted-foreground tabular" aria-live="polite" data-testid="pt-flow-step">
+              {t("ptOnboarding.stepOf", { n: step, total })}
+            </p>
+            <BrandMark size="sm" />
           </div>
-          {children}
-        </div>
-      </main>
-
-      <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-lg space-y-1 bg-background/90 px-4 pt-3 pb-[calc(0.75rem+var(--safe-bottom))] backdrop-blur-xl">
-        <Button size="lg" className="h-12 w-full text-base" onClick={primary.onClick} disabled={primary.disabled || primary.busy} data-testid={primary.testId ?? "pt-flow-next"}>
-          {primary.busy ? <Loader2 className="animate-spin" /> : primary.icon}
-          {primary.label}
-          {!primary.busy && !primary.icon && <ArrowRight />}
-        </Button>
-        {secondary && (
-          <button
-            type="button"
-            className="block w-full py-2 text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            onClick={secondary.onClick}
-            data-testid={secondary.testId}
+          <div
+            className="mt-3 flex gap-1.5"
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-valuenow={step}
+            aria-label={t("ptOnboarding.stepOf", { n: step, total })}
           >
-            {secondary.label}
-          </button>
-        )}
-      </footer>
-    </div>
+            {Array.from({ length: total }, (_, i) => {
+              const fill = i < step - 1 ? 1 : i === step - 1 ? Math.max(0.08, Math.min(1, progress)) : 0
+              return (
+                <span key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+                  <motion.span
+                    className="block h-full origin-left rounded-full bg-[#84cc16]"
+                    initial={false}
+                    animate={{ scaleX: fill }}
+                    transition={{ type: "spring", stiffness: 140, damping: 22 }}
+                  />
+                </span>
+              )
+            })}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-x-clip px-5 pt-6 pb-[calc(9.5rem+var(--safe-bottom))]">
+          <AnimatePresence mode="wait" custom={dir} initial onExitComplete={() => headingRef.current?.focus({ preventScroll: true })}>
+            <motion.div key={key} custom={dir} variants={pageVariants} initial="enter" animate="center" exit="exit" className="space-y-6" data-testid={testId}>
+              <Reveal className="space-y-1.5">
+                <h1 ref={headingRef} tabIndex={-1} className="text-[1.75rem] leading-tight font-bold tracking-tight text-balance outline-none">
+                  {title}
+                </h1>
+                <p className="text-[0.95rem] text-pretty text-muted-foreground">{lead}</p>
+              </Reveal>
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        <footer className="fixed inset-x-0 bottom-0 z-10 mx-auto max-w-lg bg-gradient-to-t from-background from-70% to-transparent px-5 pt-8 pb-[calc(0.75rem+var(--safe-bottom))]">
+          <motion.div whileTap={{ scale: 0.98 }} transition={{ duration: 0.12 }}>
+            <Button
+              size="lg"
+              className="h-13 w-full rounded-2xl text-base font-semibold shadow-[0_8px_30px_-8px_rgba(132,204,22,0.55)]"
+              onClick={primary.onClick}
+              disabled={primary.disabled || primary.busy}
+              data-testid={primary.testId ?? "pt-flow-next"}
+            >
+              {primary.busy ? <Loader2 className="animate-spin" /> : primary.icon}
+              {primary.label}
+              {!primary.busy && !primary.icon && <ArrowRight />}
+            </Button>
+          </motion.div>
+          <div className="h-10">
+            {secondary && (
+              <button
+                type="button"
+                className="block w-full py-2.5 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+                onClick={secondary.onClick}
+                data-testid={secondary.testId}
+              >
+                {secondary.label}
+              </button>
+            )}
+          </div>
+        </footer>
+      </div>
+    </MotionConfig>
   )
 }
 
-/** Kompakta på/av-chips (portalavtal m.m.). */
+/** Kompakta på/av-chips (prisval m.m.). */
 export function ToggleChip({ on, onToggle, children, testId }: { on: boolean; onToggle: () => void; children: React.ReactNode; testId?: string }) {
   return (
     <button

@@ -23,6 +23,11 @@ await p.goto(base + "/pt/onboarding")
 // v76: introt i tre steg. Demo-PT:n börjar på steg 1 (namn och företag).
 await p.waitForSelector("[data-testid=pt-onboarding-account]")
 check((await p.locator('nav[aria-label="Huvudmeny"]').count()) === 0, "demo: introt visas utan portalens meny")
+// Steg 1: namn → företag → friskvård (demo-PT:n har redan godkänt avtalet).
+for (const n of [1, 2]) {
+  await p.getByTestId("pt-flow-next").click()
+  await p.waitForSelector(`form[data-part="${n}"]`)
+}
 await p.getByTestId("pt-flow-next").click()
 await p.waitForSelector("[data-testid=pt-onboarding-payouts]")
 await p.getByTestId("connect-payouts").click()

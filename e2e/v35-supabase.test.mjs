@@ -126,6 +126,11 @@ check((await state()).log.length === 0, "inget anrop till Resend utan inloggning
   await p.waitForURL(/\/pt\/onboarding$/)
   // v76: PT-introt i tre steg. Nyhetsbrevet väljs i portalens fråga (v36) efter introt.
   await p.waitForSelector("[data-testid=pt-onboarding-account]")
+  // Steg 1 är tre korta sidor: namn → företag → friskvård och avtal.
+  for (const n of [1, 2]) {
+    await p.getByTestId("pt-flow-next").click()
+    await p.waitForSelector(`form[data-part="${n}"]`)
+  }
   await p.click("[data-testid=pt-terms]")
   await p.getByTestId("pt-flow-next").click()
   await p.waitForSelector("[data-testid=pt-onboarding-payouts]")

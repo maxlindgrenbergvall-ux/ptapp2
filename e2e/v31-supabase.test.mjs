@@ -100,8 +100,13 @@ async function login(email, path = "/logga-in") {
   await p.waitForSelector("[data-testid=pt-onboarding-account]")
   await p.waitForFunction(() => document.querySelector("#pt-first")?.value === "Per")
   ok("namnet är förifyllt")
+  // Steg 1 är tre korta sidor: namn → företag → friskvård och avtal.
+  for (const n of [1, 2]) {
+    await p.getByTestId("pt-flow-next").click()
+    await p.waitForSelector(`form[data-part="${n}"]`)
+  }
   await p.getByTestId("pt-flow-next").click()
-  check(await p.locator("text=Godkänn avtalet för att fortsätta").isVisible(), "kontot aktiveras inte utan godkänt avtal")
+  check(await p.locator("text=Godkänn avtalet för att fortsätta").waitFor({ timeout: 3000 }).then(() => true, () => false), "kontot aktiveras inte utan godkänt avtal")
   check((await p.locator('a[href="/avtal/pt"]').count()) === 1, "hela avtalet går att läsa")
   await fetch(`${mock}/__reset`)
   await p.click("[data-testid=pt-terms]")
