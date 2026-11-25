@@ -208,6 +208,13 @@ await q.route(`${mock}/auth/v1/authorize**`, (route) => {
   oauth.push(new URL(route.request().url()))
   return route.fulfill({ status: 200, contentType: "text/html", body: "<p>leverantör</p>" })
 })
+// Apple avstängt i Supabase: knappen visas inte på Kom igång (annars Supabases felsida).
+await fetch(`${mock}/__providers?apple=0`)
+await q.goto(`${base}/kom-igang`)
+await q.waitForSelector("text=Fortsätt med Google")
+await q.waitForTimeout(500)
+check((await q.locator("text=Fortsätt med Apple").count()) === 0, "avstängt inloggningssätt (Apple) visas inte")
+await fetch(`${mock}/__providers?apple=1`)
 for (const provider of ["google", "apple"]) {
   await q.goto(`${base}/kom-igang`)
   await q.click(`text=Fortsätt med ${provider === "google" ? "Google" : "Apple"}`)

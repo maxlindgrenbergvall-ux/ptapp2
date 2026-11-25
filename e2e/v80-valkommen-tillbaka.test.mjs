@@ -83,6 +83,16 @@ check(
 await settled()
 await p.screenshot({ path: `${out}/v80-valkommen-google.png` })
 
+// Google avstängt i Supabase: ingen knapp till Supabases felsida – bara e-post och lösenord.
+await fetch(`${mock}/__providers?google=0`)
+await p.reload()
+await p.locator("[data-testid=welcome-back]").waitFor({ state: "attached" })
+await p.locator("#password").waitFor()
+await p.waitForTimeout(500)
+check((await p.locator("button:has-text('Fortsätt med Google')").count()) === 0, "avstängt inloggningssätt: ingen Google-knapp (inte Supabases felsida)")
+check((await p.locator("text=eller").count()) === 0, "och inget \"eller\" utan knappar")
+await fetch(`${mock}/__providers?google=1`)
+
 // Byt konto: minnet glöms och startsidan visas.
 await p.click("[data-testid=switch-account]")
 await p.locator("[data-testid=start-slideshow]").waitFor()

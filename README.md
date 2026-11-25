@@ -578,6 +578,13 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Rättning: avstängda inloggningssätt (Apple/Google)
+
+- **Problemet:** är Apple eller Google inte påslagna i Supabase (Authentication → Providers) svarar Supabase med rå JSON, "Unsupported provider: provider is not enabled". I appen öppnas den i den inbyggda webbläsaren.
+- **Rättningen:** appen läser vilka sätt som är påslagna (`/auth/v1/settings`, se `src/lib/auth-providers.ts`) och visar bara de knapparna. Det gäller på Kom igång, Logga in, "Välkommen tillbaka" och CRM-inloggningen.
+- **Kontroll före inloggning:** appen kontrollerar igen innan webbläsaren öppnas, och visar annars ett vänligt fel med hänvisning till e-post och lösenord.
+- **Ingen uppkoppling:** går inställningarna inte att läsa visas båda knapparna som förut.
+
 ## Nytt i v81: aktiveringsspärr, verifierade friskvårdsportaler och tyst passtimer
 
 **Migration att köra:** `supabase/migrations/20261204000000_v81_activation_wellness_verification.sql` (efter v76).

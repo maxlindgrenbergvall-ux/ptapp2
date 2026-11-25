@@ -7,7 +7,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { AUTH_INPUT, AUTH_LABEL, AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { SocialButtons } from "@/components/auth/social-buttons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -108,8 +108,7 @@ function LoginFormInner({ known, start }: { known: KnownAccount | null; start: b
       {/* Kontot loggade in med Apple/Google: den knappen först. E-postkonton: bara formuläret. */}
       {(!known || social) && (
         <>
-      <SocialButtons next={params.get("next") ?? undefined} onError={setError} only={social ?? undefined} />
-      <OrDivider />
+      <SocialButtons next={params.get("next") ?? undefined} onError={setError} only={social ?? undefined} withDivider />
         </>
       )}
       <form onSubmit={submit} className="space-y-4">

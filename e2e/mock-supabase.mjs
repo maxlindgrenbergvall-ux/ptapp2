@@ -142,6 +142,7 @@ const SERVICE_KEY = "service-test"
 // v22: Stripe Connect. Elin har ett godkänt konto; Nils (T2) börjar från noll.
 const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experience: 0, price_per_session: 0, is_published: false, avatar_url: null, profile: { full_name: byId[T2].user_metadata.full_name }, reviews: [], pt_onboarding_step: 1, pt_onboarding_completed: false, accepts_epassi: false, accepts_benifex: false, accepts_edenred: false, is_pt_activated: false, wellness_verification_status: "none" })
 const payouts = {}
+const providers = { apple: true, google: true }
 // v81: portalverifieringar och uppladdade bevis (wellness-verifications).
 const wellnessRows = {}
 const wellnessObjects = new Set()
@@ -280,6 +281,12 @@ http.createServer(async (req, res) => {
 
   if (url.pathname === "/__log") return send(200, log)
   if (url.pathname === "/__reset") { log.length = 0; return send(200, {}) }
+  // Inloggningssätt i Supabase Auth (Apple/Google). /__providers?apple=0 stänger av ett.
+  if (url.pathname === "/__providers") {
+    for (const k of ["apple", "google"]) if (url.searchParams.has(k)) providers[k] = url.searchParams.get(k) !== "0"
+    return send(200, providers)
+  }
+  if (url.pathname === "/auth/v1/settings") return send(200, { external: { email: true, ...providers }, disable_signup: false })
   if (url.pathname === "/__svc") return send(200, svc)
   if (url.pathname === "/__reset_v32") { for (const k of Object.keys(svc)) svc[k] = []; return send(200, {}) }
   // v18: Plus och inbjudningar som från start, och Nova blir ny igen (ingen roll,

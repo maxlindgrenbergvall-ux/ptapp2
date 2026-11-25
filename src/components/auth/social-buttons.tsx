@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { authErrorMessage } from "@/components/auth/auth-card"
 import { Button } from "@/components/ui/button"
 import { authCallbackUrl } from "@/lib/auth-redirect"
+import { loadProviders, useProviders } from "@/lib/auth-providers"
 import { isNativeApp, nativeAuthCallbackUrl } from "@/lib/native/app"
 import { isSupabaseEnabled, ONBOARDING_PATH } from "@/lib/supabase/config"
 import { cn } from "@/lib/utils"
@@ -32,6 +33,7 @@ export function SocialButtons({
   onError,
   disabled = false,
   only,
+  withDivider = false,
 }: {
   next?: string
   onError?: (message: string) => void
@@ -39,9 +41,15 @@ export function SocialButtons({
   disabled?: boolean
   /** v80: bara kontots egna inloggningssätt ("Välkommen tillbaka"). */
   only?: SocialProvider
+  /** "eller" under knapparna – visas bara om någon knapp visas. */
+  withDivider?: boolean
 }) {
   const router = useRouter()
   const [pending, setPending] = React.useState<SocialProvider | null>(null)
+  // Avstängda inloggningssätt i Supabase visas inte (annars Supabases felsida).
+  const enabled = useProviders()
+  const showApple = only !== "google" && enabled.apple
+  const showGoogle = only !== "apple" && enabled.google
 
   const start = async (provider: SocialProvider) => {
     if (!isSupabaseEnabled) {
@@ -50,6 +58,15 @@ export function SocialButtons({
       return
     }
     setPending(provider)
+    // Kontrollera innan webbläsaren öppnas: ett avstängt sätt ger annars en rå felsida.
+    const providers = await loadProviders()
+    if (!providers[provider]) {
+      setPending(null)
+      const message = `Inloggning med ${provider === "apple" ? "Apple" : "Google"} är inte aktiverad just nu. Logga in med e-post och lösenord.`
+      if (onError) onError(message)
+      else toast.error(message)
+      return
+    }
     const target = next && next.startsWith("/") && !next.startsWith("//") ? next : ONBOARDING_PATH
     const native = isNativeApp()
     // Supabase-klienten laddas först vid klick, så att sidor med knapparna (t.ex.
@@ -84,8 +101,10 @@ export function SocialButtons({
   }
 
   return (
+    !showApple && !showGoogle ? null : (
+    <>
     <div className="grid gap-2.5">
-      {only !== "google" && (
+      {showApple && (
       <Button
         type="button"
         size="lg"
@@ -98,7 +117,7 @@ export function SocialButtons({
         Fortsätt med Apple
       </Button>
       )}
-      {only !== "apple" && (
+      {showGoogle && (
       <Button
         type="button"
         size="lg"
@@ -112,6 +131,9 @@ export function SocialButtons({
       </Button>
       )}
     </div>
+    {withDivider && <OrDivider />}
+    </>
+    )
   )
 }
 

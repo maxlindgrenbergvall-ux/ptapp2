@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation"
 import * as React from "react"
 
 import { AuthCard, authErrorMessage, FormError } from "@/components/auth/auth-card"
-import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { SocialButtons } from "@/components/auth/social-buttons"
 import { useAdminDark } from "@/components/crm/admin-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,8 +48,7 @@ export function CrmLoginForm() {
 
   return (
     <AuthCard title="Coavira CRM" description="Logga in med ditt administratörskonto.">
-      <SocialButtons next={target} onError={setError} />
-      <OrDivider />
+      <SocialButtons next={target} onError={setError} withDivider />
       <form onSubmit={submit} className="space-y-4" data-testid="crm-login">
         <FormError message={error} />
         <div className="space-y-2">
