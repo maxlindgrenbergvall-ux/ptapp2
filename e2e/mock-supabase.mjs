@@ -142,6 +142,7 @@ const t2Row = () => ({ id: T2, city: "", specialties: [], bio: "", years_experie
 const payouts = {}
 // v76: introts steg för PT:er utan egen fixturrad (Nils har sitt på t2).
 const ptFlow = {}
+const onboarding = {}
 let t2 = t2Row()
 function resetV22() {
   t2 = t2Row()
@@ -160,7 +161,6 @@ const PT_DOCS = ["terms", "privacy", "community", "pt_agreement", "gdpr_dpa"]
 // v34: klienter godkänner också avtalet (användarvillkor + integritetspolicy) i intro-flödet.
 // v65: communityreglerna ingår i avtalet för båda rollerna.
 const CLIENT_DOCS = ["terms", "privacy", "community"]
-const onboarding = {}
 function resetV31() {
   for (const k of Object.keys(onboarding)) delete onboarding[k]
   onboarding[C_INTRO] = { first_name: "Ida", last_name: "Intro", avatar_url: null, goals_done: false, accepted: [], completed: false, marketing: false, consentLog: [] }
@@ -574,6 +574,8 @@ http.createServer(async (req, res) => {
       if (!st.first_name || !st.last_name) return err("Fyll i förnamn och efternamn")
       if (!st.terms_done) return err("Godkänn PT-avtalet för att fortsätta")
       o.completed = true
+      // Nyhetsbrevet väljs inte i PT-introt (v76) – frågan i portalen (v36) visas efteråt.
+      if (o.choiceAt === undefined) o.choiceAt = null
       Object.assign(row, { pt_onboarding_completed: true, pt_onboarding_step: 3 })
       byId[uid].app_metadata.onboarding_completed = true
       return send(200, onboardingStatus(uid))

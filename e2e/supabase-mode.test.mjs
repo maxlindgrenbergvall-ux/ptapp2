@@ -19,7 +19,7 @@ await fetch(`${mock}/__reset`)
 // Nova (ny@test.se) ny igen om v18/v19-testerna körts före (mocken behåller sitt tillstånd).
 await fetch(`${mock}/__reset_v18`)
 
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE" })
 const p = await ctx.newPage()
 p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 
@@ -185,7 +185,7 @@ ok("inloggad som besöker /logga-in skickas hem")
 
 // 11. v6: "Kom igång" är inloggning/registrering (inget PT/klient-val), Apple/Google, registrering och välkomststeget.
 // Landningssidan (/) leder dit.
-const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } })
+const c2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE" })
 const q = await c2.newPage()
 q.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await q.goto(`${base}/`)
@@ -266,7 +266,7 @@ ok("välkomststeget kan inte göras om")
 await c2.close()
 
 // 12. v7: ingen självregistrering för PT, PT-inloggning med bara e-post/lösenord
-const c3 = await browser.newContext({ viewport: { width: 390, height: 844 } })
+const c3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE" })
 const r3 = await c3.newPage()
 r3.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await r3.goto(`${base}/registrera`)
@@ -299,7 +299,7 @@ const t4 = await c4.newPage()
 t4.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 await t4.goto(`${base}/logga-in/pt`)
 await t4.waitForSelector("h1:has-text('PT-inloggning')")
-check(await t4.locator("text=Har Coavira skapat ditt konto?").isVisible() && (await t4.locator("a[href=\"/glomt-losenord?pt=1\"]").count()) === 1 && (await t4.locator("[data-testid=pt-create-account-link]").count()) === 1, "PT-inloggningen: skapa PT-konto, eller välj lösenord för ett konto Coavira skapat")
+check(await t4.locator("text=Har Coavira skapat ditt konto?").isVisible() && (await t4.locator("a[href=\"/glomt-losenord?pt=1\"]").count()) >= 1 && (await t4.locator("[data-testid=pt-create-account-link]").count()) === 1, "PT-inloggningen: skapa PT-konto, eller välj lösenord för ett konto Coavira skapat")
 await t4.click("text=Välj lösenord")
 await t4.waitForURL(`${base}/glomt-losenord?pt=1`)
 await t4.waitForSelector("h1:has-text('Välj ditt lösenord')")

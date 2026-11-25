@@ -7,13 +7,13 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 interface PayoutStatus {
-  profile_complete: boolean
   exempt: boolean
 }
 
 /**
  * PT: koppla bankkonto för utbetalningar (steg 2 i /pt/onboarding).
- *  1. PT:n måste vara inloggad, vara PT och ha en färdig profil (steg 1).
+ *  1. PT:n måste vara inloggad och vara PT. Profilen (bild, presentation) behövs
+ *     inte här sedan v76 – den krävs för att synas i Hitta PT, inte för Stripe.
  *  2. Ett Stripe Connect-konto (Express) skapas första gången och kopplas till
  *     PT:n i databasen (attach_stripe_account). Samma konto återanvänds sedan.
  *  3. Svaret är en engångslänk till Stripes onboarding. Stripe skickar tillbaka
@@ -32,9 +32,6 @@ export async function POST(request: NextRequest) {
   const { data: statusData, error: statusError } = await supabase.rpc("my_payout_status")
   const status = statusData as PayoutStatus | null
   if (statusError || !status) return NextResponse.json({ error: "Kunde inte läsa din profil." }, { status: 500 })
-  if (!status.profile_complete) {
-    return NextResponse.json({ error: "Gör klart din profil först (namn, presentation, inriktning och profilbild)." }, { status: 409 })
-  }
   if (status.exempt) return NextResponse.json({ done: true })
   if (!isStripeEnabled()) {
     return NextResponse.json({ error: "Utbetalningar är inte aktiverade än. Kontakta Coavira." }, { status: 503 })

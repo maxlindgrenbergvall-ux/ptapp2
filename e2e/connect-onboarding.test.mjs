@@ -43,7 +43,7 @@ const hook = (event) => {
 }
 
 async function login(email, path = "/logga-in", ua) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, ...(ua ? { userAgent: ua } : {}) })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE", ...(ua ? { userAgent: ua } : {}) })
   const p = await ctx.newPage()
   p.on("pageerror", (e) => errors.push(`${p.url()} pageerror: ${e.message}`))
   await p.goto(base + path)

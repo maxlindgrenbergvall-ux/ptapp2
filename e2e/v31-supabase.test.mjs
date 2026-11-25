@@ -26,7 +26,7 @@ for (let i = 0; i < noise.length; i++) noise[i] = (i * 73 + (i >> 5) * 31) % 256
 const png = await sharp(noise, { raw: { width: 96, height: 96, channels: 3 } }).png().toBuffer()
 
 async function login(email, path = "/logga-in") {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE" })
   const p = await ctx.newPage()
   p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
   await p.goto(`${base}${path}`)
