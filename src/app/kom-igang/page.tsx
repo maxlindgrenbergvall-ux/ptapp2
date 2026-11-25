@@ -1,8 +1,8 @@
-import { CalendarCheck, LineChart, MessageCircle } from "lucide-react"
 import type { Metadata } from "next"
 import Link from "next/link"
 
 import { OrDivider, SocialButtons } from "@/components/auth/social-buttons"
+import { StartSlideshow } from "@/components/auth/start-slideshow"
 import { BrandMark } from "@/components/brand"
 import { StartSplash } from "@/components/start-splash"
 import { ReferralBanner } from "@/components/plus/referral-banner"
@@ -10,12 +10,6 @@ import { Button } from "@/components/ui/button"
 import { BRAND } from "@/lib/brand"
 import { PRIVACY_URL, TERMS_URL } from "@/lib/legal"
 import { isSupabaseEnabled, PT_LOGIN_PATH, SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase/config"
-
-const POINTS = [
-  { icon: CalendarCheck, text: "Boka och flytta pass med din PT" },
-  { icon: LineChart, text: "Program, kost och progress på ett ställe" },
-  { icon: MessageCircle, text: "Chatt och videosamtal med din coach" },
-]
 
 export const metadata: Metadata = { title: "Kom igång" }
 
@@ -29,24 +23,16 @@ export default function GetStarted() {
     <>
     {/* v71: i mobilappen – laddningsskärmen över inloggningen medan appen förladdas. */}
     <StartSplash />
-    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-4 pt-[calc(var(--safe-top)+2rem)] pb-[calc(var(--safe-bottom)+2rem)]">
-      <section className="flex flex-1 flex-col justify-center gap-8">
-        <div className="space-y-4 text-center">
-          <Link href="/" aria-label={`${BRAND.name} – till startsidan`} className="mx-auto block w-fit">
-            <BrandMark size="lg" />
+    <main className="mx-auto flex min-h-svh w-full max-w-sm flex-col overflow-x-clip px-5 pt-[calc(var(--safe-top)+1.25rem)] pb-[calc(var(--safe-bottom)+2rem)]">
+      <section className="flex flex-1 flex-col justify-center gap-4">
+        <div className="flex items-center gap-2.5">
+          <Link href="/" aria-label={`${BRAND.name} – till startsidan`} className="block w-fit">
+            <BrandMark size="md" />
           </Link>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-balance">{BRAND.name}</h1>
-            <p className="text-pretty text-muted-foreground">Träning som följs upp – för dig som tränar och för dig som coachar.</p>
-          </div>
-          <ul className="mx-auto w-fit space-y-1.5 text-left text-sm">
-            {POINTS.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-2">
-                <Icon className="size-4 shrink-0 text-primary" /> {text}
-              </li>
-            ))}
-          </ul>
+          <h1 className="text-lg font-bold tracking-tight">{BRAND.name}</h1>
         </div>
+        {/* v79: bildspel med animerade kort i stället för en lista. */}
+        <StartSlideshow />
 
         <div className="space-y-4">
           <ReferralBanner />

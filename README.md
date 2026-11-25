@@ -578,6 +578,19 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 
 **Demokonton** (t.ex. Apples granskning) som inte kan koppla ett riktigt bankkonto: `select admin_mark_pt_onboarded('review-pt@coavira.fit');`. `supabase/admin/app-review-demo-accounts.sql` gör det redan. Köp hos ett sådant konto går till Coavira utan delning.
 
+## Nytt i v79: bildspel med animerade kort för både PT och klienter
+
+- **Gemensamt bildspel** (`src/components/flow/slideshow.tsx`): korten byter själva var 3,5:e sekund och börjar om efter det sista. Punkten för kortet som visas fylls medan det visas.
+  - **Paus:** sveper, trycker eller använder piltangenterna pausar bildspelet i 8 sekunder.
+  - **Inget automatiskt byte** när enheten ber om mindre rörelse eller när fliken inte syns.
+- **Animerade bilder** (`src/components/flow/visuals.tsx`) delas mellan PT och klienter.
+- **Klienternas Kom igång (`/kom-igang`):** listan med tre punkter är ersatt av ett bildspel med tre animerade kort:
+  - **Boka pass med din PT:** schemat fylls och "Pass bokat" dyker upp.
+  - **Program, kost och progress:** kalorimålet räknas upp, makrona fylls och viktkurvan ritas.
+  - **Nära din coach:** chattbubblor dyker upp, och ett videosamtal ringer.
+- **PT-introt (`/bli-pt`):** samma bildspel, med de befintliga PT-korten.
+- Ingen databasändring.
+
 ## Nytt i v78: klienternas välkomst och intro med samma skal som PT-introt
 
 - **Delat flödesskal:** `src/components/flow/flow-shell.tsx` (FlowShell) och `src/components/flow/motion.tsx` används nu av både PT-introt och klienterna. Det ger samma sidbyten, segmenterade progress bar, inglidande innehåll och primärknapp längst ned.
