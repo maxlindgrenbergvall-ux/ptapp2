@@ -445,6 +445,12 @@ http.createServer(async (req, res) => {
 
   // ---- kalenderlänk (v10): calendar_feed anropas av servern utan inloggning, med token som nyckel.
   // v65: kontostatus (fixturkontona är inte avstängda).
+  // v82: statistiken (webhookarna och appens aktivitetsping) – loggas, svarar true.
+  if (["record_revenue_event", "record_subscription_event", "mark_revenue_refunded", "touch_activity"].some((f) => url.pathname === `/rest/v1/rpc/${f}`)) {
+    const fn = url.pathname.split("/").pop()
+    if (fn !== "touch_activity") log.push({ method: req.method, table: `rpc.${fn}`, body: body ? JSON.parse(body) : null })
+    return send(200, true)
+  }
   if (url.pathname === "/rest/v1/rpc/my_account_status") {
     return send(200, { suspended: false, suspended_until: null, suspension_reason: null, actions: [] })
   }

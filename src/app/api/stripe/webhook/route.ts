@@ -1,6 +1,8 @@
 import type Stripe from "stripe"
 import { NextResponse, type NextRequest } from "next/server"
 
+import { saveAnalyticsRecords } from "@/lib/analytics/record"
+import { stripeInvoiceRecords, stripeSubscriptionRecords, type StripeInvoiceLike, type StripeSubscriptionLike } from "@/lib/analytics/revenue"
 import { connectAccountState, parseWebhookEvent } from "@/lib/payments/stripe"
 import { createSupabaseAdmin } from "@/lib/supabase/admin"
 
@@ -24,6 +26,12 @@ const intentId = (v: string | { id: string } | null) => (typeof v === "string" ?
  * apply_stripe_account() håller PT:ns utbetalningsstatus aktuell: onboardingen
  * blir klar när Stripe godkänt kontot, och profilen döljs i Hitta PT om Stripe
  * stänger av kortbetalningar (och visas igen när det är rättat).
+ *
+ * v82 – statistiken: plattformsavgiften (application_fee_amount) för
+ * PT-bokningar, boost och Plus sparas av databasen när köpet markeras betalt
+ * (revenue_events). Coavira+ som prenumeration på webben: lägg även till
+ * invoice.paid, customer.subscription.updated och customer.subscription.deleted
+ * – förnyelser, uppsägningar (cancel_at_period_end) och churn sparas då.
  */
 export async function POST(request: NextRequest) {
   const payload = await request.text()
@@ -96,6 +104,21 @@ export async function POST(request: NextRequest) {
       console.error("apply_stripe_account", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+  } else if (event.type === "invoice.paid") {
+    try {
+      await saveAnalyticsRecords(stripeInvoiceRecords(event.data.object as unknown as StripeInvoiceLike))
+    } catch (e) {
+      console.error("invoice.paid analytics", e)
+      return NextResponse.json({ error: "Kunde inte spara fakturan" }, { status: 500 })
+    }
+  } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    const previous = (event.data as { previous_attributes?: { cancel_at_period_end?: boolean } }).previous_attributes ?? null
+    try {
+      await saveAnalyticsRecords(stripeSubscriptionRecords(event.id, event.type, event.data.object as unknown as StripeSubscriptionLike, previous))
+    } catch (e) {
+      console.error("subscription analytics", e)
+      return NextResponse.json({ error: "Kunde inte spara prenumerationen" }, { status: 500 })
+    }
   } else if (event.type === "charge.refunded") {
     const charge = event.data.object as Stripe.Charge
     const pi = intentId(charge.payment_intent)
@@ -108,6 +131,10 @@ export async function POST(request: NextRequest) {
       ])
       const error = checkout.error ?? boost.error ?? plus.error
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      // Coavira+-prenumeration (faktura): intäkten räknas inte längre.
+      const invoice = (charge as unknown as { invoice?: string | { id: string } | null }).invoice
+      const invoiceId = typeof invoice === "string" ? invoice : invoice?.id
+      if (invoiceId) await saveAnalyticsRecords({ refund: { provider: "stripe", external_id: invoiceId } }).catch((e) => console.error("refund analytics", e))
     }
   }
   return NextResponse.json({ received: true })

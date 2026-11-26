@@ -27,7 +27,7 @@ const ALLOWED_BEFORE_ONBOARDING = [ONBOARDING_PATH, "/integritet", "/nytt-loseno
 
 /** Webhooks anropas av Stripe, RevenueCat och Fitbit – de verifieras med signatur i stället. */
 // v47: Resends leveranskvitton (signerade) och avregistrering med ett klick från mejlklienten (slumpad nyckel).
-const WEBHOOKS = ["/api/stripe/webhook", "/api/revenuecat/webhook", "/api/wearables/fitbit/webhook", "/api/resend/webhook", "/api/crm/unsubscribe"]
+const WEBHOOKS = ["/api/stripe/webhook", "/api/revenuecat/webhook", "/api/webhooks/revenuecat", "/api/wearables/fitbit/webhook", "/api/resend/webhook", "/api/crm/unsubscribe"]
 
 /**
  * CSRF-skydd för API:t utöver SameSite=Lax-cookien: skrivande anrop

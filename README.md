@@ -585,6 +585,76 @@ Varukorgen och köpdialogen visar *Serviceavgift (5 %)* eller *Serviceavgift (10
 - **Kontroll före inloggning:** appen kontrollerar igen innan webbläsaren öppnas, och visar annars ett vänligt fel med hänvisning till e-post och lösenord.
 - **Ingen uppkoppling:** går inställningarna inte att läsa visas båda knapparna som förut.
 
+## Nytt i v82: statistik, ekonomi och KPI:er i adminpanelen
+
+**Migration att köra:** `supabase/migrations/20261205000000_v82_admin_analytics.sql` (efter v81).
+
+### Var och hur
+- **`/admin/analytics` ("Statistik")** är nu adminpanelens första flik. `/admin` och CRM-adressens startsida leder dit.
+- **Ett enda anrop:** `get_admin_crm_analytics(period_days)` returnerar allt. Bara administratörer (`is_admin()`) kan köra den.
+- **Demoläget** (`CRM_DEMO=1`) visar påhittade siffror.
+- **Design:** samma palett som adminskalet (#131916, #1a221e, #26322c, #f9fbf8, accent #84cc16) och Geist. Alla rutor och grafer har fast höjd och skelett, så sidan har inga layoutskiften.
+
+### Ekonomi
+- **Källfilter:** Alla, Stripe eller RevenueCat.
+- **Intäkt denna månad:** netto, med GMV och butiksavgift som andra siffror.
+- **Prognos:** (engångsintäkter hittills ÷ dagar som gått) × dagar i månaden + återkommande intäkter hittills + förnyelser som återstår. Uppsagda prenumerationer räknas inte. Se `src/lib/analytics/finance.ts`.
+- **MRR:** aktiva prenumerationer, omräknade till 30 dagar.
+- **Momsrutan** (månad, kvartal eller år):
+  - **Stripe:** 25 % utgående moms (Brutto − Brutto ÷ 1,25) och netto exklusive moms.
+  - **RevenueCat:** netto visas separat, märkt "MoR – moms hanteras av Apple/Google, omvänd skattskyldighet".
+- **Räknas inte:** sandbox-köp (TestFlight) och återbetalda köp.
+
+### Var intäkterna kommer ifrån
+- **Stripe (sparas av databasen):** när ett köp markeras betalt skapar triggrar på `purchases`, `trainer_boosts` och `plus_purchases` en rad i `revenue_events`.
+  - **PT-bokning:** serviceavgiften, alltså samma belopp som `application_fee_amount`, plus GMV.
+  - **Boost och Plus på webben:** hela priset.
+  - **Återbetalning:** raden markeras som återbetald.
+- **Stripe-prenumerationer:** `/api/stripe/webhook` hanterar nu även `invoice.paid`, `customer.subscription.updated` (`cancel_at_period_end` blir uppsägning eller ångrad uppsägning) och `customer.subscription.deleted` (churn).
+  - Lägg till de tre händelserna i Stripe om Coavira+ säljs som prenumeration på webben.
+  - Dagens engångsköp av Plus på webben behöver inget nytt.
+- **RevenueCat:** ny adress `/api/webhooks/revenuecat` med `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`. Den gamla adressen `/api/revenuecat/webhook` fungerar som förut.
+  - **Köp och förnyelser** (`INITIAL_PURCHASE`, `RENEWAL`, `NON_RENEWING_PURCHASE`): sparas med pris i SEK, butik (`APP_STORE` eller `PLAY_STORE`), butiksavgift och netto.
+  - **Uppsägning** (`CANCELLATION`): sparas med `unsubscribe_detected_at` och `cancel_reason`.
+  - **Utgång** (`EXPIRATION`): räknas som churn.
+  - **Återbetalning:** en återbetalning via supporten, eller `CANCELLATION` på ett engångsköp, räknas bort.
+- **Inställningar på servern (frivilliga):**
+  - `REVENUECAT_STORE_FEE_PERCENT` (standard 15)
+  - `SEK_RATE_USD`, `SEK_RATE_EUR` och så vidare (ungefärliga kurser finns inbyggda)
+  - `TRACKING_SALT`
+
+### Besök och aktivitet utan cookies
+- **`/api/track/pageview`:** landningssidan skickar en sidvisning med `sendBeacon`, plus klick på "Skapa konto" (`/bli-pt`, `/kom-igang`) och "Hitta PT" (butiksbrickor och nedladdning).
+  - **Sparas i `landing_page_views`:** `visitor_hash` (SHA-256 av datum, IP, webbläsare och salt), referrerns värdnamn och UTM.
+  - **Sparas inte:** IP-adresser och cookies. Hashen byts varje dygn.
+  - **Hoppas över:** bottar och besökare med Global Privacy Control.
+- **Appen:** `touch_activity()` körs när appen öppnas, när den kommer tillbaka och var 5:e minut. Databasen skriver högst var 5:e minut till `profiles.last_seen_at` och `user_activity_logs` (en rad per användare och dag).
+- **Mätvärden:** aktiva nu (15 min, PT:er och klienter), DAU, WAU och MAU.
+
+### KPI:er och grafer
+- **KPI:er:**
+  - PT:er i Hitta PT och PT:er i onboarding, PT-aktivering i %
+  - klienter: betalande PT-klienter, Coavira+ och gratis
+  - Coavira+: aktiva, churn i % denna månad och genomsnittlig livslängd
+  - ARPU (netto ÷ MAU), besök → konto i %, klick på respektive CTA
+- **Grafer (recharts):**
+  1. kumulativ intäkt per dag med streckad prognos och momsandel
+  2. unika besökare och sidvisningar (7, 30 eller 90 dagar), med tratten Besökare → Konto → Bokat PT / Coavira+ bredvid
+  3. DAU i 30 dagar för PT:er och klienter
+  4. nya PT:er och klienter per vecka eller månad
+  5. Coavira+ nya (upp) och avslutade (ned) per månad
+- **Källor:** varifrån besökarna kommer.
+
+### Databasen
+- **Tabeller:** `revenue_events`, `subscription_events`, `landing_page_views` och `user_activity_logs`. Alla har RLS: bara admin läser, och ingen användare skriver.
+- **Kolumn:** `profiles.last_seen_at`. Den går inte att läsa eller ändra för användare.
+- **Funktioner för servern:** `record_revenue_event`, `record_subscription_event` och `mark_revenue_refunded` (endast service role). Samma händelse räknas bara en gång.
+
+Tester:
+- `supabase/tests/rls_v82.test.sql`
+- `e2e/analytics.unit.ts` (prognos, moms, churn, RevenueCat/Stripe-mappning, spårning)
+- `e2e/v82-analytics.test.mjs` (dashboarden i demoläge, källfilter, moms, CLS, mobil, beacon och inga cookies)
+
 ## Nytt i v81: aktiveringsspärr, verifierade friskvårdsportaler och tyst passtimer
 
 **Migration att köra:** `supabase/migrations/20261204000000_v81_activation_wellness_verification.sql` (efter v76).

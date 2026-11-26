@@ -15,7 +15,7 @@ const check = (c, m, detail) => {
 const get = (path, init) => fetch(base + path, { redirect: "manual", ...init })
 
 const root = await get("/")
-check(root.status === 307 && new URL(root.headers.get("location"), base).pathname === "/admin/leads", "/ leder direkt till leads", root.headers.get("location"))
+check(root.status === 307 && new URL(root.headers.get("location"), base).pathname === "/admin/analytics", "/ leder direkt till statistiken", root.headers.get("location"))
 
 // Appen, PT-portalen, landningssidans undersidor och appens API finns inte här.
 for (const path of ["/klient", "/klient/kost", "/pt", "/pt/klienter", "/kom-igang", "/logga-in", "/logga-in/pt", "/registrera", "/valkommen", "/dashboard", "/support", "/integritet", "/villkor", "/ref/ABC123", "/api/food/search?q=mjolk", "/api/checkout", "/api/account/delete", "/sitemap.xml"]) {

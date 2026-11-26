@@ -46,6 +46,18 @@ export const revenueCatWebhookBody = z.object({
     product_id: shortText.nullish(),
     transaction_id: shortText.nullish(),
     environment: z.string().max(32).nullish(),
+    // v82: statistiken (intäkter, butik, churn).
+    original_transaction_id: shortText.nullish(),
+    store: z.string().max(32).nullish(),
+    price: z.number().finite().nullish(),
+    price_in_purchased_currency: z.number().finite().nullish(),
+    currency: z.string().max(8).nullish(),
+    period_type: z.string().max(32).nullish(),
+    purchased_at_ms: z.number().finite().nullish(),
+    expiration_at_ms: z.number().finite().nullish(),
+    event_timestamp_ms: z.number().finite().nullish(),
+    cancel_reason: z.string().max(64).nullish(),
+    expiration_reason: z.string().max(64).nullish(),
   }),
 })
 

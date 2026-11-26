@@ -1341,6 +1341,30 @@ function SupabaseProvider({ children, role }: { children: React.ReactNode; role:
     return () => window.clearTimeout(t)
   }, [data, me])
 
+  // v82: "aktiv nu", DAU/WAU/MAU i adminstatistiken. Databasen skriver högst
+  // var 5:e minut (touch_activity); här pingar vi när appen öppnas, när den
+  // kommer tillbaka i förgrunden och var 5:e minut medan den syns.
+  React.useEffect(() => {
+    if (!me) return
+    let last = 0
+    const touch = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 5 * 60_000) return
+      last = Date.now()
+      void getSupabase().rpc("touch_activity").then(
+        () => {},
+        () => {}
+      )
+    }
+    touch()
+    const onVisible = () => touch()
+    const id = window.setInterval(touch, 5 * 60_000 + 1000)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [me])
+
   // Synka när nätet kommer tillbaka eller fliken blir aktiv igen.
   React.useEffect(() => {
     const kick = () => void engine.flush()

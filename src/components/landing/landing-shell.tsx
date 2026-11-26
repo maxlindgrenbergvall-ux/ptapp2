@@ -3,6 +3,7 @@
 import { MotionConfig } from "framer-motion"
 import * as React from "react"
 
+import { LandingTracker } from "@/components/landing/landing-tracker"
 import { AppDownloadProvider } from "@/components/landing/store-badges"
 
 /**
@@ -15,6 +16,7 @@ export function LandingShell({ children }: { children: React.ReactNode }) {
     <MotionConfig reducedMotion="user">
       <AppDownloadProvider>
         <div className="landing relative min-h-svh overflow-x-clip font-sans antialiased">{children}</div>
+        <LandingTracker />
       </AppDownloadProvider>
     </MotionConfig>
   )

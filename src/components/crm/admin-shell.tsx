@@ -1,6 +1,6 @@
 "use client"
 
-import { Flag, HeartPulse, LogOut, ShieldX, Users } from "lucide-react"
+import { Flag, HeartPulse, LineChart, LogOut, ShieldX, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as React from "react"
@@ -28,13 +28,14 @@ export function AdminShell({ demo, children }: { demo: boolean; children: React.
     <div className="admin-dark min-h-svh bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 pt-[var(--safe-top)]">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:px-6">
-          <Link href="/admin/leads" className="flex items-center gap-2.5 rounded-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link href="/admin/analytics" className="flex items-center gap-2.5 rounded-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <BrandMark size="sm" />
             {BRAND.name}
             <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Admin</span>
           </Link>
-          <nav aria-label="Admin" className="ml-2 flex items-center gap-1 text-sm">
+          <nav aria-label="Admin" className="ml-2 flex items-center gap-1 overflow-x-auto text-sm [scrollbar-width:none]">
             {[
+              { href: "/admin/analytics", label: "Statistik", Icon: LineChart },
               { href: "/admin/leads", label: "Leads", Icon: Users },
               { href: "/admin/moderering", label: "Moderering", Icon: Flag },
               { href: "/admin/friskvard", label: "Friskvård", Icon: HeartPulse },

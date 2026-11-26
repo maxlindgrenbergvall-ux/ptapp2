@@ -28,7 +28,7 @@ export const crmUrl = () => {
 
 /** Inloggningen för administratörer (på båda driftsättningarna). */
 export const CRM_LOGIN_PATH = "/logga-in/admin"
-export const CRM_HOME = "/admin/leads"
+export const CRM_HOME = "/admin/analytics"
 
 /**
  * Det enda som finns i CRM-driftsättningen. Allt annat – appen, PT-portalen,
